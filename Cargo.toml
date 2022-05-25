@@ -1,0 +1,29 @@
+[package]
+name = "vsd"
+version = "0.1.0"
+edition = "2021"
+description = "Command line program to download HLS video from a website, m3u8 url or from a local m3u8 file."
+repository = "https://github.com/clitic/vsd"
+documentation = "https://docs.rs/vsd"
+categories = ["command-line-interface"]
+license = "MIT"
+readme = "README.md"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "3.1", features = ["derive"] }
+reqwest = { version = "0.11", features = ["blocking"] }
+m3u8-rs = "4.0"
+openssl = "0.10"
+regex = "1.5"
+threadpool = "1.0"
+requestty = "0.3.0"
+kdam = "0.1.7"
+headless_chrome = "0.9"
+anyhow = "1.0"
+
+[features]
+default = ["native-tls"]
+rustls = ["reqwest/rustls-tls"]
+native-tls = ["reqwest/native-tls-vendored"]
