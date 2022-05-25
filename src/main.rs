@@ -241,14 +241,15 @@ impl DownloadState {
                             println!("Re-targeting to download audio stream.");
 
                             let args = self.args.clone();
-                            self.args.input = self.get_url(uri).unwrap();
+                            let tempfile = format!("{}_audio.ts", self.determine_output().trim_end_matches(".ts"));
                             self.args.output = None;
+                            self.args.input = self.get_url(uri).unwrap();
 
                             let content =
                                 self.downloader.get_bytes(self.args.input.clone()).unwrap();
                             match m3u8_rs::parse_playlist_res(&content).unwrap() {
                                 m3u8_rs::Playlist::MediaPlaylist(meadia) => {
-                                    self.download(&meadia.segments, format!("{}_audio.ts", self.determine_output().trim_end_matches(".ts")))
+                                    self.download(&meadia.segments, tempfile)
                                         ?;
                                 }
                                 _ => (),
@@ -267,14 +268,15 @@ impl DownloadState {
                             println!("Re-targeting to download subtitle stream.");
 
                             let args = self.args.clone();
-                            self.args.input = self.get_url(uri).unwrap();
+                            let tempfile = format!("{}_subtitles.vtt", self.determine_output().trim_end_matches(".ts"));
                             self.args.output = Some(format!("{}_subtitles.srt", self.determine_output().trim_end_matches(".ts")));
+                            self.args.input = self.get_url(uri).unwrap();
 
                             let content =
                                 self.downloader.get_bytes(self.args.input.clone()).unwrap();
                             match m3u8_rs::parse_playlist_res(&content).unwrap() {
                                 m3u8_rs::Playlist::MediaPlaylist(meadia) => {
-                                    self.download(&meadia.segments, format!("{}_subtitles.vtt", self.determine_output().trim_end_matches(".ts")))
+                                    self.download(&meadia.segments, tempfile)
                                         ?;
                                 }
                                 _ => (),
@@ -455,8 +457,8 @@ impl DownloadState {
         }
 
         if let Some(output) = &self.args.output {
-            let audio_file = format!("{}_audio.ts", tempfile);
-            let subtitle_file = format!("{}_subtitles.srt", tempfile);
+            let audio_file = format!("{}_audio.ts", tempfile.trim_end_matches(".ts"));
+            let subtitle_file = format!("{}_subtitles.srt", tempfile.trim_end_matches(".ts"));
             let mut args = vec!["-i", &tempfile];
 
             if self.audio_stream {
