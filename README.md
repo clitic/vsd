@@ -1,12 +1,5 @@
 <h1 align="center">vsd</h1>
 
-Command line program to download HLS video from a website, m3u8 url or from a local m3u8 file.
-
-Know more about HLS from [howvideo.works](https://howvideo.works) and 
-[wikipedia](https://en.wikipedia.org/wiki/M3U).
-
-There are some alternatives to vsd but they lack in some features like [N_m3u8DL-CLI](https://github.com/nilaoda/N_m3u8DL-CLI) is not cross platform and [m3u8-downloader](https://github.com/llychao/m3u8-downloader) has very few customizable options.
-
 <p align="center">
   <img src="https://img.shields.io/github/license/clitic/vsd?style=flat-square">
   <img src="https://img.shields.io/github/repo-size/clitic/vsd?style=flat-square">
@@ -19,11 +12,18 @@ There are some alternatives to vsd but they lack in some features like [N_m3u8DL
   <a href="#Usage">Usage</a>
 </p>
 
+Command line program to download HLS video from a website, m3u8 url or from a local m3u8 file.
+
+Know more about HLS from [howvideo.works](https://howvideo.works) and 
+[wikipedia](https://en.wikipedia.org/wiki/M3U).
+
+There are some alternatives to vsd but they lack in some features like [N_m3u8DL-CLI](https://github.com/nilaoda/N_m3u8DL-CLI) is not cross platform and [m3u8-downloader](https://github.com/llychao/m3u8-downloader) has very few customizable options.
+
 <!-- <p align="center">
   <img src="https://raw.githubusercontent.com/clitic/vsdownload/main/images/vsdownload.gif">
 </p> -->
 
-## Features Implemented
+## Features
 
 - [x] Beautiful resolution and bandwidth based master playlist parsing.
 - [x] Captures m3u8 network requests from a website.
@@ -37,9 +37,6 @@ There are some alternatives to vsd but they lack in some features like [N_m3u8DL
 - [x] Select standard resolution playlist like `HD`, `FHD` etc.
 - [x] Supports `AES-128` playlist decryption.
 - [x] Supports multiple retries.
-
-> In future these features may be supported.
-
 - [ ] GUI
 - [ ] Supports resume.
 - [ ] Supports [SAMPLE-AES](https://datatracker.ietf.org/doc/html/rfc8216#section-4.3.2.4) playlist decryption.
@@ -50,7 +47,7 @@ There are some alternatives to vsd but they lack in some features like [N_m3u8DL
 - [ffmpeg](https://www.ffmpeg.org/download.html) (optional)
 - [chrome](https://www.google.com/chrome) (optional)
 
-Prebuilt binaries will be available once a [release](https://github.com/clitic/vsd/releases) is made. You just need to copy that binary to any path specified in your `PATH` environment variable.
+Visit [releases](https://github.com/clitic/vsd/releases) for prebuilt binaries. You just need to copy that binary to any path specified in your `PATH` environment variable.
 
 ## Usage
 
