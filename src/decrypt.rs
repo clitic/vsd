@@ -51,7 +51,23 @@ impl HlsDecrypt {
                 }
             }
             HlsEncryptionMethod::SampleAes => {
-                decrypt(Cipher::aes_128_cbc(), &self.key[..], None, buf).unwrap()
+                let mut new_buf = vec![];
+
+                for byte in buf {
+                    let data = if let Some(encryption_iv) = self.iv.clone() {
+                        decrypt(Cipher::aes_128_cbc(), &self.key, Some(&encryption_iv), &[byte.to_owned()])
+                    } else {
+                        decrypt(Cipher::aes_128_cbc(), &self.key, None, &[byte.to_owned()])
+                    };
+
+                    if data.is_ok() {
+                        new_buf.append(&mut data.unwrap());
+                    } else {
+                        new_buf.push(byte.to_owned());
+                    }
+                }
+
+                new_buf
             }
         }
     }

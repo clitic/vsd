@@ -70,7 +70,7 @@ impl DownloadState {
     }
 
     pub fn scrape_webpage(&mut self) -> Result<()> {
-        if !self.args.input.ends_with(".m3u8") || self.args.input.ends_with(".html") {
+        if vsd::utils::find_hls_dash_links(self.args.input.clone()).len() == 0 {
             println!(
                 "Input was found to be a webpage. Proceeding to scrape it for HLS and Dash links."
             );
@@ -94,7 +94,7 @@ impl DownloadState {
                     _ => {
                         let mut elinks = vec![];
                         for (i, link) in links.iter().enumerate() {
-                            elinks.push(format!("{:#2}) {}", i, link));
+                            elinks.push(format!("{:#2}) {}", i + 1, link));
                         }
                         let index =
                             vsd::utils::select_index("Select one link:".to_string(), elinks)?;
@@ -241,7 +241,10 @@ impl DownloadState {
                             println!("Re-targeting to download audio stream.");
 
                             let args = self.args.clone();
-                            let tempfile = format!("{}_audio.ts", self.determine_output().trim_end_matches(".ts"));
+                            let tempfile = format!(
+                                "{}_audio.ts",
+                                self.determine_output().trim_end_matches(".ts")
+                            );
                             self.args.output = None;
                             self.args.input = self.get_url(uri).unwrap();
 
@@ -249,8 +252,7 @@ impl DownloadState {
                                 self.downloader.get_bytes(self.args.input.clone()).unwrap();
                             match m3u8_rs::parse_playlist_res(&content).unwrap() {
                                 m3u8_rs::Playlist::MediaPlaylist(meadia) => {
-                                    self.download(&meadia.segments, tempfile)
-                                        ?;
+                                    self.download(&meadia.segments, tempfile)?;
                                 }
                                 _ => (),
                             }
@@ -268,16 +270,21 @@ impl DownloadState {
                             println!("Re-targeting to download subtitle stream.");
 
                             let args = self.args.clone();
-                            let tempfile = format!("{}_subtitles.vtt", self.determine_output().trim_end_matches(".ts"));
-                            self.args.output = Some(format!("{}_subtitles.srt", self.determine_output().trim_end_matches(".ts")));
+                            let tempfile = format!(
+                                "{}_subtitles.vtt",
+                                self.determine_output().trim_end_matches(".ts")
+                            );
+                            self.args.output = Some(format!(
+                                "{}_subtitles.srt",
+                                self.determine_output().trim_end_matches(".ts")
+                            ));
                             self.args.input = self.get_url(uri).unwrap();
 
                             let content =
                                 self.downloader.get_bytes(self.args.input.clone()).unwrap();
                             match m3u8_rs::parse_playlist_res(&content).unwrap() {
                                 m3u8_rs::Playlist::MediaPlaylist(meadia) => {
-                                    self.download(&meadia.segments, tempfile)
-                                        ?;
+                                    self.download(&meadia.segments, tempfile)?;
                                 }
                                 _ => (),
                             }
@@ -354,8 +361,19 @@ impl DownloadState {
         path
     }
 
-    pub fn download(&self, segments: &Vec<m3u8_rs::MediaSegment>, tempfile: String) -> Result<()> {
-        println!("Temporary file will be saved at {}", tempfile);
+    pub fn download(
+        &self,
+        segments: &Vec<m3u8_rs::MediaSegment>,
+        mut tempfile: String,
+    ) -> Result<()> {
+        if let Some(output) = &self.args.output {
+            if output.ends_with(".ts") {
+                tempfile = output.clone();
+            }
+            println!("File will be saved at {}", tempfile);
+        } else {
+            println!("Temporary file will be saved at {}", tempfile);
+        }
 
         let total = segments.len();
 
@@ -485,7 +503,15 @@ impl DownloadState {
                 .stderr(std::process::Stdio::null())
                 .spawn()?
                 .wait()?;
-            
+
+            if self.audio_stream {
+                std::fs::remove_file(&audio_file)?;
+            }
+
+            if self.subtitle_stream {
+                std::fs::remove_file(&subtitle_file)?;
+            }
+
             std::fs::remove_file(tempfile)?;
         }
 
