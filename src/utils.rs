@@ -1,11 +1,23 @@
-use anyhow::Result;
+use std::collections::HashMap;
 
-pub fn join_url(url1: &str, url2: &str) -> Result<String> {
-    Ok(reqwest::Url::parse(url1)?.join(url2)?.to_string())
+use anyhow::{bail, Result};
+
+pub fn quality_selector(
+    quality: &str,
+    res_band: HashMap<&str, (usize, usize)>,
+    master: &m3u8_rs::MasterPlaylist,
+) -> Result<String> {
+    if let Some(index) = res_band.get(quality) {
+        Ok(master.variants[index.1].uri.clone())
+    } else {
+        bail!(
+            "Master playlist doesn't contain {} quality variant stream.",
+            quality
+        );
+    }
 }
 
-pub fn find_hls_dash_links(text: String) -> Vec<String> {
-    // let re = regex::Regex::new(r"https?://[a-zA-Z0-9-._%/]*\.m3u8")
+pub fn find_hls_dash_links(text: &str) -> Vec<String> {
     let re = regex::Regex::new(r"(https|ftp|http)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-]\.(m3u8|m3u|mpd))").unwrap();
     let links = re
         .captures_iter(&text)
@@ -43,7 +55,7 @@ pub fn find_ffmpeg_with_path() -> Option<String> {
     )
 }
 
-pub fn select(prompt: String, choices: Vec<String>) -> Result<String> {
+pub fn select_str(prompt: String, choices: Vec<String>) -> Result<String> {
     Ok(requestty::prompt_one(
         requestty::Question::select("theme")
             .message(prompt)
@@ -56,7 +68,7 @@ pub fn select(prompt: String, choices: Vec<String>) -> Result<String> {
     .to_string())
 }
 
-pub fn select_index(prompt: String, choices: Vec<String>) -> Result<usize> {
+pub fn select(prompt: String, choices: Vec<String>) -> Result<usize> {
     // println!("{}", prompt);
     // for choice in choices.clone() {
     //     println!("{}", choice);
@@ -77,30 +89,16 @@ pub fn select_index(prompt: String, choices: Vec<String>) -> Result<usize> {
     .index)
 }
 
-pub fn format_bytes(bytesval: usize) -> (String, String) {
+pub fn format_bytes(bytesval: usize) -> (String, String, String) {
     let mut val = bytesval as f32;
 
     for unit in ["bytes", "KB", "MB", "GB", "TB"] {
         if val < 1024.0 {
-            return (format!("{:.2}", val), unit.to_owned());
+            return (format!("{:.2}", val), unit.to_owned(), format!("{:.2} {}", val, unit));
         }
 
         val /= 1024.0;
     }
 
-    return (format!("{:.2}", bytesval), "".to_owned());
-}
-
-pub fn format_bytes_joined(bytesval: usize) -> String {
-    let mut val = bytesval as f32;
-
-    for unit in ["bytes", "KB", "MB", "GB", "TB"] {
-        if val < 1024.0 {
-            return format!("{:.2} {}", val, unit);
-        }
-
-        val /= 1024.0;
-    }
-
-    return format!("{:.2} bytes", val);
+    return (format!("{:.2}", bytesval), "".to_owned(), format!("{:.2}", bytesval));
 }

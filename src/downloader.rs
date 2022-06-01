@@ -55,7 +55,7 @@ impl Downloader {
         })
     }
 
-    pub fn new_custom(user_agent: String, header: Vec<String>, proxy_address: Option<String>) -> Result<Self> {
+    pub fn new_custom(user_agent: &str, header: &Vec<String>, proxy_address: &Option<String>) -> Result<Self> {
         let mut client_builder = Client::builder().user_agent(user_agent);
 
         if header.len() != 0 {
@@ -88,7 +88,7 @@ impl Downloader {
         Ok(self.client.head(url).send()?)
     }
 
-    pub fn get(&self, url: String) -> Result<Response> {
+    pub fn get(&self, url: &str) -> Result<Response> {
         Ok(self.client.get(url).send()?)
     }
 
