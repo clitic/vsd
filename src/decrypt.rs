@@ -1,5 +1,6 @@
+use kdam::term::Colorizer;
 use m3u8_rs::Key as HlsKey;
-use openssl::symm::{Cipher, decrypt};
+use openssl::symm::{decrypt, Cipher};
 
 pub enum HlsEncryptionMethod {
     Aes128,
@@ -31,12 +32,27 @@ impl HlsDecrypt {
                 iv: iv,
                 method: HlsEncryptionMethod::Aes128,
             },
-            "SAMPLE-AES" => Self {
-                key: key_content,
-                iv: iv,
-                method: HlsEncryptionMethod::SampleAes,
-            },
-            _ => panic!("Unsupported key method: {}", m3u8_key.method),
+            "SAMPLE-AES" => {
+                println!(
+                    "{}: SAMPLE-AES encrypted playlists are not supported.",
+                    "Error".colorize("bold red")
+                );
+                std::process::exit(1);
+
+                // Self {
+                //     key: key_content,
+                //     iv: iv,
+                //     method: HlsEncryptionMethod::SampleAes,
+                // }
+            }
+            _ => {
+                println!(
+                    "{}: Unsupported key method {}",
+                    "Error".colorize("bold red"),
+                    m3u8_key.method.colorize("bold yellow")
+                );
+                std::process::exit(1);
+            }
         }
     }
 
@@ -55,7 +71,12 @@ impl HlsDecrypt {
 
                 for byte in buf {
                     let data = if let Some(encryption_iv) = self.iv.clone() {
-                        decrypt(Cipher::aes_128_cbc(), &self.key, Some(&encryption_iv), &[byte.to_owned()])
+                        decrypt(
+                            Cipher::aes_128_cbc(),
+                            &self.key,
+                            Some(&encryption_iv),
+                            &[byte.to_owned()],
+                        )
                     } else {
                         decrypt(Cipher::aes_128_cbc(), &self.key, None, &[byte.to_owned()])
                     };

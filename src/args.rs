@@ -1,4 +1,5 @@
 use clap::{ArgEnum, Parser};
+use kdam::term::Colorizer;
 
 #[derive(Debug, Copy, Clone, ArgEnum)]
 pub enum Quality {
@@ -35,7 +36,7 @@ pub struct Args {
     #[clap(short, long, default_value_t = 5, validator = threads_validator)]
     pub threads: u8,
 
-    /// Custom request headers for sending to streaming server. 
+    /// Custom request headers for sending to streaming server.
     #[clap(long, multiple_occurrences = true, number_of_values = 2, value_names = &["key", "value"])]
     pub header: Vec<String>, // Vec<Vec<String>> not supported
 
@@ -61,19 +62,23 @@ pub struct Args {
     /// Launch Google Chrome without a window for interaction.
     #[clap(long)]
     pub headless: bool,
-	
-	// delete temporary downloaded segments, add --no-cleanup flag to use resume capabilities
+
+    /// Raw input prompts for old and unsupported terminals.
+    #[clap(long)]
+    pub raw_prompts: bool,
+    
+    // delete temporary downloaded segments, add --no-cleanup flag to use resume capabilities
     //#[clap(short, long)]
     //pub resume: bool,
-	
-	// path of ffmpeg binary
+
+    // path of ffmpeg binary
     //#[clap(long)]
     //pub ffmpeg: Option<String>,
 }
 
 fn input_validator(s: &str) -> Result<(), String> {
     if !s.starts_with("http") {
-        println!("Non HTTP input should have `--baseurl` set explicitly");
+        println!("Non HTTP input should have {} set explicitly.", "--baseurl".colorize("bold green"));
     }
 
     Ok(())

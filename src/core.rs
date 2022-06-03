@@ -27,7 +27,7 @@ impl DownloadState {
             std::process::exit(0);
         }
 
-        let downloader = crate::downloader::Downloader::new_custom(
+        let downloader = crate::downloader::Downloader::new(
             &args.user_agent,
             &args.header,
             &args.proxy_address,
@@ -75,7 +75,6 @@ impl DownloadState {
             .get(&self.args.input)
             .context("Couldn't scrape website. Make sure you are connected to internet.")?;
 
-        if resp.status() == reqwest::StatusCode::OK {
             let links = crate::utils::find_hls_dash_links(&resp.text()?);
 
             match links.len() {
@@ -92,17 +91,11 @@ impl DownloadState {
                     for (i, link) in links.iter().enumerate() {
                         elinks.push(format!("{:#2}) {}", i + 1, link));
                     }
-                    let index = select("Select one link:".to_string(), elinks)?;
+                    let index = select("Select one link:".to_string(), &elinks, self.args.raw_prompts.clone())?;
                     self.args.input = links[index].clone();
                 }
             }
-        } else {
-            bail!(
-                "{} returned HTTP status code {}",
-                self.args.input,
-                resp.status()
-            );
-        }
+        
 
         Ok(())
     }
@@ -164,7 +157,7 @@ impl DownloadState {
             Quality::UHD => quality_selector("2K", res_band, &master)?,
             Quality::UHD4K => quality_selector("4K", res_band, &master)?,
             Quality::Select => {
-                let index = select("Select one variant stream:".to_string(), streams)?;
+                let index = select("Select one variant stream:".to_string(), &streams, self.args.raw_prompts.clone())?;
                 master.variants[index].uri.clone()
             }
 
@@ -224,7 +217,7 @@ impl DownloadState {
                             self.args.input = self.get_url(uri).unwrap();
 
                             let content =
-                                self.downloader.get_bytes(self.args.input.clone()).unwrap();
+                                self.downloader.get_bytes(&self.args.input).unwrap();
                             match m3u8_rs::parse_playlist_res(&content).unwrap() {
                                 m3u8_rs::Playlist::MediaPlaylist(meadia) => {
                                     self.download(&meadia.segments, tempfile)?;
@@ -256,7 +249,7 @@ impl DownloadState {
                             self.args.input = self.get_url(uri).unwrap();
 
                             let content =
-                                self.downloader.get_bytes(self.args.input.clone()).unwrap();
+                                self.downloader.get_bytes(&self.args.input).unwrap();
                             match m3u8_rs::parse_playlist_res(&content).unwrap() {
                                 m3u8_rs::Playlist::MediaPlaylist(meadia) => {
                                     self.download(&meadia.segments, tempfile)?;
@@ -285,7 +278,7 @@ impl DownloadState {
         }
 
         let content = if self.args.input.starts_with("http") {
-            self.downloader.get_bytes(self.args.input.clone())?
+            self.downloader.get_bytes(&self.args.input)?
         } else {
             std::fs::read_to_string(self.args.input.clone())
                 .context(format!("Failed to read `{}`", self.args.input))?
@@ -300,7 +293,7 @@ impl DownloadState {
 
                 self.parse_alternative(&master)?;
 
-                let playlist = self.downloader.get_bytes(self.args.input.clone()).unwrap();
+                let playlist = self.downloader.get_bytes(&self.args.input).unwrap();
                 match m3u8_rs::parse_playlist_res(&playlist).unwrap() {
                     m3u8_rs::Playlist::MediaPlaylist(meadia) => {
                         return Ok(meadia.segments);
@@ -393,8 +386,8 @@ impl DownloadState {
                         Some(m3u8_rs::ByteRange {
                             length: start,
                             offset: Some(end),
-                        }) => client.get_bytes_range(uri.clone(), start, start + end - 1),
-                        _ => client.get_bytes(uri.clone()),
+                        }) => client.get_bytes_range(&uri, start, start + end - 1),
+                        _ => client.get_bytes(&uri),
                     };
 
                     if resp.is_ok() {
@@ -422,7 +415,7 @@ impl DownloadState {
                 if let Some(eku) = key_uri {
                     data = crate::decrypt::HlsDecrypt::from_key(
                         key.unwrap(),
-                        client.get_bytes(eku).unwrap(),
+                        client.get_bytes(&eku).unwrap(),
                     )
                     .decrypt(&data);
                 }
