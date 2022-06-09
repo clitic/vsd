@@ -103,3 +103,13 @@ pub fn quality_selector(
         );
     }
 }
+
+// pub fn join_path(pth1: &str, pth2: &str) -> String {
+//     Path::new(pth1).join(pth2).to_str().unwrap().to_owned()
+// }
+
+pub fn replace_ext(pth: &str, ext: &str) -> String {
+    let mut tpth = std::path::PathBuf::from(pth);
+    tpth.set_extension(ext);
+    tpth.to_str().unwrap().to_owned()
+}

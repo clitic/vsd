@@ -66,19 +66,19 @@ pub struct Args {
     /// Raw input prompts for old and unsupported terminals.
     #[clap(long)]
     pub raw_prompts: bool,
-    
-    // delete temporary downloaded segments, add --no-cleanup flag to use resume capabilities
-    //#[clap(short, long)]
-    //pub resume: bool,
 
-    // path of ffmpeg binary
-    //#[clap(long)]
-    //pub ffmpeg: Option<String>,
+    /// Resume a download session.
+    /// Download can be resumed only if download session json file is present.
+    #[clap(short, long)]
+    pub resume: bool,
 }
 
 fn input_validator(s: &str) -> Result<(), String> {
     if !s.starts_with("http") {
-        println!("Non HTTP input should have {} set explicitly.", "--baseurl".colorize("bold green"));
+        println!(
+            "Non HTTP input should have {} set explicitly.",
+            "--baseurl".colorize("bold green")
+        );
     }
 
     Ok(())

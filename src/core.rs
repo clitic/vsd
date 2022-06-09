@@ -5,6 +5,8 @@ use anyhow::{bail, Context, Result};
 use kdam::term::Colorizer;
 
 use crate::args::Quality;
+use crate::merger::BinarySequence;
+use crate::progress::{DownloadProgress, StreamData};
 use crate::utils::*;
 
 pub struct DownloadState {
@@ -12,6 +14,7 @@ pub struct DownloadState {
     downloader: crate::downloader::Downloader,
     audio_stream: bool,
     subtitle_stream: bool,
+    progress: DownloadProgress,
 }
 
 impl DownloadState {
@@ -27,12 +30,9 @@ impl DownloadState {
             std::process::exit(0);
         }
 
-        let downloader = crate::downloader::Downloader::new(
-            &args.user_agent,
-            &args.header,
-            &args.proxy_address,
-        )
-        .context("Couldn't create reqwest client.")?;
+        let downloader =
+            crate::downloader::Downloader::new(&args.user_agent, &args.header, &args.proxy_address)
+                .context("Couldn't create reqwest client.")?;
 
         if crate::utils::find_ffmpeg_with_path().is_none() {
             println!(
@@ -46,6 +46,7 @@ impl DownloadState {
             downloader,
             audio_stream: false,
             subtitle_stream: false,
+            progress: DownloadProgress::new_empty(),
         })
     }
 
@@ -70,32 +71,32 @@ impl DownloadState {
     fn scrape_website(&mut self) -> Result<()> {
         println!("Scraping website for HLS and Dash links.");
 
-        let resp = self
-            .downloader
-            .get(&self.args.input)
-            .context("Couldn't scrape website. Make sure you are connected to internet.")?;
+        let resp = self.downloader.get(&self.args.input)?;
 
-            let links = crate::utils::find_hls_dash_links(&resp.text()?);
+        let links = crate::utils::find_hls_dash_links(&resp.text()?);
 
-            match links.len() {
-                0 => bail!(
-                    "No links found on website source. Consider using {} flag.",
-                    "--capture".colorize("bold green")
-                ),
-                1 => {
-                    self.args.input = links[0].clone();
-                    println!("Found one link {}", &links[0]);
-                }
-                _ => {
-                    let mut elinks = vec![];
-                    for (i, link) in links.iter().enumerate() {
-                        elinks.push(format!("{:#2}) {}", i + 1, link));
-                    }
-                    let index = select("Select one link:".to_string(), &elinks, self.args.raw_prompts.clone())?;
-                    self.args.input = links[index].clone();
-                }
+        match links.len() {
+            0 => bail!(
+                "No links found on website source. Consider using {} flag.",
+                "--capture".colorize("bold green")
+            ),
+            1 => {
+                self.args.input = links[0].clone();
+                println!("Found one link {}", &links[0]);
             }
-        
+            _ => {
+                let mut elinks = vec![];
+                for (i, link) in links.iter().enumerate() {
+                    elinks.push(format!("{:#2}) {}", i + 1, link));
+                }
+                let index = select(
+                    "Select one link:".to_string(),
+                    &elinks,
+                    self.args.raw_prompts.clone(),
+                )?;
+                self.args.input = links[index].clone();
+            }
+        }
 
         Ok(())
     }
@@ -157,7 +158,11 @@ impl DownloadState {
             Quality::UHD => quality_selector("2K", res_band, &master)?,
             Quality::UHD4K => quality_selector("4K", res_band, &master)?,
             Quality::Select => {
-                let index = select("Select one variant stream:".to_string(), &streams, self.args.raw_prompts.clone())?;
+                let index = select(
+                    "Select one variant stream:".to_string(),
+                    &streams,
+                    self.args.raw_prompts.clone(),
+                )?;
                 master.variants[index].uri.clone()
             }
 
@@ -198,6 +203,10 @@ impl DownloadState {
     }
 
     fn parse_alternative(&mut self, master: &m3u8_rs::MasterPlaylist) -> Result<()> {
+        self.progress.stream = StreamData::new(&self.args.input, &self.determine_output());
+        self.progress
+            .file(&replace_ext(&self.determine_output(), "json"));
+
         let mut audio_stream = false;
         let mut subtitle_stream = false;
 
@@ -207,17 +216,18 @@ impl DownloadState {
                     if alternative.autoselect {
                         if let Some(uri) = &alternative.uri {
                             println!("Re-targeting to download audio stream.");
-
-                            let args = self.args.clone();
+                            let url = self.get_url(uri).unwrap();
                             let tempfile = format!(
                                 "{}_audio.ts",
                                 self.determine_output().trim_end_matches(".ts")
                             );
+                            self.progress.audio = Some(StreamData::new(&url, &tempfile));
+                            self.progress.current("audio");
+                            let args = self.args.clone();
                             self.args.output = None;
-                            self.args.input = self.get_url(uri).unwrap();
+                            self.args.input = url;
 
-                            let content =
-                                self.downloader.get_bytes(&self.args.input).unwrap();
+                            let content = self.downloader.get_bytes(&self.args.input).unwrap();
                             match m3u8_rs::parse_playlist_res(&content).unwrap() {
                                 m3u8_rs::Playlist::MediaPlaylist(meadia) => {
                                     self.download(&meadia.segments, tempfile)?;
@@ -237,19 +247,21 @@ impl DownloadState {
                         if let Some(uri) = &alternative.uri {
                             println!("Re-targeting to download subtitle stream.");
 
-                            let args = self.args.clone();
+                            let url = self.get_url(uri).unwrap();
                             let tempfile = format!(
                                 "{}_subtitles.vtt",
                                 self.determine_output().trim_end_matches(".ts")
                             );
+                            self.progress.subtitle = Some(StreamData::new(&url, &tempfile));
+                            self.progress.current("subtitle");
+                            let args = self.args.clone();
                             self.args.output = Some(format!(
                                 "{}_subtitles.srt",
                                 self.determine_output().trim_end_matches(".ts")
                             ));
-                            self.args.input = self.get_url(uri).unwrap();
+                            self.args.input = url;
 
-                            let content =
-                                self.downloader.get_bytes(&self.args.input).unwrap();
+                            let content = self.downloader.get_bytes(&self.args.input).unwrap();
                             match m3u8_rs::parse_playlist_res(&content).unwrap() {
                                 m3u8_rs::Playlist::MediaPlaylist(meadia) => {
                                     self.download(&meadia.segments, tempfile)?;
@@ -269,6 +281,7 @@ impl DownloadState {
 
         self.audio_stream = audio_stream;
         self.subtitle_stream = subtitle_stream;
+        self.progress.current("stream");
         Ok(())
     }
 
@@ -309,12 +322,12 @@ impl DownloadState {
 
     pub fn determine_output(&self) -> String {
         let path = if let Some(output) = self.args.input.split("/").find(|x| x.ends_with(".m3u8")) {
-            crate::path::replace_ext(output.split("?").next().unwrap(), "ts")
+            replace_ext(output.split("?").next().unwrap(), "ts")
         } else {
             "merged.ts".to_owned()
         };
 
-        if std::path::Path::new(&path).exists() {
+        if std::path::Path::new(&path).exists() && !self.args.resume {
             let stemed_path = std::path::Path::new(&path)
                 .file_stem()
                 .unwrap()
@@ -355,39 +368,68 @@ impl DownloadState {
         )));
         pb.lock().unwrap().refresh();
 
-        let merger = Arc::new(Mutex::new(crate::merger::BinarySequence::new(
-            total,
-            tempfile.clone(),
-        )));
+        let merger = if self.args.resume {
+            let merger = BinarySequence::try_from_json(
+                total,
+                tempfile.clone(),
+                self.progress.json_file.clone(),
+            )?;
+
+            let mut pb = pb.lock().unwrap();
+            pb.set_description(format!(
+                "{} / {}",
+                format_bytes(merger.stored()).2,
+                format_bytes(merger.estimate()).2
+            ));
+            pb.set_position(merger.position());
+
+            Arc::new(Mutex::new(merger))
+        } else {
+            Arc::new(Mutex::new(BinarySequence::new(
+                total,
+                tempfile.clone(),
+                self.progress.clone(),
+            )))
+        };
 
         let client = Arc::new(self.downloader.clone());
         let pool = threadpool::ThreadPool::new(self.args.threads as usize);
 
         for (i, segment) in segments.iter().enumerate() {
-            let pb = pb.clone();
-            let merger = merger.clone();
-            let client = client.clone();
-            let uri = self.get_url(&segment.uri)?;
-            let total_retries = self.args.retry_count.clone();
-            let mut retries = 0;
-            let byterange = segment.byte_range.clone();
-            let key = segment.key.clone();
+            if self.args.resume && merger.lock().unwrap().position() >= i + 1 {
+                continue;
+            }
 
-            let key_uri = match &segment.key {
+            if let Some(m3u8_key) = &segment.key {
+                if m3u8_key.method == "SAMPLE-AES" {
+                    bail!("SAMPLE-AES encrypted playlists are not supported.")
+                }
+            }
+
+            let key_url = match &segment.key {
                 Some(m3u8_rs::Key {
                     uri: Some(link), ..
                 }) => Some(self.get_url(&link)?),
                 _ => None,
             };
 
+            let segment = segment.clone();
+            let pb = pb.clone();
+            let merger = merger.clone();
+            let client = client.clone();
+            let segment_url = self.get_url(&segment.uri)?;
+            let total_retries = self.args.retry_count.clone();
+
             pool.execute(move || {
+                let mut retries = 0;
+
                 let mut data = loop {
-                    let resp = match byterange {
+                    let resp = match segment.byte_range {
                         Some(m3u8_rs::ByteRange {
                             length: start,
                             offset: Some(end),
-                        }) => client.get_bytes_range(&uri, start, start + end - 1),
-                        _ => client.get_bytes(&uri),
+                        }) => client.get_bytes_range(&segment_url, start, start + end - 1),
+                        _ => client.get_bytes(&segment_url),
                     };
 
                     if resp.is_ok() {
@@ -396,25 +438,25 @@ impl DownloadState {
                         if total_retries > retries {
                             pb.lock().unwrap().write(format!(
                                 "{} {}",
-                                "Retrying:".colorize("bold yellow"),
-                                uri
+                                "Retrying".colorize("bold yellow"),
+                                segment_url
                             ));
                             retries += 1;
                             continue;
                         } else {
                             pb.lock().unwrap().write(format!(
-                                "{} Reached maximum number of retries for {}",
-                                "Error:".colorize("bold red"),
-                                uri
+                                "{}: Reached maximum number of retries for {}",
+                                "Error".colorize("bold red"),
+                                segment_url
                             ));
                             std::process::exit(1);
                         }
                     }
                 };
 
-                if let Some(eku) = key_uri {
+                if let Some(eku) = key_url {
                     data = crate::decrypt::HlsDecrypt::from_key(
-                        key.unwrap(),
+                        segment.key.unwrap(),
                         client.get_bytes(&eku).unwrap(),
                     )
                     .decrypt(&data);
@@ -437,7 +479,7 @@ impl DownloadState {
         }
 
         pool.join();
-        eprint!("\n");
+        eprintln!();
         merger.lock().unwrap().flush().unwrap();
 
         if merger.lock().unwrap().buffered() {
@@ -469,7 +511,7 @@ impl DownloadState {
             args.push("copy");
             args.push(output);
 
-            println!("Executing `ffmpeg {}`", args.join(" "));
+            println!("Executing `ffmpeg {}`", args.join(" ").colorize("cyan"));
             std::process::Command::new("ffmpeg")
                 .args(args)
                 .stderr(std::process::Stdio::null())

@@ -6,12 +6,12 @@ pub fn join(pth1: &str, pth2: &str) -> Result<String> {
     Ok(Path::new(pth1)
         .join(pth2)
         .to_str()
-        .context(format!("couldn't join {} path with {}", pth1, pth2))?
-        .to_string())
+        .context(format!("Couldn't join {} path with {}", pth1, pth2))?
+        .to_owned())
 }
 
 pub fn replace_ext(pth: &str, ext: &str) -> String {
     let mut tpth = PathBuf::from(pth);
     tpth.set_extension(ext);
-    tpth.to_str().unwrap().to_string()
+    tpth.to_str().unwrap().to_owned()
 }

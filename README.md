@@ -19,10 +19,6 @@ Know more about HLS from [howvideo.works](https://howvideo.works) and
 
 There are some alternatives to vsd but they lack in some features like [N_m3u8DL-CLI](https://github.com/nilaoda/N_m3u8DL-CLI) is not cross platform and [m3u8-downloader](https://github.com/llychao/m3u8-downloader) has very few customizable options.
 
-<!-- <p align="center">
-  <img src="https://raw.githubusercontent.com/clitic/vsdownload/main/images/vsdownload.gif">
-</p> -->
-
 ## Features
 
 - [x] Beautiful resolution and bandwidth based master playlist parsing.
@@ -37,15 +33,17 @@ There are some alternatives to vsd but they lack in some features like [N_m3u8DL
 - [x] Select standard resolution playlist like `HD`, `FHD` etc.
 - [x] Supports `AES-128` playlist decryption.
 - [x] Supports multiple retries.
+- [x] Supports resume.
 - [ ] GUI
-- [ ] Supports resume.
 - [ ] Supports [SAMPLE-AES](https://datatracker.ietf.org/doc/html/rfc8216#section-4.3.2.4) playlist decryption.
 - [ ] Supports live stream download.
 
 ## Installations
 
-- [ffmpeg](https://www.ffmpeg.org/download.html) (optional)
-- [chrome](https://www.google.com/chrome) (optional)
+Dependencies
+
+- [ffmpeg](https://www.ffmpeg.org/download.html) is optional depedency if you don't want to transcode or mux streams otherwise it should be installed.
+- [chrome](https://www.google.com/chrome) is optional depedency and is only required if you want to use `--capture` flag. 
 
 Visit [releases](https://github.com/clitic/vsd/releases) for prebuilt binaries. You just need to copy that binary to any path specified in your `PATH` environment variable.
 

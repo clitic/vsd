@@ -1,8 +1,5 @@
-use kdam::term::Colorizer;
-use m3u8_rs::Key as HlsKey;
 use openssl::symm::{decrypt, Cipher};
-
-pub enum HlsEncryptionMethod {
+enum HlsEncryptionMethod {
     Aes128,
     SampleAes,
     None,
@@ -14,14 +11,14 @@ pub struct HlsDecrypt {
 }
 
 impl HlsDecrypt {
-    pub fn from_key(m3u8_key: HlsKey, key_content: Vec<u8>) -> Self {
-        let iv = if let Some(encryption_iv) = m3u8_key.iv {
+    pub fn from_key(key: m3u8_rs::Key, key_content: Vec<u8>) -> Self {
+        let iv = if let Some(encryption_iv) = key.iv {
             Some(encryption_iv.as_bytes().to_vec())
         } else {
             None
         };
 
-        match m3u8_key.method.as_str() {
+        match key.method.as_str() {
             "NONE" => Self {
                 key: vec![],
                 iv: iv,
@@ -32,26 +29,13 @@ impl HlsDecrypt {
                 iv: iv,
                 method: HlsEncryptionMethod::Aes128,
             },
-            "SAMPLE-AES" => {
-                println!(
-                    "{}: SAMPLE-AES encrypted playlists are not supported.",
-                    "Error".colorize("bold red")
-                );
-                std::process::exit(1);
-
-                // Self {
-                //     key: key_content,
-                //     iv: iv,
-                //     method: HlsEncryptionMethod::SampleAes,
-                // }
-            }
+            "SAMPLE-AES" => Self {
+                key: key_content,
+                iv: iv,
+                method: HlsEncryptionMethod::SampleAes,
+            },
             _ => {
-                println!(
-                    "{}: Unsupported key method {}",
-                    "Error".colorize("bold red"),
-                    m3u8_key.method.colorize("bold yellow")
-                );
-                std::process::exit(1);
+                panic!("Unsupported key method {}", key.method);
             }
         }
     }

@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::io::Write;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
+
+use crate::progress::DownloadProgress;
 
 pub struct BinarySequence {
     size: usize,
@@ -10,39 +12,67 @@ pub struct BinarySequence {
     buffers: HashMap<usize, Vec<u8>>,
     stored_bytes: usize,
     flushed_bytes: usize,
-	indexed: usize,
+    indexed: usize,
+    progress: DownloadProgress,
 }
 
 impl BinarySequence {
-    pub fn new(size: usize, filename: String) -> Self {
+    pub fn new(size: usize, filename: String, progress: DownloadProgress) -> Self {
         Self {
             size: size - 1,
-            file: std::fs::File::create(filename).unwrap(),
+            file: std::fs::File::create(&filename).unwrap(),
             pos: 0,
             buffers: HashMap::new(),
             stored_bytes: 0,
             flushed_bytes: 0,
-			indexed: 0,
+            indexed: 0,
+            progress: progress,
         }
+    }
+
+    pub fn try_from_json(size: usize, filename: String, json_file: String) -> Result<Self> {
+        if !std::path::Path::new(&json_file).exists() {
+            bail!("Can't resume because {} doesn't exists.", json_file)
+        }
+
+        let progress: DownloadProgress = serde_json::from_reader(std::fs::File::open(&json_file)?)?;
+        let pos = progress.downloaded();
+
+        let file = if std::path::Path::new(&filename).exists() {
+            std::fs::OpenOptions::new().append(true).open(filename)?
+        } else {
+            std::fs::File::create(&filename)?
+        };
+
+        let stored_bytes = file.metadata()?.len() as usize;
+
+        Ok(Self {
+            size: size - 1,
+            file: file,
+            pos: pos,
+            buffers: HashMap::new(),
+            stored_bytes: stored_bytes,
+            flushed_bytes: stored_bytes,
+            indexed: pos,
+            progress: progress,
+        })
     }
 
     pub fn write(&mut self, pos: usize, buf: &[u8]) -> Result<()> {
         if pos == 0 || (self.pos != 0 && self.pos == pos) {
-            //println!("writing={}", pos);
             self.file.write(buf)?;
             self.file.flush()?;
-            // self.file.sync_all()?;
             self.pos += 1;
             let size = buf.len();
             self.stored_bytes += size;
             self.flushed_bytes += size;
+            self.progress.update(self.pos, self.size + 1)
         } else {
-            //println!("storing={}", pos);
             self.buffers.insert(pos, buf.to_vec());
             self.stored_bytes += buf.len();
         }
-		
-		self.indexed += 1;
+
+        self.indexed += 1;
         Ok(())
     }
 
@@ -51,14 +81,12 @@ impl BinarySequence {
             let op_buf = self.buffers.remove(&self.pos);
 
             if let Some(buf) = op_buf {
-                //println!("writing_on_flush={}", self.pos);
                 self.file.write(&buf)?;
                 self.file.flush()?;
-                // self.file.sync_all()?;
                 self.pos += 1;
                 self.flushed_bytes += buf.len();
+                self.progress.update(self.pos, self.size + 1)
             } else {
-                //println!("can't get {}", self.pos);
                 break;
             }
         }
@@ -66,9 +94,12 @@ impl BinarySequence {
         Ok(())
     }
 
+    pub fn position(&self) -> usize {
+        self.pos
+    }
+
     pub fn buffered(&self) -> bool {
-        //println!("{:?} {}", self.buffers.keys(), self.pos);
-        self.buffers.len() == 0
+        self.buffers.len() == 0 && self.pos >= (self.size + 1)
     }
 
     pub fn stored(&self) -> usize {
