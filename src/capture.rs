@@ -1,17 +1,22 @@
+use anyhow::{anyhow, Result};
 use headless_chrome::browser::tab::RequestInterceptionDecision;
 use headless_chrome::protocol::network::methods::RequestPattern;
 use headless_chrome::{Browser, LaunchOptionsBuilder};
 
-pub fn run(url: String, headless: bool) {
+pub fn run(url: String, headless: bool) -> Result<()> {
     let browser = Browser::new(
         LaunchOptionsBuilder::default()
             .headless(headless)
             .build()
-            .unwrap(),
+            .map_err(|e| anyhow!(e))?,
     )
-    .unwrap();
-    let tab = browser.wait_for_initial_tab().unwrap();
-    tab.navigate_to(url.as_str()).unwrap();
+    .map_err(|e| anyhow!(e.to_string()))?;
+
+    let tab = browser
+        .wait_for_initial_tab()
+        .map_err(|e| anyhow!(e.to_string()))?;
+    tab.navigate_to(url.as_str())
+        .map_err(|e| anyhow!(e.to_string()))?;
 
     tab.enable_request_interception(
         &[RequestPattern {
@@ -28,7 +33,8 @@ pub fn run(url: String, headless: bool) {
             RequestInterceptionDecision::Continue
         }),
     )
-    .unwrap();
+    .map_err(|e| anyhow!(e.to_string()))?;
 
     std::thread::sleep(std::time::Duration::from_secs(60 * 3));
+    Ok(())
 }

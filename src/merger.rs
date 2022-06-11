@@ -36,11 +36,12 @@ impl BinarySequence {
         }
 
         let progress: DownloadProgress = serde_json::from_reader(std::fs::File::open(&json_file)?)?;
-        let pos = progress.downloaded();
+        let mut pos = progress.downloaded();
 
         let file = if std::path::Path::new(&filename).exists() {
             std::fs::OpenOptions::new().append(true).open(filename)?
         } else {
+            pos = 0;
             std::fs::File::create(&filename)?
         };
 

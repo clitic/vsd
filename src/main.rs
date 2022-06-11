@@ -10,6 +10,7 @@ fn main() {
     let mut downloader = vsd::core::DownloadState::new().unwrap_or_else(|e| error(e));
     let segments = downloader.segments().unwrap_or_else(|e| error(e));
     downloader
-        .download(&segments, downloader.determine_output())
+        .download(&segments, downloader.tempfile())
         .unwrap_or_else(|e| error(e));
+    downloader.transcode().unwrap_or_else(|e| error(e));
 }

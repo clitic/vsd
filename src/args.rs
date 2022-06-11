@@ -68,9 +68,17 @@ pub struct Args {
     pub raw_prompts: bool,
 
     /// Resume a download session.
-    /// Download can be resumed only if download session json file is present.
+    /// Download session can only be resumed if download session json file is present.
     #[clap(short, long)]
     pub resume: bool,
+
+    /// Download alternative streams from master playlist instead of variant streams.
+    #[clap(short, long)]
+    pub alternative: bool,
+
+    /// Skip downloading and muxing alternative streams.
+    #[clap(short, long)]
+    pub skip: bool,
 }
 
 fn input_validator(s: &str) -> Result<(), String> {

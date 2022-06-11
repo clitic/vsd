@@ -1,7 +1,6 @@
-use std::collections::HashMap;
 use std::io::Write;
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 
 pub fn format_bytes(bytesval: usize) -> (String, String, String) {
     let mut val = bytesval as f32;
@@ -87,21 +86,6 @@ pub fn find_ffmpeg_with_path() -> Option<String> {
             })?
             .to_owned(),
     )
-}
-
-pub fn quality_selector(
-    quality: &str,
-    res_band: HashMap<&str, (usize, usize)>,
-    master: &m3u8_rs::MasterPlaylist,
-) -> Result<String> {
-    if let Some(index) = res_band.get(quality) {
-        Ok(master.variants[index.1].uri.clone())
-    } else {
-        bail!(
-            "Master playlist doesn't contain {} quality variant stream.",
-            quality
-        );
-    }
 }
 
 // pub fn join_path(pth1: &str, pth2: &str) -> String {
