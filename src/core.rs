@@ -210,7 +210,9 @@ impl DownloadState {
     }
 
     pub fn segments(&mut self) -> Result<Vec<m3u8_rs::MediaSegment>> {
-        if find_hls_dash_links(&self.args.input).len() == 0 && !self.args.input.ends_with(".m3u8") {
+        if find_hls_dash_links(&self.args.input).len() == 0
+            || (!self.args.input.starts_with("http") && !self.args.input.ends_with("m3u8"))
+        {
             self.scrape_website()?;
         }
 
@@ -238,7 +240,8 @@ impl DownloadState {
 
                 self.progress.current("stream");
                 self.progress.stream = StreamData::new(&self.args.input, &self.tempfile());
-                self.progress.file(&replace_ext(&self.tempfile(), "json"));
+                self.progress
+                    .json_file(&replace_ext(&self.progress.stream.file, "json"));
 
                 if !self.args.alternative && !self.args.skip {
                     self.download_alternative(&master)?;
@@ -255,6 +258,10 @@ impl DownloadState {
                 }
             }
             m3u8_rs::Playlist::MediaPlaylist(meadia) => {
+                self.progress.current("stream");
+                self.progress.stream = StreamData::new(&self.args.input, &self.tempfile());
+                self.progress
+                    .json_file(&replace_ext(&self.progress.stream.file, "json"));
                 return Ok(meadia.segments);
             }
         }
@@ -275,8 +282,7 @@ impl DownloadState {
         }
 
         let total = segments.len();
-
-        let mut pb = kdam::tqdm!(total = total, unit = "ts".to_owned());
+        let mut pb = kdam::tqdm!(total = total, unit = "ts".to_owned(), dynamic_ncols = true);
 
         let merger = if self.args.resume {
             let merger = BinarySequence::try_from_json(
@@ -298,7 +304,7 @@ impl DownloadState {
                 total,
                 tempfile.clone(),
                 self.progress.clone(),
-            )))
+            )?))
         };
 
         pb.refresh();
@@ -441,6 +447,9 @@ impl DownloadState {
             std::fs::remove_file(&self.progress.stream.file)?;
         }
 
+        if std::path::Path::new(&self.progress.json_file).exists() {
+            std::fs::remove_file(&self.progress.json_file)?;
+        }
         Ok(())
     }
 }

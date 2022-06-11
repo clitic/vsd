@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::Write;
+use std::io::{Seek, SeekFrom, Write};
 
 use anyhow::{bail, Result};
 
@@ -14,20 +14,24 @@ pub struct BinarySequence {
     flushed_bytes: usize,
     indexed: usize,
     progress: DownloadProgress,
+    json_file: std::fs::File,
 }
 
 impl BinarySequence {
-    pub fn new(size: usize, filename: String, progress: DownloadProgress) -> Self {
-        Self {
+    pub fn new(size: usize, filename: String, progress: DownloadProgress) -> Result<Self> {
+        let json_file = progress.json_file.clone();
+
+        Ok(Self {
             size: size - 1,
-            file: std::fs::File::create(&filename).unwrap(),
+            file: std::fs::File::create(&filename)?,
             pos: 0,
             buffers: HashMap::new(),
             stored_bytes: 0,
             flushed_bytes: 0,
             indexed: 0,
             progress: progress,
-        }
+            json_file: std::fs::File::create(json_file)?,
+        })
     }
 
     pub fn try_from_json(size: usize, filename: String, json_file: String) -> Result<Self> {
@@ -56,6 +60,7 @@ impl BinarySequence {
             flushed_bytes: stored_bytes,
             indexed: pos,
             progress: progress,
+            json_file: std::fs::OpenOptions::new().append(true).open(&json_file)?,
         })
     }
 
@@ -67,7 +72,9 @@ impl BinarySequence {
             let size = buf.len();
             self.stored_bytes += size;
             self.flushed_bytes += size;
-            self.progress.update(self.pos, self.size + 1)
+            self.json_file.seek(SeekFrom::Start(0))?;
+            self.progress
+                .update(self.pos, self.size + 1, &self.json_file);
         } else {
             self.buffers.insert(pos, buf.to_vec());
             self.stored_bytes += buf.len();
@@ -86,7 +93,9 @@ impl BinarySequence {
                 self.file.flush()?;
                 self.pos += 1;
                 self.flushed_bytes += buf.len();
-                self.progress.update(self.pos, self.size + 1)
+                self.json_file.seek(SeekFrom::Start(0))?;
+                self.progress
+                    .update(self.pos, self.size + 1, &self.json_file);
             } else {
                 break;
             }

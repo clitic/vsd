@@ -39,7 +39,7 @@ impl DownloadProgress {
         }
     }
 
-    pub fn file(&mut self, file: &str) {
+    pub fn json_file(&mut self, file: &str) {
         self.json_file = file.to_owned();
     }
 
@@ -47,7 +47,7 @@ impl DownloadProgress {
         self.current = current.to_owned();
     }
 
-    pub fn update(&mut self, pos: usize, total: usize) {
+    pub fn update(&mut self, pos: usize, total: usize, json_file: &std::fs::File) {
         match self.current.as_str() {
             "stream" => {
                 self.stream.downloaded = pos;
@@ -71,8 +71,7 @@ impl DownloadProgress {
             _ => (),
         }
 
-        serde_json::to_writer_pretty(std::fs::File::create(&self.json_file).unwrap(), self)
-            .unwrap();
+        serde_json::to_writer_pretty(json_file, self).unwrap();
     }
 
     pub fn downloaded(&self) -> usize {
