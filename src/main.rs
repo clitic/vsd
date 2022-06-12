@@ -12,5 +12,5 @@ fn main() {
     downloader
         .download(&segments, downloader.tempfile())
         .unwrap_or_else(|e| error(e));
-    downloader.transcode().unwrap_or_else(|e| error(e));
+    downloader.transmux().unwrap_or_else(|e| error(e));
 }

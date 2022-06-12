@@ -28,7 +28,8 @@ pub struct Args {
     #[clap(short, long, arg_enum, default_value_t = Quality::Select)]
     pub quality: Quality,
 
-    /// Base url for all segments, usally needed for local m3u8 file.
+    /// Base url for all segments.
+    /// Usually needed for local m3u8 file.
     #[clap(short, long)]
     pub baseurl: Option<String>,
 

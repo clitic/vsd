@@ -19,6 +19,10 @@ Know more about HLS from [howvideo.works](https://howvideo.works) and
 
 There are some alternatives to vsd but they lack in some features like [N_m3u8DL-CLI](https://github.com/nilaoda/N_m3u8DL-CLI) is not cross platform and [m3u8-downloader](https://github.com/llychao/m3u8-downloader) has very few customizable options.
 
+<p align="center">
+  <img src="https://github.com/clitic/vsd/blob/main/images/showcase.png">
+</p>
+
 ## Features
 
 - [x] Beautiful resolution and bandwidth based master playlist parsing.
@@ -58,6 +62,8 @@ vsd <url | .m3u8> -o video.mp4
 ```
 
 > In **-o/--output** flag, any ffmpeg supported extension could be provided.
+> <br>
+> Use **-r/--resume** flag to resume a download session.
 
 - Capturing m3u8 links from a website.
 

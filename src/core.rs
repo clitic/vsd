@@ -90,7 +90,7 @@ impl DownloadState {
 
         match links.len() {
             0 => bail!(
-                "No links found on website source. Consider using {} flag.",
+                "No links found on website source. Consider using {} flag then copy captured m3u8 url and rerun command with that link with same arguments.",
                 "--capture".colorize("bold green")
             ),
             1 => {
@@ -210,10 +210,10 @@ impl DownloadState {
     }
 
     pub fn segments(&mut self) -> Result<Vec<m3u8_rs::MediaSegment>> {
-        if find_hls_dash_links(&self.args.input).len() == 0
-            || (!self.args.input.starts_with("http") && !self.args.input.ends_with("m3u8"))
-        {
-            self.scrape_website()?;
+        if find_hls_dash_links(&self.args.input).len() == 0 {
+            if !std::path::Path::new(&self.args.input).exists() {
+                self.scrape_website()?;
+            }
         }
 
         let content = if self.args.input.starts_with("http") {
@@ -313,8 +313,14 @@ impl DownloadState {
         let pool = threadpool::ThreadPool::new(self.args.threads as usize);
 
         for (i, segment) in segments.iter().enumerate() {
-            if self.args.resume && merger.lock().unwrap().position() >= i + 1 {
-                continue;
+            if self.args.resume {
+                let pos = merger.lock().unwrap().position();
+
+                if pos != 0 {
+                    if pos >= i + 1 {
+                        continue;
+                    }
+                }
             }
 
             if let Some(m3u8_key) = &segment.key {
@@ -407,7 +413,7 @@ impl DownloadState {
         Ok(())
     }
 
-    pub fn transcode(&mut self) -> Result<()> {
+    pub fn transmux(&mut self) -> Result<()> {
         if let Some(output) = &self.args.output {
             let mut args = vec!["-i", &self.progress.stream.file];
 
