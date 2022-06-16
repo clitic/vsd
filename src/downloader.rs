@@ -27,6 +27,7 @@ impl Downloader {
         user_agent: &str,
         header: &Vec<String>,
         proxy_address: &Option<String>,
+        enable_cookies: bool,
         cookies: &Vec<String>,
     ) -> Result<Self> {
         let mut client_builder = reqwest::blocking::Client::builder().user_agent(user_agent);
@@ -52,10 +53,17 @@ impl Downloader {
             }
         }
 
+        if enable_cookies || cookies.len() != 0 {
+            client_builder = client_builder.cookie_store(true);
+        }
+        
         if cookies.len() != 0 {
             let jar = reqwest::cookie::Jar::default();
-            jar.add_cookie_str(&cookies[0], &cookies[1].parse::<reqwest::Url>()?);
-            client_builder = client_builder.cookie_store(true);
+            
+            for i in (0..cookies.len()).step_by(2) {
+                jar.add_cookie_str(&cookies[i], &cookies[i + 1].parse::<reqwest::Url>()?);
+            }
+
             client_builder = client_builder.cookie_provider(std::sync::Arc::new(jar));
         }
 

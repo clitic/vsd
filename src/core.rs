@@ -30,6 +30,7 @@ impl DownloadState {
             &args.user_agent,
             &args.header,
             &args.proxy_address,
+            args.enable_cookies,
             &args.cookies,
         )
         .context("Couldn't create reqwest client.")?;

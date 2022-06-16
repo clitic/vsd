@@ -1,5 +1,5 @@
-#[workspace]
-#members = ["gui"]
+[workspace]
+members = ["gui"]
 
 [package]
 name = "vsd"

@@ -20,11 +20,14 @@ pub struct Args {
     #[clap(required = true, validator = input_validator)]
     pub input: String,
 
-    /// Path for output of downloaded video stream.
+    /// Path of final downloaded video stream.
+	/// The followed features are only supported if ffmpeg is installed in PATH.
+	/// For file extension any ffmpeg supported format could be provided.
+	/// If playlist contains alternative streams vsd will try to transmux and trancode into that file format using ffmpeg.
     #[clap(short, long)]
     pub output: Option<String>,
 
-    /// Automatic selection of some standard resolution streams with highest bandwidth stream variant.
+    /// Automatic selection of some standard resolution streams with highest bandwidth stream variant from master playlist.
     #[clap(short, long, arg_enum, default_value_t = Quality::Select)]
     pub quality: Quality,
 
@@ -34,10 +37,12 @@ pub struct Args {
     pub baseurl: Option<String>,
 
     /// Maximum number of threads for parllel downloading of segments.
+	/// Number of threads should be in range 1-16 (inclusive).
     #[clap(short, long, default_value_t = 5, validator = threads_validator)]
     pub threads: u8,
 
-    /// Custom request headers for sending to streaming server.
+    /// Custom headers for requests.
+	/// This option can be used multiple times.
     #[clap(long, multiple_occurrences = true, number_of_values = 2, value_names = &["key", "value"])]
     pub header: Vec<String>, // Vec<Vec<String>> not supported
 
@@ -53,18 +58,19 @@ pub struct Args {
     pub proxy_address: Option<String>,
 
     /// Maximum number of retries to download an individual segment.
-    #[clap(long, default_value_t = 10)]
+    #[clap(long, default_value_t = 15)]
     pub retry_count: u8,
 
-    /// Launch Google Chrome to capture requests specific to HLS and Dash related contents.
+    /// Launch Google Chrome to capture requests made to fetch .m3u8 (HLS) and .mpd (Dash) files.
     #[clap(long)]
     pub capture: bool,
 
     /// Launch Google Chrome without a window for interaction.
+	/// This option must be used with `--capture` flag only.
     #[clap(long)]
     pub headless: bool,
 
-    /// Raw input prompts for old and unsupported terminals.
+    /// Raw style input prompts for old and unsupported terminals.
     #[clap(long)]
     pub raw_prompts: bool,
 
@@ -81,11 +87,15 @@ pub struct Args {
     #[clap(short, long)]
     pub skip: bool,
 
-    /// Enable cookie store and fills client with some existing cookies.
-	/// For filling client with some existing cookies use `--cookies "foo=bar; Domain=yolo.local" https://yolo.local`.
-	/// For storing cookies use `--cookies "" https://yolo.local`.
-    #[clap(long, number_of_values = 2, value_names = &["cookies", "url"])]
-    pub cookies: Vec<String>,
+    /// Enable cookie store which allows cookies to be stored.
+    #[clap(long)]
+    pub enable_cookies: bool,
+	
+    /// Enable cookie store and fill it with some existing cookies.
+	/// Example `--cookies "foo=bar; Domain=yolo.local" https://yolo.local`.
+	/// This option can be used multiple times.
+    #[clap(long, multiple_occurrences = true, number_of_values = 2, value_names = &["cookies", "url"])]
+    pub cookies: Vec<String>, // Vec<Vec<String>> not supported
 }
 
 fn input_validator(s: &str) -> Result<(), String> {
