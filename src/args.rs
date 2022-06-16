@@ -80,6 +80,12 @@ pub struct Args {
     /// Skip downloading and muxing alternative streams.
     #[clap(short, long)]
     pub skip: bool,
+
+    /// Enable cookie store and fills client with some existing cookies.
+	/// For filling client with some existing cookies use `--cookies "foo=bar; Domain=yolo.local" https://yolo.local`.
+	/// For storing cookies use `--cookies "" https://yolo.local`.
+    #[clap(long, number_of_values = 2, value_names = &["cookies", "url"])]
+    pub cookies: Vec<String>,
 }
 
 fn input_validator(s: &str) -> Result<(), String> {

@@ -46,8 +46,8 @@ There are some alternatives to vsd but they lack in some features like [N_m3u8DL
 
 Dependencies
 
-- [ffmpeg](https://www.ffmpeg.org/download.html) is optional depedency if you don't want to transcode or mux streams otherwise it should be installed.
-- [chrome](https://www.google.com/chrome) is optional depedency and is only required if you want to use `--capture` flag. 
+- [ffmpeg](https://www.ffmpeg.org/download.html) (optional) only required for transmuxing and transcoding streams.
+- [chrome](https://www.google.com/chrome) (optional) only required for `--capture` flag. 
 
 Visit [releases](https://github.com/clitic/vsd/releases) for prebuilt binaries. You just need to copy that binary to any path specified in your `PATH` environment variable.
 

@@ -26,9 +26,13 @@ impl DownloadState {
             std::process::exit(0);
         }
 
-        let downloader =
-            crate::downloader::Downloader::new(&args.user_agent, &args.header, &args.proxy_address)
-                .context("Couldn't create reqwest client.")?;
+        let downloader = crate::downloader::Downloader::new(
+            &args.user_agent,
+            &args.header,
+            &args.proxy_address,
+            &args.cookies,
+        )
+        .context("Couldn't create reqwest client.")?;
 
         if crate::utils::find_ffmpeg_with_path().is_none() {
             println!(
