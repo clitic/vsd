@@ -61,8 +61,6 @@ For quick testing purposes you may use [https://test-streams.mux.dev](https://te
 vsd <url | .m3u8> -o video.mp4
 ```
 
-> In **-o/--output** flag, any ffmpeg supported extension could be provided.
-> <br>
 > Use **-r/--resume** flag to resume a download session.
 
 - Capturing m3u8 links from a website.

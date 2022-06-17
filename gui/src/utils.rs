@@ -1,7 +1,3 @@
-use std::io::Write;
-
-use anyhow::Result;
-
 pub fn format_bytes(bytesval: usize) -> (String, String, String) {
     let mut val = bytesval as f32;
 
@@ -24,8 +20,7 @@ pub fn format_bytes(bytesval: usize) -> (String, String, String) {
     );
 }
 
-pub fn find_hls_dash_links(text: &str) -> Vec<String> {
-    let re = regex::Regex::new(r"(https|ftp|http)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-]\.(m3u8|m3u|mpd))").unwrap();
+pub fn find_hls_dash_links(text: &str, re: &regex::Regex) -> Vec<String> {
     let links = re
         .captures_iter(text)
         .map(|caps| caps.get(0).unwrap().as_str().to_string())
@@ -38,32 +33,6 @@ pub fn find_hls_dash_links(text: &str) -> Vec<String> {
         }
     }
     unique_links
-}
-
-pub fn select(prompt: String, choices: &Vec<String>, raw: bool) -> Result<usize> {
-    if raw {
-        println!("{}", prompt);
-
-        for choice in choices {
-            println!("{}", choice);
-        }
-
-        print!("{} (1, 2, etc.): ", prompt);
-        std::io::stdout().flush()?;
-        let mut input = String::new();
-        std::io::stdin().read_line(&mut input)?;
-        return Ok(input.trim().parse::<usize>()? - 1);
-    }
-
-    Ok(requestty::prompt_one(
-        requestty::Question::select("theme")
-            .message(prompt)
-            .choices(choices)
-            .build(),
-    )?
-    .as_list_item()
-    .unwrap()
-    .index)
 }
 
 pub fn find_ffmpeg_with_path() -> Option<String> {

@@ -21,54 +21,29 @@ pub struct Args {
     pub input: String,
 
     /// Path of final downloaded video stream.
-	/// The followed features are only supported if ffmpeg is installed in PATH.
-	/// For file extension any ffmpeg supported format could be provided.
-	/// If playlist contains alternative streams vsd will try to transmux and trancode into that file format using ffmpeg.
+    /// The followed features are only supported if ffmpeg is installed in PATH.
+    /// For file extension any ffmpeg supported format could be provided.
+    /// If playlist contains alternative streams vsd will try to transmux and trancode into single file using ffmpeg.
     #[clap(short, long)]
     pub output: Option<String>,
-
-    /// Automatic selection of some standard resolution streams with highest bandwidth stream variant from master playlist.
-    #[clap(short, long, arg_enum, default_value_t = Quality::Select)]
-    pub quality: Quality,
 
     /// Base url for all segments.
     /// Usually needed for local m3u8 file.
     #[clap(short, long)]
     pub baseurl: Option<String>,
 
+    /// Automatic selection of some standard resolution streams with highest bandwidth stream variant from master playlist.
+    #[clap(short, long, arg_enum, default_value_t = Quality::Select)]
+    pub quality: Quality,
+
     /// Maximum number of threads for parllel downloading of segments.
-	/// Number of threads should be in range 1-16 (inclusive).
+    /// Number of threads should be in range 1-16 (inclusive).
     #[clap(short, long, default_value_t = 5, validator = threads_validator)]
     pub threads: u8,
-
-    /// Custom headers for requests.
-	/// This option can be used multiple times.
-    #[clap(long, multiple_occurrences = true, number_of_values = 2, value_names = &["key", "value"])]
-    pub header: Vec<String>, // Vec<Vec<String>> not supported
-
-    /// Update and set custom user agent for requests.
-    #[clap(
-        long,
-        default_value = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.64 Safari/537.36"
-    )]
-    pub user_agent: String,
-
-    /// Custom http or https proxy address for requests.
-    #[clap(long, validator = proxy_address_validator)]
-    pub proxy_address: Option<String>,
 
     /// Maximum number of retries to download an individual segment.
     #[clap(long, default_value_t = 15)]
     pub retry_count: u8,
-
-    /// Launch Google Chrome to capture requests made to fetch .m3u8 (HLS) and .mpd (Dash) files.
-    #[clap(long)]
-    pub capture: bool,
-
-    /// Launch Google Chrome without a window for interaction.
-	/// This option must be used with `--capture` flag only.
-    #[clap(long)]
-    pub headless: bool,
 
     /// Raw style input prompts for old and unsupported terminals.
     #[clap(long)]
@@ -87,14 +62,40 @@ pub struct Args {
     #[clap(short, long)]
     pub skip: bool,
 
+    /// Launch Google Chrome to capture requests made to fetch .m3u8 (HLS) and .mpd (Dash) files.
+    #[clap(long, help_heading = "CHROME OPTIONS")]
+    pub capture: bool,
+
+    /// Launch Google Chrome without a window for interaction.
+    /// This option must be used with `--capture` flag only.
+    #[clap(long, help_heading = "CHROME OPTIONS")]
+    pub headless: bool,
+
+    /// Custom headers for requests.
+    /// This option can be used multiple times.
+    #[clap(long, multiple_occurrences = true, number_of_values = 2, value_names = &["key", "value"], help_heading = "CLIENT OPTIONS")]
+    pub header: Vec<String>, // Vec<Vec<String>> not supported
+
+    /// Update and set custom user agent for requests.
+    #[clap(
+        long,
+        default_value = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.64 Safari/537.36",
+        help_heading = "CLIENT OPTIONS"
+    )]
+    pub user_agent: String,
+
+    /// Custom http or https proxy address for requests.
+    #[clap(long, validator = proxy_address_validator, help_heading = "CLIENT OPTIONS")]
+    pub proxy_address: Option<String>,
+
     /// Enable cookie store which allows cookies to be stored.
-    #[clap(long)]
+    #[clap(long, help_heading = "CLIENT OPTIONS")]
     pub enable_cookies: bool,
-	
+
     /// Enable cookie store and fill it with some existing cookies.
-	/// Example `--cookies "foo=bar; Domain=yolo.local" https://yolo.local`.
-	/// This option can be used multiple times.
-    #[clap(long, multiple_occurrences = true, number_of_values = 2, value_names = &["cookies", "url"])]
+    /// Example `--cookies "foo=bar; Domain=yolo.local" https://yolo.local`.
+    /// This option can be used multiple times.
+    #[clap(long, multiple_occurrences = true, number_of_values = 2, value_names = &["cookies", "url"], help_heading = "CLIENT OPTIONS")]
     pub cookies: Vec<String>, // Vec<Vec<String>> not supported
 }
 

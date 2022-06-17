@@ -56,10 +56,10 @@ impl Downloader {
         if enable_cookies || cookies.len() != 0 {
             client_builder = client_builder.cookie_store(true);
         }
-        
+
         if cookies.len() != 0 {
             let jar = reqwest::cookie::Jar::default();
-            
+
             for i in (0..cookies.len()).step_by(2) {
                 jar.add_cookie_str(&cookies[i], &cookies[i + 1].parse::<reqwest::Url>()?);
             }
