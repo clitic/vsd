@@ -1,4 +1,4 @@
-use clap::{ArgEnum, Parser};
+use clap::{ArgEnum, ArgGroup, Parser};
 use kdam::term::Colorizer;
 
 #[derive(Debug, Copy, Clone, ArgEnum)]
@@ -14,7 +14,7 @@ pub enum Quality {
 
 /// Download HLS video from a website, m3u8 url or from a local m3u8 file.
 #[derive(Debug, Clone, Parser)]
-#[clap(version, author = "clitic <clitic21@gmail.com>", about)]
+#[clap(version, author = "clitic <clitic21@gmail.com>", about, group = ArgGroup::new("chrome").args(&["capture", "collect"]))]
 pub struct Args {
     /// url | .m3u8 | .m3u
     #[clap(required = true, validator = input_validator)]
@@ -62,12 +62,17 @@ pub struct Args {
     #[clap(short, long)]
     pub skip: bool,
 
+    /// Launch Google Chrome and collect .m3u8 (HLS), .mpd (Dash) and subtitles from a website and save them locally.
+    /// Some websites have custom collector method for other websites their is an comman collector method.
+    #[clap(long, help_heading = "CHROME OPTIONS")]
+    pub collect: bool,
+
     /// Launch Google Chrome to capture requests made to fetch .m3u8 (HLS) and .mpd (Dash) files.
     #[clap(long, help_heading = "CHROME OPTIONS")]
     pub capture: bool,
 
     /// Launch Google Chrome without a window for interaction.
-    /// This option must be used with `--capture` flag only.
+    /// This option must be used with `--capture` or `--collect` flag only.
     #[clap(long, help_heading = "CHROME OPTIONS")]
     pub headless: bool,
 

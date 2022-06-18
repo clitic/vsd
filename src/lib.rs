@@ -1,5 +1,5 @@
 pub mod args;
-pub mod capture;
+pub mod chrome;
 pub mod downloader;
 pub mod merger;
 pub mod decrypt;

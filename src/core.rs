@@ -22,7 +22,7 @@ impl DownloadState {
                 "Launching chrome in headless={} mode for 3 minutes.",
                 args.headless
             );
-            crate::capture::run(args.input, args.headless)?;
+            crate::chrome::capture(args.input, args.headless)?;
             std::process::exit(0);
         }
 
@@ -34,6 +34,12 @@ impl DownloadState {
             &args.cookies,
         )
         .context("Couldn't create reqwest client.")?;
+
+        if args.collect {
+            println!("Launching chrome in headless={} mode.", args.headless);
+            crate::chrome::collect(args.input, args.headless, &downloader)?;
+            std::process::exit(0);
+        }
 
         if crate::utils::find_ffmpeg_with_path().is_none() {
             println!(

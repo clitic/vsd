@@ -27,7 +27,8 @@ There are some alternatives to vsd but they lack in some features like [N_m3u8DL
 
 - [x] Beautiful resolution and bandwidth based master playlist parsing.
 - [x] Captures m3u8 network requests from a website.
-- [x] Custom headers and proxies.
+- [x] Collects .m3u8, .mpd and subtitles from a website and save them locally.
+- [x] Custom headers, proxies and cookies.
 - [x] Downloads in multiple threads.
 - [x] Inbuilt web scrapper for querying HLS and DASH links.
 - [x] Multiple output formats which are supported by ffmpeg.
@@ -47,7 +48,7 @@ There are some alternatives to vsd but they lack in some features like [N_m3u8DL
 Dependencies
 
 - [ffmpeg](https://www.ffmpeg.org/download.html) (optional) only required for transmuxing and transcoding streams.
-- [chrome](https://www.google.com/chrome) (optional) only required for `--capture` flag. 
+- [chrome](https://www.google.com/chrome) (optional) only required for `CHROME OPTIONS` related flag. 
 
 Visit [releases](https://github.com/clitic/vsd/releases) for prebuilt binaries. You just need to copy that binary to any path specified in your `PATH` environment variable.
 
@@ -63,10 +64,10 @@ vsd <url | .m3u8> -o video.mp4
 
 > Use **-r/--resume** flag to resume a download session.
 
-- Capturing m3u8 links from a website.
+- Collecting .m3u8 (HLS), .mpd (Dash) and subtitles from a website and saving them locally. (requires [chrome](https://www.google.com/chrome))
 
 ```bash
-vsd <url> --capture
+vsd <url> --collect
 ```
 
 ## Building From Source
