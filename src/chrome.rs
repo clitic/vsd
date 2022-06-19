@@ -7,7 +7,7 @@ use headless_chrome::{Browser, LaunchOptionsBuilder};
 use kdam::term::Colorizer;
 
 fn filepath(url: &str, ext: &str) -> String {
-    let path = if let Some(output) = url.split("/").find(|x| x.ends_with(ext)) {
+    let path = if let Some(output) = url.split("/").find(|x| x.ends_with(&format!(".{}", ext))) {
         crate::utils::replace_ext(output.split("?").next().unwrap(), ext)
     } else {
         match ext {
