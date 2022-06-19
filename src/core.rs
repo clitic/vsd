@@ -41,11 +41,10 @@ impl DownloadState {
             std::process::exit(0);
         }
 
-        if crate::utils::find_ffmpeg_with_path().is_none() {
-            println!(
-                "{} couldn't be located. Visit https://www.ffmpeg.org/download.html to install it.",
-                "FFMPEG".colorize("bold red"),
-            );
+        if let Some(output) = &args.output {
+            if !output.ends_with(".ts") {
+                check_ffmpeg()?
+            }
         }
 
         Ok(Self {
@@ -62,6 +61,13 @@ impl DownloadState {
             if let Some(baseurl) = &self.args.baseurl {
                 Ok(reqwest::Url::parse(baseurl)?.join(&uri)?.to_string())
             } else {
+                if !self.args.input.starts_with("http") {
+                    bail!(
+                        "Non HTTP input should have {} set explicitly.",
+                        "--baseurl".colorize("bold green")
+                    )
+                }
+
                 Ok(reqwest::Url::parse(&self.args.input)?
                     .join(&uri)?
                     .to_string())
@@ -147,7 +153,8 @@ impl DownloadState {
                 m3u8_rs::AlternativeMediaType::Audio => {
                     if alternative.autoselect {
                         if let Some(uri) = &alternative.uri {
-                            println!("Re-targeting to download audio stream.");
+                            println!("{} to download {} stream.", "Downloading".colorize("bold green"), "AUDIO".colorize("cyan"));
+                            check_ffmpeg()?;
                             self.args.input = self.get_url(uri)?;
                             self.progress.current("audio");
                             self.progress.audio =
@@ -170,7 +177,8 @@ impl DownloadState {
                 | m3u8_rs::AlternativeMediaType::ClosedCaptions => {
                     if alternative.autoselect {
                         if let Some(uri) = &alternative.uri {
-                            println!("Re-targeting to download subtitle stream.");
+                            println!("{} to download {} stream.", "Downloading".colorize("bold green"), "SUBTITLES".colorize("cyan"));
+                            check_ffmpeg()?;
                             self.args.input = self.get_url(uri)?;
                             self.progress.current("subtitle");
                             self.progress.subtitle =

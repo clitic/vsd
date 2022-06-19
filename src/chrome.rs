@@ -10,7 +10,12 @@ fn filepath(url: &str, ext: &str) -> String {
     let path = if let Some(output) = url.split("/").find(|x| x.ends_with(ext)) {
         crate::utils::replace_ext(output.split("?").next().unwrap(), ext)
     } else {
-        format!("playlist.{}", ext)
+        match ext {
+            "m3u8" => "playlist.m3u8".to_owned(),
+            "mpd" => "manifest.mpd".to_owned(),
+            "vtt" => "subtitles.vtt".to_owned(),
+            _ => format!("unknown.{}", ext),
+        }
     };
 
     if std::path::Path::new(&path).exists() {
@@ -99,7 +104,8 @@ pub fn collect(
             let url = intercepted.request.url;
 
             if url.starts_with("https://cache-video.iq.com/dash")
-                || (url.contains(".m3u") || url.contains(".mpd"))
+                || url.contains(".m3u")
+                || url.contains(".mpd")
                 || url.contains(".vtt")
             {
                 sender.lock().unwrap().send(url).unwrap();
@@ -114,10 +120,10 @@ pub fn collect(
         println!(
             "Collection method available for {}\nUsing {} method for collection.",
             "https://www.iq.com/play".colorize("bold green"),
-            "custom".colorize("cyan")
+            "CUSTOM".colorize("cyan")
         );
     } else {
-        println!("Using {} method for collection.", "comman".colorize("cyan"))
+        println!("Using {} method for collection.", "COMMAN".colorize("cyan"))
     }
 
     println!(
@@ -150,7 +156,7 @@ pub fn collect(
             std::fs::File::create(&file)?.write(&downloader.get_bytes(&xhr_url)?)?;
             println!(
                 "Saved {} to {}",
-                "subtitles".colorize("cyan"),
+                "SUBTITLES".colorize("cyan"),
                 file.colorize("bold green")
             );
         }

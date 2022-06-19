@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 
 pub fn format_bytes(bytesval: usize) -> (String, String, String) {
     let mut val = bytesval as f32;
@@ -48,7 +48,7 @@ pub fn select(prompt: String, choices: &Vec<String>, raw: bool) -> Result<usize>
             println!("{}", choice);
         }
 
-        print!("{} (1, 2, etc.): ", prompt);
+        print!("{} (1, 2, etc.): ", prompt.trim_end_matches(":"));
         std::io::stdout().flush()?;
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
@@ -66,7 +66,7 @@ pub fn select(prompt: String, choices: &Vec<String>, raw: bool) -> Result<usize>
     .index)
 }
 
-pub fn find_ffmpeg_with_path() -> Option<String> {
+fn find_ffmpeg_with_path() -> Option<String> {
     Some(
         std::env::var("PATH")
             .ok()?
@@ -88,9 +88,15 @@ pub fn find_ffmpeg_with_path() -> Option<String> {
     )
 }
 
-// pub fn join_path(pth1: &str, pth2: &str) -> String {
-//     Path::new(pth1).join(pth2).to_str().unwrap().to_owned()
-// }
+pub fn check_ffmpeg() -> Result<()> {
+    if find_ffmpeg_with_path().is_none() {
+        bail!(
+            "FFMPEG couldn't be located in PATH. It is required for transmuxing and transcoding streams. Visit https://www.ffmpeg.org/download.html to install it.",
+        );
+    }
+
+    Ok(())
+}
 
 pub fn replace_ext(pth: &str, ext: &str) -> String {
     let mut tpth = std::path::PathBuf::from(pth);

@@ -1,5 +1,4 @@
 use clap::{ArgEnum, ArgGroup, Parser};
-use kdam::term::Colorizer;
 
 #[derive(Debug, Copy, Clone, ArgEnum)]
 pub enum Quality {
@@ -17,11 +16,10 @@ pub enum Quality {
 #[clap(version, author = "clitic <clitic21@gmail.com>", about, group = ArgGroup::new("chrome").args(&["capture", "collect"]))]
 pub struct Args {
     /// url | .m3u8 | .m3u
-    #[clap(required = true, validator = input_validator)]
+    #[clap(required = true)]
     pub input: String,
 
     /// Path of final downloaded video stream.
-    /// The followed features are only supported if ffmpeg is installed in PATH.
     /// For file extension any ffmpeg supported format could be provided.
     /// If playlist contains alternative streams vsd will try to transmux and trancode into single file using ffmpeg.
     #[clap(short, long)]
@@ -102,17 +100,6 @@ pub struct Args {
     /// This option can be used multiple times.
     #[clap(long, multiple_occurrences = true, number_of_values = 2, value_names = &["cookies", "url"], help_heading = "CLIENT OPTIONS")]
     pub cookies: Vec<String>, // Vec<Vec<String>> not supported
-}
-
-fn input_validator(s: &str) -> Result<(), String> {
-    if !s.starts_with("http") {
-        println!(
-            "Non HTTP input should have {} set explicitly.",
-            "--baseurl".colorize("bold green")
-        );
-    }
-
-    Ok(())
 }
 
 fn threads_validator(s: &str) -> Result<(), String> {
