@@ -7,8 +7,8 @@ use headless_chrome::{Browser, LaunchOptionsBuilder};
 use kdam::term::Colorizer;
 
 fn filepath(url: &str, ext: &str) -> String {
-    let path = if let Some(output) = url.split("/").find(|x| x.ends_with(&format!(".{}", ext))) {
-        crate::utils::replace_ext(output.split("?").next().unwrap(), ext)
+    let path = if let Some(output) = url.split("?").next().unwrap().split("/").find(|x| x.ends_with(&format!(".{}", ext))) {
+        crate::utils::replace_ext(output, ext)
     } else {
         match ext {
             "m3u8" => "playlist.m3u8".to_owned(),

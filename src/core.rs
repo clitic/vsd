@@ -76,8 +76,8 @@ impl DownloadState {
     }
 
     pub fn tempfile(&self) -> String {
-        let path = if let Some(output) = self.args.input.split("/").find(|x| x.ends_with(".m3u8")) {
-            replace_ext(output.split("?").next().unwrap(), "ts")
+        let path = if let Some(output) = self.args.input.split("?").next().unwrap().split("/").find(|x| x.ends_with(".m3u8")) {
+            replace_ext(output, "ts")
         } else {
             "merged.ts".to_owned()
         };
