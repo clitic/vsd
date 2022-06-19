@@ -141,7 +141,7 @@ pub fn collect(
                 file.colorize("bold green")
             );
         } else if xhr_url.contains(".mpd") {
-            let file = filepath(&xhr_url, "m3u8");
+            let file = filepath(&xhr_url, "mpd");
             std::fs::File::create(&file)?.write(&downloader.get_bytes(&xhr_url)?)?;
             println!(
                 "Saved {} playlist from {} to {}",
