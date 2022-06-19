@@ -7,6 +7,7 @@ use crate::merger::BinarySequence;
 use crate::parse;
 use crate::progress::{DownloadProgress, StreamData};
 use crate::utils::*;
+
 pub struct DownloadState {
     args: crate::args::Args,
     downloader: crate::downloader::Downloader,
@@ -37,8 +38,7 @@ impl DownloadState {
 
         if args.collect {
             println!("Launching chrome in headless={} mode.", args.headless);
-            crate::chrome::collect(args.input, args.headless, &downloader)?;
-            std::process::exit(0);
+            crate::chrome::collect(args.input.clone(), args.headless, &downloader)?;
         }
 
         if let Some(output) = &args.output {
@@ -107,7 +107,9 @@ impl DownloadState {
 
         match links.len() {
             0 => bail!(
-                "No links found on website source. Consider using {} flag then copy captured m3u8 url and rerun command with that link with same arguments.",
+                "No links found on website source. \
+                Consider using {} flag and then \
+                rerun the command with same arguments by replacing the input with captured m3u8 url.",
                 "--capture".colorize("bold green")
             ),
             1 => {
@@ -153,7 +155,11 @@ impl DownloadState {
                 m3u8_rs::AlternativeMediaType::Audio => {
                     if alternative.autoselect {
                         if let Some(uri) = &alternative.uri {
-                            println!("{} to download {} stream.", "Downloading".colorize("bold green"), "AUDIO".colorize("cyan"));
+                            println!(
+                                "{} {} stream.",
+                                "Downloading".colorize("bold green"),
+                                "AUDIO".colorize("cyan")
+                            );
                             check_ffmpeg()?;
                             self.args.input = self.get_url(uri)?;
                             self.progress.current("audio");
@@ -177,7 +183,11 @@ impl DownloadState {
                 | m3u8_rs::AlternativeMediaType::ClosedCaptions => {
                     if alternative.autoselect {
                         if let Some(uri) = &alternative.uri {
-                            println!("{} to download {} stream.", "Downloading".colorize("bold green"), "SUBTITLES".colorize("cyan"));
+                            println!(
+                                "{} {} stream.",
+                                "Downloading".colorize("bold green"),
+                                "SUBTITLES".colorize("cyan")
+                            );
                             check_ffmpeg()?;
                             self.args.input = self.get_url(uri)?;
                             self.progress.current("subtitle");
@@ -199,16 +209,28 @@ impl DownloadState {
                             }
 
                             println!(
-                                "Executing `ffmpeg {}`",
-                                ["-i", &subtitle_tempfile, "-c", "copy", &subtitle_output]
-                                    .join(" ")
-                                    .colorize("cyan")
+                                "Executing {}",
+                                [
+                                    "ffmpeg",
+                                    "-i",
+                                    &subtitle_tempfile,
+                                    "-c",
+                                    "copy",
+                                    &subtitle_output
+                                ]
+                                .join(" ")
+                                .colorize("cyan")
                             );
-                            std::process::Command::new("ffmpeg")
+
+                            let code = std::process::Command::new("ffmpeg")
                                 .args(["-i", &subtitle_tempfile, "-c", "copy", &subtitle_output])
                                 .stderr(std::process::Stdio::null())
                                 .spawn()?
                                 .wait()?;
+
+                            if !code.success() {
+                                bail!("FFMPEG exited with code {}.", code.code().unwrap_or(1))
+                            }
 
                             std::fs::remove_file(&subtitle_tempfile)?;
 
@@ -230,7 +252,7 @@ impl DownloadState {
 
     pub fn segments(&mut self) -> Result<Vec<m3u8_rs::MediaSegment>> {
         if find_hls_dash_links(&self.args.input).len() == 0 {
-            if !std::path::Path::new(&self.args.input).exists() {
+            if self.args.input.starts_with("http") {
                 self.scrape_website()?;
             }
         }
@@ -271,12 +293,22 @@ impl DownloadState {
                     .map_err(|_| anyhow!("Couldn't parse {} playlist.", self.args.input))?
                 {
                     m3u8_rs::Playlist::MediaPlaylist(meadia) => {
+                        println!(
+                            "{} to download {} stream.",
+                            "Downloading".colorize("bold green"),
+                            "VIDEO".colorize("cyan")
+                        );
                         return Ok(meadia.segments);
                     }
                     _ => bail!("Media playlist not found."),
                 }
             }
             m3u8_rs::Playlist::MediaPlaylist(meadia) => {
+                println!(
+                    "{} {} stream.",
+                    "Downloading".colorize("bold green"),
+                    "VIDEO".colorize("cyan")
+                );
                 self.progress.current("stream");
                 self.progress.stream = StreamData::new(&self.args.input, &self.tempfile());
                 self.progress
@@ -295,9 +327,15 @@ impl DownloadState {
             if output.ends_with(".ts") {
                 tempfile = output.clone();
             }
-            println!("File will be saved at {}", tempfile);
+            println!(
+                "File will be saved at {}",
+                tempfile.clone().colorize("cyan")
+            );
         } else {
-            println!("Temporary file will be saved at {}", tempfile);
+            println!(
+                "Temporary file will be saved at {}",
+                tempfile.clone().colorize("cyan")
+            );
         }
 
         let total = segments.len();
@@ -326,7 +364,9 @@ impl DownloadState {
             )?))
         };
 
+        merger.lock().unwrap().update()?;
         pb.refresh();
+
         let pb = Arc::new(Mutex::new(pb));
         let client = Arc::new(self.downloader.clone());
         let pool = threadpool::ThreadPool::new(self.args.threads as usize);
@@ -379,17 +419,17 @@ impl DownloadState {
                     } else {
                         if total_retries > retries {
                             pb.lock().unwrap().write(format!(
-                                "{} to download segment at index {}",
-                                "Retrying".colorize("bold yellow"),
-                                i + 1
+                                "{} to download segment at index {}.",
+                                "RETRYING".colorize("bold yellow"),
+                                i
                             ));
                             retries += 1;
                             continue;
                         } else {
                             pb.lock().unwrap().write(format!(
-                                "{}: Reached maximum number of retries for {}",
+                                "{}: Reached maximum number of retries for segment at index {}.",
                                 "Error".colorize("bold red"),
-                                segment_url
+                                i
                             ));
                             std::process::exit(1);
                         }
@@ -425,15 +465,26 @@ impl DownloadState {
         merger.lock().unwrap().flush().unwrap();
 
         if merger.lock().unwrap().buffered() {
-            println!("File {} downloaded successfully.", tempfile);
+            println!(
+                "File {} downloaded successfully.",
+                tempfile.colorize("bold green")
+            );
         } else {
-            bail!("File {} is not downloaded successfully.", tempfile);
+            bail!(
+                "File {} is not downloaded successfully.",
+                tempfile.colorize("bold green")
+            );
         }
+
         Ok(())
     }
 
     pub fn transmux(&mut self) -> Result<()> {
         if let Some(output) = &self.args.output {
+            if output.ends_with(".ts") {
+                return Ok(());
+            }
+
             let mut args = vec!["-i", &self.progress.stream.file];
 
             if let Some(audio) = &self.progress.audio {
@@ -454,12 +505,21 @@ impl DownloadState {
             args.push("copy");
             args.push(output);
 
-            println!("Executing `ffmpeg {}`", args.join(" ").colorize("cyan"));
-            std::process::Command::new("ffmpeg")
+            println!(
+                "Executing {} {}",
+                "ffmpeg".colorize("cyan"),
+                args.join(" ").colorize("cyan")
+            );
+
+            let code = std::process::Command::new("ffmpeg")
                 .args(args)
                 .stderr(std::process::Stdio::null())
                 .spawn()?
                 .wait()?;
+
+            if !code.success() {
+                bail!("FFMPEG exited with code {}.", code.code().unwrap_or(1))
+            }
 
             if let Some(audio) = &self.progress.audio {
                 std::fs::remove_file(&audio.file)?;

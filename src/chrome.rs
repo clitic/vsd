@@ -26,7 +26,7 @@ fn filepath(url: &str, ext: &str) -> String {
             .unwrap();
 
         for i in 1..9999 {
-            let core_file_copy = format!("{} ({}).{}", stemed_path, i, ext);
+            let core_file_copy = format!("{}_{}.{}", stemed_path, i, ext);
 
             if !std::path::Path::new(&core_file_copy).exists() {
                 return core_file_copy;
@@ -103,10 +103,10 @@ pub fn collect(
         Box::new(move |_transport, _session_id, intercepted| {
             let url = intercepted.request.url;
 
-            if url.starts_with("https://cache-video.iq.com/dash")
-                || url.contains(".m3u")
+            if url.contains(".m3u")
                 || url.contains(".mpd")
                 || url.contains(".vtt")
+                || url.starts_with("https://cache-video.iq.com/dash")
             {
                 sender.lock().unwrap().send(url).unwrap();
             }
@@ -131,9 +131,7 @@ pub fn collect(
         "CTRL+C".colorize("bold red")
     );
     while let Ok(xhr_url) = receiver.recv() {
-        if xhr_url.starts_with("https://cache-video.iq.com/dash") {
-            iqiyi(&url, &xhr_url, &downloader)?;
-        } else if xhr_url.contains(".m3u") {
+        if xhr_url.contains(".m3u") {
             let file = filepath(&xhr_url, "m3u8");
             std::fs::File::create(&file)?.write(&downloader.get_bytes(&xhr_url)?)?;
             println!(
@@ -155,10 +153,13 @@ pub fn collect(
             let file = filepath(&xhr_url, "vtt");
             std::fs::File::create(&file)?.write(&downloader.get_bytes(&xhr_url)?)?;
             println!(
-                "Saved {} to {}",
+                "Saved {} from {} to {}",
                 "SUBTITLES".colorize("cyan"),
+                xhr_url,
                 file.colorize("bold green")
             );
+        } else if xhr_url.starts_with("https://cache-video.iq.com/dash") {
+            iqiyi(&url, &xhr_url, &downloader)?;
         }
     }
 

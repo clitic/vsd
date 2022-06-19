@@ -20,7 +20,7 @@ pub struct BinarySequence {
 impl BinarySequence {
     pub fn new(size: usize, filename: String, progress: DownloadProgress) -> Result<Self> {
         let json_file = progress.json_file.clone();
-
+            
         Ok(Self {
             size: size - 1,
             file: std::fs::File::create(&filename)?,
@@ -72,9 +72,7 @@ impl BinarySequence {
             let size = buf.len();
             self.stored_bytes += size;
             self.flushed_bytes += size;
-            self.json_file.seek(SeekFrom::Start(0))?;
-            self.progress
-                .update(self.pos, self.size + 1, &self.json_file);
+            self.update()?;
         } else {
             self.buffers.insert(pos, buf.to_vec());
             self.stored_bytes += buf.len();
@@ -93,9 +91,7 @@ impl BinarySequence {
                 self.file.flush()?;
                 self.pos += 1;
                 self.flushed_bytes += buf.len();
-                self.json_file.seek(SeekFrom::Start(0))?;
-                self.progress
-                    .update(self.pos, self.size + 1, &self.json_file);
+                self.update()?;
             } else {
                 break;
             }
@@ -122,5 +118,11 @@ impl BinarySequence {
         } else {
             (self.stored_bytes / self.indexed) * (self.size + 1)
         }
+    }
+
+    pub fn update(&mut self) -> Result<()> {
+        self.json_file.seek(SeekFrom::Start(0))?;
+        self.progress.update(self.pos, self.size + 1, &self.json_file);
+        Ok(())
     }
 }

@@ -52,7 +52,7 @@ pub struct Args {
     #[clap(short, long)]
     pub resume: bool,
 
-    /// Download alternative streams from master playlist instead of variant streams.
+    /// Download alternative streams such as audio and subtitles streams from master playlist instead of variant video streams.
     #[clap(short, long)]
     pub alternative: bool,
 
