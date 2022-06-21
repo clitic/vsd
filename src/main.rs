@@ -2,7 +2,6 @@ use kdam::term::Colorizer;
 
 fn error(e: anyhow::Error) -> ! {
     println!("{}: {}", "Error".colorize("bold red"), e);
-    // println!("{}: {}", "Cause".colorize("bold yellow"), e.root_cause());
     std::process::exit(1);
 }
 
@@ -12,5 +11,5 @@ fn main() {
     downloader
         .download(&segments, downloader.tempfile())
         .unwrap_or_else(|e| error(e));
-    downloader.transmux().unwrap_or_else(|e| error(e));
+    downloader.transmux_trancode().unwrap_or_else(|e| error(e));
 }

@@ -1,4 +1,6 @@
+use anyhow::Result;
 use openssl::symm::{decrypt, Cipher};
+
 enum HlsEncryptionMethod {
     Aes128,
     SampleAes,
@@ -40,14 +42,19 @@ impl HlsDecrypt {
         }
     }
 
-    pub fn decrypt(&self, buf: &[u8]) -> Vec<u8> {
+    pub fn decrypt(&self, buf: &[u8]) -> Result<Vec<u8>> {
         match self.method {
-            HlsEncryptionMethod::None => buf.to_vec(),
+            HlsEncryptionMethod::None => Ok(buf.to_vec()),
             HlsEncryptionMethod::Aes128 => {
                 if let Some(encryption_iv) = self.iv.clone() {
-                    decrypt(Cipher::aes_128_cbc(), &self.key, Some(&encryption_iv), buf).unwrap()
+                    Ok(decrypt(
+                        Cipher::aes_128_cbc(),
+                        &self.key,
+                        Some(&encryption_iv),
+                        buf,
+                    )?)
                 } else {
-                    decrypt(Cipher::aes_128_cbc(), &self.key, None, buf).unwrap()
+                    Ok(decrypt(Cipher::aes_128_cbc(), &self.key, None, buf)?)
                 }
             }
             HlsEncryptionMethod::SampleAes => {
@@ -72,7 +79,7 @@ impl HlsDecrypt {
                     }
                 }
 
-                new_buf
+                Ok(new_buf)
             }
         }
     }

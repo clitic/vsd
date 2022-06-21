@@ -76,7 +76,15 @@ impl DownloadState {
     }
 
     pub fn tempfile(&self) -> String {
-        let path = if let Some(output) = self.args.input.split("?").next().unwrap().split("/").find(|x| x.ends_with(".m3u8")) {
+        let path = if let Some(output) = self
+            .args
+            .input
+            .split("?")
+            .next()
+            .unwrap()
+            .split("/")
+            .find(|x| x.ends_with(".m3u8"))
+        {
             replace_ext(output, "ts")
         } else {
             "merged.ts".to_owned()
@@ -107,10 +115,28 @@ impl DownloadState {
 
         match links.len() {
             0 => bail!(
-                "No links found on website source. \
-                Consider using {} flag and then \
-                rerun the command with same arguments by replacing the input with captured m3u8 url.",
-                "--capture".colorize("bold green")
+                "No links found on website source.\n\n\
+                {} Consider using {} flag and then \
+                rerun the command with same arguments by replacing the {} with captured m3u8 url.\n\n\
+                Suppose first command captures https://streaming.site/video_001/master.m3u8\n\
+                $ vsd {} --capture\n\
+                $ vsd https://streaming.site/video_001/master.m3u8 \n\n\
+                {} If m3u8 url is not captured then rerun the command or use {} flag \
+                and then run the command with saved .m3u8 as {} file with {} flag. \
+                Sometimes baseurl is not needed so it can be skipped.\n\n\
+                First command will save .m3u8 (suppose playlist.m3u8)\n\
+                $ vsd {} --collect\n\
+                $ vsd playlist.m3u8 --baseurl {}",
+                "TRY THIS:".colorize("yellow"),
+                "--capture".colorize("bold green"),
+                "INPUT".colorize("bold green"),
+                self.args.input,
+                "OR THIS:".colorize("yellow"),
+                "--collect".colorize("bold green"),
+                "INPUT".colorize("bold green"),
+                "--baseurl".colorize("bold green"),
+                self.args.input,
+                self.args.input,
             ),
             1 => {
                 self.args.input = links[0].clone();
@@ -339,23 +365,12 @@ impl DownloadState {
         }
 
         let total = segments.len();
-        let mut pb = kdam::tqdm!(total = total, unit = "ts".to_owned(), dynamic_ncols = true);
-
         let merger = if self.args.resume {
-            let merger = BinarySequence::try_from_json(
+            Arc::new(Mutex::new(BinarySequence::try_from_json(
                 total,
                 tempfile.clone(),
                 self.progress.json_file.clone(),
-            )?;
-
-            pb.set_description(format!(
-                "{} / {}",
-                format_bytes(merger.stored()).2,
-                format_bytes(merger.estimate()).2
-            ));
-            pb.set_position(merger.position());
-
-            Arc::new(Mutex::new(merger))
+            )?))
         } else {
             Arc::new(Mutex::new(BinarySequence::new(
                 total,
@@ -363,11 +378,13 @@ impl DownloadState {
                 self.progress.clone(),
             )?))
         };
-
         merger.lock().unwrap().update()?;
-        pb.refresh();
 
-        let pb = Arc::new(Mutex::new(pb));
+        let pb = Arc::new(Mutex::new(kdam::tqdm!(
+            total = total,
+            unit = "ts".to_owned(),
+            dynamic_ncols = true
+        )));
         let client = Arc::new(self.downloader.clone());
         let pool = threadpool::ThreadPool::new(self.args.threads as usize);
 
@@ -401,6 +418,15 @@ impl DownloadState {
             let client = client.clone();
             let segment_url = self.get_url(&segment.uri)?;
             let total_retries = self.args.retry_count.clone();
+
+            pb.lock().unwrap().set_description(format!(
+                "{} / {}",
+                format_bytes(merger.lock().unwrap().stored()).2,
+                format_bytes(merger.lock().unwrap().estimate()).2
+            ));
+            pb.lock()
+                .unwrap()
+                .set_position(merger.lock().unwrap().position());
 
             pool.execute(move || {
                 let mut retries = 0;
@@ -436,12 +462,45 @@ impl DownloadState {
                     }
                 };
 
+                // Decrypt
+                retries = 0;
+
                 if let Some(eku) = key_url {
-                    data = crate::decrypt::HlsDecrypt::from_key(
-                        segment.key.unwrap(),
-                        client.get_bytes(&eku).unwrap(),
-                    )
-                    .decrypt(&data);
+                    data = loop {
+                        let resp = client.get_bytes(&eku);
+
+                        if resp.is_ok() {
+                            let decrypted_data = crate::decrypt::HlsDecrypt::from_key(
+                                segment.key.unwrap(),
+                                resp.unwrap(),
+                            )
+                            .decrypt(&data);
+
+                            break decrypted_data.unwrap_or_else(|e| {
+                                pb.lock().unwrap().write(format!(
+                                    "{}: {}",
+                                    "Error".colorize("bold red"),
+                                    e
+                                ));
+                                std::process::exit(1);
+                            });
+                        } else {
+                            if total_retries > retries {
+                                pb.lock().unwrap().write(format!(
+                                    "{} to download decryption key.",
+                                    "RETRYING".colorize("bold yellow"),
+                                ));
+                                retries += 1;
+                                continue;
+                            } else {
+                                pb.lock().unwrap().write(format!(
+                                "{}: Reached maximum number of retries to download decryption key.",
+                                "Error".colorize("bold red"),
+                            ));
+                                std::process::exit(1);
+                            }
+                        }
+                    };
                 }
 
                 let mut merger = merger.lock().unwrap();
@@ -449,13 +508,11 @@ impl DownloadState {
                 merger.flush().unwrap();
 
                 let mut pb = pb.lock().unwrap();
-
                 pb.set_description(format!(
                     "{} / {}",
                     format_bytes(merger.stored()).2,
                     format_bytes(merger.estimate()).2
                 ));
-
                 pb.update(1);
             });
         }
@@ -471,15 +528,15 @@ impl DownloadState {
             );
         } else {
             bail!(
-                "File {} is not downloaded successfully.",
-                tempfile.colorize("bold green")
+                "File {} not downloaded successfully.",
+                tempfile.colorize("bold red")
             );
         }
 
         Ok(())
     }
 
-    pub fn transmux(&mut self) -> Result<()> {
+    pub fn transmux_trancode(&mut self) -> Result<()> {
         if let Some(output) = &self.args.output {
             if output.ends_with(".ts") {
                 return Ok(());

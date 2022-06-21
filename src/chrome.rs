@@ -1,13 +1,19 @@
 use std::io::Write;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, Result};
 use headless_chrome::browser::tab::RequestInterceptionDecision;
 use headless_chrome::protocol::network::methods::RequestPattern;
 use headless_chrome::{Browser, LaunchOptionsBuilder};
 use kdam::term::Colorizer;
 
 fn filepath(url: &str, ext: &str) -> String {
-    let path = if let Some(output) = url.split("?").next().unwrap().split("/").find(|x| x.ends_with(&format!(".{}", ext))) {
+    let path = if let Some(output) = url
+        .split("?")
+        .next()
+        .unwrap()
+        .split("/")
+        .find(|x| x.ends_with(&format!(".{}", ext)))
+    {
         crate::utils::replace_ext(output, ext)
     } else {
         match ext {
@@ -26,7 +32,7 @@ fn filepath(url: &str, ext: &str) -> String {
             .unwrap();
 
         for i in 1..9999 {
-            let core_file_copy = format!("{}_{}.{}", stemed_path, i, ext);
+            let core_file_copy = format!("{} ({}).{}", stemed_path, i, ext);
 
             if !std::path::Path::new(&core_file_copy).exists() {
                 return core_file_copy;
@@ -68,6 +74,14 @@ pub fn capture(url: String, headless: bool) -> Result<()> {
     )
     .map_err(|e| anyhow!(e.to_string()))?;
 
+    println!(
+        "{}\n\
+    Some websites use window size to check wheter to show quality switch button or not. \
+    For such websites open chrome in full-screen mode and then right-click and select inspect. \
+    Now resize the window as required.",
+        "Sometimes request interception may not work in such conditions try re running the command."
+            .colorize("cyan")
+    );
     std::thread::sleep(std::time::Duration::from_secs(60 * 3));
     Ok(())
 }
@@ -116,6 +130,15 @@ pub fn collect(
     )
     .map_err(|e| anyhow!(e.to_string()))?;
 
+    println!(
+        "{}\n\
+    Some websites use window size to check wheter to show quality switch button or not. \
+    For such websites open chrome in full-screen mode and then right-click and select inspect. \
+    Now resize the window as required.",
+        "Sometimes request interception may not work in such conditions try re running the command."
+            .colorize("cyan")
+    );
+
     if url.starts_with("https://www.iq.com/play") {
         println!(
             "Collection method available for {}\nUsing {} method for collection.",
@@ -133,7 +156,7 @@ pub fn collect(
     while let Ok(xhr_url) = receiver.recv() {
         if xhr_url.contains(".m3u") {
             let file = filepath(&xhr_url, "m3u8");
-            std::fs::File::create(&file)?.write(&downloader.get_bytes(&xhr_url)?)?;
+            downloader.write_to_file(&xhr_url, &file)?;
             println!(
                 "Saved {} playlist from {} to {}",
                 "HLS".colorize("cyan"),
@@ -142,7 +165,7 @@ pub fn collect(
             );
         } else if xhr_url.contains(".mpd") {
             let file = filepath(&xhr_url, "mpd");
-            std::fs::File::create(&file)?.write(&downloader.get_bytes(&xhr_url)?)?;
+            downloader.write_to_file(&xhr_url, &file)?;
             println!(
                 "Saved {} playlist from {} to {}",
                 "DASH".colorize("cyan"),
@@ -151,7 +174,7 @@ pub fn collect(
             );
         } else if xhr_url.contains(".vtt") {
             let file = filepath(&xhr_url, "vtt");
-            std::fs::File::create(&file)?.write(&downloader.get_bytes(&xhr_url)?)?;
+            downloader.write_to_file(&xhr_url, &file)?;
             println!(
                 "Saved {} from {} to {}",
                 "SUBTITLES".colorize("cyan"),
@@ -167,9 +190,9 @@ pub fn collect(
 }
 
 fn iqiyi(url: &str, xhr_url: &str, downloader: &crate::downloader::Downloader) -> Result<()> {
-    if !url.starts_with("https://www.iq.com/play") {
-        bail!("Only https://www.iq.com/play links are supported.")
-    }
+    // if !url.starts_with("https://www.iq.com/play") {
+    //     bail!("Only https://www.iq.com/play links are supported.")
+    // }
 
     let re = regex::Regex::new(r"[a-zA-Z0-9-]*\?").unwrap();
     let name = re
@@ -182,7 +205,7 @@ fn iqiyi(url: &str, xhr_url: &str, downloader: &crate::downloader::Downloader) -
         .trim_end_matches("?")
         .to_owned();
 
-    let v: serde_json::Value = serde_json::from_str(&downloader.get(&xhr_url)?.text()?)?;
+    let v = downloader.get_json(&xhr_url)?;
 
     // Here unwrap method is used intentionally.
     for video in v["data"]["program"]["video"].as_array().unwrap() {

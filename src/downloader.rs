@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::str::FromStr;
 
 use anyhow::{bail, Result};
@@ -78,6 +79,12 @@ impl Downloader {
         Ok(resp)
     }
 
+    pub fn get_json(&self, url: &str) -> Result<serde_json::Value> {
+        let resp = self.client.get(url).send()?;
+        check_status_code(&resp)?;
+        Ok(serde_json::from_str(&resp.text()?)?)
+    }
+
     pub fn get_bytes(&self, url: &str) -> Result<Vec<u8>> {
         let resp = self.client.get(url).send()?;
         check_status_code(&resp)?;
@@ -89,5 +96,10 @@ impl Downloader {
         let resp = self.client.get(url).header(header::RANGE, range).send()?;
         check_status_code(&resp)?;
         Ok(resp.bytes()?.to_vec())
+    }
+
+    pub fn write_to_file(&self, url: &str, path: &str) -> Result<()> {
+        std::fs::File::create(path)?.write(&self.get_bytes(&url)?)?;
+        Ok(())
     }
 }
