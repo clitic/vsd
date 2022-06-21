@@ -43,6 +43,8 @@ There are some alternatives to vsd but they lack in some features like [N_m3u8DL
 - [ ] Supports [SAMPLE-AES](https://datatracker.ietf.org/doc/html/rfc8216#section-4.3.2.4) playlist decryption.
 - [ ] Supports live stream download.
 
+<a href="#Usage">See More</a>
+
 ## Installations
 
 Dependencies
@@ -59,7 +61,7 @@ For quick testing purposes you may use [https://test-streams.mux.dev](https://te
 - Downloading HLS video from a website, m3u8 url or from a local m3u8 file.
 
 ```bash
-vsd <url | .m3u8> -o video.mp4
+$ vsd <url | .m3u8> -o video.mp4
 ```
 
 > Use **-r/--resume** flag to resume a download session.
@@ -67,7 +69,76 @@ vsd <url | .m3u8> -o video.mp4
 - Collecting .m3u8 (HLS), .mpd (Dash) and subtitles from a website and saving them locally. (requires [chrome](https://www.google.com/chrome))
 
 ```bash
-vsd <url> --collect
+$ vsd <url> --collect
+```
+
+## Help
+
+```bash
+$ vsd --help
+```
+
+```
+vsd 0.1.0
+clitic <clitic21@gmail.com>
+Command line program to download HLS video from a website, m3u8 url or from a local m3u8 file.
+
+USAGE:
+    vsd.exe [OPTIONS] <INPUT>
+
+ARGS:
+    <INPUT>    url | .m3u8 | .m3u
+
+OPTIONS:
+    -a, --alternative                  Download alternative streams such as audio and subtitles
+                                       streams from master playlist instead of variant video streams
+    -b, --baseurl <BASEURL>            Base url for all segments. Usually needed for local m3u8 file
+    -h, --help                         Print help information
+    -o, --output <OUTPUT>              Path of final downloaded video stream. For file extension any
+                                       ffmpeg supported format could be provided. If playlist
+                                       contains alternative streams vsd will try to transmux and
+                                       trancode into single file using ffmpeg
+    -q, --quality <QUALITY>            Automatic selection of some standard resolution streams with
+                                       highest bandwidth stream variant from master playlist
+                                       [default: select] [possible values: select, sd, hd, fhd, uhd,
+                                       uhd4k, max]
+    -r, --resume                       Resume a download session. Download session can only be
+                                       resumed if download session json file is present
+        --raw-prompts                  Raw style input prompts for old and unsupported terminals
+        --retry-count <RETRY_COUNT>    Maximum number of retries to download an individual segment
+                                       [default: 15]
+    -s, --skip                         Skip downloading and muxing alternative streams
+    -t, --threads <THREADS>            Maximum number of threads for parllel downloading of
+                                       segments. Number of threads should be in range 1-16
+                                       (inclusive) [default: 5]
+    -V, --version                      Print version information
+
+CHROME OPTIONS:
+        --capture     Launch Google Chrome to capture requests made to fetch .m3u8 (HLS) and .mpd
+                      (Dash) files
+        --collect     Launch Google Chrome and collect .m3u8 (HLS), .mpd (Dash) and subtitles from a
+                      website and save them locally. Some websites have custom collector method for
+                      other websites their is an comman collector method
+        --headless    Launch Google Chrome without a window for interaction. This option must be
+                      used with `--capture` or `--collect` flag only
+
+CLIENT OPTIONS:
+        --cookies <cookies> <url>
+            Enable cookie store and fill it with some existing cookies. Example `--cookies "foo=bar;
+            Domain=yolo.local" https://yolo.local`. This option can be used multiple times
+
+        --enable-cookies
+            Enable cookie store which allows cookies to be stored
+
+        --header <key> <value>
+            Custom headers for requests. This option can be used multiple times
+
+        --proxy-address <PROXY_ADDRESS>
+            Custom http or https proxy address for requests
+
+        --user-agent <USER_AGENT>
+            Update and set custom user agent for requests [default: "Mozilla/5.0 (Windows NT 10.0;
+            Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.64 Safari/537.36"]
 ```
 
 ## Building From Source
