@@ -181,11 +181,7 @@ impl DownloadState {
                 m3u8_rs::AlternativeMediaType::Audio => {
                     if alternative.autoselect {
                         if let Some(uri) = &alternative.uri {
-                            println!(
-                                "{} {} stream.",
-                                "Downloading".colorize("bold green"),
-                                "AUDIO".colorize("cyan")
-                            );
+                            println!("{} audio stream.", "Downloading".colorize("bold green"));
                             check_ffmpeg()?;
                             self.args.input = self.get_url(uri)?;
                             self.progress.current("audio");
@@ -209,11 +205,7 @@ impl DownloadState {
                 | m3u8_rs::AlternativeMediaType::ClosedCaptions => {
                     if alternative.autoselect {
                         if let Some(uri) = &alternative.uri {
-                            println!(
-                                "{} {} stream.",
-                                "Downloading".colorize("bold green"),
-                                "SUBTITLES".colorize("cyan")
-                            );
+                            println!("{} subtitles stream.", "Downloading".colorize("bold green"));
                             check_ffmpeg()?;
                             self.args.input = self.get_url(uri)?;
                             self.progress.current("subtitle");
@@ -320,9 +312,13 @@ impl DownloadState {
                 {
                     m3u8_rs::Playlist::MediaPlaylist(meadia) => {
                         println!(
-                            "{} to download {} stream.",
+                            "{} {} stream.",
                             "Downloading".colorize("bold green"),
-                            "VIDEO".colorize("cyan")
+                            if self.args.alternative {
+                                "alternative"
+                            } else {
+                                "video"
+                            }
                         );
                         return Ok(meadia.segments);
                     }
@@ -330,11 +326,7 @@ impl DownloadState {
                 }
             }
             m3u8_rs::Playlist::MediaPlaylist(meadia) => {
-                println!(
-                    "{} {} stream.",
-                    "Downloading".colorize("bold green"),
-                    "VIDEO".colorize("cyan")
-                );
+                println!("{} video stream.", "Downloading".colorize("bold green"));
                 self.progress.current("stream");
                 self.progress.stream = StreamData::new(&self.args.input, &self.tempfile());
                 self.progress
@@ -419,14 +411,15 @@ impl DownloadState {
             let segment_url = self.get_url(&segment.uri)?;
             let total_retries = self.args.retry_count.clone();
 
+            let merger_c = merger.clone();
+            let merger_cm = merger_c.lock().unwrap();
+
             pb.lock().unwrap().set_description(format!(
                 "{} / {}",
-                format_bytes(merger.lock().unwrap().stored()).2,
-                format_bytes(merger.lock().unwrap().estimate()).2
+                format_bytes(merger_cm.stored()).2,
+                format_bytes(merger_cm.estimate()).2
             ));
-            pb.lock()
-                .unwrap()
-                .set_position(merger.lock().unwrap().position());
+            pb.lock().unwrap().set_position(merger_cm.position());
 
             pool.execute(move || {
                 let mut retries = 0;

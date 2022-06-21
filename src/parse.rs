@@ -84,7 +84,7 @@ pub fn master(
         Quality::Select => {
             let index = if streams.len() == 1 {
                 println!("Selected {} variant stream.", &streams[0]);
-                1
+                0
             } else {
                 select(
                     "Select one variant stream:".to_string(),
@@ -158,7 +158,7 @@ pub fn alternative(master: &m3u8_rs::MasterPlaylist, raw_prompts: bool) -> Resul
 
     let index = if streams.len() == 1 {
         println!("Selected {} alternative stream.", &streams[0]);
-        1
+        0
     } else {
         select(
             "Select one alternative stream:".to_string(),
