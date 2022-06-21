@@ -43,7 +43,7 @@ There are some alternatives to vsd but they lack in some features like [N_m3u8DL
 - [ ] Supports [SAMPLE-AES](https://datatracker.ietf.org/doc/html/rfc8216#section-4.3.2.4) playlist decryption.
 - [ ] Supports live stream download.
 
-<a href="#Usage">See More</a>
+<a href="#Help">See More</a>
 
 ## Installations
 
