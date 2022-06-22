@@ -54,6 +54,20 @@ Dependencies
 
 Visit [releases](https://github.com/clitic/vsd/releases) for prebuilt binaries. You just need to copy that binary to any path specified in your `PATH` environment variable.
 
+### On x86_64 Linux
+
+```bash
+INSTALL_PATH=/usr/local/bin curl https://github.com/clitic/vsd/releases/download/v0.1.0/vsd-v0.1.0-x86_64-unknown-linux-musl.tar.gz -o vsd-v0.1.0.tar.gz && tar -xzf vsd-v0.1.0.tar.gz -C $INSTALL_PATH/ && chmod +x $INSTALL_PATH/vsd && rm vsd-v0.1.0.tar.gz
+```
+
+### On Termux
+
+Android builds are compiled with **android-ndk-r22b** and targets **API Level 30** it means binary is only supported by **Android 11** and above.
+
+```bash
+curl https://github.com/clitic/vsd/releases/download/v0.1.0/vsd-v0.1.0-aarch64-linux-android.tar.gz -o vsd-v0.1.0.tar.gz && tar -xzf vsd-v0.1.0.tar.gz -C $PREFIX/bin/ && chmod +x $PREFIX/bin/vsd && rm vsd-v0.1.0.tar.gz
+```
+
 ## Usage
 
 For quick testing purposes you may use [https://test-streams.mux.dev](https://test-streams.mux.dev) as direct input. These streams are used by [hls.js](https://github.com/video-dev/hls.js) for testing purposes.
@@ -134,7 +148,7 @@ CLIENT OPTIONS:
             Custom headers for requests. This option can be used multiple times
 
         --proxy-address <PROXY_ADDRESS>
-            Custom http or https proxy address for requests
+            Set http or https proxy address for requests
 
         --user-agent <USER_AGENT>
             Update and set custom user agent for requests [default: "Mozilla/5.0 (Windows NT 10.0;

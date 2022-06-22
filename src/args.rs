@@ -87,7 +87,7 @@ pub struct Args {
     )]
     pub user_agent: String,
 
-    /// Custom http or https proxy address for requests.
+    /// Set http or https proxy address for requests.
     #[clap(long, validator = proxy_address_validator, help_heading = "CLIENT OPTIONS")]
     pub proxy_address: Option<String>,
 

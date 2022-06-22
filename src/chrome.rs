@@ -6,6 +6,23 @@ use headless_chrome::protocol::network::methods::RequestPattern;
 use headless_chrome::{Browser, LaunchOptionsBuilder};
 use kdam::term::Colorizer;
 
+pub fn message(headless: bool) {
+    println!("Some websites use window size to check wheter to show quality switch button or not. \
+        For such websites open chrome in full-screen mode and then right-click and select inspect. \
+        Now resize the window as required.\n\
+        {}\n\
+        Chrome will launch {} a window.\n\
+        Terminate this program using {}\n",
+        "Sometimes request interception doesn't works in such condition try re running the command."
+        .colorize("#FFA500"), 
+        if headless {
+            "without"
+        } else {
+            "with"
+        }, "CTRL+C".colorize("bold red")
+    );
+}
+
 fn filepath(url: &str, ext: &str) -> String {
     let path = if let Some(output) = url
         .split("?")
@@ -14,7 +31,11 @@ fn filepath(url: &str, ext: &str) -> String {
         .split("/")
         .find(|x| x.ends_with(&format!(".{}", ext)))
     {
-        crate::utils::replace_ext(output, ext)
+        if output.ends_with(&format!(".ts.{}", ext)) {
+            output.trim_end_matches(&format!(".{}", ext)).to_owned()
+        } else {
+            crate::utils::replace_ext(output, "ts")
+        }
     } else {
         match ext {
             "m3u8" => "playlist.m3u8".to_owned(),
@@ -42,7 +63,7 @@ fn filepath(url: &str, ext: &str) -> String {
     path
 }
 
-pub fn capture(url: String, headless: bool) -> Result<()> {
+pub fn capture(url: &str, headless: bool) -> Result<()> {
     let browser = Browser::new(
         LaunchOptionsBuilder::default()
             .headless(headless)
@@ -54,8 +75,10 @@ pub fn capture(url: String, headless: bool) -> Result<()> {
     let tab = browser
         .wait_for_initial_tab()
         .map_err(|e| anyhow!(e.to_string()))?;
-    tab.navigate_to(url.as_str())
+    tab.navigate_to(url)
         .map_err(|e| anyhow!(e.to_string()))?;
+
+    let count = std::sync::atomic::AtomicU8::new(1);
 
     tab.enable_request_interception(
         &[RequestPattern {
@@ -63,10 +86,12 @@ pub fn capture(url: String, headless: bool) -> Result<()> {
             resource_type: Some("XHR"),
             interception_stage: None,
         }],
-        Box::new(|_transport, _session_id, intercepted| {
+        Box::new(move |_transport, _session_id, intercepted| {
             if intercepted.request.url.contains(".m3u") || intercepted.request.url.contains(".mpd")
             {
-                println!("• {}", intercepted.request.url);
+                let i = count.load(std::sync::atomic::Ordering::SeqCst);
+                println!("{}) {}", i, intercepted.request.url);
+                count.store(i + 1, std::sync::atomic::Ordering::SeqCst);
             }
 
             RequestInterceptionDecision::Continue
@@ -74,20 +99,12 @@ pub fn capture(url: String, headless: bool) -> Result<()> {
     )
     .map_err(|e| anyhow!(e.to_string()))?;
 
-    println!(
-        "{}\n\
-    Some websites use window size to check wheter to show quality switch button or not. \
-    For such websites open chrome in full-screen mode and then right-click and select inspect. \
-    Now resize the window as required.",
-        "Sometimes request interception may not work in such conditions try re running the command."
-            .colorize("cyan")
-    );
     std::thread::sleep(std::time::Duration::from_secs(60 * 3));
     Ok(())
 }
 
 pub fn collect(
-    url: String,
+    url: &str,
     headless: bool,
     downloader: &crate::downloader::Downloader,
 ) -> Result<()> {
@@ -102,7 +119,7 @@ pub fn collect(
     let tab = browser
         .wait_for_initial_tab()
         .map_err(|e| anyhow!(e.to_string()))?;
-    tab.navigate_to(url.as_str())
+    tab.navigate_to(url)
         .map_err(|e| anyhow!(e.to_string()))?;
 
     let (sender, receiver) = std::sync::mpsc::channel();
@@ -130,29 +147,12 @@ pub fn collect(
     )
     .map_err(|e| anyhow!(e.to_string()))?;
 
-    println!(
-        "{}\n\
-    Some websites use window size to check wheter to show quality switch button or not. \
-    For such websites open chrome in full-screen mode and then right-click and select inspect. \
-    Now resize the window as required.",
-        "Sometimes request interception may not work in such conditions try re running the command."
-            .colorize("cyan")
-    );
-
     if url.starts_with("https://www.iq.com/play") {
-        println!(
-            "Collection method available for {}\nUsing {} method for collection.",
-            "https://www.iq.com/play".colorize("bold green"),
-            "CUSTOM".colorize("cyan")
-        );
+        println!("Using {} method for collection.", "CUSTOM".colorize("cyan"));
     } else {
         println!("Using {} method for collection.", "COMMAN".colorize("cyan"))
     }
 
-    println!(
-        "Terminate this program using {}",
-        "CTRL+C".colorize("bold red")
-    );
     while let Ok(xhr_url) = receiver.recv() {
         if xhr_url.contains(".m3u") {
             let file = filepath(&xhr_url, "m3u8");
@@ -190,10 +190,6 @@ pub fn collect(
 }
 
 fn iqiyi(url: &str, xhr_url: &str, downloader: &crate::downloader::Downloader) -> Result<()> {
-    // if !url.starts_with("https://www.iq.com/play") {
-    //     bail!("Only https://www.iq.com/play links are supported.")
-    // }
-
     let re = regex::Regex::new(r"[a-zA-Z0-9-]*\?").unwrap();
     let name = re
         .captures_iter(&url)

@@ -19,11 +19,8 @@ impl DownloadState {
         let args = crate::args::parse();
 
         if args.capture {
-            println!(
-                "Launching chrome in headless={} mode for 3 minutes.",
-                args.headless
-            );
-            crate::chrome::capture(args.input, args.headless)?;
+            crate::chrome::message(args.headless);
+            crate::chrome::capture(&args.input, args.headless)?;
             std::process::exit(0);
         }
 
@@ -37,8 +34,8 @@ impl DownloadState {
         .context("Couldn't create reqwest client.")?;
 
         if args.collect {
-            println!("Launching chrome in headless={} mode.", args.headless);
-            crate::chrome::collect(args.input.clone(), args.headless, &downloader)?;
+            crate::chrome::message(args.headless);
+            crate::chrome::collect(&args.input, args.headless, &downloader)?;
         }
 
         if let Some(output) = &args.output {
@@ -85,7 +82,11 @@ impl DownloadState {
             .split("/")
             .find(|x| x.ends_with(".m3u8"))
         {
-            replace_ext(output, "ts")
+            if output.ends_with(".ts.m3u8") {
+                output.trim_end_matches(".m3u8").to_owned()
+            } else {
+                replace_ext(output, "ts")
+            }
         } else {
             "merged.ts".to_owned()
         };
@@ -124,9 +125,9 @@ impl DownloadState {
                 {} If m3u8 url is not captured then rerun the command or use {} flag \
                 and then run the command with saved .m3u8 as {} file with {} flag. \
                 Sometimes baseurl is not needed so it can be skipped.\n\n\
-                First command will save .m3u8 (suppose playlist.m3u8)\n\
+                First command will save .m3u8 (suppose master.m3u8)\n\
                 $ vsd {} --collect\n\
-                $ vsd playlist.m3u8 --baseurl {}",
+                $ vsd master.m3u8 --baseurl https://streaming.site/video_001/",
                 "TRY THIS:".colorize("yellow"),
                 "--capture".colorize("bold green"),
                 "INPUT".colorize("bold green"),
@@ -135,7 +136,6 @@ impl DownloadState {
                 "--collect".colorize("bold green"),
                 "INPUT".colorize("bold green"),
                 "--baseurl".colorize("bold green"),
-                self.args.input,
                 self.args.input,
             ),
             1 => {
@@ -341,6 +341,9 @@ impl DownloadState {
         segments: &Vec<m3u8_rs::MediaSegment>,
         mut tempfile: String,
     ) -> Result<()> {
+        // Check to ensure baseurl is required or not.
+        self.get_url(&segments[0].uri)?;
+
         if let Some(output) = &self.args.output {
             if output.ends_with(".ts") {
                 tempfile = output.clone();
