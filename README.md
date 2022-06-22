@@ -1,6 +1,10 @@
 <h1 align="center">vsd</h1>
 
+
 <p align="center">
+  <img src="https://img.shields.io/github/downloads/clitic/vsd/total?style=flat-square">
+  <img src="https://img.shields.io/crates/d/vsd?style=flat-square">
+  <img src="https://img.shields.io/crates/v/vsd?style=flat-square">
   <img src="https://img.shields.io/github/license/clitic/vsd?style=flat-square">
   <img src="https://img.shields.io/github/repo-size/clitic/vsd?style=flat-square">
   <img src="https://img.shields.io/tokei/lines/github/clitic/vsd?style=flat-square">
@@ -17,7 +21,7 @@ Command line program to download HLS video from a website, m3u8 url or from a lo
 Know more about HLS from [howvideo.works](https://howvideo.works) and 
 [wikipedia](https://en.wikipedia.org/wiki/M3U).
 
-There are some alternatives to vsd but they lack in some features like [N_m3u8DL-CLI](https://github.com/nilaoda/N_m3u8DL-CLI) is not cross platform and [m3u8-downloader](https://github.com/llychao/m3u8-downloader) has very few customizable options.
+There are some alternatives to vsd but they lack in some features like [N_m3u8DL-CLI](https://github.com/nilaoda/N_m3u8DL-CLI) is not cross platform and [m3u8-downloader](https://github.com/llychao/m3u8-downloader) has very few customizable options. It can also replace [webvideo-downloader](https://github.com/jaysonlong/webvideo-downloader).
 
 <p align="center">
   <img src="https://github.com/clitic/vsd/blob/main/images/showcase.png">
@@ -34,12 +38,13 @@ There are some alternatives to vsd but they lack in some features like [N_m3u8DL
 - [x] Multiple output formats which are supported by ffmpeg.
 - [x] Muxing seperate video, audio and subtitle (webvtt) stream to single file.
 - [x] Progressive binary merging of segments.
-- [x] Realtime file size prediction.
+- [x] Realtime file size estimation.
 - [x] Select standard resolution playlist like `HD`, `FHD` etc.
 - [x] Supports `AES-128` playlist decryption.
 - [x] Supports multiple retries.
 - [x] Supports resume.
 - [ ] GUI
+- [ ] Supports Dash
 - [ ] Supports [SAMPLE-AES](https://datatracker.ietf.org/doc/html/rfc8216#section-4.3.2.4) playlist decryption.
 - [ ] Supports live stream download.
 
@@ -53,6 +58,12 @@ Dependencies
 - [chrome](https://www.google.com/chrome) (optional) only required for `CHROME OPTIONS` related flag. 
 
 Visit [releases](https://github.com/clitic/vsd/releases) for prebuilt binaries. You just need to copy that binary to any path specified in your `PATH` environment variable.
+
+### Through Cargo
+
+```bash
+cargo install vsd
+```
 
 ### On x86_64 Linux
 
@@ -77,8 +88,6 @@ For quick testing purposes you may use [https://test-streams.mux.dev](https://te
 ```bash
 $ vsd <url | .m3u8> -o video.mp4
 ```
-
-> Use **-r/--resume** flag to resume a download session.
 
 - Collecting .m3u8 (HLS), .mpd (Dash) and subtitles from a website and saving them locally. (requires [chrome](https://www.google.com/chrome))
 

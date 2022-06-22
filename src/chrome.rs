@@ -32,9 +32,9 @@ fn filepath(url: &str, ext: &str) -> String {
         .find(|x| x.ends_with(&format!(".{}", ext)))
     {
         if output.ends_with(&format!(".ts.{}", ext)) {
-            output.trim_end_matches(&format!(".{}", ext)).to_owned()
+            crate::utils::replace_ext(output.trim_end_matches(&format!(".{}", ext)), ext)
         } else {
-            crate::utils::replace_ext(output, "ts")
+            crate::utils::replace_ext(output, ext)
         }
     } else {
         match ext {
