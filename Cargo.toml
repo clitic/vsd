@@ -3,7 +3,7 @@ members = ["gui"]
 
 [package]
 name = "vsd"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Command line program to download HLS video from a website, m3u8 url or from a local m3u8 file."
 repository = "https://github.com/clitic/vsd"
