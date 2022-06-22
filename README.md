@@ -68,7 +68,7 @@ cargo install vsd
 ### On x86_64 Linux
 
 ```bash
-wget https://github.com/clitic/vsd/releases/download/v0.1.0/vsd-v0.1.0-x86_64-unknown-linux-musl.tar.gz -O vsd-v0.1.0.tar.gz && tar -xzf vsd-v0.1.0.tar.gz -C $/usr/local/bin/ && chmod +x $INSTALL_PATH/vsd && rm vsd-v0.1.0.tar.gz
+wget https://github.com/clitic/vsd/releases/download/v0.1.0/vsd-v0.1.0-x86_64-unknown-linux-musl.tar.gz -O vsd-v0.1.0.tar.gz && tar -xzf vsd-v0.1.0.tar.gz -C /usr/local/bin/ && chmod +x /usr/local/bin/vsd && rm vsd-v0.1.0.tar.gz
 ```
 
 ### On Termux
