@@ -1,13 +1,27 @@
 <h1 align="center">vsd</h1>
 
-
 <p align="center">
-  <img src="https://img.shields.io/github/downloads/clitic/vsd/total?style=flat-square">
-  <img src="https://img.shields.io/crates/d/vsd?style=flat-square">
-  <img src="https://img.shields.io/crates/v/vsd?style=flat-square">
-  <img src="https://img.shields.io/github/license/clitic/vsd?style=flat-square">
-  <img src="https://img.shields.io/github/repo-size/clitic/vsd?style=flat-square">
-  <img src="https://img.shields.io/tokei/lines/github/clitic/vsd?style=flat-square">
+  <a href="https://github.com/clitic/vsd">
+    <img src="https://img.shields.io/github/downloads/clitic/vsd/total?logo=github&style=flat-square">
+  </a>
+  <a href="https://crates.io/crates/vsd">
+    <img src="https://img.shields.io/crates/d/vsd?logo=rust&style=flat-square">
+  </a>
+  <a href="https://crates.io/crates/vsd">
+    <img src="https://img.shields.io/crates/v/vsd?style=flat-square">
+  </a>
+  <a href="https://docs.rs/vsd/latest/vsd">
+    <img src="https://img.shields.io/docsrs/vsd?logo=docsdotrs&style=flat-square">
+  </a>
+  <a href="https://github.com/clitic/vsd">
+    <img src="https://img.shields.io/github/license/clitic/vsd?style=flat-square">
+  </a>
+  <a href="https://github.com/clitic/vsd">
+    <img src="https://img.shields.io/github/repo-size/clitic/vsd?logo=github&style=flat-square">
+  </a>
+  <a href="https://github.com/clitic/vsd">
+    <img src="https://img.shields.io/tokei/lines/github/clitic/vsd?style=flat-square">
+  </a>
 </p>
 
 <p align="center">

@@ -60,20 +60,20 @@ pub struct Args {
     #[clap(short, long)]
     pub skip: bool,
 
+    /// Launch Google Chrome to capture requests made to fetch .m3u8 (HLS) and .mpd (Dash) files.
+    #[clap(long, help_heading = "CHROME OPTIONS")]
+    pub capture: bool,
+	
     /// Launch Google Chrome and collect .m3u8 (HLS), .mpd (Dash) and subtitles from a website and save them locally.
     /// Some websites have custom collector method for other websites their is an comman collector method.
     #[clap(long, help_heading = "CHROME OPTIONS")]
     pub collect: bool,
 
-    /// Launch Google Chrome to capture requests made to fetch .m3u8 (HLS) and .mpd (Dash) files.
-    #[clap(long, help_heading = "CHROME OPTIONS")]
-    pub capture: bool,
-
     /// Launch Google Chrome without a window for interaction.
-    /// This option must be used with `--capture` or `--collect` flag only.
-    #[clap(long, help_heading = "CHROME OPTIONS")]
+    /// This option should must be used with `--capture` or `--collect` flag only.
+    #[clap(long, requires = "chrome", help_heading = "CHROME OPTIONS")]
     pub headless: bool,
-
+	
     /// Custom headers for requests.
     /// This option can be used multiple times.
     #[clap(long, multiple_occurrences = true, number_of_values = 2, value_names = &["key", "value"], help_heading = "CLIENT OPTIONS")]
