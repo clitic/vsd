@@ -68,7 +68,7 @@ cargo install vsd
 ### On x86_64 Linux
 
 ```bash
-INSTALL_PATH=/usr/local/bin curl https://github.com/clitic/vsd/releases/download/v0.1.0/vsd-v0.1.0-x86_64-unknown-linux-musl.tar.gz -o vsd-v0.1.0.tar.gz && tar -xzf vsd-v0.1.0.tar.gz -C $INSTALL_PATH/ && chmod +x $INSTALL_PATH/vsd && rm vsd-v0.1.0.tar.gz
+wget https://github.com/clitic/vsd/releases/download/v0.1.0/vsd-v0.1.0-x86_64-unknown-linux-musl.tar.gz -O vsd-v0.1.0.tar.gz && tar -xzf vsd-v0.1.0.tar.gz -C $/usr/local/bin/ && chmod +x $INSTALL_PATH/vsd && rm vsd-v0.1.0.tar.gz
 ```
 
 ### On Termux
@@ -76,7 +76,7 @@ INSTALL_PATH=/usr/local/bin curl https://github.com/clitic/vsd/releases/download
 Android builds are compiled with **android-ndk-r22b** and targets **API Level 30** it means binary is only supported by **Android 11** and above.
 
 ```bash
-curl https://github.com/clitic/vsd/releases/download/v0.1.0/vsd-v0.1.0-aarch64-linux-android.tar.gz -o vsd-v0.1.0.tar.gz && tar -xzf vsd-v0.1.0.tar.gz -C $PREFIX/bin/ && chmod +x $PREFIX/bin/vsd && rm vsd-v0.1.0.tar.gz
+wget https://github.com/clitic/vsd/releases/download/v0.1.0/vsd-v0.1.0-aarch64-linux-android.tar.gz -O vsd-v0.1.0.tar.gz && tar -xzf vsd-v0.1.0.tar.gz -C $PREFIX/bin/ && chmod +x $PREFIX/bin/vsd && rm vsd-v0.1.0.tar.gz
 ```
 
 ## Usage
