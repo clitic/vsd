@@ -35,12 +35,12 @@ impl DownloadState {
 
         if args.collect {
             crate::chrome::message(args.headless);
-            crate::chrome::collect(&args.input, args.headless, &downloader)?;
+            crate::chrome::collect(&args.input, args.headless, args.build, &downloader)?;
         }
 
         if let Some(output) = &args.output {
             if !output.ends_with(".ts") {
-                check_ffmpeg()?
+                check_ffmpeg("the given output doesn't have .ts file extension")?
             }
         }
 
@@ -156,6 +156,10 @@ impl DownloadState {
             }
         }
 
+        if self.args.input.ends_with(".mpd") {
+            bail!("Dash streams are not supported.")
+        }
+        
         Ok(())
     }
 
@@ -182,7 +186,7 @@ impl DownloadState {
                     if alternative.autoselect {
                         if let Some(uri) = &alternative.uri {
                             println!("{} audio stream.", "Downloading".colorize("bold green"));
-                            check_ffmpeg()?;
+                            check_ffmpeg("audio stream needs to muxed with video stream")?;
                             self.args.input = self.get_url(uri)?;
                             self.progress.current("audio");
                             self.progress.audio =
@@ -206,7 +210,7 @@ impl DownloadState {
                     if alternative.autoselect {
                         if let Some(uri) = &alternative.uri {
                             println!("{} subtitles stream.", "Downloading".colorize("bold green"));
-                            check_ffmpeg()?;
+                            check_ffmpeg("subtitles stream needs to muxed with video stream")?;
                             self.args.input = self.get_url(uri)?;
                             self.progress.current("subtitle");
                             self.progress.subtitle =
@@ -269,13 +273,18 @@ impl DownloadState {
     }
 
     pub fn segments(&mut self) -> Result<Vec<m3u8_rs::MediaSegment>> {
-        if find_hls_dash_links(&self.args.input).len() == 0 {
-            if self.args.input.starts_with("http") {
+        let content = if self.args.input.starts_with("http") {
+            if !self
+                .args
+                .input
+                .split("?")
+                .next()
+                .unwrap()
+                .ends_with(".m3u8")
+            {
                 self.scrape_website()?;
             }
-        }
 
-        let content = if self.args.input.starts_with("http") {
             self.downloader.get_bytes(&self.args.input)?
         } else {
             std::fs::read_to_string(&self.args.input)?

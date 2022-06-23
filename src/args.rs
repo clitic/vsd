@@ -73,6 +73,12 @@ pub struct Args {
     /// This option should must be used with `--capture` or `--collect` flag only.
     #[clap(long, requires = "chrome", help_heading = "CHROME OPTIONS")]
     pub headless: bool,
+
+    /// Build links while collecting .m3u8 file.
+    /// Resultant .m3u8 file will be directly downloadable without the need of `--baseurl` flag.
+    /// This option should must be used with `--collect` flag only.
+    #[clap(long, requires = "collect", help_heading = "CHROME OPTIONS")]
+    pub build: bool,
 	
     /// Custom headers for requests.
     /// This option can be used multiple times.

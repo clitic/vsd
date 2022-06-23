@@ -88,12 +88,12 @@ fn find_ffmpeg_with_path() -> Option<String> {
     )
 }
 
-pub fn check_ffmpeg() -> Result<()> {
+pub fn check_ffmpeg(text: &str) -> Result<()> {
     if find_ffmpeg_with_path().is_none() {
         bail!(
             "FFMPEG couldn't be located in PATH. \
-            It is required for transmuxing and transcoding streams. \
-            Visit https://www.ffmpeg.org/download.html to install it.",
+            It is required because {}. \
+            Visit https://www.ffmpeg.org/download.html to install it.", text
         );
     }
 

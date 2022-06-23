@@ -41,6 +41,7 @@ fn filepath(url: &str, ext: &str) -> String {
             "m3u8" => "playlist.m3u8".to_owned(),
             "mpd" => "manifest.mpd".to_owned(),
             "vtt" => "subtitles.vtt".to_owned(),
+            "srt" => "subtitles.srt".to_owned(),
             _ => format!("unknown.{}", ext),
         }
     };
@@ -75,8 +76,7 @@ pub fn capture(url: &str, headless: bool) -> Result<()> {
     let tab = browser
         .wait_for_initial_tab()
         .map_err(|e| anyhow!(e.to_string()))?;
-    tab.navigate_to(url)
-        .map_err(|e| anyhow!(e.to_string()))?;
+    tab.navigate_to(url).map_err(|e| anyhow!(e.to_string()))?;
 
     let count = std::sync::atomic::AtomicU8::new(1);
 
@@ -106,6 +106,7 @@ pub fn capture(url: &str, headless: bool) -> Result<()> {
 pub fn collect(
     url: &str,
     headless: bool,
+    build: bool,
     downloader: &crate::downloader::Downloader,
 ) -> Result<()> {
     let browser = Browser::new(
@@ -119,8 +120,7 @@ pub fn collect(
     let tab = browser
         .wait_for_initial_tab()
         .map_err(|e| anyhow!(e.to_string()))?;
-    tab.navigate_to(url)
-        .map_err(|e| anyhow!(e.to_string()))?;
+    tab.navigate_to(url).map_err(|e| anyhow!(e.to_string()))?;
 
     let (sender, receiver) = std::sync::mpsc::channel();
     let sender = std::sync::Mutex::new(sender);
@@ -137,6 +137,7 @@ pub fn collect(
             if url.contains(".m3u")
                 || url.contains(".mpd")
                 || url.contains(".vtt")
+                || url.contains(".srt")
                 || url.starts_with("https://cache-video.iq.com/dash")
             {
                 sender.lock().unwrap().send(url).unwrap();
@@ -156,13 +157,24 @@ pub fn collect(
     while let Ok(xhr_url) = receiver.recv() {
         if xhr_url.contains(".m3u") {
             let file = filepath(&xhr_url, "m3u8");
-            downloader.write_to_file(&xhr_url, &file)?;
-            println!(
-                "Saved {} playlist from {} to {}",
-                "HLS".colorize("cyan"),
-                xhr_url,
-                file.colorize("bold green")
-            );
+
+            if build {
+                build_links(&xhr_url, &file, &downloader)?;
+                println!(
+                    "Saved {} playlist from {} to {}",
+                    "BUILDED HLS".colorize("cyan"),
+                    xhr_url,
+                    file.colorize("bold green")
+                );
+            } else {
+                downloader.write_to_file(&xhr_url, &file)?;
+                println!(
+                    "Saved {} playlist from {} to {}",
+                    "HLS".colorize("cyan"),
+                    xhr_url,
+                    file.colorize("bold green")
+                );
+            }
         } else if xhr_url.contains(".mpd") {
             let file = filepath(&xhr_url, "mpd");
             downloader.write_to_file(&xhr_url, &file)?;
@@ -181,8 +193,65 @@ pub fn collect(
                 xhr_url,
                 file.colorize("bold green")
             );
+        } else if xhr_url.contains(".srt") {
+            let file = filepath(&xhr_url, "srt");
+            downloader.write_to_file(&xhr_url, &file)?;
+            println!(
+                "Saved {} from {} to {}",
+                "SUBTITLES".colorize("cyan"),
+                xhr_url,
+                file.colorize("bold green")
+            );
         } else if xhr_url.starts_with("https://cache-video.iq.com/dash") {
             iqiyi(&url, &xhr_url, &downloader)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn build_links(
+    xhr_url: &str,
+    file: &str,
+    downloader: &crate::downloader::Downloader,
+) -> Result<()> {
+    match m3u8_rs::parse_playlist_res(&downloader.get_bytes(&xhr_url)?)
+        .map_err(|_| anyhow!("Couldn't parse {} playlist.", xhr_url))?
+    {
+        m3u8_rs::Playlist::MasterPlaylist(master) => {
+            let mut master_c = master.clone();
+
+            for variant in master_c.variants.iter_mut() {
+                if !variant.uri.starts_with("http") {
+                    variant.uri = reqwest::Url::parse(&xhr_url)?
+                        .join(&variant.uri)?
+                        .to_string();
+                }
+            }
+
+            for alternative in master_c.alternatives.iter_mut() {
+                if let Some(uri) = &alternative.uri {
+                    if !uri.starts_with("http") {
+                        alternative.uri =
+                            Some(reqwest::Url::parse(&xhr_url)?.join(uri)?.to_string());
+                    }
+                }
+            }
+
+            master_c.write_to(&mut std::fs::File::create(&file)?)?;
+        }
+        m3u8_rs::Playlist::MediaPlaylist(meadia) => {
+            let mut meadia_c = meadia.clone();
+
+            for segment in meadia_c.segments.iter_mut() {
+                if !segment.uri.starts_with("http") {
+                    segment.uri = reqwest::Url::parse(&xhr_url)?
+                        .join(&segment.uri)?
+                        .to_string();
+                }
+            }
+
+            meadia_c.write_to(&mut std::fs::File::create(&file)?)?;
         }
     }
 
