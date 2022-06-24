@@ -6,20 +6,20 @@
 
 ## Step 1
 
-![running-on-android-step-1](https://raw.githubusercontent.com/clitic/vsd/main/images/running-on-android-step-1.jpg)
-
+ <img src="https://raw.githubusercontent.com/clitic/vsd/main/images/running-on-android-step-1.jpg" alt="running-on-android-step-1" height="400">
+ 
 ## Step 2
 
-![running-on-android-step-2](https://raw.githubusercontent.com/clitic/vsd/main/images/running-on-android-step-2.jpg)
+ <img src="https://raw.githubusercontent.com/clitic/vsd/main/images/running-on-android-step-2.jpg" alt="running-on-android-step-2" height="400">
 
 ## Step 3
 
-![running-on-android-step-3](https://raw.githubusercontent.com/clitic/vsd/main/images/running-on-android-step-3.jpg)
+ <img src="https://raw.githubusercontent.com/clitic/vsd/main/images/running-on-android-step-3.jpg" alt="running-on-android-step-3" height="400">
 
 ## Step 4
 
-![running-on-android-step-4](https://raw.githubusercontent.com/clitic/vsd/main/images/running-on-android-step-4.jpg)
+ <img src="https://raw.githubusercontent.com/clitic/vsd/main/images/running-on-android-step-4.jpg" alt="running-on-android-step-4" height="400">
 
 ## Step 5
 
-![running-on-android-step-5](https://raw.githubusercontent.com/clitic/vsd/main/images/running-on-android-step-4.jpg)
+ <img src="https://raw.githubusercontent.com/clitic/vsd/main/images/running-on-android-step-5.jpg" alt="running-on-android-step-5" height="400">

@@ -90,7 +90,7 @@ $ rm vsd-v0.1.0.tar.gz
 
 ### On Termux
 
-Android builds are compiled with **android-ndk-r22b** and targets **API Level 30** it means binary is only supported by **Android 11** and above. Also, see [running on android](https://github.com/clitic/vsd/blob/main/docs-running-on-android).
+Android builds are compiled with **android-ndk-r22b** and targets **API Level 30** it means binary is only supported by **Android 11** and above. Also, see [running on android](https://github.com/clitic/vsd/blob/main/docs/running-on-android.md).
 
 ```bash
 $ pkg install wget ffmpeg
