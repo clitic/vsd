@@ -118,24 +118,22 @@ impl DownloadState {
             0 => bail!(
                 "No links found on website source.\n\n\
                 {} Consider using {} flag and then \
-                rerun the command with same arguments by replacing the {} with captured m3u8 url.\n\n\
+                run the command with same arguments by replacing the {} with captured m3u8 url.\n\n\
                 Suppose first command captures https://streaming.site/video_001/master.m3u8\n\
-                $ vsd {} --capture\n\
+                $ vsd --capture {}\n\
                 $ vsd https://streaming.site/video_001/master.m3u8 \n\n\
-                {} If m3u8 url is not captured then rerun the command or use {} flag \
-                and then run the command with saved .m3u8 as {} file with {} flag. \
-                Sometimes baseurl is not needed so it can be skipped.\n\n\
-                First command will save .m3u8 (suppose master.m3u8)\n\
-                $ vsd {} --collect\n\
-                $ vsd master.m3u8 --baseurl https://streaming.site/video_001/",
+                {} Consider using {} flag \
+                and then run the command with saved .m3u8 file as {}. \n\n\
+                Suppose first command saves master.m3u8\n\
+                $ vsd --collect --build {}\n\
+                $ vsd master.m3u8",
                 "TRY THIS:".colorize("yellow"),
                 "--capture".colorize("bold green"),
                 "INPUT".colorize("bold green"),
                 self.args.input,
                 "OR THIS:".colorize("yellow"),
-                "--collect".colorize("bold green"),
+                "--collect --build".colorize("bold green"),
                 "INPUT".colorize("bold green"),
-                "--baseurl".colorize("bold green"),
                 self.args.input,
             ),
             1 => {

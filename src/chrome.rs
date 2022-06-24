@@ -13,7 +13,8 @@ pub fn message(headless: bool) {
         {}\n\
         Chrome will launch {} a window.\n\
         Terminate this program using {}\n",
-        "Sometimes request interception doesn't works in such condition try re running the command."
+        "Sometimes video starts playing but links are not captured. \
+		If such condition occurs then try re running the command."
         .colorize("#FFA500"), 
         if headless {
             "without"

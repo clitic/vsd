@@ -11,6 +11,7 @@ documentation = "https://docs.rs/vsd"
 categories = ["command-line-interface"]
 license = "MIT"
 readme = "README.md"
+exclude = ["images"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

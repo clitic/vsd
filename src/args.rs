@@ -65,7 +65,6 @@ pub struct Args {
     pub capture: bool,
 	
     /// Launch Google Chrome and collect .m3u8 (HLS), .mpd (Dash) and subtitles from a website and save them locally.
-    /// Some websites have custom collector method for other websites their is an comman collector method.
     #[clap(long, help_heading = "CHROME OPTIONS")]
     pub collect: bool,
 
@@ -74,8 +73,8 @@ pub struct Args {
     #[clap(long, requires = "chrome", help_heading = "CHROME OPTIONS")]
     pub headless: bool,
 
-    /// Build links while collecting .m3u8 file.
-    /// Resultant .m3u8 file will be directly downloadable without the need of `--baseurl` flag.
+    /// Build http links for all uri present in .m3u8 file while collecting it.
+    /// Resultant .m3u8 file can be played and downloaded directly without the need of `--baseurl` flag.
     /// This option should must be used with `--collect` flag only.
     #[clap(long, requires = "collect", help_heading = "CHROME OPTIONS")]
     pub build: bool,
