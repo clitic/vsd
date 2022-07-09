@@ -11,12 +11,12 @@ pub enum Quality {
     Max,
 }
 
-/// Download HLS video from a website, m3u8 url or from a local m3u8 file.
+/// Command line program to download HLS video from websites and m3u8 links.
 #[derive(Debug, Clone, Parser)]
 #[clap(version, author = "clitic <clitic21@gmail.com>", about, group = ArgGroup::new("chrome").args(&["capture", "collect"]))]
 pub struct Args {
     /// url | .m3u8 | .m3u
-    #[clap(required = true)]
+    #[clap(required = true, validator = input_validator)]
     pub input: String,
 
     /// Path of final downloaded video stream.
@@ -63,7 +63,7 @@ pub struct Args {
     /// Launch Google Chrome to capture requests made to fetch .m3u8 (HLS) and .mpd (Dash) files.
     #[clap(long, help_heading = "CHROME OPTIONS")]
     pub capture: bool,
-	
+
     /// Launch Google Chrome and collect .m3u8 (HLS), .mpd (Dash) and subtitles from a website and save them locally.
     #[clap(long, help_heading = "CHROME OPTIONS")]
     pub collect: bool,
@@ -78,7 +78,7 @@ pub struct Args {
     /// This option should must be used with `--collect` flag only.
     #[clap(long, requires = "collect", help_heading = "CHROME OPTIONS")]
     pub build: bool,
-	
+
     /// Custom headers for requests.
     /// This option can be used multiple times.
     #[clap(long, multiple_occurrences = true, number_of_values = 2, value_names = &["key", "value"], help_heading = "CLIENT OPTIONS")]
@@ -105,6 +105,17 @@ pub struct Args {
     /// This option can be used multiple times.
     #[clap(long, multiple_occurrences = true, number_of_values = 2, value_names = &["cookies", "url"], help_heading = "CLIENT OPTIONS")]
     pub cookies: Vec<String>, // Vec<Vec<String>> not supported
+}
+
+fn input_validator(s: &str) -> Result<(), String> {
+    if s.starts_with("https://youtube.com")
+        || s.starts_with("https://www.youtube.com")
+        || s.starts_with("https://youtu.be")
+    {
+        Err("Youtube links aren't supported yet".to_owned())
+    } else {
+        Ok(())
+    }
 }
 
 fn threads_validator(s: &str) -> Result<(), String> {

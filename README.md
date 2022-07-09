@@ -30,12 +30,12 @@
   <a href="#Usage">Usage</a>
 </p>
 
-Command line program to download HLS video from a website, m3u8 url or from a local m3u8 file.
+Command line program to download HLS video from websites and m3u8 links.
 
 Know more about HLS from [howvideo.works](https://howvideo.works) and 
 [wikipedia](https://en.wikipedia.org/wiki/M3U).
 
-There are some alternatives to vsd but they lack in some features like [N_m3u8DL-CLI](https://github.com/nilaoda/N_m3u8DL-CLI) is not cross platform and [m3u8-downloader](https://github.com/llychao/m3u8-downloader) has very few customizable options. It can also replace [webvideo-downloader](https://github.com/jaysonlong/webvideo-downloader).
+There are some alternatives to vsd but they lack in some features like [N_m3u8DL-CLI](https://github.com/nilaoda/N_m3u8DL-CLI) is not cross platform and [m3u8-downloader](https://github.com/llychao/m3u8-downloader) has very few customizable options. There are also options like [webvideo-downloader](https://github.com/jaysonlong/webvideo-downloader) which open websites using chrome and captures the m3u8 links and then download it. A similar functionality can achieved with vsd too by using *capture* and *collect* features. 
 
 <p align="center">
   <img src="https://github.com/clitic/vsd/blob/main/images/showcase.png">
@@ -43,20 +43,19 @@ There are some alternatives to vsd but they lack in some features like [N_m3u8DL
 
 ## Features
 
-- [x] Beautiful resolution and bandwidth based master playlist parsing.
-- [x] Captures m3u8 network requests from a website.
-- [x] Collects .m3u8, .mpd and subtitles from a website and save them locally.
+- [x] Captures m3u8 network requests from websites.
+- [x] Collects .m3u8, .mpd and subtitles from websites and save them locally.
 - [x] Custom headers, proxies and cookies.
-- [x] Downloads in multiple threads.
 - [x] Inbuilt web scrapper for querying HLS and DASH links.
+- [x] Human friendly resolution and bandwidth based master playlist variants parsing.
 - [x] Multiple output formats which are supported by ffmpeg.
-- [x] Muxing seperate video, audio and subtitle (webvtt) stream to single file.
+- [x] Mux seperate video, audio and subtitle (webvtt) stream to a single file.
 - [x] Progressive binary merging of segments.
 - [x] Realtime file size estimation.
-- [x] Select standard resolution playlist like `HD`, `FHD` etc.
+- [x] Select standard resolution playlists like `HD`, `FHD` etc.
 - [x] Supports `AES-128` playlist decryption.
-- [x] Supports multiple retries.
-- [x] Supports resume.
+- [x] Supports downloading in multiple threads.
+- [x] Supports resume and retries.
 - [ ] GUI
 - [ ] Supports Dash
 - [ ] Supports [SAMPLE-AES](https://datatracker.ietf.org/doc/html/rfc8216#section-4.3.2.4) playlist decryption.
@@ -82,10 +81,10 @@ cargo install vsd
 ### On x86_64 Linux
 
 ```bash
-$ wget https://github.com/clitic/vsd/releases/download/v0.1.0/vsd-v0.1.0-x86_64-unknown-linux-musl.tar.gz -O vsd-v0.1.0.tar.gz
-$ tar -xzf vsd-v0.1.0.tar.gz -C /usr/local/bin/
+$ wget https://github.com/clitic/vsd/releases/download/v0.1.0/vsd-v0.1.2-x86_64-unknown-linux-musl.tar.gz -O vsd-v0.1.2.tar.gz
+$ tar -xzf vsd-v0.1.2.tar.gz -C /usr/local/bin/
 $ chmod +x /usr/local/bin/vsd
-$ rm vsd-v0.1.0.tar.gz
+$ rm vsd-v0.1.2.tar.gz
 ```
 
 ### On Termux
@@ -94,10 +93,10 @@ Android builds are compiled with **android-ndk-r22b** and targets **API Level 30
 
 ```bash
 $ pkg install wget ffmpeg
-$ wget https://github.com/clitic/vsd/releases/download/v0.1.0/vsd-v0.1.0-aarch64-linux-android.tar.gz -O vsd-v0.1.0.tar.gz
-$ tar -xzf vsd-v0.1.0.tar.gz -C $PREFIX/bin/
+$ wget https://github.com/clitic/vsd/releases/download/v0.1.0/vsd-v0.1.2-aarch64-linux-android.tar.gz -O vsd-v0.1.2.tar.gz
+$ tar -xzf vsd-v0.1.2.tar.gz -C $PREFIX/bin/
 $ chmod +x $PREFIX/bin/vsd
-$ rm vsd-v0.1.0.tar.gz
+$ rm vsd-v0.1.2.tar.gz
 ```
 
 ## Usage
@@ -123,9 +122,9 @@ $ vsd --help
 ```
 
 ```
-vsd 0.1.0
+vsd 0.1.2
 clitic <clitic21@gmail.com>
-Command line program to download HLS video from a website, m3u8 url or from a local m3u8 file.
+Command line program to download HLS video from websites and m3u8 links.
 
 USAGE:
     vsd.exe [OPTIONS] <INPUT>
@@ -158,13 +157,15 @@ OPTIONS:
     -V, --version                      Print version information
 
 CHROME OPTIONS:
+        --build       Build http links for all uri present in .m3u8 file while collecting it.
+                      Resultant .m3u8 file can be played and downloaded directly without the need of
+                      `--baseurl` flag. This option should must be used with `--collect` flag only
         --capture     Launch Google Chrome to capture requests made to fetch .m3u8 (HLS) and .mpd
                       (Dash) files
         --collect     Launch Google Chrome and collect .m3u8 (HLS), .mpd (Dash) and subtitles from a
-                      website and save them locally. Some websites have custom collector method for
-                      other websites their is an comman collector method
-        --headless    Launch Google Chrome without a window for interaction. This option must be
-                      used with `--capture` or `--collect` flag only
+                      website and save them locally
+        --headless    Launch Google Chrome without a window for interaction. This option should must
+                      be used with `--capture` or `--collect` flag only
 
 CLIENT OPTIONS:
         --cookies <cookies> <url>

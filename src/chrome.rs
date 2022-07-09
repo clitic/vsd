@@ -7,20 +7,26 @@ use headless_chrome::{Browser, LaunchOptionsBuilder};
 use kdam::term::Colorizer;
 
 pub fn message(headless: bool) {
-    println!("Some websites use window size to check wheter to show quality switch button or not. \
+    let separator = "-"
+        .repeat(crate::utils::get_columns() as usize)
+        .colorize("#FFA500");
+
+    println!(
+        "{}\n\
+        Some websites use window size to check wheter to show quality switch button or not. \
         For such websites open chrome in full-screen mode and then right-click and select inspect. \
         Now resize the window as required.\n\
         {}\n\
+        Sometimes video starts playing but links are not captured. \
+		If such condition occurs then try re running the command.\n\
+        {}\n\
         Chrome will launch {} a window.\n\
         Terminate this program using {}\n",
-        "Sometimes video starts playing but links are not captured. \
-		If such condition occurs then try re running the command."
-        .colorize("#FFA500"), 
-        if headless {
-            "without"
-        } else {
-            "with"
-        }, "CTRL+C".colorize("bold red")
+        separator,
+        separator,
+        separator,
+        if headless { "without" } else { "with" },
+        "CTRL+C".colorize("bold red")
     );
 }
 
@@ -77,22 +83,22 @@ pub fn capture(url: &str, headless: bool) -> Result<()> {
     let tab = browser
         .wait_for_initial_tab()
         .map_err(|e| anyhow!(e.to_string()))?;
-    tab.navigate_to(url).map_err(|e| anyhow!(e.to_string()))?;
-
-    let count = std::sync::atomic::AtomicU8::new(1);
 
     tab.enable_request_interception(
         &[RequestPattern {
             url_pattern: None,
             resource_type: Some("XHR"),
-            interception_stage: None,
+            interception_stage: Some("Request"),
         }],
         Box::new(move |_transport, _session_id, intercepted| {
             if intercepted.request.url.contains(".m3u") || intercepted.request.url.contains(".mpd")
             {
-                let i = count.load(std::sync::atomic::Ordering::SeqCst);
-                println!("{}) {}", i, intercepted.request.url);
-                count.store(i + 1, std::sync::atomic::Ordering::SeqCst);
+                println!(
+                    "{}\n{}",
+                    "-".repeat(crate::utils::get_columns() as usize)
+                        .colorize("#FFA500"),
+                    intercepted.request.url
+                );
             }
 
             RequestInterceptionDecision::Continue
@@ -100,6 +106,7 @@ pub fn capture(url: &str, headless: bool) -> Result<()> {
     )
     .map_err(|e| anyhow!(e.to_string()))?;
 
+    tab.navigate_to(url).map_err(|e| anyhow!(e.to_string()))?;
     std::thread::sleep(std::time::Duration::from_secs(60 * 3));
     Ok(())
 }
@@ -118,19 +125,17 @@ pub fn collect(
     )
     .map_err(|e| anyhow!(e.to_string()))?;
 
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let sender = std::sync::Mutex::new(sender);
     let tab = browser
         .wait_for_initial_tab()
         .map_err(|e| anyhow!(e.to_string()))?;
-    tab.navigate_to(url).map_err(|e| anyhow!(e.to_string()))?;
-
-    let (sender, receiver) = std::sync::mpsc::channel();
-    let sender = std::sync::Mutex::new(sender);
 
     tab.enable_request_interception(
         &[RequestPattern {
             url_pattern: None,
             resource_type: Some("XHR"),
-            interception_stage: None,
+            interception_stage: Some("Request"),
         }],
         Box::new(move |_transport, _session_id, intercepted| {
             let url = intercepted.request.url;
@@ -149,13 +154,25 @@ pub fn collect(
     )
     .map_err(|e| anyhow!(e.to_string()))?;
 
+    tab.navigate_to(url).map_err(|e| anyhow!(e.to_string()))?;
+
     if url.starts_with("https://www.iq.com/play") {
         println!("Using {} method for collection.", "CUSTOM".colorize("cyan"));
     } else {
-        println!("Using {} method for collection.", "COMMAN".colorize("cyan"))
+        println!(
+            "Using {} method for collection which might {} as expected.",
+            "COMMON".colorize("cyan"),
+            "not work".colorize("bold red")
+        );
     }
 
     while let Ok(xhr_url) = receiver.recv() {
+        println!(
+            "{}",
+            "-".repeat(crate::utils::get_columns() as usize)
+                .colorize("#FFA500")
+        );
+
         if xhr_url.contains(".m3u") {
             let file = filepath(&xhr_url, "m3u8");
 

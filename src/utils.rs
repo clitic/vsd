@@ -105,3 +105,10 @@ pub fn replace_ext(pth: &str, ext: &str) -> String {
     tpth.set_extension(ext);
     tpth.to_str().unwrap().to_owned()
 }
+
+pub fn get_columns() -> u16 {
+    terminal_size::terminal_size()
+        .unwrap_or((terminal_size::Width(10), terminal_size::Height(0)))
+        .0
+         .0
+}
