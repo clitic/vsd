@@ -81,7 +81,7 @@ cargo install vsd
 ### On x86_64 Linux
 
 ```bash
-$ wget https://github.com/clitic/vsd/releases/download/v0.1.0/vsd-v0.1.2-x86_64-unknown-linux-musl.tar.gz -O vsd-v0.1.2.tar.gz
+$ wget https://github.com/clitic/vsd/releases/download/v0.1.2/vsd-v0.1.2-x86_64-unknown-linux-musl.tar.gz -O vsd-v0.1.2.tar.gz
 $ tar -xzf vsd-v0.1.2.tar.gz -C /usr/local/bin/
 $ chmod +x /usr/local/bin/vsd
 $ rm vsd-v0.1.2.tar.gz
@@ -93,7 +93,7 @@ Android builds are compiled with **android-ndk-r22b** and targets **API Level 30
 
 ```bash
 $ pkg install wget ffmpeg
-$ wget https://github.com/clitic/vsd/releases/download/v0.1.0/vsd-v0.1.2-aarch64-linux-android.tar.gz -O vsd-v0.1.2.tar.gz
+$ wget https://github.com/clitic/vsd/releases/download/v0.1.2/vsd-v0.1.2-aarch64-linux-android.tar.gz -O vsd-v0.1.2.tar.gz
 $ tar -xzf vsd-v0.1.2.tar.gz -C $PREFIX/bin/
 $ chmod +x $PREFIX/bin/vsd
 $ rm vsd-v0.1.2.tar.gz
