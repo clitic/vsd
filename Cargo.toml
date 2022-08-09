@@ -8,7 +8,7 @@ documentation = "https://docs.rs/vsd"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 keywords = ["m3u8"]
-categories = ["command-line-utilites"]
+categories = ["command-line-utilities"]
 exclude = ["docs", "images"]
 edition = "2021"
 
