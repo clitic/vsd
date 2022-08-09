@@ -2,7 +2,7 @@
 
 1. Install [Termux](https://termux.com)
 2. Install [vsd](https://github.com/clitic/vsd#on-termux) on termux.
-3. Currrently `CHROME OPTIONS` doesn't work on android. So use a third party browser like [via](https://play.google.com/store/apps/details?id=mark.via.gp) to get m3u8 file links from websites.
+3. Currrently `CHROME OPTIONS` doesn't work on android. So use a third party browser like [via](https://play.google.com/store/apps/details?id=mark.via.gp) to get m3u8 links from websites.
 
 ## Step 1
 

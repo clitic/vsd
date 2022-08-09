@@ -1,17 +1,16 @@
-[workspace]
-members = ["gui"]
-
 [package]
 name = "vsd"
-version = "0.1.2"
-edition = "2021"
-description = "Command line program to download HLS video from websites and m3u8 links."
+version = "0.1.3"
+description = "Command line program to download HLS video from websites and m3u8 links"
+authors = ["clitic <clitic21@gmail.com>"]
 repository = "https://github.com/clitic/vsd"
 documentation = "https://docs.rs/vsd"
-categories = ["command-line-interface"]
-license = "MIT"
+license = "MIT OR Apache-2.0"
 readme = "README.md"
-exclude = ["images"]
+keywords = ["m3u8"]
+categories = ["command-line-utilites"]
+exclude = ["docs", "images"]
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -33,3 +32,6 @@ threadpool = "1.0"
 [features]
 default = ["reqwest/native-tls-vendored"]
 rustls-tls = ["reqwest/rustls-tls"]
+
+[workspace]
+members = ["gui"]
