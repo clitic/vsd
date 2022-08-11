@@ -188,24 +188,63 @@ CLIENT OPTIONS:
 
 ## Building From Source
 
-- Install [Rust](https://www.rust-lang.org)
+1. Install [Rust](https://www.rust-lang.org)
 
-- Install Openssl
-    - [Linux](https://docs.rs/openssl/latest/openssl/#automatic)
-    - [Windows](https://wiki.openssl.org/index.php/Binaries) - Also set `OPENSSL_DIR` environment variable.
-
-- Clone Repository
+2. Download or clone Repository.
 
 ```bash
 git clone https://github.com/clitic/vsd.git
 ```
 
-- Build Release (inside vsd directory)
+3. Build Release (inside vsd directory)
+
+### Linux
+
+First install [openssl](https://docs.rs/openssl/latest/openssl/#automatic) library then run.
 
 ```bash
+OPENSSL_STATIC=true cargo build --release
+```
+
+### Windows
+
+Build [openssl](https://github.com/openssl/openssl) library or download and install it from [Win32OpenSSL](https://slproweb.com/products/Win32OpenSSL.html). vsd builds use openssl static build i.e. [openssl-3.0.5-VC-WIN64A-static.7z](https://drive.google.com/file/d/1LhVu97TiV4HSzxUH-rjiGXXZBs27iDbs/view?usp=sharing).
+
+```powershell
+$env:OPENSSL_DIR="C:\openssl-3.0.5-VC-WIN64A-static"
+$env:OPENSSL_STATIC=$true
 cargo build --release
 ```
 
+### Android (On Linux 64-bit)
+
+1. Install [NDK](https://developer.android.com/ndk/downloads).
+
+```bash
+$ wget https://dl.google.com/android/repository/android-ndk-r22b-linux-x86_64.zip
+$ unzip android-ndk-r22b-linux-x86_64.zip
+$ rm android-ndk-r22b-linux-x86_64.zip
+```
+
+2. Add android target aarch64-linux-android.
+
+```bash
+$ rustup target add aarch64-linux-android
+```
+
+3. Add linker path to `~/.cargo/config.toml` file.
+
+```toml
+[target.aarch64-linux-android]
+linker = "android-ndk-r22b/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang"
+```
+
+4. Now compile with target aarch64-linux-android.
+
+```bash
+$ PATH=android-ndk-r22b/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+$ cargo build --release --target aarch64-linux-android
+```
 
 ## License
 

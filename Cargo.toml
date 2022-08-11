@@ -21,6 +21,7 @@ headless_chrome = "0.9"
 kdam = "0.1.7"
 m3u8-rs = "4.0"
 openssl = "0.10"
+# openssl = { version = "0.10", features = ["vendored"] }
 regex = "1.5"
 requestty = "0.3.0"
 reqwest = { version = "0.11", features = ["blocking", "cookies"] }
