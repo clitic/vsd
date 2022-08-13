@@ -234,8 +234,6 @@ impl DownloadState {
                                     "ffmpeg",
                                     "-i",
                                     &subtitle_tempfile,
-                                    "-c",
-                                    "copy",
                                     &subtitle_output
                                 ]
                                 .join(" ")
@@ -243,7 +241,7 @@ impl DownloadState {
                             );
 
                             let code = std::process::Command::new("ffmpeg")
-                                .args(["-i", &subtitle_tempfile, "-c", "copy", &subtitle_output])
+                                .args(["-i", &subtitle_tempfile, &subtitle_output])
                                 .stderr(std::process::Stdio::null())
                                 .spawn()?
                                 .wait()?;
@@ -560,6 +558,8 @@ impl DownloadState {
             if std::path::Path::new(output).exists() {
                 std::fs::remove_file(output)?;
             }
+			
+			// TODO: fix it do not copy subtitles
 
             args.push("-c");
             args.push("copy");

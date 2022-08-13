@@ -87,9 +87,7 @@ $ chmod +x /usr/local/bin/vsd
 $ rm vsd-v0.1.2.tar.gz
 ```
 
-### On Termux
-
-Android builds are compiled with **android-ndk-r22b** and targets **API Level 30** it means binary is only supported by **Android 11** and above. Also, see [running on android](https://github.com/clitic/vsd/blob/main/docs/running-on-android.md).
+### On Termux (Android 11+)
 
 ```bash
 $ pkg install wget ffmpeg
@@ -98,6 +96,8 @@ $ tar -xzf vsd-v0.1.2.tar.gz -C $PREFIX/bin/
 $ chmod +x $PREFIX/bin/vsd
 $ rm vsd-v0.1.2.tar.gz
 ```
+
+Also, see [running on android](https://github.com/clitic/vsd/blob/main/docs/running-on-android.md).
 
 ## Usage
 

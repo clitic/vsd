@@ -1,5 +1,11 @@
 # vsd Changelog (DD/MM/YYYY)
 
+## 0.1.3 (dev)
+
+Bug Fixes:
+
+- .vtt -> .srt conversion ffmpeg command correction.
+
 ## 0.1.2 (09/07/2022)
 
 Features:
