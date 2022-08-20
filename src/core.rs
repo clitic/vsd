@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, bail, Context, Result};
-use kdam::term::Colorizer;
+use kdam::prelude::*;
 
 use crate::merger::BinarySequence;
 use crate::parse;
@@ -54,21 +54,19 @@ impl DownloadState {
     fn get_url(&self, uri: &str) -> Result<String> {
         if uri.starts_with("http") {
             Ok(uri.to_owned())
+        } else if let Some(baseurl) = &self.args.baseurl {
+            Ok(reqwest::Url::parse(baseurl)?.join(uri)?.to_string())
         } else {
-            if let Some(baseurl) = &self.args.baseurl {
-                Ok(reqwest::Url::parse(baseurl)?.join(&uri)?.to_string())
-            } else {
-                if !self.args.input.starts_with("http") {
-                    bail!(
-                        "Non HTTP input should have {} set explicitly.",
-                        "--baseurl".colorize("bold green")
-                    )
-                }
-
-                Ok(reqwest::Url::parse(&self.args.input)?
-                    .join(&uri)?
-                    .to_string())
+            if !self.args.input.starts_with("http") {
+                bail!(
+                    "Non HTTP input should have {} set explicitly.",
+                    "--baseurl".colorize("bold green")
+                )
             }
+
+            Ok(reqwest::Url::parse(&self.args.input)?
+                .join(uri)?
+                .to_string())
         }
     }
 
@@ -76,10 +74,10 @@ impl DownloadState {
         let path = if let Some(output) = self
             .args
             .input
-            .split("?")
+            .split('?')
             .next()
             .unwrap()
-            .split("/")
+            .split('/')
             .find(|x| x.ends_with(".m3u8"))
         {
             if output.ends_with(".ts.m3u8") {
@@ -148,7 +146,7 @@ impl DownloadState {
                 let index = select(
                     "Select one link:".to_string(),
                     &elinks,
-                    self.args.raw_prompts.clone(),
+                    self.args.raw_prompts,
                 )?;
                 self.args.input = links[index].clone();
             }
@@ -273,7 +271,7 @@ impl DownloadState {
             if !self
                 .args
                 .input
-                .split("?")
+                .split('?')
                 .next()
                 .unwrap()
                 .ends_with(".m3u8")
@@ -325,7 +323,7 @@ impl DownloadState {
                                 "video"
                             }
                         );
-                        return Ok(meadia.segments);
+                        Ok(meadia.segments)
                     }
                     _ => bail!("Media playlist not found."),
                 }
@@ -336,7 +334,7 @@ impl DownloadState {
                 self.progress.stream = StreamData::new(&self.args.input, &self.tempfile());
                 self.progress
                     .json_file(&replace_ext(&self.progress.stream.file, "json"));
-                return Ok(meadia.segments);
+                Ok(meadia.segments)
             }
         }
     }
@@ -355,12 +353,12 @@ impl DownloadState {
             }
             println!(
                 "File will be saved at {}",
-                tempfile.clone().colorize("cyan")
+                tempfile.colorize("cyan")
             );
         } else {
             println!(
                 "Temporary file will be saved at {}",
-                tempfile.clone().colorize("cyan")
+                tempfile.colorize("cyan")
             );
         }
 
@@ -392,10 +390,8 @@ impl DownloadState {
             if self.args.resume {
                 let pos = merger.lock().unwrap().position();
 
-                if pos != 0 {
-                    if pos >= i + 1 {
-                        continue;
-                    }
+                if pos != 0 && pos > i {
+                    continue;
                 }
             }
 
@@ -408,7 +404,7 @@ impl DownloadState {
             let key_url = match &segment.key {
                 Some(m3u8_rs::Key {
                     uri: Some(link), ..
-                }) => Some(self.get_url(&link)?),
+                }) => Some(self.get_url(link)?),
                 _ => None,
             };
 
@@ -417,7 +413,7 @@ impl DownloadState {
             let merger = merger.clone();
             let client = client.clone();
             let segment_url = self.get_url(&segment.uri)?;
-            let total_retries = self.args.retry_count.clone();
+            let total_retries = self.args.retry_count;
 
             let merger_c = merger.clone();
             let merger_cm = merger_c.lock().unwrap();
@@ -427,7 +423,7 @@ impl DownloadState {
                 format_bytes(merger_cm.stored()).2,
                 format_bytes(merger_cm.estimate()).2
             ));
-            pb.lock().unwrap().set_position(merger_cm.position());
+            pb.lock().unwrap().update_to(merger_cm.position());
 
             pool.execute(move || {
                 let mut retries = 0;
@@ -443,23 +439,21 @@ impl DownloadState {
 
                     if resp.is_ok() {
                         break resp.unwrap();
+                    } else if total_retries > retries {
+                        pb.lock().unwrap().write(format!(
+                            "{} to download segment at index {}.",
+                            "RETRYING".colorize("bold yellow"),
+                            i
+                        ));
+                        retries += 1;
+                        continue;
                     } else {
-                        if total_retries > retries {
-                            pb.lock().unwrap().write(format!(
-                                "{} to download segment at index {}.",
-                                "RETRYING".colorize("bold yellow"),
-                                i
-                            ));
-                            retries += 1;
-                            continue;
-                        } else {
-                            pb.lock().unwrap().write(format!(
-                                "{}: Reached maximum number of retries for segment at index {}.",
-                                "Error".colorize("bold red"),
-                                i
-                            ));
-                            std::process::exit(1);
-                        }
+                        pb.lock().unwrap().write(format!(
+                            "{}: Reached maximum number of retries for segment at index {}.",
+                            "Error".colorize("bold red"),
+                            i
+                        ));
+                        std::process::exit(1);
                     }
                 };
 
@@ -485,21 +479,19 @@ impl DownloadState {
                                 ));
                                 std::process::exit(1);
                             });
-                        } else {
-                            if total_retries > retries {
-                                pb.lock().unwrap().write(format!(
-                                    "{} to download decryption key.",
-                                    "RETRYING".colorize("bold yellow"),
-                                ));
-                                retries += 1;
-                                continue;
-                            } else {
-                                pb.lock().unwrap().write(format!(
-                                "{}: Reached maximum number of retries to download decryption key.",
-                                "Error".colorize("bold red"),
+                        } else if total_retries > retries {
+                            pb.lock().unwrap().write(format!(
+                                "{} to download decryption key.",
+                                "RETRYING".colorize("bold yellow"),
                             ));
-                                std::process::exit(1);
-                            }
+                            retries += 1;
+                            continue;
+                        } else {
+                            pb.lock().unwrap().write(format!(
+                            "{}: Reached maximum number of retries to download decryption key.",
+                            "Error".colorize("bold red"),
+                        ));
+                            std::process::exit(1);
                         }
                     };
                 }

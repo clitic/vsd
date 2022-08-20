@@ -48,7 +48,7 @@ pub fn select(prompt: String, choices: &Vec<String>, raw: bool) -> Result<usize>
             println!("{}", choice);
         }
 
-        print!("{} (1, 2, etc.): ", prompt.trim_end_matches(":"));
+        print!("{} (1, 2, etc.): ", prompt.trim_end_matches(':'));
         std::io::stdout().flush()?;
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
@@ -107,8 +107,5 @@ pub fn replace_ext(pth: &str, ext: &str) -> String {
 }
 
 pub fn get_columns() -> u16 {
-    terminal_size::terminal_size()
-        .unwrap_or((terminal_size::Width(10), terminal_size::Height(0)))
-        .0
-         .0
+    10
 }

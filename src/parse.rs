@@ -76,11 +76,11 @@ pub fn master(
     }
 
     let uri = match quality {
-        Quality::SD => quality_selector("480p", res_band, &master)?,
-        Quality::HD => quality_selector("720p", res_band, &master)?,
-        Quality::FHD => quality_selector("1080p", res_band, &master)?,
-        Quality::UHD => quality_selector("2K", res_band, &master)?,
-        Quality::UHD4K => quality_selector("4K", res_band, &master)?,
+        Quality::SD => quality_selector("480p", res_band, master)?,
+        Quality::HD => quality_selector("720p", res_band, master)?,
+        Quality::FHD => quality_selector("1080p", res_band, master)?,
+        Quality::UHD => quality_selector("2K", res_band, master)?,
+        Quality::UHD4K => quality_selector("4K", res_band, master)?,
         Quality::Select => {
             let index = if streams.len() == 1 {
                 println!("Selected {} variant stream.", &streams[0]);
@@ -89,7 +89,7 @@ pub fn master(
                 select(
                     "Select one variant stream:".to_string(),
                     &streams,
-                    raw_prompts.clone(),
+                    raw_prompts,
                 )?
             };
 
@@ -103,12 +103,10 @@ pub fn master(
             for (i, variant) in master.variants.iter().enumerate() {
                 if let Some(resolution) = &variant.resolution {
                     let quality = resolution
-                        .split("x")
+                        .split('x')
                         .map(|x| {
-                            x.parse::<usize>().expect(&format!(
-                                "Couldn't parse resolution of variant playlist at index {}.",
-                                i
-                            ))
+                            x.parse::<usize>().unwrap_or_else(|_| panic!("Couldn't parse resolution of variant playlist at index {}.",
+                                i))
                         })
                         .collect::<Vec<usize>>()
                         .iter()
@@ -163,7 +161,7 @@ pub fn alternative(master: &m3u8_rs::MasterPlaylist, raw_prompts: bool) -> Resul
         select(
             "Select one alternative stream:".to_string(),
             &streams,
-            raw_prompts.clone(),
+            raw_prompts,
         )?
     };
 

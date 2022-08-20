@@ -14,26 +14,22 @@ pub struct HlsDecrypt {
 
 impl HlsDecrypt {
     pub fn from_key(key: m3u8_rs::Key, key_content: Vec<u8>) -> Self {
-        let iv = if let Some(encryption_iv) = key.iv {
-            Some(encryption_iv.as_bytes().to_vec())
-        } else {
-            None
-        };
+        let iv = key.iv.map(|encryption_iv| encryption_iv.as_bytes().to_vec());
 
         match key.method.as_str() {
             "NONE" => Self {
                 key: vec![],
-                iv: iv,
+                iv,
                 method: HlsEncryptionMethod::None,
             },
             "AES-128" => Self {
                 key: key_content,
-                iv: iv,
+                iv,
                 method: HlsEncryptionMethod::Aes128,
             },
             "SAMPLE-AES" => Self {
                 key: key_content,
-                iv: iv,
+                iv,
                 method: HlsEncryptionMethod::SampleAes,
             },
             _ => {

@@ -11,7 +11,7 @@ fn check_status_code(resp: &Response) -> Result<()> {
             "{} download failed with {} {} status code.",
             resp.url().as_str(),
             "HTTP".colorize("magenta"),
-            resp.status().colorize("bold red")
+            resp.status().to_string().colorize("bold red")
         );
     }
 
@@ -33,7 +33,7 @@ impl Downloader {
     ) -> Result<Self> {
         let mut client_builder = reqwest::blocking::Client::builder().user_agent(user_agent);
 
-        if header.len() != 0 {
+        if !header.is_empty() {
             let mut headers = header::HeaderMap::new();
 
             for i in (0..headers.len()).step_by(2) {
@@ -54,11 +54,11 @@ impl Downloader {
             }
         }
 
-        if enable_cookies || cookies.len() != 0 {
+        if enable_cookies || !cookies.is_empty() {
             client_builder = client_builder.cookie_store(true);
         }
 
-        if cookies.len() != 0 {
+        if !cookies.is_empty() {
             let jar = reqwest::cookie::Jar::default();
 
             for i in (0..cookies.len()).step_by(2) {
@@ -99,7 +99,7 @@ impl Downloader {
     }
 
     pub fn write_to_file(&self, url: &str, path: &str) -> Result<()> {
-        std::fs::File::create(path)?.write(&self.get_bytes(&url)?)?;
+        std::fs::File::create(path)?.write(&self.get_bytes(url)?)?;
         Ok(())
     }
 }

@@ -230,20 +230,13 @@ $ rm android-ndk-r22b-linux-x86_64.zip
 
 ```bash
 $ rustup target add aarch64-linux-android
+$ printf '\n[target.aarch64-linux-android]\nlinker = "aarch64-linux-android30-clang"\n' >> ~/.cargo/config.toml
 ```
 
-3. Add linker path to `~/.cargo/config.toml` file.
-
-```toml
-[target.aarch64-linux-android]
-linker = "android-ndk-r22b/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang"
-```
-
-4. Now compile with target aarch64-linux-android.
+3. Now compile with target aarch64-linux-android.
 
 ```bash
-$ PATH=android-ndk-r22b/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
-$ cargo build --release --target aarch64-linux-android
+PATH=android-ndk-r22b/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH OPENSSL_STATIC=true cargo build --release --target aarch64-linux-android
 ```
 
 ## License

@@ -32,10 +32,10 @@ pub fn message(headless: bool) {
 
 fn filepath(url: &str, ext: &str) -> String {
     let path = if let Some(output) = url
-        .split("?")
+        .split('?')
         .next()
         .unwrap()
-        .split("/")
+        .split('/')
         .find(|x| x.ends_with(&format!(".{}", ext)))
     {
         if output.ends_with(&format!(".ts.{}", ext)) {
@@ -177,7 +177,7 @@ pub fn collect(
             let file = filepath(&xhr_url, "m3u8");
 
             if build {
-                build_links(&xhr_url, &file, &downloader)?;
+                build_links(&xhr_url, &file, downloader)?;
                 println!(
                     "Saved {} playlist from {} to {}",
                     "BUILDED HLS".colorize("cyan"),
@@ -221,7 +221,7 @@ pub fn collect(
                 file.colorize("bold green")
             );
         } else if xhr_url.starts_with("https://cache-video.iq.com/dash") {
-            iqiyi(&url, &xhr_url, &downloader)?;
+            iqiyi(url, &xhr_url, downloader)?;
         }
     }
 
@@ -233,15 +233,15 @@ fn build_links(
     file: &str,
     downloader: &crate::downloader::Downloader,
 ) -> Result<()> {
-    match m3u8_rs::parse_playlist_res(&downloader.get_bytes(&xhr_url)?)
+    match m3u8_rs::parse_playlist_res(&downloader.get_bytes(xhr_url)?)
         .map_err(|_| anyhow!("Couldn't parse {} playlist.", xhr_url))?
     {
         m3u8_rs::Playlist::MasterPlaylist(master) => {
-            let mut master_c = master.clone();
+            let mut master_c = master;
 
             for variant in master_c.variants.iter_mut() {
                 if !variant.uri.starts_with("http") {
-                    variant.uri = reqwest::Url::parse(&xhr_url)?
+                    variant.uri = reqwest::Url::parse(xhr_url)?
                         .join(&variant.uri)?
                         .to_string();
                 }
@@ -251,7 +251,7 @@ fn build_links(
                 if let Some(uri) = &alternative.uri {
                     if !uri.starts_with("http") {
                         alternative.uri =
-                            Some(reqwest::Url::parse(&xhr_url)?.join(uri)?.to_string());
+                            Some(reqwest::Url::parse(xhr_url)?.join(uri)?.to_string());
                     }
                 }
             }
@@ -259,11 +259,11 @@ fn build_links(
             master_c.write_to(&mut std::fs::File::create(&file)?)?;
         }
         m3u8_rs::Playlist::MediaPlaylist(meadia) => {
-            let mut meadia_c = meadia.clone();
+            let mut meadia_c = meadia;
 
             for segment in meadia_c.segments.iter_mut() {
                 if !segment.uri.starts_with("http") {
-                    segment.uri = reqwest::Url::parse(&xhr_url)?
+                    segment.uri = reqwest::Url::parse(xhr_url)?
                         .join(&segment.uri)?
                         .to_string();
                 }
@@ -279,16 +279,16 @@ fn build_links(
 fn iqiyi(url: &str, xhr_url: &str, downloader: &crate::downloader::Downloader) -> Result<()> {
     let re = regex::Regex::new(r"[a-zA-Z0-9-]*\?").unwrap();
     let name = re
-        .captures_iter(&url)
+        .captures_iter(url)
         .next()
         .unwrap()
         .get(0)
         .unwrap()
         .as_str()
-        .trim_end_matches("?")
+        .trim_end_matches('?')
         .to_owned();
 
-    let v = downloader.get_json(&xhr_url)?;
+    let v = downloader.get_json(xhr_url)?;
 
     // Here unwrap method is used intentionally.
     for video in v["data"]["program"]["video"].as_array().unwrap() {
@@ -314,7 +314,7 @@ fn iqiyi(url: &str, xhr_url: &str, downloader: &crate::downloader::Downloader) -
             subtitles["srt"].as_str().unwrap()
         );
         let language = subtitles["_name"].as_str().unwrap();
-        let file = format!("{}_{}_subtitles.srt", name, language).replace(" ", "_");
+        let file = format!("{}_{}_subtitles.srt", name, language).replace(' ', "_");
 
         if !std::path::Path::new(&file).exists() {
             std::fs::File::create(&file)?.write(&downloader.get_bytes(&url)?)?;

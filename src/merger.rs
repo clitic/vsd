@@ -29,7 +29,7 @@ impl BinarySequence {
             stored_bytes: 0,
             flushed_bytes: 0,
             indexed: 0,
-            progress: progress,
+            progress,
             json_file: std::fs::File::create(json_file)?,
         })
     }
@@ -53,13 +53,13 @@ impl BinarySequence {
 
         Ok(Self {
             size: size - 1,
-            file: file,
-            pos: pos,
+            file,
+            pos,
             buffers: HashMap::new(),
-            stored_bytes: stored_bytes,
+            stored_bytes,
             flushed_bytes: stored_bytes,
             indexed: pos,
-            progress: progress,
+            progress,
             json_file: std::fs::OpenOptions::new().append(true).open(&json_file)?,
         })
     }
@@ -105,7 +105,7 @@ impl BinarySequence {
     }
 
     pub fn buffered(&self) -> bool {
-        self.buffers.len() == 0 && self.pos >= (self.size + 1)
+        self.buffers.is_empty() && self.pos >= (self.size + 1)
     }
 
     pub fn stored(&self) -> usize {
