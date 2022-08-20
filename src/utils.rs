@@ -107,5 +107,5 @@ pub fn replace_ext(pth: &str, ext: &str) -> String {
 }
 
 pub fn get_columns() -> u16 {
-    10
+    kdam::term::get_columns_or(10)
 }

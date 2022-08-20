@@ -66,7 +66,7 @@ impl BinarySequence {
 
     pub fn write(&mut self, pos: usize, buf: &[u8]) -> Result<()> {
         if pos == 0 || (self.pos != 0 && self.pos == pos) {
-            self.file.write(buf)?;
+            self.file.write_all(buf)?;
             self.file.flush()?;
             self.pos += 1;
             let size = buf.len();
@@ -87,7 +87,7 @@ impl BinarySequence {
             let op_buf = self.buffers.remove(&self.pos);
 
             if let Some(buf) = op_buf {
-                self.file.write(&buf)?;
+                self.file.write_all(&buf)?;
                 self.file.flush()?;
                 self.pos += 1;
                 self.flushed_bytes += buf.len();

@@ -31,6 +31,3 @@ threadpool = "1.0"
 [features]
 default = ["reqwest/native-tls-vendored"]
 rustls-tls = ["reqwest/rustls-tls"]
-
-[workspace]
-members = ["gui"]

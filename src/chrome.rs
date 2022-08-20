@@ -298,7 +298,7 @@ fn iqiyi(url: &str, xhr_url: &str, downloader: &crate::downloader::Downloader) -
             let file = format!("{}_{}_video.m3u8", name, resolution);
 
             if !std::path::Path::new(&file).exists() {
-                std::fs::File::create(&file)?.write(content.as_bytes())?;
+                std::fs::File::create(&file)?.write_all(content.as_bytes())?;
                 println!(
                     "Saved {} playlist to {}",
                     "HLS".colorize("cyan"),
@@ -317,7 +317,7 @@ fn iqiyi(url: &str, xhr_url: &str, downloader: &crate::downloader::Downloader) -
         let file = format!("{}_{}_subtitles.srt", name, language).replace(' ', "_");
 
         if !std::path::Path::new(&file).exists() {
-            std::fs::File::create(&file)?.write(&downloader.get_bytes(&url)?)?;
+            std::fs::File::create(&file)?.write_all(&downloader.get_bytes(&url)?)?;
             println!(
                 "Saved {} subtitles to {}",
                 language.colorize("cyan"),

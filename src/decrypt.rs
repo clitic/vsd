@@ -57,7 +57,7 @@ impl HlsDecrypt {
                 let mut new_buf = vec![];
 
                 for byte in buf {
-                    let data = if let Some(encryption_iv) = self.iv.clone() {
+                    let mut data = if let Some(encryption_iv) = self.iv.clone() {
                         decrypt(
                             Cipher::aes_128_cbc(),
                             &self.key,
@@ -68,8 +68,8 @@ impl HlsDecrypt {
                         decrypt(Cipher::aes_128_cbc(), &self.key, None, &[byte.to_owned()])
                     };
 
-                    if data.is_ok() {
-                        new_buf.append(&mut data.unwrap());
+                    if let Ok(bytes) = &mut data {
+                        new_buf.append(bytes);
                     } else {
                         new_buf.push(byte.to_owned());
                     }

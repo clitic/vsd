@@ -99,7 +99,7 @@ impl Downloader {
     }
 
     pub fn write_to_file(&self, url: &str, path: &str) -> Result<()> {
-        std::fs::File::create(path)?.write(&self.get_bytes(url)?)?;
+        std::fs::File::create(path)?.write_all(&self.get_bytes(url)?)?;
         Ok(())
     }
 }

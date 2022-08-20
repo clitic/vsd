@@ -143,11 +143,13 @@ pub fn alternative(master: &m3u8_rs::MasterPlaylist, raw_prompts: bool) -> Resul
             );
 
             if let Some(language) = &alternative.language {
-                stream += &format!(" | language={}", language);
+                stream += " | language={}";
+                stream += language;
             }
 
             if let Some(channels) = &alternative.channels {
-                stream += &format!(" | channels={}", channels);
+                stream += " | channels={}";
+                stream += channels;
             }
 
             streams.push(stream);

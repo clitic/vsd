@@ -155,7 +155,7 @@ impl DownloadState {
         if self.args.input.ends_with(".mpd") {
             bail!("Dash streams are not supported.")
         }
-        
+
         Ok(())
     }
 
@@ -189,13 +189,13 @@ impl DownloadState {
                                 Some(StreamData::new(&self.args.input, &audio_tempfile));
 
                             let content = self.downloader.get_bytes(&self.args.input)?;
-                            match m3u8_rs::parse_playlist_res(&content).map_err(|_| {
-                                anyhow!("Couldn't parse {} playlist.", self.args.input)
-                            })? {
-                                m3u8_rs::Playlist::MediaPlaylist(meadia) => {
-                                    self.download(&meadia.segments, audio_tempfile.clone())?;
-                                }
-                                _ => (),
+
+                            if let m3u8_rs::Playlist::MediaPlaylist(meadia) =
+                                m3u8_rs::parse_playlist_res(&content).map_err(|_| {
+                                    anyhow!("Couldn't parse {} playlist.", self.args.input)
+                                })?
+                            {
+                                self.download(&meadia.segments, audio_tempfile.clone())?;
                             }
                         }
                     }
@@ -213,13 +213,13 @@ impl DownloadState {
                                 Some(StreamData::new(&self.args.input, &subtitle_tempfile));
 
                             let content = self.downloader.get_bytes(&self.args.input)?;
-                            match m3u8_rs::parse_playlist_res(&content).map_err(|_| {
-                                anyhow!("Couldn't parse {} playlist.", self.args.input)
-                            })? {
-                                m3u8_rs::Playlist::MediaPlaylist(meadia) => {
-                                    self.download(&meadia.segments, subtitle_tempfile.clone())?;
-                                }
-                                _ => (),
+
+                            if let m3u8_rs::Playlist::MediaPlaylist(meadia) =
+                                m3u8_rs::parse_playlist_res(&content).map_err(|_| {
+                                    anyhow!("Couldn't parse {} playlist.", self.args.input)
+                                })?
+                            {
+                                self.download(&meadia.segments, subtitle_tempfile.clone())?;
                             }
 
                             if std::path::Path::new(&subtitle_output).exists() {
@@ -228,14 +228,9 @@ impl DownloadState {
 
                             println!(
                                 "Executing {}",
-                                [
-                                    "ffmpeg",
-                                    "-i",
-                                    &subtitle_tempfile,
-                                    &subtitle_output
-                                ]
-                                .join(" ")
-                                .colorize("cyan")
+                                ["ffmpeg", "-i", &subtitle_tempfile, &subtitle_output]
+                                    .join(" ")
+                                    .colorize("cyan")
                             );
 
                             let code = std::process::Command::new("ffmpeg")
@@ -351,10 +346,7 @@ impl DownloadState {
             if output.ends_with(".ts") {
                 tempfile = output.clone();
             }
-            println!(
-                "File will be saved at {}",
-                tempfile.colorize("cyan")
-            );
+            println!("File will be saved at {}", tempfile.colorize("cyan"));
         } else {
             println!(
                 "Temporary file will be saved at {}",
@@ -437,8 +429,8 @@ impl DownloadState {
                         _ => client.get_bytes(&segment_url),
                     };
 
-                    if resp.is_ok() {
-                        break resp.unwrap();
+                    if let Ok(resp_data) = resp {
+                        break resp_data;
                     } else if total_retries > retries {
                         pb.lock().unwrap().write(format!(
                             "{} to download segment at index {}.",
@@ -464,10 +456,10 @@ impl DownloadState {
                     data = loop {
                         let resp = client.get_bytes(&eku);
 
-                        if resp.is_ok() {
+                        if let Ok(resp_data) = resp {
                             let decrypted_data = crate::decrypt::HlsDecrypt::from_key(
                                 segment.key.unwrap(),
-                                resp.unwrap(),
+                                resp_data,
                             )
                             .decrypt(&data);
 
@@ -488,9 +480,9 @@ impl DownloadState {
                             continue;
                         } else {
                             pb.lock().unwrap().write(format!(
-                            "{}: Reached maximum number of retries to download decryption key.",
-                            "Error".colorize("bold red"),
-                        ));
+                                "{}: Reached maximum number of retries to download decryption key.",
+                                "Error".colorize("bold red"),
+                            ));
                             std::process::exit(1);
                         }
                     };
@@ -550,8 +542,8 @@ impl DownloadState {
             if std::path::Path::new(output).exists() {
                 std::fs::remove_file(output)?;
             }
-			
-			// TODO: fix it do not copy subtitles
+
+            // TODO: fix it do not copy subtitles
 
             args.push("-c");
             args.push("copy");
