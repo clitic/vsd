@@ -1,42 +1,44 @@
-use anyhow::{bail, Result};
 use crate::args::Quality;
 use crate::utils::{format_bytes, select};
+use anyhow::{bail, Result};
+use std::fmt::Write;
 
-fn resolution(res: &m3u8_rs::Resolution) -> String {
-    match (res.width, res.height) {
-        (256, 144) => "144p".to_owned(),
-        (426, 240) => "240p".to_owned(),
-        (640, 360) => "360p".to_owned(),
-        (854, 480) => "480p".to_owned(),
-        (1280, 720) => "720p".to_owned(),
-        (1920, 1080) => "1080p".to_owned(),
-        (2048, 1080) => "2K".to_owned(),
-        (2560, 1440) => "1440p".to_owned(),
-        (3840, 2160) => "4K".to_owned(),
-        (7680, 4320) => "8K".to_owned(),
-        (w, h) => format!("{}x{}", w, h),
+fn select_quality(quality: &str, variants: Vec<&m3u8_rs::VariantStream>) -> Result<String> {
+    if let Some(variant) = variants
+        .iter()
+        .find(|x| quality == resolution(x.resolution))
+    {
+        let band_fmt = format_bytes(variant.bandwidth as usize);
+        println!(
+            "Selected variant stream of quality {} ({} {}/s).",
+            quality, band_fmt.0, band_fmt.1
+        );
+        return Ok(variant.uri.clone());
     }
+
+    bail!(
+        "Master playlist doesn't contain {} quality variant stream.",
+        quality
+    )
 }
 
-fn quality_selector(
-    quality: &str,
-    sorted_variants: Vec<&m3u8_rs::VariantStream>,
-) -> Result<String> {
-    if let Some(variant) = sorted_variants.iter().find(|x| {
-        if let Some(res) = x.resolution {
-            return quality == resolution(&res);
+fn resolution(res: Option<m3u8_rs::Resolution>) -> String {
+    if let Some(res) = res {
+        match (res.width, res.height) {
+            (256, 144) => "144p".to_owned(),
+            (426, 240) => "240p".to_owned(),
+            (640, 360) => "360p".to_owned(),
+            (854, 480) => "480p".to_owned(),
+            (1280, 720) => "720p".to_owned(),
+            (1920, 1080) => "1080p".to_owned(),
+            (2048, 1080) => "2K".to_owned(),
+            (2560, 1440) => "1440p".to_owned(),
+            (3840, 2160) => "4K".to_owned(),
+            (7680, 4320) => "8K".to_owned(),
+            (w, h) => format!("{}x{}", w, h),
         }
-
-        false
-    }) {
-        let band_fmt = format_bytes(variant.bandwidth as usize);
-        println!("Selected variant stream of quality {} ({} {}/s)", quality, band_fmt.0, band_fmt.1);
-        Ok(variant.uri.clone())
     } else {
-        bail!(
-            "Master playlist doesn't contain {} quality variant stream.",
-            quality
-        );
+        "?".to_owned()
     }
 }
 
@@ -45,9 +47,19 @@ pub fn master(
     quality: &Quality,
     raw_prompts: bool,
 ) -> Result<String> {
-    let mut streams = vec![];
+    if master.variants.len() == 1 {
+        let band_fmt = format_bytes(master.variants[0].bandwidth as usize);
+        println!(
+            "Only one variant stream found.\nSelected variant stream of quality {} ({} {}/s).",
+            resolution(master.variants[0].resolution),
+            band_fmt.0,
+            band_fmt.1
+        );
 
-    let sorted_variants = {
+        return Ok(master.variants[0].uri.clone());
+    }
+
+    let variants = {
         let mut sorted_variants = vec![];
 
         for variant in master.variants.iter() {
@@ -70,69 +82,40 @@ pub fn master(
         sorted_variants.iter().map(|x| x.1).collect::<Vec<_>>()
     };
 
-    for (i, variant) in sorted_variants.iter().enumerate() {
-        let band_fmt = format_bytes(variant.bandwidth as usize);
-
-        if let Some(resolution) = &variant.resolution {
-            let res_fmt = match (resolution.width, resolution.height) {
-                (256, 144) => "144p".to_owned(),
-                (426, 240) => "240p".to_owned(),
-                (640, 360) => "360p".to_owned(),
-                (854, 480) => "480p".to_owned(),
-                (1280, 720) => "720p".to_owned(),
-                (1920, 1080) => "1080p".to_owned(),
-                (2048, 1080) => "2K".to_owned(),
-                (2560, 1440) => "1440p".to_owned(),
-                (3840, 2160) => "4K".to_owned(),
-                (7680, 4320) => "8K".to_owned(),
-                (w, h) => format!("{}x{}", w, h),
-            };
-
-            streams.push(format!(
-                "{:2}) {:9} {:>6} {}/s",
-                i + 1,
-                res_fmt,
-                band_fmt.0,
-                band_fmt.1,
-            ));
-        } else {
-            streams.push(format!(
-                "{:2}) {:9} {:>6} {}/s",
-                i + 1,
-                "?p",
-                band_fmt.0,
-                band_fmt.1,
-            ));
-        }
-    }
-
     let uri = match quality {
-        Quality::yt_144p => quality_selector("144p", sorted_variants)?,
-        Quality::yt_240p => quality_selector("240p", sorted_variants)?,
-        Quality::yt_360p => quality_selector("360p", sorted_variants)?,
-        Quality::yt_480p => quality_selector("480p", sorted_variants)?,
-        Quality::HD => quality_selector("720p", sorted_variants)?,
-        Quality::FHD => quality_selector("1080p", sorted_variants)?,
-        Quality::FHD_2K => quality_selector("2K", sorted_variants)?,
-        Quality::QHD => quality_selector("1440p", sorted_variants)?,
-        Quality::UHD_4K => quality_selector("4K", sorted_variants)?,
-        Quality::FUHD_8K => quality_selector("8K", sorted_variants)?,
+        Quality::yt_144p => select_quality("144p", variants)?,
+        Quality::yt_240p => select_quality("240p", variants)?,
+        Quality::yt_360p => select_quality("360p", variants)?,
+        Quality::yt_480p => select_quality("480p", variants)?,
+        Quality::HD => select_quality("720p", variants)?,
+        Quality::FHD => select_quality("1080p", variants)?,
+        Quality::FHD_2K => select_quality("2K", variants)?,
+        Quality::QHD => select_quality("1440p", variants)?,
+        Quality::UHD_4K => select_quality("4K", variants)?,
+        Quality::FUHD_8K => select_quality("8K", variants)?,
+        Quality::Highest => variants[0].uri.clone(),
         Quality::Select => {
-            let index = if streams.len() == 1 {
-                println!("Selected {} variant stream.", &streams[0]);
-                0
-            } else {
-                select(
-                    "Select one variant stream:".to_string(),
-                    &streams,
-                    raw_prompts,
-                )?
-            };
+            let mut streams = vec![];
+            for (i, variant) in variants.iter().enumerate() {
+                let band_fmt = format_bytes(variant.bandwidth as usize);
 
-            sorted_variants[index].uri.clone()
+                streams.push(format!(
+                    "{:2}) {:9} {:>6} {}/s",
+                    i + 1,
+                    resolution(variant.resolution),
+                    band_fmt.0,
+                    band_fmt.1,
+                ));
+            }
+
+            let index = select(
+                "Select one variant stream:".to_string(),
+                &streams,
+                raw_prompts,
+            )?;
+
+            variants[index].uri.clone()
         }
-
-        Quality::Highest => sorted_variants[0].uri.clone(),
     };
 
     Ok(uri)
@@ -144,36 +127,29 @@ pub fn alternative(master: &m3u8_rs::MasterPlaylist, raw_prompts: bool) -> Resul
     for (i, alternative) in master.alternatives.iter().enumerate() {
         if alternative.uri.is_some() {
             let mut stream = format!(
-                "{:#2}) {}: auto={}",
+                "{:#2}) {}: autoselect ({})",
                 i + 1,
                 alternative.media_type,
                 alternative.autoselect
             );
 
             if let Some(language) = &alternative.language {
-                stream += " | language={}";
-                stream += language;
+                let _ = write!(stream, ", language ({})", language);
             }
 
             if let Some(channels) = &alternative.channels {
-                stream += " | channels={}";
-                stream += channels;
+                let _ = write!(stream, ", channels ({})", channels);
             }
 
             streams.push(stream);
         }
     }
 
-    let index = if streams.len() == 1 {
-        println!("Selected {} alternative stream.", &streams[0]);
-        0
-    } else {
-        select(
-            "Select one alternative stream:".to_string(),
-            &streams,
-            raw_prompts,
-        )?
-    };
+    let index = select(
+        "Select one alternative stream:".to_string(),
+        &streams,
+        raw_prompts,
+    )?;
 
     Ok(master.alternatives[index].uri.clone().unwrap())
 }

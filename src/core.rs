@@ -388,11 +388,8 @@ impl DownloadState {
             }
 
             if let Some(m3u8_key) = &segment.key {
-                match m3u8_key.method {
-                    m3u8_rs::KeyMethod::SampleAES => {
-                        bail!("SAMPLE-AES encrypted playlists are not supported.")
-                    }
-                    _ => (),
+                if m3u8_key.method == m3u8_rs::KeyMethod::SampleAES {
+                    bail!("SAMPLE-AES encrypted playlists are not supported.")
                 }
             }
 
@@ -546,10 +543,11 @@ impl DownloadState {
                 std::fs::remove_file(output)?;
             }
 
-            // TODO: fix it do not copy subtitles
+            if !(output.ends_with(".srt") || output.ends_with(".vtt")) {
+                args.push("-c");
+                args.push("copy");
+            }
 
-            args.push("-c");
-            args.push("copy");
             args.push(output);
 
             println!(

@@ -37,8 +37,13 @@ pub struct Args {
     pub baseurl: Option<String>,
 
     /// Automatic selection of some standard resolution streams with highest bandwidth stream variant from master playlist.
+    /// yt prefixed qualities are qualities used by youtube. 
     #[clap(short, long, arg_enum, default_value_t = Quality::Select)]
     pub quality: Quality,
+
+    // /// Automatic selection of some standard resolution streams with highest bandwidth stream variant from master playlist.
+    // #[clap(long, number_of_values = 2, value_names = &["width", "height"])]
+    // pub resolution: Vec<u64>,
 
     /// Maximum number of threads for parllel downloading of segments.
     /// Number of threads should be in range 1-16 (inclusive).
