@@ -1,14 +1,20 @@
 use clap::{ArgEnum, ArgGroup, Parser};
 
-#[derive(Debug, Copy, Clone, ArgEnum)]
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, ArgEnum)]
 pub enum Quality {
-    Select,
-    SD,
+    yt_144p,
+    yt_240p,
+    yt_360p,
+    yt_480p,
     HD,
     FHD,
-    UHD,
-    UHD4K,
-    Max,
+    FHD_2K,
+    QHD,
+    UHD_4K,
+    FUHD_8K,
+    Highest,
+    Select,
 }
 
 /// Command line program to download HLS video from websites and m3u8 links.

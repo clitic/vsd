@@ -15,18 +15,18 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0"
-clap = { version = "3.1", features = ["derive"] }
+anyhow = "1"
+clap = { version = "3", features = ["derive"] }
 headless_chrome = "0.9"
 kdam = "0.2"
-m3u8-rs = "4.0"
-openssl = { version = "0.10", features = ["vendored"] }
-regex = "1.5"
+m3u8-rs = "5"
+openssl = "0.10"
+regex = "1"
 requestty = "0.4.1"
 reqwest = { version = "0.11", features = ["blocking", "cookies"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-threadpool = "1.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+threadpool = "1"
 
 [features]
 default = ["reqwest/native-tls-vendored"]

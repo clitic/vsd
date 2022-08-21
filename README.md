@@ -208,7 +208,7 @@ OPENSSL_STATIC=true cargo build --release
 
 ### Windows
 
-Build [openssl](https://github.com/openssl/openssl) library or download and install it from [Win32OpenSSL](https://slproweb.com/products/Win32OpenSSL.html). vsd builds use openssl static build i.e. [openssl-3.0.5-VC-WIN64A-static.7z](https://drive.google.com/file/d/1LhVu97TiV4HSzxUH-rjiGXXZBs27iDbs/view?usp=sharing).
+Build [openssl](https://github.com/openssl/openssl) library for windows or download and install it from [Win32OpenSSL](https://slproweb.com/products/Win32OpenSSL.html). vsd builds use openssl static build i.e. [openssl-3.0.5-VC-WIN64A-static.7z](https://drive.google.com/file/d/1LhVu97TiV4HSzxUH-rjiGXXZBs27iDbs/view?usp=sharing).
 
 ```powershell
 $env:OPENSSL_DIR="C:\openssl-3.0.5-VC-WIN64A-static"
@@ -226,17 +226,23 @@ $ unzip android-ndk-r22b-linux-x86_64.zip
 $ rm android-ndk-r22b-linux-x86_64.zip
 ```
 
-2. Add android target aarch64-linux-android.
+2. Build [openssl](https://github.com/openssl/openssl) library for android. vsd builds use openssl static build i.e. [openssl-3.0.5-android-arm64-android30-static.tar.gz](https://drive.google.com/file/d/1Fwst1R-in2-2jGieCapeUXfLgqR2urVA/view?usp=sharing).
+
+3. Add android target aarch64-linux-android.
 
 ```bash
 $ rustup target add aarch64-linux-android
 $ printf '\n[target.aarch64-linux-android]\nlinker = "aarch64-linux-android30-clang"\n' >> ~/.cargo/config.toml
 ```
 
-3. Now compile with target aarch64-linux-android.
+4. Now compile with target aarch64-linux-android.
 
 ```bash
-PATH=android-ndk-r22b/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH OPENSSL_STATIC=true cargo build --release --target aarch64-linux-android
+$ PATH=android-ndk-r22b/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+$ OPENSSL_DIR="openssl-3.0.5-android-arm64-android30-static"
+$ OPENSSL_STATIC=true
+$ OPENSSL_NO_VENDOR=$true
+cargo build --release --target aarch64-linux-android
 ```
 
 ## License

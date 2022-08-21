@@ -2,9 +2,13 @@
 
 ## 0.1.3 (dev)
 
+Features:
+
+- Better variant stream selection and display order.
+
 Bug Fixes:
 
-- .vtt -> .srt conversion ffmpeg command correction.
+- `.vtt` -> `.srt` conversion ffmpeg command correction.
 
 ## 0.1.2 (09/07/2022)
 

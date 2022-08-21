@@ -388,8 +388,11 @@ impl DownloadState {
             }
 
             if let Some(m3u8_key) = &segment.key {
-                if m3u8_key.method == "SAMPLE-AES" {
-                    bail!("SAMPLE-AES encrypted playlists are not supported.")
+                match m3u8_key.method {
+                    m3u8_rs::KeyMethod::SampleAES => {
+                        bail!("SAMPLE-AES encrypted playlists are not supported.")
+                    }
+                    _ => (),
                 }
             }
 
