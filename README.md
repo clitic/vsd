@@ -22,12 +22,17 @@
   <a href="https://github.com/clitic/vsd">
     <img src="https://img.shields.io/tokei/lines/github/clitic/vsd?style=flat-square">
   </a>
+  <a href="https://colab.research.google.com/github/clitic/vsd/blob/main/vsd-on-colab.ipynb">
+    <img src="https://img.shields.io/badge/Open%20In%20Colab-F9AB00?logo=googlecolab&color=525252&style=flat-square">
+  </a>
 </p>
 
 <p align="center">
   <a href="#Installations">Installations</a>
   &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
   <a href="#Usage">Usage</a>
+  &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
+  <a href="https://colab.research.google.com/github/clitic/vsd/blob/main/vsd-on-colab.ipynb">Try Without Install</a>
 </p>
 
 Command line program to download HLS video from websites and m3u8 links.
@@ -64,7 +69,7 @@ There are some alternatives to vsd but they lack in some features like [N_m3u8DL
 <a href="#Help">See More</a>
 
 ## Installations
-
+  
 Dependencies
 
 - [ffmpeg](https://www.ffmpeg.org/download.html) (optional) only required for transmuxing and transcoding streams.
