@@ -1,10 +1,10 @@
 pub mod args;
 pub mod chrome;
+pub mod core;
+pub mod dash;
+pub mod decrypt;
 pub mod downloader;
 pub mod merger;
-pub mod decrypt;
-pub mod utils;
-pub mod core;
-pub mod progress;
 pub mod parse;
-
+pub mod progress;
+pub mod utils;
