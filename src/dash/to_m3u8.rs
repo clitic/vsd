@@ -3,16 +3,20 @@ use super::{MPDMediaSegmentTag, MPD};
 
 pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
     let mut master = m3u8_rs::MasterPlaylist::default();
-    let mut insert_index = 0;
 
-    for preiod in &mpd.preiod {
-        for adaptation_set in &preiod.adaptation_set {
-            for representation in &adaptation_set.representation {
+    for (preiod_index, preiod) in mpd.preiod.iter().enumerate() {
+        for (adaptation_set_index, adaptation_set) in preiod.adaptation_set.iter().enumerate() {
+            for (representation_index, representation) in
+                adaptation_set.representation.iter().enumerate()
+            {
                 let media_type = representation.media_type(&adaptation_set);
 
                 if media_type == m3u8_rs::AlternativeMediaType::Video {
                     master.variants.push(m3u8_rs::VariantStream {
-                        uri: format!("dash://{}", insert_index),
+                        uri: format!(
+                            "dash://preiod.{}.adaptation-set.{}.representation.{}",
+                            preiod_index, adaptation_set_index, representation_index
+                        ),
                         bandwidth: representation.bandwidth.clone().unwrap(),
                         codecs: representation.codecs(&adaptation_set),
                         resolution: if let (Some(width), Some(height)) =
@@ -28,7 +32,10 @@ pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
                 } else {
                     master.alternatives.push(m3u8_rs::AlternativeMedia {
                         media_type,
-                        uri: Some(format!("dash://{}", insert_index)),
+                        uri: Some(format!(
+                            "dash://preiod.{}.adaptation-set.{}.representation.{}",
+                            preiod_index, adaptation_set_index, representation_index
+                        )),
                         language: representation.lang(&adaptation_set),
                         assoc_language: representation.lang(&adaptation_set),
                         channels: representation.channels(&adaptation_set),
@@ -40,8 +47,6 @@ pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
                         ..Default::default()
                     });
                 }
-
-                insert_index += 1;
             }
         }
     }
@@ -101,24 +106,26 @@ pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
 }
 
 pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::MediaPlaylist> {
-    let uri_index = uri.trim_start_matches("dash://").parse::<usize>().unwrap();
-    let mut insert_index = 0;
-
-    for preiod in &mpd.preiod {
+    for (preiod_index, preiod) in mpd.preiod.iter().enumerate() {
         let mut baseurl = mpd_url.clone().to_owned();
 
         if let Some(preiod_baseurl) = &preiod.baseurl {
             baseurl = utils::join_url(&baseurl, &preiod_baseurl).unwrap();
         }
 
-        for adaptation_set in &preiod.adaptation_set {
+        for (adaptation_set_index, adaptation_set) in preiod.adaptation_set.iter().enumerate() {
             if let Some(adaptation_set_baseurl) = &adaptation_set.baseurl {
                 baseurl = utils::join_url(&baseurl, &adaptation_set_baseurl).unwrap();
             }
 
-            for representation in &adaptation_set.representation {
-                if insert_index != uri_index {
-                    insert_index += 1;
+            for (representation_index, representation) in
+                adaptation_set.representation.iter().enumerate()
+            {
+                if format!(
+                    "dash://preiod.{}.adaptation-set.{}.representation.{}",
+                    preiod_index, adaptation_set_index, representation_index
+                ) != uri
+                {
                     continue;
                 }
 

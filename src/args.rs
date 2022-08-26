@@ -45,6 +45,9 @@ pub struct Args {
     // #[clap(long, number_of_values = 2, value_names = &["width", "height"])]
     // pub resolution: Vec<u64>,
 
+    // parse manuaal
+        // pub resolution: Vec<u64>,
+
     /// Maximum number of threads for parllel downloading of segments.
     /// Number of threads should be in range 1-16 (inclusive).
     #[clap(short, long, default_value_t = 5, validator = threads_validator)]

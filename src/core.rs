@@ -263,14 +263,9 @@ impl DownloadState {
 
     pub fn segments(&mut self) -> Result<Vec<m3u8_rs::MediaSegment>> {
         let content = if self.args.input.starts_with("http") {
-            if !self
-                .args
-                .input
-                .split('?')
-                .next()
-                .unwrap()
-                .ends_with(".m3u8")
-            {
+            let url = self.args.input.split('?').next().unwrap();
+
+            if !(url.ends_with(".m3u") || url.ends_with(".m3u8")) {
                 self.scrape_website()?;
             }
 

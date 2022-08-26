@@ -47,22 +47,10 @@ pub fn master(
     quality: &Quality,
     raw_prompts: bool,
 ) -> Result<String> {
-    if master.variants.len() == 1 {
-        let band_fmt = format_bytes(master.variants[0].bandwidth as usize);
-        println!(
-            "Only one variant stream found.\nSelected variant stream of quality {} ({} {}/s).",
-            resolution(master.variants[0].resolution),
-            band_fmt.0,
-            band_fmt.1
-        );
-
-        return Ok(master.variants[0].uri.clone());
-    }
-
     let variants = {
         let mut sorted_variants = vec![];
 
-        for variant in master.variants.iter() {
+        for variant in master.variants.iter().filter(|x| !x.is_i_frame) {
             if let Some(resolution) = &variant.resolution {
                 let quality = resolution.width + resolution.height;
                 sorted_variants.push((quality, variant));
@@ -81,6 +69,19 @@ pub fn master(
 
         sorted_variants.iter().map(|x| x.1).collect::<Vec<_>>()
     };
+
+    if variants.len() == 1 {
+        let band_fmt = format_bytes(variants[0].bandwidth as usize);
+        println!(
+            "Only one variant stream found.\nSelected variant stream of quality {} ({} {}/s).",
+            resolution(variants[0].resolution),
+            band_fmt.0,
+            band_fmt.1
+        );
+
+        return Ok(variants[0].uri.clone());
+    }
+
 
     let uri = match quality {
         Quality::yt_144p => select_quality("144p", variants)?,
@@ -145,11 +146,15 @@ pub fn alternative(master: &m3u8_rs::MasterPlaylist, raw_prompts: bool) -> Resul
         }
     }
 
-    let index = select(
-        "Select one alternative stream:".to_string(),
-        &streams,
-        raw_prompts,
-    )?;
-
-    Ok(master.alternatives[index].uri.clone().unwrap())
+    if streams.len() == 0 {
+        let index = select(
+            "Select one alternative stream:".to_string(),
+            &streams,
+            raw_prompts,
+        )?;
+    
+        Ok(master.alternatives[index].uri.clone().unwrap())
+    } else {
+        bail!("No alternative streams found in master playlist.")
+    }
 }

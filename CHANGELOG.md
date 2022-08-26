@@ -9,6 +9,8 @@ Features:
 Bug Fixes:
 
 - `.vtt` -> `.srt` conversion ffmpeg command correction.
+- No website scraping when extension is `.m3u`.
+- No panic when alternative streams are 0.
 
 ## 0.1.2 (09/07/2022)
 

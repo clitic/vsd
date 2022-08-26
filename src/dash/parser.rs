@@ -396,11 +396,10 @@ impl Representation {
 impl Initialization {
     pub fn range(&self) -> Option<(u64, u64)> {
         if let Some(range) = &self.range {
-            let mut x = range.split('-');
-            let start = x.nth(0).unwrap().parse::<u64>().unwrap();
-            let end = x.nth(1).unwrap().parse::<u64>().unwrap();
-
-            return Some((start, end));
+            return Some((
+                range.split('-').nth(0).unwrap().parse::<u64>().unwrap(),
+                range.split('-').nth(1).unwrap().parse::<u64>().unwrap(),
+            ));
         }
 
         None
@@ -410,11 +409,10 @@ impl Initialization {
 impl SegmentURL {
     pub fn range(&self) -> Option<(u64, u64)> {
         if let Some(range) = &self.media_range {
-            let mut x = range.split('-');
-            let start = x.nth(0).unwrap().parse::<u64>().unwrap();
-            let end = x.nth(1).unwrap().parse::<u64>().unwrap();
-
-            return Some((start, end));
+            return Some((
+                range.split('-').nth(0).unwrap().parse::<u64>().unwrap(),
+                range.split('-').nth(1).unwrap().parse::<u64>().unwrap(),
+            ));
         }
 
         None

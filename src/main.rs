@@ -18,5 +18,5 @@ fn main() {
     // let mut stdout = std::io::stdout();
     // vsd::dash::to_m3u8_as_master(&mpd).write_to(&mut stdout).unwrap();
     // println!();
-    // vsd::dash::to_m3u8_as_media(&mpd, "https://github.com", "dash://6").unwrap().write_to(&mut stdout).unwrap();
+    // vsd::dash::to_m3u8_as_media(&mpd, "https://github.com", "dash://preiod.0.adaptation-set.0.representation.5").unwrap().write_to(&mut stdout).unwrap();
 }
