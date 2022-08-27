@@ -1,11 +1,7 @@
 use super::{middleware, utils};
 use anyhow::{anyhow, Result};
-use headless_chrome::browser::tab::RequestInterceptionDecision;
-use headless_chrome::protocol::network::methods::RequestPattern;
 use headless_chrome::{Browser, LaunchOptionsBuilder};
 use kdam::term::Colorizer;
-use reqwest::blocking::Client;
-use std::sync::Arc;
 
 pub fn capture(url: &str, headless: bool) -> Result<()> {
     utils::launch_message(headless);
@@ -22,26 +18,18 @@ pub fn capture(url: &str, headless: bool) -> Result<()> {
         .wait_for_initial_tab()
         .map_err(|e| anyhow!(e.to_string()))?;
 
-    tab.enable_request_interception(
-        &[RequestPattern {
-            url_pattern: None,
-            resource_type: Some("XHR"),
-            interception_stage: Some("Request"),
-        }],
-        Box::new(move |_, _, intercepted| {
-            if intercepted.request.url.contains(".m3u") || intercepted.request.url.contains(".mpd")
-            {
-                println!(
-                    "{}\n{}",
-                    "-".repeat(crate::utils::get_columns() as usize)
-                        .colorize("#FFA500"),
-                    intercepted.request.url
-                );
-            }
+    tab.enable_response_handling(Box::new(move |params, _| {
+        let url = params.response.url.split('?').next().unwrap();
 
-            RequestInterceptionDecision::Continue
-        }),
-    )
+        if url.contains(".m3u") || url.contains(".mpd") {
+            println!(
+                "{}\n{}",
+                "-".repeat(crate::utils::get_columns() as usize)
+                    .colorize("#FFA500"),
+                url
+            );
+        }
+    }))
     .map_err(|e| anyhow!(e.to_string()))?;
 
     tab.navigate_to(url).map_err(|e| anyhow!(e.to_string()))?;
@@ -65,18 +53,11 @@ pub fn collect(url: &str, headless: bool, build: bool) -> Result<()> {
         .wait_for_initial_tab()
         .map_err(|e| anyhow!(e.to_string()))?;
 
-    let client = Arc::new(Client::new());
-
-    tab.enable_request_interception(
-        &[RequestPattern {
-            url_pattern: None,
-            resource_type: Some("XHR"),
-            interception_stage: Some("Request"),
-        }],
-        Box::new(move |_, _, intercepted| {
-            middleware::intercept(intercepted, client.clone(), build).unwrap()
-        }),
-    )
+    tab.enable_response_handling(Box::new(move |params, get_response_body| {
+        if let Ok(body) = get_response_body() {
+            middleware::save_to_disk(&params.response.url, body, build).unwrap();
+        }
+    }))
     .map_err(|e| anyhow!(e.to_string()))?;
 
     tab.navigate_to(url).map_err(|e| anyhow!(e.to_string()))?;

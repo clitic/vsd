@@ -16,6 +16,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1"
+base64 = "0.13"
 clap = { version = "3", features = ["derive"] }
 headless_chrome = "0.9"
 iso8601 = "0.5"

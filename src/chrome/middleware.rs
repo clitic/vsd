@@ -1,30 +1,25 @@
 use super::utils;
 use anyhow::Result;
-use headless_chrome::browser::tab::RequestInterceptionDecision;
-use headless_chrome::protocol::network::events::RequestInterceptedEventParams;
+use headless_chrome::protocol::network::methods::GetResponseBodyReturnObject;
 use kdam::term::Colorizer;
-use reqwest::blocking::Client;
-use std::sync::Arc;
+use std::io::Write;
 
-pub fn intercept(
-    params: RequestInterceptedEventParams,
-    client: Arc<Client>,
-    build: bool,
-) -> Result<RequestInterceptionDecision> {
-    let url = params.request.url;
+fn decode(body: GetResponseBodyReturnObject) -> Result<Vec<u8>> {
+    if body.base64_encoded {
+        Ok(base64::decode(body.body)?)
+    } else {
+        Ok(body.body.as_bytes().to_vec())
+    }
+}
 
-    // println!(
-    //     "{}",
-    //     "-".repeat(crate::utils::get_columns() as usize)
-    //         .colorize("#FFA500")
-    // );
+pub fn save_to_disk(url: &str, body: GetResponseBodyReturnObject, build: bool) -> Result<()> {
+    let url = url.split('?').next().unwrap();
 
     if url.contains(".m3u") {
         let file = utils::filepath(&url, "m3u8");
 
         if build {
-            let m3u8 = utils::write_to_file(&client, params.request.headers, &url, &file)?;
-            utils::build_links(m3u8.as_bytes(), &file, &url)?;
+            utils::build_links(&decode(body)?, &file, url)?;
             println!(
                 "Saved {} playlist from {} to {}",
                 "BUILDED HLS".colorize("cyan"),
@@ -32,7 +27,7 @@ pub fn intercept(
                 file.colorize("bold green")
             );
         } else {
-            let _ = utils::write_to_file(&client, params.request.headers, &url, &file)?;
+            std::fs::File::create(&file)?.write_all(&decode(body)?)?;
             println!(
                 "Saved {} playlist from {} to {}",
                 "HLS".colorize("cyan"),
@@ -41,8 +36,8 @@ pub fn intercept(
             );
         }
     } else if url.contains(".mpd") {
-        let file = utils::filepath(&url, "mpd");
-        let _ = utils::write_to_file(&client, params.request.headers, &url, &file)?;
+        let file = utils::filepath(url, "mpd");
+        std::fs::File::create(&file)?.write_all(&decode(body)?)?;
         println!(
             "Saved {} playlist from {} to {}",
             "DASH".colorize("cyan"),
@@ -50,8 +45,8 @@ pub fn intercept(
             file.colorize("bold green")
         );
     } else if url.contains(".vtt") {
-        let file = utils::filepath(&url, "vtt");
-        let _ = utils::write_to_file(&client, params.request.headers, &url, &file)?;
+        let file = utils::filepath(url, "vtt");
+        std::fs::File::create(&file)?.write_all(&decode(body)?)?;
         println!(
             "Saved {} from {} to {}",
             "SUBTITLES".colorize("cyan"),
@@ -59,8 +54,8 @@ pub fn intercept(
             file.colorize("bold green")
         );
     } else if url.contains(".srt") {
-        let file = utils::filepath(&url, "srt");
-        let _ = utils::write_to_file(&client, params.request.headers, &url, &file)?;
+        let file = utils::filepath(url, "srt");
+        std::fs::File::create(&file)?.write_all(&decode(body)?)?;
         println!(
             "Saved {} from {} to {}",
             "SUBTITLES".colorize("cyan"),
@@ -69,5 +64,5 @@ pub fn intercept(
         );
     }
 
-    Ok(RequestInterceptionDecision::Continue)
+    Ok(())
 }

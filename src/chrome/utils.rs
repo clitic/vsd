@@ -1,11 +1,5 @@
-use crate::downloader::check_status_code;
 use anyhow::{anyhow, Result};
 use kdam::term::Colorizer;
-use reqwest::blocking::Client;
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-use std::collections::HashMap;
-use std::io::Write;
-use std::str::FromStr;
 
 pub fn launch_message(headless: bool) {
     println!(
@@ -21,26 +15,6 @@ pub fn warning_message() {
         Terminate this program using {}",
         "CTRL+C".colorize("bold red")
     );
-}
-
-pub fn write_to_file(
-    client: &Client,
-    chrome_headers: HashMap<String, String>,
-    url: &str,
-    path: &str,
-) -> Result<String> {
-    let mut headers = HeaderMap::new();
-
-    for (key, val) in chrome_headers {
-        if let (Ok(key), Ok(val)) = (HeaderName::from_str(&key), HeaderValue::from_str(&val)) {
-            headers.insert(key, val);
-        }
-    }
-    let resp = client.get(url).headers(headers).send()?;
-    check_status_code(&resp)?;
-    let text = resp.text()?;
-    std::fs::File::create(path)?.write_all(text.as_bytes())?;
-    Ok(text)
 }
 
 pub fn filepath(url: &str, ext: &str) -> String {
