@@ -19,8 +19,10 @@ impl DownloadState {
         let args = crate::args::parse();
 
         if args.capture {
-            crate::chrome::message(args.headless);
             crate::chrome::capture(&args.input, args.headless)?;
+            std::process::exit(0);
+        } else if args.collect {
+            crate::chrome::collect(&args.input, args.headless, args.build)?;
             std::process::exit(0);
         }
 
@@ -32,11 +34,6 @@ impl DownloadState {
             &args.cookies,
         )
         .context("Couldn't create reqwest client.")?;
-
-        if args.collect {
-            crate::chrome::message(args.headless);
-            crate::chrome::collect(&args.input, args.headless, args.build, &downloader)?;
-        }
 
         if let Some(output) = &args.output {
             if !output.ends_with(".ts") {

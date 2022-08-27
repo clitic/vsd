@@ -5,6 +5,11 @@
 Features:
 
 - Better variant stream selection and display order.
+- Using chrome request headers when using *--collect* flag to send the request.
+
+Changes:
+
+- Pre fetching playlists when using *--collect* flag.
 
 Bug Fixes:
 

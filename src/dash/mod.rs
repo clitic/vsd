@@ -1,8 +1,7 @@
 mod parser;
 mod tags;
 mod to_m3u8;
-
-pub mod utils;
+mod utils;
 
 pub use parser::*;
 pub use tags::MPDMediaSegmentTag;

@@ -5,7 +5,7 @@ use anyhow::{bail, Result};
 use kdam::term::Colorizer;
 use reqwest::{blocking::Response, header};
 
-fn check_status_code(resp: &Response) -> Result<()> {
+pub fn check_status_code(resp: &Response) -> Result<()> {
     if resp.status() != reqwest::StatusCode::OK {
         bail!(
             "{} download failed with {} {} status code.",
