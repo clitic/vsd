@@ -54,8 +54,16 @@ pub fn collect(url: &str, headless: bool, build: bool) -> Result<()> {
         .map_err(|e| anyhow!(e.to_string()))?;
 
     tab.enable_response_handling(Box::new(move |params, get_response_body| {
-        if let Ok(body) = get_response_body() {
-            middleware::save_to_disk(&params.response.url, body, build).unwrap();
+        let url = params.response.url.split('?').next().unwrap();
+
+        if url.contains(".m3u")
+            || url.contains(".mpd")
+            || url.contains(".vtt")
+            || url.contains(".srt")
+        {
+            if let Ok(body) = get_response_body() {
+                middleware::save_to_disk(url, body, build).unwrap();
+            }
         }
     }))
     .map_err(|e| anyhow!(e.to_string()))?;
