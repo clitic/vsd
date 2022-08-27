@@ -1,5 +1,6 @@
 use super::{middleware, utils};
 use anyhow::{anyhow, Result};
+use headless_chrome::protocol::network::events::ResourceType;
 use headless_chrome::{Browser, LaunchOptionsBuilder};
 use kdam::term::Colorizer;
 
@@ -54,15 +55,17 @@ pub fn collect(url: &str, headless: bool, build: bool) -> Result<()> {
         .map_err(|e| anyhow!(e.to_string()))?;
 
     tab.enable_response_handling(Box::new(move |params, get_response_body| {
-        let url = params.response.url.split('?').next().unwrap();
+        if params._type == ResourceType::XHR || params._type == ResourceType::Fetch {
+            let url = params.response.url.split('?').next().unwrap();
 
-        if url.contains(".m3u")
-            || url.contains(".mpd")
-            || url.contains(".vtt")
-            || url.contains(".srt")
-        {
-            if let Ok(body) = get_response_body() {
-                middleware::save_to_disk(url, body, build).unwrap();
+            if url.contains(".m3u")
+                || url.contains(".mpd")
+                || url.contains(".vtt")
+                || url.contains(".srt")
+            {
+                if let Ok(body) = get_response_body() {
+                    middleware::save_to_disk(url, body, build).unwrap();
+                }
             }
         }
     }))

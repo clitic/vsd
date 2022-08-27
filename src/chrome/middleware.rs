@@ -13,8 +13,6 @@ fn decode(body: GetResponseBodyReturnObject) -> Result<Vec<u8>> {
 }
 
 pub fn save_to_disk(url: &str, body: GetResponseBodyReturnObject, build: bool) -> Result<()> {
-    let url = url.split('?').next().unwrap();
-
     if url.contains(".m3u") {
         let file = utils::filepath(&url, "m3u8");
 
