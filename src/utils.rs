@@ -2,15 +2,15 @@ use std::io::Write;
 
 use anyhow::{bail, Result};
 
-pub fn format_bytes(bytesval: usize) -> (String, String, String) {
+pub fn format_bytes(bytesval: usize, precision: usize) -> (String, String, String) {
     let mut val = bytesval as f32;
 
     for unit in ["bytes", "KB", "MB", "GB", "TB"] {
         if val < 1024.0 {
             return (
-                format!("{:.2}", val),
+                format!("{:.precision$}", val, precision = precision),
                 unit.to_owned(),
-                format!("{:.2} {}", val, unit),
+                format!("{:.precision$} {}", val, unit, precision = precision),
             );
         }
 
@@ -18,9 +18,9 @@ pub fn format_bytes(bytesval: usize) -> (String, String, String) {
     }
 
     return (
-        format!("{:.2}", bytesval),
+        format!("{:.precision$}", bytesval, precision = precision),
         "".to_owned(),
-        format!("{:.2}", bytesval),
+        format!("{:.precision$}", bytesval, precision = precision),
     );
 }
 
@@ -93,7 +93,8 @@ pub fn check_ffmpeg(text: &str) -> Result<()> {
         bail!(
             "FFMPEG couldn't be located in PATH. \
             It is required because {}. \
-            Visit https://www.ffmpeg.org/download.html to install it.", text
+            Visit https://www.ffmpeg.org/download.html to install it.",
+            text
         );
     }
 

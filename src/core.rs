@@ -1,16 +1,17 @@
-use std::sync::{Arc, Mutex};
-
-use anyhow::{anyhow, bail, Context, Result};
-use kdam::prelude::*;
-
+use crate::downloader::create_client;
 use crate::merger::BinarySequence;
 use crate::parse;
 use crate::progress::{DownloadProgress, StreamData};
 use crate::utils::*;
-
+use anyhow::{anyhow, bail, Context, Result};
+use kdam::prelude::*;
+use reqwest::blocking::Client;
+use std::sync::{Arc, Mutex};
+use reqwest::header;
+use reqwest::header::HeaderValue;
 pub struct DownloadState {
     args: crate::args::Args,
-    downloader: crate::downloader::Downloader,
+    client: Arc<Client>,
     progress: DownloadProgress,
 }
 
@@ -26,14 +27,16 @@ impl DownloadState {
             std::process::exit(0);
         }
 
-        let downloader = crate::downloader::Downloader::new(
-            &args.user_agent,
-            &args.header,
-            &args.proxy_address,
-            args.enable_cookies,
-            &args.cookies,
-        )
-        .context("Couldn't create reqwest client.")?;
+        let client = Arc::new(
+            create_client(
+                &args.user_agent,
+                &args.header,
+                &args.proxy_address,
+                args.enable_cookies,
+                &args.cookies,
+            )
+            .context("Couldn't create reqwest client.")?,
+        );
 
         if let Some(output) = &args.output {
             if !output.ends_with(".ts") {
@@ -43,7 +46,7 @@ impl DownloadState {
 
         Ok(Self {
             args,
-            downloader,
+            client,
             progress: DownloadProgress::new_empty(),
         })
     }
@@ -106,8 +109,7 @@ impl DownloadState {
 
     fn scrape_website(&mut self) -> Result<()> {
         println!("Scraping website for HLS and Dash links.");
-        let resp = self.downloader.get(&self.args.input)?;
-        let links = crate::utils::find_hls_dash_links(&resp.text()?);
+        let links = crate::utils::find_hls_dash_links(&self.client.get(&self.args.input).send()?.text()?);
 
         match links.len() {
             0 => bail!(
@@ -185,7 +187,7 @@ impl DownloadState {
                             self.progress.audio =
                                 Some(StreamData::new(&self.args.input, &audio_tempfile));
 
-                            let content = self.downloader.get_bytes(&self.args.input)?;
+                            let content = self.client.get(&self.args.input).send()?.bytes()?.to_vec();
 
                             if let m3u8_rs::Playlist::MediaPlaylist(meadia) =
                                 m3u8_rs::parse_playlist_res(&content).map_err(|_| {
@@ -209,7 +211,7 @@ impl DownloadState {
                             self.progress.subtitle =
                                 Some(StreamData::new(&self.args.input, &subtitle_tempfile));
 
-                            let content = self.downloader.get_bytes(&self.args.input)?;
+                            let content = self.client.get(&self.args.input).send()?.bytes()?.to_vec();
 
                             if let m3u8_rs::Playlist::MediaPlaylist(meadia) =
                                 m3u8_rs::parse_playlist_res(&content).map_err(|_| {
@@ -266,7 +268,7 @@ impl DownloadState {
                 self.scrape_website()?;
             }
 
-            self.downloader.get_bytes(&self.args.input)?
+            self.client.get(&self.args.input).send()?.bytes()?.to_vec()
         } else {
             std::fs::read_to_string(&self.args.input)?
                 .as_bytes()
@@ -296,7 +298,7 @@ impl DownloadState {
                     self.download_alternative(&master)?;
                 }
 
-                let playlist = self.downloader.get_bytes(&self.args.input).unwrap();
+                let playlist = self.client.get(&self.args.input).send()?.bytes()?.to_vec();
                 match m3u8_rs::parse_playlist_res(&playlist)
                     .map_err(|_| anyhow!("Couldn't parse {} playlist.", self.args.input))?
                 {
@@ -367,7 +369,6 @@ impl DownloadState {
             unit = "ts".to_owned(),
             dynamic_ncols = true
         )));
-        let client = Arc::new(self.downloader.clone());
         let pool = threadpool::ThreadPool::new(self.args.threads as usize);
 
         for (i, segment) in segments.iter().enumerate() {
@@ -395,7 +396,7 @@ impl DownloadState {
             let segment = segment.clone();
             let pb = pb.clone();
             let merger = merger.clone();
-            let client = client.clone();
+            let client = self.client.clone();
             let segment_url = self.get_url(&segment.uri)?;
             let total_retries = self.args.retry_count;
 
@@ -404,8 +405,8 @@ impl DownloadState {
 
             pb.lock().unwrap().set_description(format!(
                 "{} / {}",
-                format_bytes(merger_cm.stored()).2,
-                format_bytes(merger_cm.estimate()).2
+                format_bytes(merger_cm.stored(), 2).2,
+                format_bytes(merger_cm.estimate(), 0).2
             ));
             pb.lock().unwrap().update_to(merger_cm.position());
 
@@ -417,12 +418,13 @@ impl DownloadState {
                         Some(m3u8_rs::ByteRange {
                             length: start,
                             offset: Some(end),
-                        }) => client.get_bytes_range(&segment_url, start, start + end - 1),
-                        _ => client.get_bytes(&segment_url),
+                        }) => client.get(&segment_url).header(header::RANGE, HeaderValue::from_str(&format!("bytes={}-{}", start, start + end - 1)).unwrap()).send(),
+                        _ => client.get(&segment_url).send(),
                     };
 
+                    // TODO: Check resp errors
                     if let Ok(resp_data) = resp {
-                        break resp_data;
+                        break resp_data.bytes().unwrap().to_vec();
                     } else if total_retries > retries {
                         pb.lock().unwrap().write(format!(
                             "{} to download segment at index {}.",
@@ -446,13 +448,14 @@ impl DownloadState {
 
                 if let Some(eku) = key_url {
                     data = loop {
-                        let resp = client.get_bytes(&eku);
+                        let resp = client.get(&eku).send();
 
                         if let Ok(resp_data) = resp {
                             let decrypted_data = crate::decrypt::HlsDecrypt::from_key(
                                 segment.key.unwrap(),
-                                resp_data,
+                                resp_data.bytes().unwrap().to_vec(),
                             )
+                            .unwrap()
                             .decrypt(&data);
 
                             break decrypted_data.unwrap_or_else(|e| {
@@ -487,8 +490,8 @@ impl DownloadState {
                 let mut pb = pb.lock().unwrap();
                 pb.set_description(format!(
                     "{} / {}",
-                    format_bytes(merger.stored()).2,
-                    format_bytes(merger.estimate()).2
+                    format_bytes(merger.stored(), 2).2,
+                    format_bytes(merger.estimate(), 0).2
                 ));
                 pb.update(1);
             });

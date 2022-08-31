@@ -4,7 +4,7 @@ use super::{MPDMediaSegmentTag, MPD};
 pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
     let mut master = m3u8_rs::MasterPlaylist::default();
 
-    for (preiod_index, preiod) in mpd.preiod.iter().enumerate() {
+    for (preiod_index, preiod) in mpd.period.iter().enumerate() {
         for (adaptation_set_index, adaptation_set) in preiod.adaptation_set.iter().enumerate() {
             for (representation_index, representation) in
                 adaptation_set.representation.iter().enumerate()
@@ -14,7 +14,7 @@ pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
                 if media_type == m3u8_rs::AlternativeMediaType::Video {
                     master.variants.push(m3u8_rs::VariantStream {
                         uri: format!(
-                            "dash://preiod.{}.adaptation-set.{}.representation.{}",
+                            "dash://period.{}.adaptation-set.{}.representation.{}",
                             preiod_index, adaptation_set_index, representation_index
                         ),
                         bandwidth: representation.bandwidth.clone().unwrap(),
@@ -33,7 +33,7 @@ pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
                     master.alternatives.push(m3u8_rs::AlternativeMedia {
                         media_type,
                         uri: Some(format!(
-                            "dash://preiod.{}.adaptation-set.{}.representation.{}",
+                            "dash://period.{}.adaptation-set.{}.representation.{}",
                             preiod_index, adaptation_set_index, representation_index
                         )),
                         language: representation.lang(&adaptation_set),
@@ -106,7 +106,7 @@ pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
 }
 
 pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::MediaPlaylist> {
-    for (preiod_index, preiod) in mpd.preiod.iter().enumerate() {
+    for (preiod_index, preiod) in mpd.period.iter().enumerate() {
         let mut baseurl = mpd_url.clone().to_owned();
 
         if let Some(preiod_baseurl) = &preiod.baseurl {
@@ -122,7 +122,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                 adaptation_set.representation.iter().enumerate()
             {
                 if format!(
-                    "dash://preiod.{}.adaptation-set.{}.representation.{}",
+                    "dash://period.{}.adaptation-set.{}.representation.{}",
                     preiod_index, adaptation_set_index, representation_index
                 ) != uri
                 {

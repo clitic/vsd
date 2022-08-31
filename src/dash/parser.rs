@@ -3,7 +3,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 
 pub fn parse(xml: &[u8]) -> Result<MPD, quick_xml::de::DeError> {
-    quick_xml::de::from_slice::<MPD>(xml)
+    quick_xml::de::from_reader::<_, MPD>(xml)
 }
 
 #[derive(Debug, Default, Clone, Deserialize)]
@@ -23,7 +23,7 @@ pub struct MPD {
     #[serde(rename = "BaseURL")]
     pub baseurl: Option<String>,
     #[serde(rename = "Period", default)]
-    pub preiod: Vec<Period>,
+    pub period: Vec<Period>,
 }
 
 #[derive(Debug, Default, Clone, Deserialize)]

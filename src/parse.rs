@@ -8,7 +8,7 @@ fn select_quality(quality: &str, variants: Vec<&m3u8_rs::VariantStream>) -> Resu
         .iter()
         .find(|x| quality == resolution(x.resolution))
     {
-        let band_fmt = format_bytes(variant.bandwidth as usize);
+        let band_fmt = format_bytes(variant.bandwidth as usize, 2);
         println!(
             "Selected variant stream of quality {} ({} {}/s).",
             quality, band_fmt.0, band_fmt.1
@@ -71,7 +71,7 @@ pub fn master(
     };
 
     if variants.len() == 1 {
-        let band_fmt = format_bytes(variants[0].bandwidth as usize);
+        let band_fmt = format_bytes(variants[0].bandwidth as usize, 2);
         println!(
             "Only one variant stream found.\nSelected variant stream of quality {} ({} {}/s).",
             resolution(variants[0].resolution),
@@ -98,7 +98,7 @@ pub fn master(
         Quality::Select => {
             let mut streams = vec![];
             for (i, variant) in variants.iter().enumerate() {
-                let band_fmt = format_bytes(variant.bandwidth as usize);
+                let band_fmt = format_bytes(variant.bandwidth as usize, 2);
 
                 streams.push(format!(
                     "{:2}) {:9} {:>6} {}/s",

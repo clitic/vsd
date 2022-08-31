@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use m3u8_rs::KeyMethod;
 use openssl::symm::{decrypt, Cipher};
 
@@ -9,25 +9,22 @@ pub struct HlsDecrypt {
 }
 
 impl HlsDecrypt {
-    pub fn from_key(key: m3u8_rs::Key, key_content: Vec<u8>) -> Self {
-        let iv = key
-            .iv
-            .map(|encryption_iv| encryption_iv.as_bytes().to_vec());
-
+    pub fn from_key(key: m3u8_rs::Key, key_content: Vec<u8>) -> Result<Self> {
         match key.method {
-            KeyMethod::AES128 | KeyMethod::SampleAES => Self {
+            KeyMethod::AES128 => Ok(Self {
                 key: key_content,
-                iv,
+                iv: key
+                    .iv
+                    .map(|encryption_iv| encryption_iv.as_bytes().to_vec()),
                 method: key.method,
-            },
-            KeyMethod::None => Self {
+            }),
+            KeyMethod::None => Ok(Self {
                 key: vec![],
-                iv,
+                iv: None,
                 method: key.method,
-            },
-            KeyMethod::Other(x) => {
-                panic!("Unsupported key method {}", x);
-            }
+            }),
+            KeyMethod::SampleAES => bail!("SAMPLE-AES key method is not supported."),
+            KeyMethod::Other(x) => bail!("Unsupported key method {}.", x),
         }
     }
 
@@ -45,31 +42,6 @@ impl HlsDecrypt {
                     Ok(decrypt(Cipher::aes_128_cbc(), &self.key, None, buf)?)
                 }
             }
-            KeyMethod::SampleAES => {
-                let mut new_buf = vec![];
-
-                for byte in buf {
-                    let mut data = if let Some(encryption_iv) = self.iv.clone() {
-                        decrypt(
-                            Cipher::aes_128_cbc(),
-                            &self.key,
-                            Some(&encryption_iv),
-                            &[byte.to_owned()],
-                        )
-                    } else {
-                        decrypt(Cipher::aes_128_cbc(), &self.key, None, &[byte.to_owned()])
-                    };
-
-                    if let Ok(bytes) = &mut data {
-                        new_buf.append(bytes);
-                    } else {
-                        new_buf.push(byte.to_owned());
-                    }
-                }
-
-                Ok(new_buf)
-            }
-
             _ => Ok(buf.to_vec()),
         }
     }
