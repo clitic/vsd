@@ -8,4 +8,4 @@ pub mod parse;
 pub mod progress;
 pub mod utils;
 
-pub use args::{Args, Quality};
+pub use args::{Args, Quality, InputType};

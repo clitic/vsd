@@ -1,8 +1,9 @@
-use crate::args::Args;
+use crate::dash;
 use crate::merger::BinarySequence;
 use crate::parse;
 use crate::progress::{DownloadProgress, StreamData};
-use crate::utils::*;
+use crate::utils;
+use crate::{Args, InputType};
 use anyhow::{anyhow, bail, Result};
 use kdam::prelude::*;
 use reqwest::blocking::Client;
@@ -11,7 +12,7 @@ use reqwest::header::HeaderValue;
 use std::sync::{Arc, Mutex};
 
 pub struct DownloadState {
-    args: Args,
+    pub args: Args,
     client: Arc<Client>,
     progress: DownloadProgress,
 }
@@ -19,10 +20,10 @@ pub struct DownloadState {
 impl DownloadState {
     pub fn new(args: Args) -> Result<Self> {
         let client = args.client()?;
-        
+
         if let Some(output) = &args.output {
             if !output.ends_with(".ts") {
-                check_ffmpeg("the given output doesn't have .ts file extension")?
+                utils::check_ffmpeg("the given output doesn't have .ts file extension")?
             }
         }
 
@@ -33,89 +34,13 @@ impl DownloadState {
         })
     }
 
-    fn get_url(&self, uri: &str) -> Result<String> {
-        if uri.starts_with("http") {
-            Ok(uri.to_owned())
-        } else if let Some(baseurl) = &self.args.baseurl {
-            Ok(reqwest::Url::parse(baseurl)?.join(uri)?.to_string())
-        } else {
-            if !self.args.input.starts_with("http") {
-                bail!(
-                    "Non HTTP input should have {} set explicitly.",
-                    "--baseurl".colorize("bold green")
-                )
-            }
-
-            Ok(reqwest::Url::parse(&self.args.input)?
-                .join(uri)?
-                .to_string())
-        }
-    }
-
-    pub fn tempfile(&self) -> String {
-        let path = if let Some(output) = self
-            .args
-            .input
-            .split('?')
-            .next()
-            .unwrap()
-            .split('/')
-            .find(|x| x.ends_with(".m3u8"))
-        {
-            if output.ends_with(".ts.m3u8") {
-                output.trim_end_matches(".m3u8").to_owned()
-            } else {
-                replace_ext(output, "ts")
-            }
-        } else {
-            "merged.ts".to_owned()
-        };
-
-        if std::path::Path::new(&path).exists() && !self.args.resume {
-            let stemed_path = std::path::Path::new(&path)
-                .file_stem()
-                .unwrap()
-                .to_str()
-                .unwrap();
-
-            for i in 1..9999 {
-                let core_file_copy = format!("{} ({}).ts", stemed_path, i);
-
-                if !std::path::Path::new(&core_file_copy).exists() {
-                    return core_file_copy;
-                }
-            }
-        }
-        path
-    }
-
     fn scrape_website(&mut self) -> Result<()> {
         println!("Scraping website for HLS and Dash links.");
         let links =
             crate::utils::find_hls_dash_links(&self.client.get(&self.args.input).send()?.text()?);
 
         match links.len() {
-            0 => bail!(
-                "No links found on website source.\n\n\
-                {} Consider using {} flag and then \
-                run the command with same arguments by replacing the {} with captured m3u8 url.\n\n\
-                Suppose first command captures https://streaming.site/video_001/master.m3u8\n\
-                $ vsd --capture {}\n\
-                $ vsd https://streaming.site/video_001/master.m3u8 \n\n\
-                {} Consider using {} flag \
-                and then run the command with saved .m3u8 file as {}. \n\n\
-                Suppose first command saves master.m3u8\n\
-                $ vsd --collect --build {}\n\
-                $ vsd master.m3u8",
-                "TRY THIS:".colorize("yellow"),
-                "--capture".colorize("bold green"),
-                "INPUT".colorize("bold green"),
-                self.args.input,
-                "OR THIS:".colorize("yellow"),
-                "--collect --build".colorize("bold green"),
-                "INPUT".colorize("bold green"),
-                self.args.input,
-            ),
+            0 => bail!(utils::scrape_website_message(&self.args.input)),
             1 => {
                 self.args.input = links[0].clone();
                 println!("Found one link {}", &links[0]);
@@ -125,7 +50,7 @@ impl DownloadState {
                 for (i, link) in links.iter().enumerate() {
                     elinks.push(format!("{:#2}) {}", i + 1, link));
                 }
-                let index = select(
+                let index = utils::select(
                     "Select one link:".to_string(),
                     &elinks,
                     self.args.raw_prompts,
@@ -164,8 +89,8 @@ impl DownloadState {
                     if alternative.autoselect {
                         if let Some(uri) = &alternative.uri {
                             println!("{} audio stream.", "Downloading".colorize("bold green"));
-                            check_ffmpeg("audio stream needs to muxed with video stream")?;
-                            self.args.input = self.get_url(uri)?;
+                            utils::check_ffmpeg("audio stream needs to muxed with video stream")?;
+                            self.args.input = self.args.get_url(uri)?;
                             self.progress.current("audio");
                             self.progress.audio =
                                 Some(StreamData::new(&self.args.input, &audio_tempfile));
@@ -189,8 +114,10 @@ impl DownloadState {
                     if alternative.autoselect {
                         if let Some(uri) = &alternative.uri {
                             println!("{} subtitles stream.", "Downloading".colorize("bold green"));
-                            check_ffmpeg("subtitles stream needs to muxed with video stream")?;
-                            self.args.input = self.get_url(uri)?;
+                            utils::check_ffmpeg(
+                                "subtitles stream needs to muxed with video stream",
+                            )?;
+                            self.args.input = self.args.get_url(uri)?;
                             self.progress.current("subtitle");
                             self.progress.subtitle =
                                 Some(StreamData::new(&self.args.input, &subtitle_tempfile));
@@ -246,28 +173,40 @@ impl DownloadState {
     }
 
     pub fn segments(&mut self) -> Result<Vec<m3u8_rs::MediaSegment>> {
-        let content = if self.args.input.starts_with("http") {
-            let url = self.args.input.split('?').next().unwrap();
+        if self.args.input_type().is_website() {
+            self.scrape_website()?;
+        }
 
-            if !(url.ends_with(".m3u") || url.ends_with(".m3u8")) {
-                self.scrape_website()?;
+        let input_type = self.args.input_type();
+
+        let content = match input_type {
+            InputType::HlsUrl | InputType::DashUrl => {
+                self.client.get(&self.args.input).send()?.bytes()?.to_vec()
             }
-
-            self.client.get(&self.args.input).send()?.bytes()?.to_vec()
-        } else {
-            std::fs::read_to_string(&self.args.input)?
-                .as_bytes()
-                .to_vec()
+            InputType::HlsLocalFile | InputType::DashLocalFile => {
+                std::fs::read_to_string(&self.args.input)?
+                    .as_bytes()
+                    .to_vec()
+            }
+            InputType::LocalFile | InputType::Website => bail!("Unsupported input file type."),
         };
 
-        match m3u8_rs::parse_playlist_res(&content)
-            .map_err(|_| anyhow!("Couldn't parse {} playlist.", self.args.input))?
-        {
+        let playlist = if input_type.is_hls() {
+            m3u8_rs::parse_playlist_res(&content)
+                .map_err(|_| anyhow!("Couldn't parse {} playlist.", self.args.input))?
+        } else {
+            m3u8_rs::Playlist::MasterPlaylist(dash::to_m3u8_as_master(&dash::parse(&content)?))
+        };
+
+        match playlist {
             m3u8_rs::Playlist::MasterPlaylist(master) => {
+                let master_playlist_url = self.args.input.clone();
+
                 self.args.input = if self.args.alternative {
-                    self.get_url(&parse::alternative(&master, self.args.raw_prompts)?)?
+                    self.args
+                        .get_url(&parse::alternative(&master, self.args.raw_prompts)?)?
                 } else {
-                    self.get_url(&parse::master(
+                    self.args.get_url(&parse::master(
                         &master,
                         &self.args.quality,
                         self.args.raw_prompts,
@@ -275,18 +214,35 @@ impl DownloadState {
                 };
 
                 self.progress.current("stream");
-                self.progress.stream = StreamData::new(&self.args.input, &self.tempfile());
+                self.progress.stream = StreamData::new(&self.args.input, &self.args.tempfile());
                 self.progress
-                    .json_file(&replace_ext(&self.progress.stream.file, "json"));
+                    .json_file(&utils::replace_ext(&self.progress.stream.file, "json"));
 
                 if !self.args.alternative && !self.args.skip {
                     self.download_alternative(&master)?;
                 }
 
-                let playlist = self.client.get(&self.args.input).send()?.bytes()?.to_vec();
-                match m3u8_rs::parse_playlist_res(&playlist)
+                let playlist = if input_type.is_hls() {
+                    m3u8_rs::parse_playlist_res(
+                        &self.client.get(&self.args.input).send()?.bytes()?.to_vec(),
+                    )
                     .map_err(|_| anyhow!("Couldn't parse {} playlist.", self.args.input))?
-                {
+                } else {
+                    m3u8_rs::Playlist::MediaPlaylist(
+                        dash::to_m3u8_as_media(
+                            &dash::parse(&content)?,
+                            if let Some(baseurl) = &self.args.baseurl {
+                                baseurl
+                            } else {
+                                &master_playlist_url
+                            },
+                            &self.args.input,
+                        )
+                        .unwrap(),
+                    )
+                };
+
+                match playlist {
                     m3u8_rs::Playlist::MediaPlaylist(meadia) => {
                         println!(
                             "{} {} stream.",
@@ -305,9 +261,9 @@ impl DownloadState {
             m3u8_rs::Playlist::MediaPlaylist(meadia) => {
                 println!("{} video stream.", "Downloading".colorize("bold green"));
                 self.progress.current("stream");
-                self.progress.stream = StreamData::new(&self.args.input, &self.tempfile());
+                self.progress.stream = StreamData::new(&self.args.input, &self.args.tempfile());
                 self.progress
-                    .json_file(&replace_ext(&self.progress.stream.file, "json"));
+                    .json_file(&utils::replace_ext(&self.progress.stream.file, "json"));
                 Ok(meadia.segments)
             }
         }
@@ -319,7 +275,7 @@ impl DownloadState {
         mut tempfile: String,
     ) -> Result<()> {
         // Check to ensure baseurl is required or not.
-        self.get_url(&segments[0].uri)?;
+        self.args.get_url(&segments[0].uri)?;
 
         if let Some(output) = &self.args.output {
             if output.ends_with(".ts") {
@@ -374,7 +330,7 @@ impl DownloadState {
             let key_url = match &segment.key {
                 Some(m3u8_rs::Key {
                     uri: Some(link), ..
-                }) => Some(self.get_url(link)?),
+                }) => Some(self.args.get_url(link)?),
                 _ => None,
             };
 
@@ -382,7 +338,7 @@ impl DownloadState {
             let pb = pb.clone();
             let merger = merger.clone();
             let client = self.client.clone();
-            let segment_url = self.get_url(&segment.uri)?;
+            let segment_url = self.args.get_url(&segment.uri)?;
             let total_retries = self.args.retry_count;
 
             let merger_c = merger.clone();
@@ -390,8 +346,8 @@ impl DownloadState {
 
             pb.lock().unwrap().set_description(format!(
                 "{} / {}",
-                format_bytes(merger_cm.stored(), 2).2,
-                format_bytes(merger_cm.estimate(), 0).2
+                utils::format_bytes(merger_cm.stored(), 2).2,
+                utils::format_bytes(merger_cm.estimate(), 0).2
             ));
             pb.lock().unwrap().update_to(merger_cm.position());
 
@@ -486,8 +442,8 @@ impl DownloadState {
                 let mut pb = pb.lock().unwrap();
                 pb.set_description(format!(
                     "{} / {}",
-                    format_bytes(merger.stored(), 2).2,
-                    format_bytes(merger.estimate(), 0).2
+                    utils::format_bytes(merger.stored(), 2).2,
+                    utils::format_bytes(merger.estimate(), 0).2
                 ));
                 pb.update(1);
             });

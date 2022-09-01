@@ -18,7 +18,7 @@ fn main() {
         let mut downloader = vsd::core::DownloadState::new(args).unwrap_or_else(|e| error(e));
         let segments = downloader.segments().unwrap_or_else(|e| error(e));
         downloader
-            .download(&segments, downloader.tempfile())
+            .download(&segments, downloader.args.tempfile())
             .unwrap_or_else(|e| error(e));
         downloader.transmux_trancode().unwrap_or_else(|e| error(e));
     }

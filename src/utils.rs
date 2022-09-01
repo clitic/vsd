@@ -112,6 +112,30 @@ pub fn get_columns() -> u16 {
     kdam::term::get_columns_or(10)
 }
 
+pub fn scrape_website_message(url: &str) -> String {
+    format!(
+        "No links found on website source.\n\n\
+        {} Consider using {} flag and then \
+        run the command with same arguments by replacing the {} with captured m3u8 url.\n\n\
+        Suppose first command captures https://streaming.site/video_001/master.m3u8\n\
+        $ vsd --capture {}\n\
+        $ vsd https://streaming.site/video_001/master.m3u8 \n\n\
+        {} Consider using {} flag \
+        and then run the command with saved .m3u8 file as {}. \n\n\
+        Suppose first command saves master.m3u8\n\
+        $ vsd --collect --build {}\n\
+        $ vsd master.m3u8",
+        "TRY THIS:".colorize("yellow"),
+        "--capture".colorize("bold green"),
+        "INPUT".colorize("bold green"),
+        url,
+        "OR THIS:".colorize("yellow"),
+        "--collect --build".colorize("bold green"),
+        "INPUT".colorize("bold green"),
+        url,
+    )
+}
+
 pub fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
     let url = error
         .url()

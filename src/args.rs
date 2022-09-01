@@ -1,9 +1,12 @@
-use anyhow::Result;
+use crate::utils;
+use anyhow::{bail, Result};
 use clap::{ArgEnum, ArgGroup, Parser};
+use kdam::term::Colorizer;
 use reqwest::blocking::Client;
 use reqwest::cookie::Jar;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Proxy, Url};
+use std::path::Path;
 use std::sync::Arc;
 
 #[allow(non_camel_case_types)]
@@ -55,7 +58,7 @@ fn proxy_address_validator(s: &str) -> Result<(), String> {
 #[derive(Debug, Clone, Parser)]
 #[clap(version, author = "clitic <clitic21@gmail.com>", about, group = ArgGroup::new("chrome").args(&["capture", "collect"]))]
 pub struct Args {
-    /// url | .m3u8 | .m3u
+    /// URL | .m3u8 | .m3u | .mpd | .xml
     #[clap(required = true, validator = input_validator)]
     pub input: String,
 
@@ -107,6 +110,11 @@ pub struct Args {
     #[clap(short, long)]
     pub skip: bool,
 
+    /// TODO Decryption keys.
+    /// This option can be used multiple times.
+    #[clap(short, long, multiple_occurrences = true, value_name = "<KID:KEY>|KEY")]
+    pub key: Vec<String>,
+
     /// Launch Google Chrome to capture requests made to fetch .m3u8 (HLS) and .mpd (Dash) files.
     #[clap(long, help_heading = "CHROME OPTIONS")]
     pub capture: bool,
@@ -128,7 +136,7 @@ pub struct Args {
 
     /// Custom headers for requests.
     /// This option can be used multiple times.
-    #[clap(long, multiple_occurrences = true, number_of_values = 2, value_names = &["key", "value"], help_heading = "CLIENT OPTIONS")]
+    #[clap(long, multiple_occurrences = true, number_of_values = 2, value_names = &["KEY", "VALUE"], help_heading = "CLIENT OPTIONS")]
     pub header: Vec<String>, // Vec<Vec<String>> not supported
 
     /// Update and set custom user agent for requests.
@@ -150,7 +158,7 @@ pub struct Args {
     /// Enable cookie store and fill it with some existing cookies.
     /// Example `--cookies "foo=bar; Domain=yolo.local" https://yolo.local`.
     /// This option can be used multiple times.
-    #[clap(long, multiple_occurrences = true, number_of_values = 2, value_names = &["cookies", "url"], help_heading = "CLIENT OPTIONS")]
+    #[clap(long, multiple_occurrences = true, number_of_values = 2, value_names = &["COOKIES", "URL"], help_heading = "CLIENT OPTIONS")]
     pub cookies: Vec<String>, // Vec<Vec<String>> not supported
 }
 
@@ -194,5 +202,107 @@ impl Args {
         }
 
         Ok(Arc::new(client_builder.build()?))
+    }
+
+    pub fn get_url(&self, uri: &str) -> Result<String> {
+        if uri.starts_with("http") {
+            Ok(uri.to_owned())
+        } else if let Some(baseurl) = &self.baseurl {
+            Ok(Url::parse(baseurl)?.join(uri)?.to_string())
+        } else {
+            if !self.input.starts_with("http") {
+                bail!(
+                    "Non HTTP input should have {} set explicitly.",
+                    "--baseurl".colorize("bold green")
+                )
+            }
+
+            Ok(Url::parse(&self.input)?.join(uri)?.to_string())
+        }
+    }
+
+    pub fn tempfile(&self) -> String {
+        let path = if let Some(output) = self
+            .input
+            .split('?')
+            .next()
+            .unwrap()
+            .split('/')
+            .find(|x| x.ends_with(".m3u8"))
+        {
+            if output.ends_with(".ts.m3u8") {
+                output.trim_end_matches(".m3u8").to_owned()
+            } else {
+                utils::replace_ext(output, "ts")
+            }
+        } else {
+            "merged.ts".to_owned()
+        };
+
+        if Path::new(&path).exists() && !self.resume {
+            let stemed_path = Path::new(&path).file_stem().unwrap().to_str().unwrap();
+
+            for i in 1..9999 {
+                let core_file_copy = format!("{} ({}).ts", stemed_path, i);
+
+                if !Path::new(&core_file_copy).exists() {
+                    return core_file_copy;
+                }
+            }
+        }
+        path
+    }
+
+    pub fn input_type(&self) -> InputType {
+        let url = self.input.split('?').next().unwrap();
+
+        if url.starts_with("http") {
+            if url.ends_with(".m3u8") || url.ends_with(".m3u") || url.ends_with("ts.m3u8") {
+                InputType::HlsUrl
+            } else if url.ends_with(".mpd") || url.ends_with(".xml") {
+                InputType::DashUrl
+            } else {
+                InputType::Website
+            }
+        } else {
+            if url.ends_with(".m3u8") || url.ends_with(".m3u") || url.ends_with("ts.m3u8") {
+                InputType::HlsLocalFile
+            } else if url.ends_with(".mpd") || url.ends_with(".xml") {
+                InputType::DashLocalFile
+            } else {
+                InputType::LocalFile
+            }
+        }
+    }
+}
+pub enum InputType {
+    HlsUrl,
+    DashUrl,
+    Website,
+    HlsLocalFile,
+    DashLocalFile,
+    LocalFile,
+}
+
+impl InputType {
+    pub fn is_website(&self) -> bool {
+        match &self {
+            Self::Website => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_hls(&self) -> bool {
+        match &self {
+            Self::HlsUrl | Self::HlsLocalFile => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_dash(&self) -> bool {
+        match &self {
+            Self::DashUrl | Self::DashLocalFile => true,
+            _ => false,
+        }
     }
 }
