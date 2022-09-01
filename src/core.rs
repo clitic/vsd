@@ -191,82 +191,94 @@ impl DownloadState {
             InputType::LocalFile | InputType::Website => bail!("Unsupported input file type."),
         };
 
-        let playlist = if input_type.is_hls() {
-            m3u8_rs::parse_playlist_res(&content)
+        if input_type.is_hls() {
+            match m3u8_rs::parse_playlist_res(&content)
                 .map_err(|_| anyhow!("Couldn't parse {} playlist.", self.args.input))?
-        } else {
-            m3u8_rs::Playlist::MasterPlaylist(dash::to_m3u8_as_master(&dash::parse(&content)?))
-        };
+            {
+                m3u8_rs::Playlist::MasterPlaylist(master) => {
+                    self.args.input = if self.args.alternative {
+                        self.args
+                            .get_url(&parse::alternative(&master, self.args.raw_prompts)?)?
+                    } else {
+                        self.args.get_url(&parse::master(
+                            &master,
+                            &self.args.quality,
+                            self.args.raw_prompts,
+                        )?)?
+                    };
 
-        match playlist {
-            m3u8_rs::Playlist::MasterPlaylist(master) => {
-                let master_playlist_url = self.args.input.clone();
+                    self.progress.current("stream");
+                    self.progress.stream = StreamData::new(&self.args.input, &self.args.tempfile());
+                    self.progress
+                        .json_file(&utils::replace_ext(&self.progress.stream.file, "json"));
 
-                self.args.input = if self.args.alternative {
-                    self.args
-                        .get_url(&parse::alternative(&master, self.args.raw_prompts)?)?
-                } else {
-                    self.args.get_url(&parse::master(
-                        &master,
-                        &self.args.quality,
-                        self.args.raw_prompts,
-                    )?)?
-                };
+                    if !self.args.alternative && !self.args.skip {
+                        self.download_alternative(&master)?;
+                    }
 
-                self.progress.current("stream");
-                self.progress.stream = StreamData::new(&self.args.input, &self.args.tempfile());
-                self.progress
-                    .json_file(&utils::replace_ext(&self.progress.stream.file, "json"));
-
-                if !self.args.alternative && !self.args.skip {
-                    self.download_alternative(&master)?;
-                }
-
-                let playlist = if input_type.is_hls() {
-                    m3u8_rs::parse_playlist_res(
+                    match m3u8_rs::parse_playlist_res(
                         &self.client.get(&self.args.input).send()?.bytes()?.to_vec(),
                     )
                     .map_err(|_| anyhow!("Couldn't parse {} playlist.", self.args.input))?
-                } else {
-                    m3u8_rs::Playlist::MediaPlaylist(
-                        dash::to_m3u8_as_media(
-                            &dash::parse(&content)?,
-                            if let Some(baseurl) = &self.args.baseurl {
-                                baseurl
-                            } else {
-                                &master_playlist_url
-                            },
-                            &self.args.input,
-                        )
-                        .unwrap(),
-                    )
-                };
-
-                match playlist {
-                    m3u8_rs::Playlist::MediaPlaylist(meadia) => {
-                        println!(
-                            "{} {} stream.",
-                            "Downloading".colorize("bold green"),
-                            if self.args.alternative {
-                                "alternative"
-                            } else {
-                                "video"
-                            }
-                        );
-                        Ok(meadia.segments)
+                    {
+                        m3u8_rs::Playlist::MediaPlaylist(media) => {
+                            println!(
+                                "{} {} stream.",
+                                "Downloading".colorize("bold green"),
+                                if self.args.alternative {
+                                    "alternative"
+                                } else {
+                                    "video"
+                                }
+                            );
+                            return Ok(media.segments);
+                        }
+                        _ => bail!("Media playlist not found."),
                     }
-                    _ => bail!("Media playlist not found."),
+                }
+                m3u8_rs::Playlist::MediaPlaylist(media) => {
+                    println!("{} video stream.", "Downloading".colorize("bold green"));
+                    self.progress.current("stream");
+                    self.progress.stream = StreamData::new(&self.args.input, &self.args.tempfile());
+                    self.progress
+                        .json_file(&utils::replace_ext(&self.progress.stream.file, "json"));
+                    return Ok(media.segments);
                 }
             }
-            m3u8_rs::Playlist::MediaPlaylist(meadia) => {
-                println!("{} video stream.", "Downloading".colorize("bold green"));
-                self.progress.current("stream");
-                self.progress.stream = StreamData::new(&self.args.input, &self.args.tempfile());
-                self.progress
-                    .json_file(&utils::replace_ext(&self.progress.stream.file, "json"));
-                Ok(meadia.segments)
+        } else if input_type.is_dash() {
+            let mpd = dash::parse(&content)?;
+            let master = dash::to_m3u8_as_master(&mpd);
+
+            let uri = if self.args.alternative {
+                parse::alternative(&master, self.args.raw_prompts)?
+            } else {
+                parse::master(&master, &self.args.quality, self.args.raw_prompts)?
+            };
+
+            self.progress.current("stream");
+            self.progress.stream = StreamData::new(&self.args.input, &self.args.tempfile());
+            self.progress
+                .json_file(&utils::replace_ext(&self.progress.stream.file, "json"));
+
+            if !self.args.alternative && !self.args.skip {
+                self.download_alternative(&master)?;
             }
+
+            let media = dash::to_m3u8_as_media(&mpd, &self.args.input, &uri).unwrap();
+
+            println!(
+                "{} {} stream.",
+                "Downloading".colorize("bold green"),
+                if self.args.alternative {
+                    "alternative"
+                } else {
+                    "video"
+                }
+            );
+            return Ok(media.segments);
         }
+
+        bail!("Only HLS and DASH streams are supported.")
     }
 
     pub fn download(

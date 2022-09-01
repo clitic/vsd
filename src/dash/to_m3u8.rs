@@ -4,8 +4,8 @@ use super::{MPDMediaSegmentTag, MPD};
 pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
     let mut master = m3u8_rs::MasterPlaylist::default();
 
-    for (preiod_index, preiod) in mpd.period.iter().enumerate() {
-        for (adaptation_set_index, adaptation_set) in preiod.adaptation_set.iter().enumerate() {
+    for (period_index, period) in mpd.period.iter().enumerate() {
+        for (adaptation_set_index, adaptation_set) in period.adaptation_set.iter().enumerate() {
             for (representation_index, representation) in
                 adaptation_set.representation.iter().enumerate()
             {
@@ -15,7 +15,7 @@ pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
                     master.variants.push(m3u8_rs::VariantStream {
                         uri: format!(
                             "dash://period.{}.adaptation-set.{}.representation.{}",
-                            preiod_index, adaptation_set_index, representation_index
+                            period_index, adaptation_set_index, representation_index
                         ),
                         bandwidth: representation.bandwidth.clone().unwrap(),
                         codecs: representation.codecs(&adaptation_set),
@@ -34,7 +34,7 @@ pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
                         media_type,
                         uri: Some(format!(
                             "dash://period.{}.adaptation-set.{}.representation.{}",
-                            preiod_index, adaptation_set_index, representation_index
+                            period_index, adaptation_set_index, representation_index
                         )),
                         language: representation.lang(&adaptation_set),
                         assoc_language: representation.lang(&adaptation_set),
@@ -106,14 +106,14 @@ pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
 }
 
 pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::MediaPlaylist> {
-    for (preiod_index, preiod) in mpd.period.iter().enumerate() {
+    for (period_index, period) in mpd.period.iter().enumerate() {
         let mut baseurl = mpd_url.clone().to_owned();
 
-        if let Some(preiod_baseurl) = &preiod.baseurl {
-            baseurl = utils::join_url(&baseurl, &preiod_baseurl).unwrap();
+        if let Some(period_baseurl) = &period.baseurl {
+            baseurl = utils::join_url(&baseurl, &period_baseurl).unwrap();
         }
 
-        for (adaptation_set_index, adaptation_set) in preiod.adaptation_set.iter().enumerate() {
+        for (adaptation_set_index, adaptation_set) in period.adaptation_set.iter().enumerate() {
             if let Some(adaptation_set_baseurl) = &adaptation_set.baseurl {
                 baseurl = utils::join_url(&baseurl, &adaptation_set_baseurl).unwrap();
             }
@@ -123,7 +123,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
             {
                 if format!(
                     "dash://period.{}.adaptation-set.{}.representation.{}",
-                    preiod_index, adaptation_set_index, representation_index
+                    period_index, adaptation_set_index, representation_index
                 ) != uri
                 {
                     continue;
@@ -159,7 +159,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                         } else {
                             init_segment = Some(m3u8_rs::MediaSegment {
                                 uri: baseurl.clone(),
-                                duration: preiod.duration(&mpd).unwrap(),
+                                duration: period.duration(&mpd).unwrap(),
                                 unknown_tags: MPDMediaSegmentTag::default()
                                     .init(true)
                                     .build()
@@ -295,7 +295,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                                 let mut repeat_count = s.r.unwrap();
 
                                 if repeat_count < 0 {
-                                    let duration = if let Some(duration) = &preiod.duration {
+                                    let duration = if let Some(duration) = &period.duration {
                                         utils::iso8601_duration_to_seconds(&duration).unwrap()
                                     } else if let Some(duration) = &mpd.media_presentation_duration
                                     {
@@ -340,7 +340,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                                 current_time += s.d;
                             }
                         } else {
-                            let duration = if let Some(duration) = &preiod.duration {
+                            let duration = if let Some(duration) = &period.duration {
                                 utils::iso8601_duration_to_seconds(&duration).unwrap()
                             } else if let Some(duration) = &mpd.media_presentation_duration {
                                 utils::iso8601_duration_to_seconds(&duration).unwrap()
@@ -421,7 +421,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                 if segments.len() == 0 {
                     segments.push(m3u8_rs::MediaSegment {
                         uri: baseurl.clone(),
-                        duration: preiod.duration(&mpd).unwrap(),
+                        duration: period.duration(&mpd).unwrap(),
                         unknown_tags: MPDMediaSegmentTag::default()
                             .encryption(representation.encryption_type(&adaptation_set))
                             .kid(representation.default_kid(&adaptation_set))
