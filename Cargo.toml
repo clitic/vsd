@@ -35,5 +35,5 @@ threadpool = "1"
 default = ["reqwest/native-tls-vendored"]
 rustls-tls = ["reqwest/rustls-tls"]
 
-[target.'cfg(windows)'.build-dependencies]
-winres = "0.1"
+# [target.'cfg(windows)'.build-dependencies]
+# winres = "0.1"

@@ -1,43 +1,25 @@
-use crate::downloader::create_client;
+use crate::args::Args;
 use crate::merger::BinarySequence;
 use crate::parse;
 use crate::progress::{DownloadProgress, StreamData};
 use crate::utils::*;
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, bail, Result};
 use kdam::prelude::*;
 use reqwest::blocking::Client;
-use std::sync::{Arc, Mutex};
 use reqwest::header;
 use reqwest::header::HeaderValue;
+use std::sync::{Arc, Mutex};
+
 pub struct DownloadState {
-    args: crate::args::Args,
+    args: Args,
     client: Arc<Client>,
     progress: DownloadProgress,
 }
 
 impl DownloadState {
-    pub fn new() -> Result<Self> {
-        let args = crate::args::parse();
-
-        if args.capture {
-            crate::chrome::capture(&args.input, args.headless)?;
-            std::process::exit(0);
-        } else if args.collect {
-            crate::chrome::collect(&args.input, args.headless, args.build)?;
-            std::process::exit(0);
-        }
-
-        let client = Arc::new(
-            create_client(
-                &args.user_agent,
-                &args.header,
-                &args.proxy_address,
-                args.enable_cookies,
-                &args.cookies,
-            )
-            .context("Couldn't create reqwest client.")?,
-        );
-
+    pub fn new(args: Args) -> Result<Self> {
+        let client = args.client()?;
+        
         if let Some(output) = &args.output {
             if !output.ends_with(".ts") {
                 check_ffmpeg("the given output doesn't have .ts file extension")?
@@ -109,7 +91,8 @@ impl DownloadState {
 
     fn scrape_website(&mut self) -> Result<()> {
         println!("Scraping website for HLS and Dash links.");
-        let links = crate::utils::find_hls_dash_links(&self.client.get(&self.args.input).send()?.text()?);
+        let links =
+            crate::utils::find_hls_dash_links(&self.client.get(&self.args.input).send()?.text()?);
 
         match links.len() {
             0 => bail!(
@@ -187,7 +170,8 @@ impl DownloadState {
                             self.progress.audio =
                                 Some(StreamData::new(&self.args.input, &audio_tempfile));
 
-                            let content = self.client.get(&self.args.input).send()?.bytes()?.to_vec();
+                            let content =
+                                self.client.get(&self.args.input).send()?.bytes()?.to_vec();
 
                             if let m3u8_rs::Playlist::MediaPlaylist(meadia) =
                                 m3u8_rs::parse_playlist_res(&content).map_err(|_| {
@@ -211,7 +195,8 @@ impl DownloadState {
                             self.progress.subtitle =
                                 Some(StreamData::new(&self.args.input, &subtitle_tempfile));
 
-                            let content = self.client.get(&self.args.input).send()?.bytes()?.to_vec();
+                            let content =
+                                self.client.get(&self.args.input).send()?.bytes()?.to_vec();
 
                             if let m3u8_rs::Playlist::MediaPlaylist(meadia) =
                                 m3u8_rs::parse_playlist_res(&content).map_err(|_| {
@@ -418,7 +403,18 @@ impl DownloadState {
                         Some(m3u8_rs::ByteRange {
                             length: start,
                             offset: Some(end),
-                        }) => client.get(&segment_url).header(header::RANGE, HeaderValue::from_str(&format!("bytes={}-{}", start, start + end - 1)).unwrap()).send(),
+                        }) => client
+                            .get(&segment_url)
+                            .header(
+                                header::RANGE,
+                                HeaderValue::from_str(&format!(
+                                    "bytes={}-{}",
+                                    start,
+                                    start + end - 1
+                                ))
+                                .unwrap(),
+                            )
+                            .send(),
                         _ => client.get(&segment_url).send(),
                     };
 

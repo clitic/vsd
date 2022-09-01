@@ -1,6 +1,7 @@
-use std::io::Write;
-
 use anyhow::{bail, Result};
+use kdam::term::Colorizer;
+use reqwest::StatusCode;
+use std::io::Write;
 
 pub fn format_bytes(bytesval: usize, precision: usize) -> (String, String, String) {
     let mut val = bytesval as f32;
@@ -109,4 +110,75 @@ pub fn replace_ext(pth: &str, ext: &str) -> String {
 
 pub fn get_columns() -> u16 {
     kdam::term::get_columns_or(10)
+}
+
+pub fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
+    let url = error
+        .url()
+        .map(|x| {
+            format!(
+                "{}://{} ({})",
+                x.scheme(),
+                x.domain().unwrap(),
+                x.to_string()
+                    .split("?")
+                    .next()
+                    .unwrap()
+                    .split("/")
+                    .last()
+                    .unwrap()
+                    .colorize("cyan")
+            )
+        })
+        .unwrap_or("".to_owned());
+
+    if error.is_timeout() {
+        return Ok(format!(
+            "{} {}",
+            "REQUEST TIMEOUT".colorize("bold red"),
+            url
+        ));
+    } else if error.is_connect() {
+        return Ok(format!(
+            "{} {}",
+            "CONNECTION ERROR".colorize("bold red"),
+            url
+        ));
+    }
+    if let Some(status) = error.status() {
+        match status {
+            StatusCode::REQUEST_TIMEOUT => Ok(format!(
+                "{} {}",
+                "REQUEST TIMEOUT".colorize("bold red"),
+                url
+            )),
+            StatusCode::TOO_MANY_REQUESTS => Ok(format!(
+                "{ }{}",
+                "TOO MANY REQUESTS".colorize("bold red"),
+                url
+            )),
+            StatusCode::SERVICE_UNAVAILABLE => Ok(format!(
+                "{} {}",
+                "SERVICE UNAVAILABLE".colorize("bold red"),
+                url
+            )),
+            StatusCode::GATEWAY_TIMEOUT => Ok(format!(
+                "{} {}",
+                "GATEWAY TIMEOUT".colorize("bold red"),
+                url
+            )),
+            _ => bail!(
+                "{} failed with HTTP {} ({})",
+                "Download".colorize("bold red"),
+                status,
+                error.url().map(|x| x.as_str()).unwrap().colorize("cyan")
+            ),
+        }
+    } else {
+        bail!(
+            "{} failed ({})",
+            "Download".colorize("bold red"),
+            error.url().map(|x| x.as_str()).unwrap().colorize("cyan")
+        )
+    }
 }

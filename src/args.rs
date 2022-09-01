@@ -1,4 +1,10 @@
+use anyhow::Result;
 use clap::{ArgEnum, ArgGroup, Parser};
+use reqwest::blocking::Client;
+use reqwest::cookie::Jar;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use reqwest::{Proxy, Url};
+use std::sync::Arc;
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, ArgEnum)]
@@ -15,6 +21,34 @@ pub enum Quality {
     FUHD_8K,
     Highest,
     Select,
+}
+
+fn input_validator(s: &str) -> Result<(), String> {
+    if s.starts_with("https://youtube.com")
+        || s.starts_with("https://www.youtube.com")
+        || s.starts_with("https://youtu.be")
+    {
+        Err("Youtube links aren't supported yet".to_owned())
+    } else {
+        Ok(())
+    }
+}
+
+fn threads_validator(s: &str) -> Result<(), String> {
+    let num_threads: usize = s.parse().map_err(|_| format!("`{}` isn't a number", s))?;
+    if std::ops::RangeInclusive::new(1, 16).contains(&num_threads) {
+        Ok(())
+    } else {
+        Err("Number of threads should be in range `1-16`".to_string())
+    }
+}
+
+fn proxy_address_validator(s: &str) -> Result<(), String> {
+    if s.starts_with("http://") || s.starts_with("https://") {
+        Ok(())
+    } else {
+        Err("Proxy address should start with `http://` or `https://` only".to_string())
+    }
 }
 
 /// Command line program to download HLS video from websites and m3u8 links.
@@ -37,7 +71,7 @@ pub struct Args {
     pub baseurl: Option<String>,
 
     /// Automatic selection of some standard resolution streams with highest bandwidth stream variant from master playlist.
-    /// yt prefixed qualities are qualities used by youtube. 
+    /// yt prefixed qualities are qualities used by youtube.
     #[clap(short, long, arg_enum, default_value_t = Quality::Select)]
     pub quality: Quality,
 
@@ -46,8 +80,7 @@ pub struct Args {
     // pub resolution: Vec<u64>,
 
     // parse manuaal
-        // pub resolution: Vec<u64>,
-
+    // pub resolution: Vec<u64>,
     /// Maximum number of threads for parllel downloading of segments.
     /// Number of threads should be in range 1-16 (inclusive).
     #[clap(short, long, default_value_t = 5, validator = threads_validator)]
@@ -121,34 +154,45 @@ pub struct Args {
     pub cookies: Vec<String>, // Vec<Vec<String>> not supported
 }
 
-fn input_validator(s: &str) -> Result<(), String> {
-    if s.starts_with("https://youtube.com")
-        || s.starts_with("https://www.youtube.com")
-        || s.starts_with("https://youtu.be")
-    {
-        Err("Youtube links aren't supported yet".to_owned())
-    } else {
-        Ok(())
-    }
-}
+impl Args {
+    pub fn client(&self) -> Result<Arc<Client>> {
+        let mut client_builder = Client::builder().user_agent(&self.user_agent);
 
-fn threads_validator(s: &str) -> Result<(), String> {
-    let num_threads: usize = s.parse().map_err(|_| format!("`{}` isn't a number", s))?;
-    if std::ops::RangeInclusive::new(1, 16).contains(&num_threads) {
-        Ok(())
-    } else {
-        Err("Number of threads should be in range `1-16`".to_string())
-    }
-}
+        if !self.header.is_empty() {
+            let mut headers = HeaderMap::new();
 
-fn proxy_address_validator(s: &str) -> Result<(), String> {
-    if s.starts_with("http://") || s.starts_with("https://") {
-        Ok(())
-    } else {
-        Err("Proxy address should start with `http://` or `https://` only".to_string())
-    }
-}
+            for i in (0..headers.len()).step_by(2) {
+                headers.insert(
+                    self.header[i].parse::<HeaderName>()?,
+                    self.header[i + 1].parse::<HeaderValue>()?,
+                );
+            }
 
-pub fn parse() -> Args {
-    Args::parse()
+            client_builder = client_builder.default_headers(headers);
+        }
+
+        if let Some(proxy) = &self.proxy_address {
+            if proxy.starts_with("https") {
+                client_builder = client_builder.proxy(Proxy::https(proxy)?);
+            } else if proxy.starts_with("http") {
+                client_builder = client_builder.proxy(Proxy::http(proxy)?);
+            }
+        }
+
+        if self.enable_cookies || !self.cookies.is_empty() {
+            client_builder = client_builder.cookie_store(true);
+        }
+
+        if !self.cookies.is_empty() {
+            let jar = Jar::default();
+
+            for i in (0..self.cookies.len()).step_by(2) {
+                jar.add_cookie_str(&self.cookies[i], &self.cookies[i + 1].parse::<Url>()?);
+            }
+
+            client_builder = client_builder.cookie_provider(Arc::new(jar));
+        }
+
+        Ok(Arc::new(client_builder.build()?))
+    }
 }
