@@ -110,10 +110,14 @@ pub struct Args {
     #[clap(short, long)]
     pub skip: bool,
 
-    /// TODO Decryption keys.
+    /// TODO: Decryption keys.
     /// This option can be used multiple times.
     #[clap(short, long, multiple_occurrences = true, value_name = "<KID:KEY>|KEY")]
     pub key: Vec<String>,
+
+    /// TODO: Record duration for live playlist in seconds.
+    #[clap(long)]
+    pub record_duration: Option<f32>,
 
     /// Launch Google Chrome to capture requests made to fetch .m3u8 (HLS) and .mpd (Dash) files.
     #[clap(long, help_heading = "CHROME OPTIONS")]

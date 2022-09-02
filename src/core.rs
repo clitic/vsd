@@ -1,14 +1,14 @@
-use crate::dash;
 use crate::merger::BinarySequence;
-use crate::parse;
 use crate::progress::{DownloadProgress, StreamData};
 use crate::utils;
+use crate::{dash, hls};
 use crate::{Args, InputType};
 use anyhow::{anyhow, bail, Result};
 use kdam::prelude::*;
 use reqwest::blocking::Client;
 use reqwest::header;
 use reqwest::header::HeaderValue;
+use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 pub struct DownloadState {
@@ -198,9 +198,9 @@ impl DownloadState {
                 m3u8_rs::Playlist::MasterPlaylist(master) => {
                     self.args.input = if self.args.alternative {
                         self.args
-                            .get_url(&parse::alternative(&master, self.args.raw_prompts)?)?
+                            .get_url(&hls::alternative(&master, self.args.raw_prompts)?)?
                     } else {
-                        self.args.get_url(&parse::master(
+                        self.args.get_url(&hls::master(
                             &master,
                             &self.args.quality,
                             self.args.raw_prompts,
@@ -222,16 +222,49 @@ impl DownloadState {
                     .map_err(|_| anyhow!("Couldn't parse {} playlist.", self.args.input))?
                     {
                         m3u8_rs::Playlist::MediaPlaylist(media) => {
-                            println!(
-                                "{} {} stream.",
-                                "Downloading".colorize("bold green"),
-                                if self.args.alternative {
-                                    "alternative"
-                                } else {
-                                    "video"
+                            if media.end_list {
+                                println!(
+                                    "{} {} stream.",
+                                    "Downloading".colorize("bold green"),
+                                    if self.args.alternative {
+                                        "alternative"
+                                    } else {
+                                        "video"
+                                    }
+                                );
+                                return Ok(media.segments);
+                            } else {
+                                let live_playlist = hls::LivePlaylist::new(
+                                    &self.args.input,
+                                    self.client.clone(),
+                                    self.args.record_duration,
+                                );
+                                let mut file = std::fs::File::create(&self.args.tempfile())?;
+                                let mut pb = tqdm!(
+                                    // total = total,
+                                    unit = "ts".to_owned(),
+                                    dynamic_ncols = true
+                                );
+                                pb.refresh();
+                                let mut total_bytes = 0;
+
+                                for media in live_playlist {
+                                    for seg in media.map_err(|x| anyhow!(x))?.segments {
+                                        let bytes = self
+                                            .client
+                                            .get(&self.args.get_url(&seg.uri)?)
+                                            .send()?
+                                            .bytes()?
+                                            .to_vec();
+                                        total_bytes += bytes.len();
+                                        file.write_all(&bytes)?;
+                                        pb.set_description(utils::format_bytes(total_bytes, 2).2);
+                                        pb.update(1);
+                                    }
                                 }
-                            );
-                            return Ok(media.segments);
+
+                                std::process::exit(0);
+                            }
                         }
                         _ => bail!("Media playlist not found."),
                     }
@@ -250,9 +283,9 @@ impl DownloadState {
             let master = dash::to_m3u8_as_master(&mpd);
 
             let uri = if self.args.alternative {
-                parse::alternative(&master, self.args.raw_prompts)?
+                hls::alternative(&master, self.args.raw_prompts)?
             } else {
-                parse::master(&master, &self.args.quality, self.args.raw_prompts)?
+                hls::master(&master, &self.args.quality, self.args.raw_prompts)?
             };
 
             self.progress.current("stream");
@@ -317,7 +350,7 @@ impl DownloadState {
         };
         merger.lock().unwrap().update()?;
 
-        let pb = Arc::new(Mutex::new(kdam::tqdm!(
+        let pb = Arc::new(Mutex::new(tqdm!(
             total = total,
             unit = "ts".to_owned(),
             dynamic_ncols = true

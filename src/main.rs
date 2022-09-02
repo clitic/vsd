@@ -9,7 +9,7 @@ fn error(e: Error) -> ! {
 
 fn main() {
     let args = vsd::Args::parse();
-
+    
     if args.capture {
         vsd::chrome::capture(&args.input, args.headless).unwrap_or_else(|e| error(e));
     } else if args.collect {
@@ -22,6 +22,7 @@ fn main() {
             .unwrap_or_else(|e| error(e));
         downloader.transmux_trancode().unwrap_or_else(|e| error(e));
     }
+
 
     // let mpd = vsd::dash::parse(include_bytes!("../11331.xml")).unwrap();
 

@@ -1,4 +1,4 @@
-use crate::args::Quality;
+use crate::Quality;
 use crate::utils::{format_bytes, select};
 use anyhow::{bail, Result};
 use std::fmt::Write;
