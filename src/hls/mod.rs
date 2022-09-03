@@ -1,5 +1,5 @@
-mod parser;
 mod live;
+mod parser;
 
-pub use parser::{master, alternative};
 pub use live::LivePlaylist;
+pub use parser::{alternative, master};

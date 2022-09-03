@@ -16,7 +16,7 @@ fn main() {
         vsd::chrome::collect(&args.input, args.headless, args.build).unwrap_or_else(|e| error(e));
     } else {
         let mut downloader = vsd::core::DownloadState::new(args).unwrap_or_else(|e| error(e));
-        let segments = downloader.segments().unwrap_or_else(|e| error(e));
+        let segments = downloader.playlist().unwrap_or_else(|e| error(e));
         downloader
             .download(&segments, downloader.args.tempfile())
             .unwrap_or_else(|e| error(e));

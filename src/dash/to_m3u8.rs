@@ -1,5 +1,5 @@
 use super::utils;
-use super::{MPDMediaSegmentTag, MPD};
+use super::{AdaptationSet, MPDMediaSegmentTag, Representation, MPD};
 
 pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
     let mut master = m3u8_rs::MasterPlaylist::default();
@@ -152,7 +152,6 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                                 unknown_tags: MPDMediaSegmentTag::default()
                                     .init(true)
                                     .build()
-                                    .unwrap()
                                     .into(),
                                 ..Default::default()
                             });
@@ -163,7 +162,6 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                                 unknown_tags: MPDMediaSegmentTag::default()
                                     .init(true)
                                     .build()
-                                    .unwrap()
                                     .into(),
                                 ..Default::default()
                             });
@@ -187,7 +185,6 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                                 unknown_tags: MPDMediaSegmentTag::default()
                                     .init(true)
                                     .build()
-                                    .unwrap()
                                     .into(),
                                 ..Default::default()
                             });
@@ -220,8 +217,8 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                             } else {
                                 None
                             },
+                            key: mpd_to_m3u8_key(&representation, &adaptation_set),
                             unknown_tags: MPDMediaSegmentTag::default()
-                                .encryption(representation.encryption_type(&adaptation_set))
                                 .kid(representation.default_kid(&adaptation_set))
                                 .into(),
                             ..Default::default()
@@ -245,11 +242,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                                 &utils::join_url(&baseurl, initialization).unwrap(),
                                 &representation.template_vars(),
                             ),
-                            unknown_tags: MPDMediaSegmentTag::default()
-                                .init(true)
-                                .build()
-                                .unwrap()
-                                .into(),
+                            unknown_tags: MPDMediaSegmentTag::default().init(true).build().into(),
                             ..Default::default()
                         });
 
@@ -283,8 +276,8 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                                         &template_vars,
                                     ),
                                     duration: s.d as f32 / timescale,
+                                    key: mpd_to_m3u8_key(&representation, &adaptation_set),
                                     unknown_tags: MPDMediaSegmentTag::default()
-                                        .encryption(representation.encryption_type(&adaptation_set))
                                         .kid(representation.default_kid(&adaptation_set))
                                         .into(),
                                     ..Default::default()
@@ -325,10 +318,8 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                                             &template_vars,
                                         ),
                                         duration: s.d as f32 / timescale,
+                                        key: mpd_to_m3u8_key(&representation, &adaptation_set),
                                         unknown_tags: MPDMediaSegmentTag::default()
-                                            .encryption(
-                                                representation.encryption_type(&adaptation_set),
-                                            )
                                             .kid(representation.default_kid(&adaptation_set))
                                             .into(),
                                         ..Default::default()
@@ -405,8 +396,8 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                                         .parse::<f32>()
                                         .unwrap()
                                         / timescale,
+                                    key: mpd_to_m3u8_key(&representation, &adaptation_set),
                                     unknown_tags: MPDMediaSegmentTag::default()
-                                        .encryption(representation.encryption_type(&adaptation_set))
                                         .kid(representation.default_kid(&adaptation_set))
                                         .into(),
                                     ..Default::default()
@@ -422,12 +413,11 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                     segments.push(m3u8_rs::MediaSegment {
                         uri: baseurl.clone(),
                         duration: period.duration(&mpd).unwrap(),
+                        key: mpd_to_m3u8_key(&representation, &adaptation_set),
                         unknown_tags: MPDMediaSegmentTag::default()
-                            .encryption(representation.encryption_type(&adaptation_set))
                             .kid(representation.default_kid(&adaptation_set))
                             .single(true)
                             .build()
-                            .unwrap()
                             .into(),
                         ..Default::default()
                     });
@@ -447,4 +437,18 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
     }
 
     None
+}
+
+fn mpd_to_m3u8_key(
+    representation: &Representation,
+    adaptation_set: &AdaptationSet,
+) -> Option<m3u8_rs::Key> {
+    if let Some(key) = representation.encryption_type(&adaptation_set) {
+        Some(m3u8_rs::Key {
+            method: m3u8_rs::KeyMethod::Other(key),
+            ..Default::default()
+        })
+    } else {
+        None
+    }
 }

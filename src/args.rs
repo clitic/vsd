@@ -119,6 +119,10 @@ pub struct Args {
     #[clap(long)]
     pub record_duration: Option<f32>,
 
+    /// TODO: Directory path
+    #[clap(long)]
+    pub save_directory: Option<String>,
+
     /// Launch Google Chrome to capture requests made to fetch .m3u8 (HLS) and .mpd (Dash) files.
     #[clap(long, help_heading = "CHROME OPTIONS")]
     pub capture: bool,

@@ -3,7 +3,7 @@ use std::io::{Seek, SeekFrom, Write};
 
 use anyhow::{bail, Result};
 
-use crate::progress::DownloadProgress;
+use crate::{Progress};
 
 pub struct BinarySequence {
     size: usize,
@@ -13,12 +13,12 @@ pub struct BinarySequence {
     stored_bytes: usize,
     flushed_bytes: usize,
     indexed: usize,
-    progress: DownloadProgress,
+    progress: Progress,
     json_file: std::fs::File,
 }
 
 impl BinarySequence {
-    pub fn new(size: usize, filename: String, progress: DownloadProgress) -> Result<Self> {
+    pub fn new(size: usize, filename: String, progress: Progress) -> Result<Self> {
         let json_file = progress.json_file.clone();
             
         Ok(Self {
@@ -39,7 +39,7 @@ impl BinarySequence {
             bail!("Can't resume because {} doesn't exists.", json_file)
         }
 
-        let progress: DownloadProgress = serde_json::from_reader(std::fs::File::open(&json_file)?)?;
+        let progress: Progress = serde_json::from_reader(std::fs::File::open(&json_file)?)?;
         let mut pos = progress.downloaded();
 
         let file = if std::path::Path::new(&filename).exists() {

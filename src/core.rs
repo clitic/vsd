@@ -1,20 +1,21 @@
 use crate::merger::BinarySequence;
-use crate::progress::{DownloadProgress, StreamData};
+// use crate::progress::{DownloadProgress, StreamData};
 use crate::utils;
 use crate::{dash, hls};
-use crate::{Args, InputType};
+use crate::{Args, Decrypter, InputType, Progress, StreamData};
 use anyhow::{anyhow, bail, Result};
 use kdam::prelude::*;
 use reqwest::blocking::Client;
 use reqwest::header;
 use reqwest::header::HeaderValue;
+use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 pub struct DownloadState {
     pub args: Args,
     client: Arc<Client>,
-    progress: DownloadProgress,
+    progress: Progress,
 }
 
 impl DownloadState {
@@ -30,7 +31,7 @@ impl DownloadState {
         Ok(Self {
             args,
             client,
-            progress: DownloadProgress::new_empty(),
+            progress: Progress::new_empty(),
         })
     }
 
@@ -48,7 +49,7 @@ impl DownloadState {
             _ => {
                 let mut elinks = vec![];
                 for (i, link) in links.iter().enumerate() {
-                    elinks.push(format!("{:#2}) {}", i + 1, link));
+                    elinks.push(format!("{:2}) {}", i + 1, link));
                 }
                 let index = utils::select(
                     "Select one link:".to_string(),
@@ -59,120 +60,155 @@ impl DownloadState {
             }
         }
 
-        if self.args.input.ends_with(".mpd") {
-            bail!("Dash streams are not supported.")
-        }
-
         Ok(())
     }
 
-    fn download_alternative(&mut self, master: &m3u8_rs::MasterPlaylist) -> Result<()> {
-        let stream_input = self.args.input.clone();
-        let audio_tempfile = format!(
-            "{}_audio.ts",
-            self.progress.stream.file.trim_end_matches(".ts")
-        );
-        let subtitle_tempfile = format!(
-            "{}_subtitles.vtt",
-            self.progress.stream.file.trim_end_matches(".ts")
-        );
-        let subtitle_output = format!(
-            "{}_subtitles.srt",
-            self.progress.stream.file.trim_end_matches(".ts")
-        );
-
+    fn fetch_alternative_streams(&mut self, master: &m3u8_rs::MasterPlaylist) -> Result<()> {
         for alternative in &master.alternatives {
-            self.args.input = stream_input.clone();
-
             match alternative.media_type {
                 m3u8_rs::AlternativeMediaType::Audio => {
                     if alternative.autoselect {
                         if let Some(uri) = &alternative.uri {
-                            println!("{} audio stream.", "Downloading".colorize("bold green"));
-                            utils::check_ffmpeg("audio stream needs to muxed with video stream")?;
-                            self.args.input = self.args.get_url(uri)?;
-                            self.progress.current("audio");
-                            self.progress.audio =
-                                Some(StreamData::new(&self.args.input, &audio_tempfile));
-
-                            let content =
-                                self.client.get(&self.args.input).send()?.bytes()?.to_vec();
-
-                            if let m3u8_rs::Playlist::MediaPlaylist(meadia) =
-                                m3u8_rs::parse_playlist_res(&content).map_err(|_| {
-                                    anyhow!("Couldn't parse {} playlist.", self.args.input)
-                                })?
-                            {
-                                self.download(&meadia.segments, audio_tempfile.clone())?;
+                            if self.progress.audio.is_none() {
+                                let uri = self.args.get_url(uri)?;
+                                self.progress.audio = Some(StreamData::new(
+                                    &uri,
+                                    &format!(
+                                        "{}_audio.ts",
+                                        self.progress.video.file.trim_end_matches(".ts")
+                                    ),
+                                    &self.client.get(&uri).send()?.text()?,
+                                )?);
                             }
                         }
                     }
                 }
-
                 m3u8_rs::AlternativeMediaType::Subtitles
                 | m3u8_rs::AlternativeMediaType::ClosedCaptions => {
                     if alternative.autoselect {
                         if let Some(uri) = &alternative.uri {
-                            println!("{} subtitles stream.", "Downloading".colorize("bold green"));
-                            utils::check_ffmpeg(
-                                "subtitles stream needs to muxed with video stream",
-                            )?;
-                            self.args.input = self.args.get_url(uri)?;
-                            self.progress.current("subtitle");
-                            self.progress.subtitle =
-                                Some(StreamData::new(&self.args.input, &subtitle_tempfile));
-
-                            let content =
-                                self.client.get(&self.args.input).send()?.bytes()?.to_vec();
-
-                            if let m3u8_rs::Playlist::MediaPlaylist(meadia) =
-                                m3u8_rs::parse_playlist_res(&content).map_err(|_| {
-                                    anyhow!("Couldn't parse {} playlist.", self.args.input)
-                                })?
-                            {
-                                self.download(&meadia.segments, subtitle_tempfile.clone())?;
-                            }
-
-                            if std::path::Path::new(&subtitle_output).exists() {
-                                std::fs::remove_file(&subtitle_output)?;
-                            }
-
-                            println!(
-                                "Executing {}",
-                                ["ffmpeg", "-i", &subtitle_tempfile, &subtitle_output]
-                                    .join(" ")
-                                    .colorize("cyan")
-                            );
-
-                            let code = std::process::Command::new("ffmpeg")
-                                .args(["-i", &subtitle_tempfile, &subtitle_output])
-                                .stderr(std::process::Stdio::null())
-                                .spawn()?
-                                .wait()?;
-
-                            if !code.success() {
-                                bail!("FFMPEG exited with code {}.", code.code().unwrap_or(1))
-                            }
-
-                            std::fs::remove_file(&subtitle_tempfile)?;
-
-                            if let Some(subtitle) = &mut self.progress.subtitle {
-                                subtitle.file = subtitle_tempfile.clone();
+                            if self.progress.subtitles.is_none() {
+                                self.progress.subtitles =
+                                    Some(download_subtitles(&self.args, &self.client, &uri)?);
                             }
                         }
                     }
                 }
-
                 _ => (),
             }
         }
 
-        self.args.input = stream_input;
-        self.progress.current("stream");
         Ok(())
     }
 
-    pub fn segments(&mut self) -> Result<Vec<m3u8_rs::MediaSegment>> {
+    fn hls_vod(&mut self, content: &[u8]) -> Result<()> {
+        match m3u8_rs::parse_playlist_res(content)
+            .map_err(|_| anyhow!("Couldn't parse {} playlist.", self.args.input))?
+        {
+            m3u8_rs::Playlist::MasterPlaylist(master) => {
+                self.args.input = if self.args.alternative {
+                    self.args
+                        .get_url(&hls::alternative(&master, self.args.raw_prompts)?)?
+                } else {
+                    self.args.get_url(&hls::master(
+                        &master,
+                        &self.args.quality,
+                        self.args.raw_prompts,
+                    )?)?
+                };
+
+                if !self.args.alternative && !self.args.skip {
+                    // self.download_alternative(&master)?;
+                }
+
+                let playlist = self.client.get(&self.args.input).send()?.text()?;
+
+                match m3u8_rs::parse_playlist_res(playlist.as_bytes())
+                    .map_err(|_| anyhow!("Couldn't parse {} playlist.", self.args.input))?
+                {
+                    m3u8_rs::Playlist::MediaPlaylist(_) => {
+                        self.progress.video =
+                            StreamData::new(&self.args.input, &self.args.tempfile(), &playlist)?;
+                    }
+                    _ => bail!("Media playlist not found."),
+                }
+            }
+            m3u8_rs::Playlist::MediaPlaylist(_) => {
+                println!("{} video stream.", "Downloading".colorize("bold green"));
+                self.progress.video = StreamData::new(
+                    &self.args.input,
+                    &self.args.tempfile(),
+                    std::str::from_utf8(content)?,
+                )?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn dash_vod(&mut self, content: &[u8]) -> Result<m3u8_rs::MediaPlaylist> {
+        let mpd = dash::parse(content)?;
+        let master = dash::to_m3u8_as_master(&mpd);
+
+        let uri = if self.args.alternative {
+            hls::alternative(&master, self.args.raw_prompts)?
+        } else {
+            hls::master(&master, &self.args.quality, self.args.raw_prompts)?
+        };
+
+        if !self.args.alternative && !self.args.skip {
+            // self.download_alternative(&master)?;
+        }
+
+        let media = dash::to_m3u8_as_media(&mpd, &self.args.input, &uri).unwrap();
+
+        // println!(
+        //     "{} {} stream.",
+        //     "Downloading".colorize("bold green"),
+        //     if self.args.alternative {
+        //         "alternative"
+        //     } else {
+        //         "video"
+        //     }
+        // );
+
+        return Ok(media);
+    }
+
+    fn hls_live(&mut self) -> Result<()> {
+        let live_playlist = hls::LivePlaylist::new(
+            &self.args.input,
+            self.client.clone(),
+            self.args.record_duration,
+        );
+        let mut file = std::fs::File::create(&self.args.tempfile())?;
+        let mut pb = tqdm!(
+            // total = total,
+            unit = "ts".to_owned(),
+            dynamic_ncols = true
+        );
+        pb.refresh();
+        let mut total_bytes = 0;
+
+        for media in live_playlist {
+            for seg in media.map_err(|x| anyhow!(x))?.segments {
+                let bytes = self
+                    .client
+                    .get(&self.args.get_url(&seg.uri)?)
+                    .send()?
+                    .bytes()?
+                    .to_vec();
+                total_bytes += bytes.len();
+                file.write_all(&bytes)?;
+                pb.set_description(utils::format_bytes(total_bytes, 2).2);
+                pb.update(1);
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn playlist(&mut self) -> Result<()> {
         if self.args.input_type().is_website() {
             self.scrape_website()?;
         }
@@ -188,137 +224,27 @@ impl DownloadState {
                     .as_bytes()
                     .to_vec()
             }
-            InputType::LocalFile | InputType::Website => bail!("Unsupported input file type."),
+            InputType::LocalFile | InputType::Website => {
+                bail!("Unsupported input file {}.", self.args.input)
+            }
         };
 
         if input_type.is_hls() {
-            match m3u8_rs::parse_playlist_res(&content)
-                .map_err(|_| anyhow!("Couldn't parse {} playlist.", self.args.input))?
-            {
-                m3u8_rs::Playlist::MasterPlaylist(master) => {
-                    self.args.input = if self.args.alternative {
-                        self.args
-                            .get_url(&hls::alternative(&master, self.args.raw_prompts)?)?
-                    } else {
-                        self.args.get_url(&hls::master(
-                            &master,
-                            &self.args.quality,
-                            self.args.raw_prompts,
-                        )?)?
-                    };
-
-                    self.progress.current("stream");
-                    self.progress.stream = StreamData::new(&self.args.input, &self.args.tempfile());
-                    self.progress
-                        .json_file(&utils::replace_ext(&self.progress.stream.file, "json"));
-
-                    if !self.args.alternative && !self.args.skip {
-                        self.download_alternative(&master)?;
-                    }
-
-                    match m3u8_rs::parse_playlist_res(
-                        &self.client.get(&self.args.input).send()?.bytes()?.to_vec(),
-                    )
-                    .map_err(|_| anyhow!("Couldn't parse {} playlist.", self.args.input))?
-                    {
-                        m3u8_rs::Playlist::MediaPlaylist(media) => {
-                            if media.end_list {
-                                println!(
-                                    "{} {} stream.",
-                                    "Downloading".colorize("bold green"),
-                                    if self.args.alternative {
-                                        "alternative"
-                                    } else {
-                                        "video"
-                                    }
-                                );
-                                return Ok(media.segments);
-                            } else {
-                                let live_playlist = hls::LivePlaylist::new(
-                                    &self.args.input,
-                                    self.client.clone(),
-                                    self.args.record_duration,
-                                );
-                                let mut file = std::fs::File::create(&self.args.tempfile())?;
-                                let mut pb = tqdm!(
-                                    // total = total,
-                                    unit = "ts".to_owned(),
-                                    dynamic_ncols = true
-                                );
-                                pb.refresh();
-                                let mut total_bytes = 0;
-
-                                for media in live_playlist {
-                                    for seg in media.map_err(|x| anyhow!(x))?.segments {
-                                        let bytes = self
-                                            .client
-                                            .get(&self.args.get_url(&seg.uri)?)
-                                            .send()?
-                                            .bytes()?
-                                            .to_vec();
-                                        total_bytes += bytes.len();
-                                        file.write_all(&bytes)?;
-                                        pb.set_description(utils::format_bytes(total_bytes, 2).2);
-                                        pb.update(1);
-                                    }
-                                }
-
-                                std::process::exit(0);
-                            }
-                        }
-                        _ => bail!("Media playlist not found."),
-                    }
-                }
-                m3u8_rs::Playlist::MediaPlaylist(media) => {
-                    println!("{} video stream.", "Downloading".colorize("bold green"));
-                    self.progress.current("stream");
-                    self.progress.stream = StreamData::new(&self.args.input, &self.args.tempfile());
-                    self.progress
-                        .json_file(&utils::replace_ext(&self.progress.stream.file, "json"));
-                    return Ok(media.segments);
-                }
-            }
+            self.hls_vod(&content)?;
         } else if input_type.is_dash() {
-            let mpd = dash::parse(&content)?;
-            let master = dash::to_m3u8_as_master(&mpd);
-
-            let uri = if self.args.alternative {
-                hls::alternative(&master, self.args.raw_prompts)?
-            } else {
-                hls::master(&master, &self.args.quality, self.args.raw_prompts)?
-            };
-
-            self.progress.current("stream");
-            self.progress.stream = StreamData::new(&self.args.input, &self.args.tempfile());
-            self.progress
-                .json_file(&utils::replace_ext(&self.progress.stream.file, "json"));
-
-            if !self.args.alternative && !self.args.skip {
-                self.download_alternative(&master)?;
-            }
-
-            let media = dash::to_m3u8_as_media(&mpd, &self.args.input, &uri).unwrap();
-
-            println!(
-                "{} {} stream.",
-                "Downloading".colorize("bold green"),
-                if self.args.alternative {
-                    "alternative"
-                } else {
-                    "video"
-                }
-            );
-            return Ok(media.segments);
+        } else {
+            bail!("Only HLS and DASH streams are supported.")
         }
 
-        bail!("Only HLS and DASH streams are supported.")
+        Ok(())
     }
 
-    pub fn download(
-        &self,
-        segments: &Vec<m3u8_rs::MediaSegment>,
-        mut tempfile: String,
-    ) -> Result<()> {
+    pub fn download(&mut self) -> Result<()> {
+        self.progress
+            .json_file(&utils::replace_ext(&self.progress.video.file, "json"));
+        let segments = self.progress.video.to_playlist().segments;
+        let mut tempfile = self.progress.video.file.clone();
+
         // Check to ensure baseurl is required or not.
         self.args.get_url(&segments[0].uri)?;
 
@@ -448,12 +374,12 @@ impl DownloadState {
                         let resp = client.get(&eku).send();
 
                         if let Ok(resp_data) = resp {
-                            let decrypted_data = crate::decrypt::HlsDecrypt::from_key(
+                            let decrypted_data = Decrypter::from_key(
                                 segment.key.unwrap(),
-                                resp_data.bytes().unwrap().to_vec(),
+                                &resp_data.bytes().unwrap().to_vec(),
                             )
                             .unwrap()
-                            .decrypt(&data);
+                            .decrypt(&data, None);
 
                             break decrypted_data.unwrap_or_else(|e| {
                                 pb.lock().unwrap().write(format!(
@@ -519,17 +445,17 @@ impl DownloadState {
                 return Ok(());
             }
 
-            let mut args = vec!["-i", &self.progress.stream.file];
+            let mut args = vec!["-i", &self.progress.video.file];
 
             if let Some(audio) = &self.progress.audio {
                 args.push("-i");
                 args.push(&audio.file);
             }
 
-            if let Some(subtitle) = &self.progress.subtitle {
-                args.push("-i");
-                args.push(&subtitle.file);
-            }
+            // if let Some(subtitle) = &self.progress.subtitles {
+            //     args.push("-i");
+            //     args.push(&subtitle.file);
+            // }
 
             if std::path::Path::new(output).exists() {
                 std::fs::remove_file(output)?;
@@ -562,11 +488,11 @@ impl DownloadState {
                 std::fs::remove_file(&audio.file)?;
             }
 
-            if let Some(subtitle) = &self.progress.subtitle {
-                std::fs::remove_file(&subtitle.file)?;
-            }
+            // if let Some(subtitle) = &self.progress.subtitles {
+            //     std::fs::remove_file(&subtitle.file)?;
+            // }
 
-            std::fs::remove_file(&self.progress.stream.file)?;
+            std::fs::remove_file(&self.progress.video.file)?;
         }
 
         if std::path::Path::new(&self.progress.json_file).exists() {
@@ -574,4 +500,26 @@ impl DownloadState {
         }
         Ok(())
     }
+}
+
+fn download_subtitles(args: &Args, client: &Arc<Client>, uri: &str) -> Result<String> {
+    println!("{} subtitles stream.", "Downloading".colorize("bold green"));
+
+    let uri = args.get_url(uri)?;
+    let mut subtitles = vec![];
+
+    for segment in m3u8_rs::parse_media_playlist_res(&client.get(&uri).send()?.bytes()?.to_vec())
+        .map_err(|_| anyhow!("Couldn't parse {} as media playlist.", uri))?
+        .segments
+    {
+        subtitles.extend_from_slice(
+            &client
+                .get(&args.get_url(&segment.uri)?)
+                .send()?
+                .bytes()?
+                .to_vec(),
+        );
+    }
+
+    Ok(String::from_utf8(subtitles)?)
 }

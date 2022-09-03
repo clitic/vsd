@@ -2,7 +2,6 @@
 pub struct MPDMediaSegmentTag {
     pub init: bool,
     pub single: bool,
-    pub encryption: Option<String>,
     pub kid: Option<String>,
 }
 
@@ -17,22 +16,13 @@ impl MPDMediaSegmentTag {
         self
     }
 
-    pub fn encryption(mut self, encryption: Option<String>) -> Self {
-        self.encryption = encryption;
-        self
-    }
-
     pub fn kid(mut self, kid: Option<String>) -> Self {
         self.kid = kid;
         self
     }
 
-    pub fn build(self) -> Result<Self, String> {
-        if self.init && (self.encryption.is_some() || self.kid.is_some()) {
-            return Err("init segment cannot be encrypted.".to_owned());
-        }
-
-        Ok(self)
+    pub fn build(self) -> Self {
+        self
     }
 }
 
@@ -45,8 +35,6 @@ impl From<Vec<m3u8_rs::ExtTag>> for MPDMediaSegmentTag {
                 mpd_tags.init = true;
             } else if tag.tag == "DASH-SINGLE" {
                 mpd_tags.single = true;
-            } else if tag.tag == "DASH-ENCRYPTION" {
-                mpd_tags.encryption = tag.rest;
             } else if tag.tag == "DASH-KID" {
                 mpd_tags.kid = tag.rest;
             }
@@ -71,13 +59,6 @@ impl Into<Vec<m3u8_rs::ExtTag>> for MPDMediaSegmentTag {
             m3u8_tags.push(m3u8_rs::ExtTag {
                 tag: "DASH-SINGLE".to_owned(),
                 rest: None,
-            });
-        }
-
-        if self.encryption.is_some() {
-            m3u8_tags.push(m3u8_rs::ExtTag {
-                tag: "DASH-ENCRYPTION".to_owned(),
-                rest: self.encryption.clone(),
             });
         }
 

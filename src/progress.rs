@@ -1,41 +1,53 @@
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct StreamData {
     pub url: String,
     pub file: String,
     pub downloaded: usize,
     pub total: usize,
+    pub playlist: String,
 }
 
 impl StreamData {
-    pub fn new(url: &str, file: &str) -> Self {
-        Self {
+    pub fn new(url: &str, file: &str, playlist: &str) -> Result<Self> {
+        Ok(Self {
             url: url.to_owned(),
             file: file.to_owned(),
             downloaded: 0,
-            total: 0,
-        }
+            total: m3u8_rs::parse_media_playlist_res(&playlist.as_bytes())
+                .map_err(|_| anyhow!("Couldn't parse {} as media playlist.", url))?
+                .segments
+                .len(),
+            playlist: playlist.to_owned(),
+        })
+    }
+
+    pub fn to_playlist(&self) -> m3u8_rs::MediaPlaylist {
+        m3u8_rs::parse_media_playlist_res(self.playlist.as_bytes())
+            .map_err(|_| anyhow!("Couldn't parse {} as media playlist.", self.url))
+            .unwrap()
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DownloadProgress {
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Progress {
     pub json_file: String,
     pub current: String,
-    pub stream: StreamData,
+    pub video: StreamData,
     pub audio: Option<StreamData>,
-    pub subtitle: Option<StreamData>,
+    pub subtitles: Option<String>,
 }
 
-impl DownloadProgress {
+impl Progress {
     pub fn new_empty() -> Self {
         Self {
             json_file: "".to_owned(),
-            current: "stream".to_owned(),
-            stream: StreamData::new("", ""),
+            current: "video".to_owned(),
+            video: StreamData::default(),
             audio: None,
-            subtitle: None,
+            subtitles: None,
         }
     }
 
@@ -49,9 +61,9 @@ impl DownloadProgress {
 
     pub fn update(&mut self, pos: usize, total: usize, json_file: &std::fs::File) {
         match self.current.as_str() {
-            "stream" => {
-                self.stream.downloaded = pos;
-                self.stream.total = total;
+            "video" => {
+                self.video.downloaded = pos;
+                self.video.total = total;
             }
 
             "audio" => {
@@ -60,14 +72,6 @@ impl DownloadProgress {
                     audio.total = total;
                 }
             }
-
-            "subtitle" => {
-                if let Some(subtitle) = &mut self.subtitle {
-                    subtitle.downloaded = pos;
-                    subtitle.total = total;
-                }
-            }
-
             _ => (),
         }
 
@@ -76,19 +80,11 @@ impl DownloadProgress {
 
     pub fn downloaded(&self) -> usize {
         return match self.current.as_str() {
-            "stream" => self.stream.downloaded,
+            "video" => self.video.downloaded,
 
             "audio" => {
                 if let Some(audio) = &self.audio {
                     audio.downloaded
-                } else {
-                    0
-                }
-            }
-
-            "subtitle" => {
-                if let Some(subtitle) = &self.subtitle {
-                    subtitle.downloaded
                 } else {
                     0
                 }
