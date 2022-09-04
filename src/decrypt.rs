@@ -26,12 +26,13 @@ pub struct Decrypter {
 }
 
 impl Decrypter {
-    pub fn from_key(key: m3u8_rs::Key, key_content: &[u8]) -> Result<Self> {
-        match key.method {
+    pub fn from_key(key: &m3u8_rs::Key, key_content: &[u8]) -> Result<Self> {
+        match &key.method {
             KeyMethod::AES128 => Ok(Self {
                 key: key_content.to_vec(),
                 iv: key
                     .iv
+                    .clone()
                     .map(|encryption_iv| encryption_iv.as_bytes().to_vec()),
                 method: EncryptionMethod::AES128,
             }),

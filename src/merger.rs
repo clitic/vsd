@@ -3,9 +3,9 @@ use std::io::{Seek, SeekFrom, Write};
 
 use anyhow::{bail, Result};
 
-use crate::{Progress};
+use crate::Progress;
 
-pub struct BinarySequence {
+pub struct BinaryMerger {
     size: usize,
     file: std::fs::File,
     pos: usize,
@@ -17,10 +17,10 @@ pub struct BinarySequence {
     json_file: std::fs::File,
 }
 
-impl BinarySequence {
+impl BinaryMerger {
     pub fn new(size: usize, filename: String, progress: Progress) -> Result<Self> {
         let json_file = progress.json_file.clone();
-            
+
         Ok(Self {
             size: size - 1,
             file: std::fs::File::create(&filename)?,
@@ -62,6 +62,17 @@ impl BinarySequence {
             progress,
             json_file: std::fs::OpenOptions::new().append(true).open(&json_file)?,
         })
+    }
+
+    pub fn reset(&mut self, size: usize, filename: String) -> Result<()> {
+        self.size = size - 1;
+        self.file = std::fs::File::create(&filename)?;
+        self.pos = 0;
+        self.buffers = HashMap::new();
+        self.stored_bytes = 0;
+        self.flushed_bytes = 0;
+        self.indexed = 0;
+        Ok(())
     }
 
     pub fn write(&mut self, pos: usize, buf: &[u8]) -> Result<()> {
@@ -120,9 +131,36 @@ impl BinarySequence {
         }
     }
 
+    pub fn relative_estimate(&self, size: usize) -> usize {
+        if self.indexed == 0 {
+            0
+        } else {
+            (self.stored_bytes / self.indexed) * (size + 1)
+        }
+    }
+
     pub fn update(&mut self) -> Result<()> {
         self.json_file.seek(SeekFrom::Start(0))?;
-        self.progress.update(self.pos, self.size + 1, &self.json_file);
+        self.progress
+            .update(self.pos, self.size + 1, &self.json_file);
         Ok(())
+    }
+}
+
+pub struct Estimater {
+    stored_bytes: usize,
+}
+
+impl Estimater {
+    pub fn stored(&self) -> usize {
+        self.stored_bytes
+    }
+
+    pub fn estimate(&self, indexed: usize, size: usize) -> usize {
+        if indexed == 0 {
+            0
+        } else {
+            (self.stored_bytes / indexed) * (size + 1)
+        }
     }
 }

@@ -1,14 +1,11 @@
-use crate::merger::BinarySequence;
-// use crate::progress::{DownloadProgress, StreamData};
 use crate::utils;
 use crate::{dash, hls};
-use crate::{Args, Decrypter, InputType, Progress, StreamData};
+use crate::{Args, BinaryMerger, Decrypter, Estimater, InputType, Progress, StreamData};
 use anyhow::{anyhow, bail, Result};
 use kdam::prelude::*;
 use reqwest::blocking::Client;
 use reqwest::header;
 use reqwest::header::HeaderValue;
-use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
@@ -239,176 +236,88 @@ impl DownloadState {
         Ok(())
     }
 
-    pub fn download(&mut self) -> Result<()> {
-        self.progress
-            .json_file(&utils::replace_ext(&self.progress.video.file, "json"));
-        let segments = self.progress.video.to_playlist().segments;
-        let mut tempfile = self.progress.video.file.clone();
+    fn check_segments(&self) -> Result<()> {
+        let mut segments = self.progress.video.to_playlist().segments;
 
-        // Check to ensure baseurl is required or not.
-        self.args.get_url(&segments[0].uri)?;
-
-        if let Some(output) = &self.args.output {
-            if output.ends_with(".ts") {
-                tempfile = output.clone();
-            }
-            println!("File will be saved at {}", tempfile.colorize("cyan"));
-        } else {
-            println!(
-                "Temporary file will be saved at {}",
-                tempfile.colorize("cyan")
-            );
+        if let Some(audio) = &self.progress.audio {
+            segments.extend_from_slice(&audio.to_playlist().segments);
         }
 
-        let total = segments.len();
+        self.args.get_url(&segments[0].uri)?;
+
+        for segment in segments {
+            match &segment.key {
+                Some(m3u8_rs::Key {
+                    method: m3u8_rs::KeyMethod::SampleAES,
+                    ..
+                }) => bail!("SAMPLE-AES encrypted playlists are not supported."),
+                Some(m3u8_rs::Key {
+                    method: m3u8_rs::KeyMethod::Other(x),
+                    ..
+                }) => {
+                    if x != "CENC" {
+                        bail!("{} encrypted playlists are not supported.", x)
+                    }
+                }
+                _ => (),
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn download(&mut self) -> Result<()> {
+        // download_subtitles()
+        self.check_segments()?;
+
+        let size =
+            self.progress.video.total + self.progress.audio.clone().map(|x| x.total).unwrap_or(0);
+        let pool = threadpool::ThreadPool::new(self.args.threads as usize);
+        let pb = Arc::new(Mutex::new(tqdm!(
+            total = size,
+            unit = "ts".to_owned(),
+            dynamic_ncols = true
+        )));
+
+        self.progress
+            .json_file(&utils::replace_ext(&self.progress.video.file, "json"));
+        let tempfile = self.progress.video.file.clone();
+        let segments = self.progress.video.to_playlist().segments;
+
         let merger = if self.args.resume {
-            Arc::new(Mutex::new(BinarySequence::try_from_json(
-                total,
+            Arc::new(Mutex::new(BinaryMerger::try_from_json(
+                self.progress.video.total,
                 tempfile.clone(),
                 self.progress.json_file.clone(),
             )?))
         } else {
-            Arc::new(Mutex::new(BinarySequence::new(
-                total,
+            Arc::new(Mutex::new(BinaryMerger::new(
+                self.progress.video.total,
                 tempfile.clone(),
                 self.progress.clone(),
             )?))
         };
         merger.lock().unwrap().update()?;
 
-        let pb = Arc::new(Mutex::new(tqdm!(
-            total = total,
-            unit = "ts".to_owned(),
-            dynamic_ncols = true
-        )));
-        let pool = threadpool::ThreadPool::new(self.args.threads as usize);
+        println!(
+            "{} {} stream to {}.",
+            "Downloading".colorize("bold green"),
+            if self.args.alternative {
+                "alternative"
+            } else {
+                "video"
+            },
+            tempfile.colorize("cyan")
+        );
 
         for (i, segment) in segments.iter().enumerate() {
             if self.args.resume {
-                let pos = merger.lock().unwrap().position();
+                let merger = merger.lock().unwrap();
+                let pos = merger.position();
 
                 if pos != 0 && pos > i {
                     continue;
                 }
-            }
-
-            if let Some(m3u8_key) = &segment.key {
-                if m3u8_key.method == m3u8_rs::KeyMethod::SampleAES {
-                    bail!("SAMPLE-AES encrypted playlists are not supported.")
-                }
-            }
-
-            let key_url = match &segment.key {
-                Some(m3u8_rs::Key {
-                    uri: Some(link), ..
-                }) => Some(self.args.get_url(link)?),
-                _ => None,
-            };
-
-            let segment = segment.clone();
-            let pb = pb.clone();
-            let merger = merger.clone();
-            let client = self.client.clone();
-            let segment_url = self.args.get_url(&segment.uri)?;
-            let total_retries = self.args.retry_count;
-
-            let merger_c = merger.clone();
-            let merger_cm = merger_c.lock().unwrap();
-
-            pb.lock().unwrap().set_description(format!(
-                "{} / {}",
-                utils::format_bytes(merger_cm.stored(), 2).2,
-                utils::format_bytes(merger_cm.estimate(), 0).2
-            ));
-            pb.lock().unwrap().update_to(merger_cm.position());
-
-            pool.execute(move || {
-                let mut retries = 0;
-
-                let mut data = loop {
-                    let resp = match segment.byte_range {
-                        Some(m3u8_rs::ByteRange {
-                            length: start,
-                            offset: Some(end),
-                        }) => client
-                            .get(&segment_url)
-                            .header(
-                                header::RANGE,
-                                HeaderValue::from_str(&format!(
-                                    "bytes={}-{}",
-                                    start,
-                                    start + end - 1
-                                ))
-                                .unwrap(),
-                            )
-                            .send(),
-                        _ => client.get(&segment_url).send(),
-                    };
-
-                    // TODO: Check resp errors
-                    if let Ok(resp_data) = resp {
-                        break resp_data.bytes().unwrap().to_vec();
-                    } else if total_retries > retries {
-                        pb.lock().unwrap().write(format!(
-                            "{} to download segment at index {}.",
-                            "RETRYING".colorize("bold yellow"),
-                            i
-                        ));
-                        retries += 1;
-                        continue;
-                    } else {
-                        pb.lock().unwrap().write(format!(
-                            "{}: Reached maximum number of retries for segment at index {}.",
-                            "Error".colorize("bold red"),
-                            i
-                        ));
-                        std::process::exit(1);
-                    }
-                };
-
-                // Decrypt
-                retries = 0;
-
-                if let Some(eku) = key_url {
-                    data = loop {
-                        let resp = client.get(&eku).send();
-
-                        if let Ok(resp_data) = resp {
-                            let decrypted_data = Decrypter::from_key(
-                                segment.key.unwrap(),
-                                &resp_data.bytes().unwrap().to_vec(),
-                            )
-                            .unwrap()
-                            .decrypt(&data, None);
-
-                            break decrypted_data.unwrap_or_else(|e| {
-                                pb.lock().unwrap().write(format!(
-                                    "{}: {}",
-                                    "Error".colorize("bold red"),
-                                    e
-                                ));
-                                std::process::exit(1);
-                            });
-                        } else if total_retries > retries {
-                            pb.lock().unwrap().write(format!(
-                                "{} to download decryption key.",
-                                "RETRYING".colorize("bold yellow"),
-                            ));
-                            retries += 1;
-                            continue;
-                        } else {
-                            pb.lock().unwrap().write(format!(
-                                "{}: Reached maximum number of retries to download decryption key.",
-                                "Error".colorize("bold red"),
-                            ));
-                            std::process::exit(1);
-                        }
-                    };
-                }
-
-                let mut merger = merger.lock().unwrap();
-                merger.write(i, &data).unwrap();
-                merger.flush().unwrap();
 
                 let mut pb = pb.lock().unwrap();
                 pb.set_description(format!(
@@ -416,24 +325,149 @@ impl DownloadState {
                     utils::format_bytes(merger.stored(), 2).2,
                     utils::format_bytes(merger.estimate(), 0).2
                 ));
+                pb.update_to(pos);
+            }
+
+            let client = self.client.clone();
+            let merger = merger.clone();
+            let size = size.clone();
+            let pb = pb.clone();
+            let segment_url = self.args.get_url(&segment.uri)?;
+            let byte_range = segment.byte_range.clone();
+            let total_retries = self.args.retry_count;
+            let key_info = match &segment.key {
+                Some(m3u8_rs::Key {
+                    uri: Some(link), ..
+                }) => Some((self.args.get_url(link)?, segment.key.clone().unwrap())),
+                _ => None,
+            };
+
+            pool.execute(move || {
+                download_segments(
+                    client,
+                    merger.clone(),
+                    pb.clone(),
+                    i,
+                    segment_url,
+                    byte_range,
+                    total_retries,
+                    key_info,
+                )
+                .unwrap();
+
+                let merger = merger.lock().unwrap();
+                let mut pb = pb.lock().unwrap();
+                pb.set_description(format!(
+                    "{} / {}",
+                    utils::format_bytes(merger.stored(), 2).2,
+                    utils::format_bytes(merger.relative_estimate(size), 0).2
+                ));
                 pb.update(1);
             });
         }
 
         pool.join();
-        eprintln!();
-        merger.lock().unwrap().flush().unwrap();
+        let mut gaurded_merger = merger.lock().unwrap();
+        gaurded_merger.flush()?;
 
-        if merger.lock().unwrap().buffered() {
-            println!(
+        if gaurded_merger.buffered() {
+            pb.lock().unwrap().write(format!(
                 "File {} downloaded successfully.",
                 tempfile.colorize("bold green")
-            );
+            ));
         } else {
             bail!(
                 "File {} not downloaded successfully.",
                 tempfile.colorize("bold red")
             );
+        }
+
+        if let Some(audio) = &self.progress.audio {
+            let stored_bytes = gaurded_merger.stored();
+            let tempfile = audio.file.clone();
+            let playlist = audio.to_playlist();
+            let segments = playlist.segments;
+            gaurded_merger.reset(audio.total, tempfile.clone())?;
+
+            println!(
+                "{} audio stream to {}.",
+                "Downloading".colorize("bold green"),
+                tempfile.colorize("cyan")
+            );
+
+            for (i, segment) in segments.iter().enumerate() {
+                if self.args.resume {
+                    let merger = merger.lock().unwrap();
+                    let pos = merger.position();
+
+                    if pos != 0 && pos > i {
+                        continue;
+                    }
+
+                    let mut pb = pb.lock().unwrap();
+                    pb.set_description(format!(
+                        "{} / {}",
+                        utils::format_bytes(merger.stored(), 2).2,
+                        utils::format_bytes(merger.estimate(), 0).2
+                    ));
+                    pb.update_to(pos);
+                }
+
+                let client = self.client.clone();
+                let merger = merger.clone();
+                let pb = pb.clone();
+                let segment_url = self.args.get_url(&segment.uri)?;
+                let byte_range = segment.byte_range.clone();
+                let total_retries = self.args.retry_count;
+                let key_info = match &segment.key {
+                    Some(m3u8_rs::Key {
+                        uri: Some(link), ..
+                    }) => Some((self.args.get_url(link)?, segment.key.clone().unwrap())),
+                    _ => None,
+                };
+
+                let stored_bytes = stored_bytes.clone();
+
+                pool.execute(move || {
+                    download_segments(
+                        client,
+                        merger.clone(),
+                        pb.clone(),
+                        i,
+                        segment_url,
+                        byte_range,
+                        total_retries,
+                        key_info,
+                    )
+                    .unwrap();
+
+                    let merger = merger.lock().unwrap();
+                    let mut pb = pb.lock().unwrap();
+                    pb.set_description(format!(
+                        "{} / {}",
+                        utils::format_bytes(merger.stored() + stored_bytes, 2).2,
+                        utils::format_bytes(merger.estimate() + stored_bytes, 0).2
+                    ));
+                    pb.update(1);
+                });
+            }
+
+            pool.join();
+            let mut gaurded_merger = merger.lock().unwrap();
+            gaurded_merger.flush()?;
+            let mut pb = pb.lock().unwrap();
+
+            if gaurded_merger.buffered() {
+                pb.write(format!(
+                    "File {} downloaded successfully.",
+                    tempfile.colorize("bold green")
+                ));
+            } else {
+                bail!(
+                    "File {} not downloaded successfully.",
+                    tempfile.colorize("bold red")
+                );
+            }
         }
 
         Ok(())
@@ -500,6 +534,86 @@ impl DownloadState {
         }
         Ok(())
     }
+}
+
+fn download_segments(
+    client: Arc<Client>,
+    merger: Arc<Mutex<BinaryMerger>>,
+    pb: Arc<Mutex<kdam::Bar>>,
+    segment_index: usize,
+    segment_url: String,
+    byte_range: Option<m3u8_rs::ByteRange>,
+    total_retries: u8,
+    key_info: Option<(String, m3u8_rs::Key)>,
+) -> Result<()> {
+    let fetch_segment = || -> Result<Vec<u8>, reqwest::Error> {
+        match byte_range {
+            Some(m3u8_rs::ByteRange {
+                length: start,
+                offset: Some(end),
+            }) => Ok(client
+                .get(&segment_url)
+                .header(
+                    header::RANGE,
+                    format!("bytes={}-{}", start, start + end - 1),
+                )
+                .send()?
+                .bytes()?
+                .to_vec()),
+            _ => Ok(client.get(&segment_url).send()?.bytes()?.to_vec()),
+        }
+    };
+
+    let mut retries = 0;
+    let mut data = loop {
+        match fetch_segment() {
+            Ok(bytes) => break bytes,
+            Err(e) => {
+                if total_retries > retries {
+                    pb.lock().unwrap().write(utils::check_reqwest_error(&e)?);
+                    retries += 1;
+                    continue;
+                } else {
+                    bail!(
+                        "Reached maximum number of retries for segment at index {}.",
+                        segment_index
+                    )
+                }
+            }
+        }
+    };
+
+    // Decrypt
+    let fetch_key = |key_url| -> Result<Vec<u8>, reqwest::Error> {
+        Ok(client.get(key_url).send()?.bytes()?.to_vec())
+    };
+
+    retries = 0;
+    if let Some((key_url, key)) = &key_info {
+        let key_content = loop {
+            match fetch_key(key_url) {
+                Ok(bytes) => break bytes,
+                Err(e) => {
+                    if total_retries > retries {
+                        pb.lock().unwrap().write(utils::check_reqwest_error(&e)?);
+                        retries += 1;
+                        continue;
+                    } else {
+                        bail!("Reached maximum number of retries to download decryption key.")
+                    }
+                }
+            }
+        };
+
+        data = Decrypter::from_key(key, &key_content)
+            .unwrap()
+            .decrypt(&data, None)?;
+    }
+
+    let mut merger = merger.lock().unwrap();
+    merger.write(segment_index, &data)?;
+    merger.flush()?;
+    Ok(())
 }
 
 fn download_subtitles(args: &Args, client: &Arc<Client>, uri: &str) -> Result<String> {

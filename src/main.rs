@@ -9,20 +9,17 @@ fn error(e: Error) -> ! {
 
 fn main() {
     let args = vsd::Args::parse();
-    
+
     if args.capture {
         vsd::chrome::capture(&args.input, args.headless).unwrap_or_else(|e| error(e));
     } else if args.collect {
         vsd::chrome::collect(&args.input, args.headless, args.build).unwrap_or_else(|e| error(e));
     } else {
         let mut downloader = vsd::core::DownloadState::new(args).unwrap_or_else(|e| error(e));
-        let segments = downloader.playlist().unwrap_or_else(|e| error(e));
-        downloader
-            .download(&segments, downloader.args.tempfile())
-            .unwrap_or_else(|e| error(e));
+        downloader.playlist().unwrap_or_else(|e| error(e));
+        downloader.download().unwrap_or_else(|e| error(e));
         downloader.transmux_trancode().unwrap_or_else(|e| error(e));
     }
-
 
     // let mpd = vsd::dash::parse(include_bytes!("../11331.xml")).unwrap();
 
