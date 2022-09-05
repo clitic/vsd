@@ -266,7 +266,7 @@ impl DownloadState {
             self.progress.video.total + self.progress.audio.clone().map(|x| x.total).unwrap_or(0);
         let pool = threadpool::ThreadPool::new(self.args.threads as usize);
         self.pb = Arc::new(Mutex::new(RichProgress::new(
-            tqdm!(total = size, unit = "ts".to_owned(), dynamic_ncols = true),
+            tqdm!(total = size, unit = " TS".to_owned(), dynamic_ncols = true),
             vec![
                 Column::Spinner(
                     "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
@@ -282,12 +282,13 @@ impl DownloadState {
                 Column::text("•"),
                 Column::CountTotal,
                 Column::text("•"),
-                Column::Rate,
-                Column::text("•"),
                 Column::ElapsedTime,
                 Column::text("[cyan]>"),
                 Column::RemainingTime,
-                // Column::text("[cyan]ETA")
+                Column::text("•"),
+                Column::Rate,
+                Column::text("•"),
+                Column::text("[yellow]?"),
             ],
         )));
 
@@ -295,36 +296,21 @@ impl DownloadState {
             .json_file(&utils::replace_ext(&self.progress.video.file, "json"));
 
         let mut stored_bytes = 0;
-        let segments = self.progress.video.to_playlist().segments;
+        let relative_size = if let Some(audio) = &self.progress.audio {
+            let segments = audio.to_playlist().segments;
 
-        if let Some(audio) = &self.progress.audio {
-            self.pb.lock().unwrap().write(format!(
-                "{} audio stream to {}",
-                "Downloading".colorize("bold green"),
-                audio.file.colorize("cyan")
-            ));
-
-            stored_bytes = self.download_segments_in_threads(
-                audio.to_playlist().segments,
-                &audio.file,
-                &pool,
-                stored_bytes,
-                Some(
-                    segments.len()
-                        * self
-                            .client
-                            .get(&self.args.get_url(&segments[1].uri)?)
-                            .send()?
-                            .content_length()
-                            .unwrap_or(0) as usize,
-                ),
-            )?;
-
-            self.pb.lock().unwrap().write(format!(
-                " {} audio stream successfully.",
-                "Downloaded".colorize("bold green"),
-            ));
-        }
+            Some(
+                segments.len()
+                    * self
+                        .client
+                        .get(&self.args.get_url(&segments[1].uri)?)
+                        .send()?
+                        .content_length()
+                        .unwrap_or(0) as usize,
+            )
+        } else {
+            None
+        };
 
         self.pb.lock().unwrap().write(format!(
             "{} {} stream to {}",
@@ -337,12 +323,12 @@ impl DownloadState {
             self.progress.video.file.colorize("cyan")
         ));
 
-        let _ = self.download_segments_in_threads(
-            segments,
+        stored_bytes = self.download_segments_in_threads(
+            self.progress.video.to_playlist().segments,
             &self.progress.video.file,
             &pool,
             stored_bytes,
-            None,
+            relative_size,
         )?;
 
         self.pb.lock().unwrap().write(format!(
@@ -354,6 +340,27 @@ impl DownloadState {
                 "video"
             }
         ));
+
+        if let Some(audio) = &self.progress.audio {
+            self.pb.lock().unwrap().write(format!(
+                "{} audio stream to {}",
+                "Downloading".colorize("bold green"),
+                audio.file.colorize("cyan")
+            ));
+
+            let _ = self.download_segments_in_threads(
+                audio.to_playlist().segments,
+                &audio.file,
+                &pool,
+                stored_bytes,
+                None,
+            )?;
+
+            self.pb.lock().unwrap().write(format!(
+                " {} audio stream successfully.",
+                "Downloaded".colorize("bold green"),
+            ));
+        }
 
         println!();
 
@@ -382,6 +389,8 @@ impl DownloadState {
             )?))
         };
         merger.lock().unwrap().update()?;
+
+        let timer = Arc::new(std::time::Instant::now());
 
         for (i, segment) in segments.iter().enumerate() {
             if self.args.resume {
@@ -422,6 +431,7 @@ impl DownloadState {
                 }) => Some((self.args.get_url(link)?, segment.key.clone().unwrap())),
                 _ => None,
             };
+            let timer = timer.clone();
 
             pool.execute(move || {
                 download_segments(
@@ -435,6 +445,7 @@ impl DownloadState {
                     key_info,
                     stored_bytes,
                     relative_size,
+                    timer,
                 )
                 .unwrap();
             });
@@ -528,6 +539,7 @@ fn download_segments(
     key_info: Option<(String, m3u8_rs::Key)>,
     stored_bytes: usize,
     relative_size: Option<usize>,
+    timer: Arc<std::time::Instant>,
 ) -> Result<()> {
     let fetch_segment = || -> Result<Vec<u8>, reqwest::Error> {
         match byte_range {
@@ -593,39 +605,57 @@ fn download_segments(
             .decrypt(&data, None)?;
     }
 
-    let mut merger = merger.lock().unwrap();
-    merger.write(segment_index, &data)?;
-    merger.flush()?;
+    let mut guarded_merger = merger.lock().unwrap();
+    guarded_merger.write(segment_index, &data)?;
+    guarded_merger.flush()?;
+    let stored = guarded_merger.stored();
+    let estimate = guarded_merger.estimate();
 
-    let mut pb = pb.lock().unwrap();
-    pb.replace(
+    // let elapsed_time = pb.lock().unwrap().pb.elapsed_time;
+    let elapsed_time = timer.elapsed().as_secs() as usize;
+    let mut gaurded_pb = pb.lock().unwrap();
+    if elapsed_time != 0 {
+        gaurded_pb.replace(
+            13,
+            Column::Text(format!(
+                "[yellow]{}/s",
+                utils::format_bytes(stored / elapsed_time, 2).2
+            )),
+        );
+    }
+
+    // let speed = ;
+    gaurded_pb.replace(
         1,
         Column::Text(format!(
             "[bold blue]{} / {}",
-            utils::format_bytes(stored_bytes + merger.stored(), 2).2,
+            utils::format_bytes(stored_bytes + stored, 2).2,
             if let Some(size) = relative_size {
-                utils::format_bytes(stored_bytes + size + merger.estimate(), 0).2
+                utils::format_bytes(stored_bytes + size + estimate, 0).2
             } else {
-                utils::format_bytes(stored_bytes + merger.estimate(), 0).2
-            }
+                utils::format_bytes(stored_bytes + estimate, 0).2
+            },
         )),
     );
-    pb.update(1);
+
+    gaurded_pb.update(1);
 
     Ok(())
 }
 
 fn download_subtitles(args: &Args, client: &Arc<Client>, uri: &str) -> Result<String> {
-    // return Ok("".to_owned());
-
     let uri = args.get_url(uri)?;
 
     let segments = m3u8_rs::parse_media_playlist_res(&client.get(&uri).send()?.bytes()?.to_vec())
-    .map_err(|_| anyhow!("Couldn't parse {} as media playlist.", uri))?
-    .segments;
+        .map_err(|_| anyhow!("Couldn't parse {} as media playlist.", uri))?
+        .segments;
 
     let mut pb = RichProgress::new(
-        tqdm!(total = segments.len(), unit = "ts".to_owned(), dynamic_ncols = true),
+        tqdm!(
+            total = segments.len(),
+            unit = " TS".to_owned(),
+            dynamic_ncols = true
+        ),
         vec![
             Column::Spinner(
                 "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
@@ -641,39 +671,44 @@ fn download_subtitles(args: &Args, client: &Arc<Client>, uri: &str) -> Result<St
             Column::text("•"),
             Column::CountTotal,
             Column::text("•"),
-            Column::Rate,
-            Column::text("•"),
             Column::ElapsedTime,
             Column::text("[cyan]>"),
             Column::RemainingTime,
+            Column::text("•"),
+            Column::Rate,
         ],
     );
-    pb.write(format!("{} subtitles stream.", "Downloading".colorize("bold green")));
+    pb.write(format!(
+        "{} subtitles stream.",
+        "Downloading".colorize("bold green")
+    ));
 
-    
     let mut subtitles = vec![];
 
     let mut total_bytes = 0;
-    for segment in &segments
-    {
+    for segment in &segments {
         let bytes = client
-        .get(&args.get_url(&segment.uri)?)
-        .send()?
-        .bytes()?
-        .to_vec();
+            .get(&args.get_url(&segment.uri)?)
+            .send()?
+            .bytes()?
+            .to_vec();
 
         total_bytes += bytes.len();
 
-        subtitles.extend_from_slice(
-            &bytes,
-        );
+        subtitles.extend_from_slice(&bytes);
 
         // println!("{}", pb.pb.get_counter() / segments.len());
-        pb.replace(1, Column::Text(format!("[bold blue]{}", utils::format_bytes(total_bytes, 2).2)));
+        pb.replace(
+            1,
+            Column::Text(format!(
+                "[bold blue]{}",
+                utils::format_bytes(total_bytes, 2).2
+            )),
+        );
         pb.update(1);
     }
 
     pb.clear();
-    
+
     Ok(String::from_utf8(subtitles)?)
 }
