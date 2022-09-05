@@ -18,12 +18,12 @@ pub struct BinaryMerger {
 }
 
 impl BinaryMerger {
-    pub fn new(size: usize, filename: String, progress: Progress) -> Result<Self> {
+    pub fn new(size: usize, filename: &str, progress: Progress) -> Result<Self> {
         let json_file = progress.json_file.clone();
 
         Ok(Self {
             size: size - 1,
-            file: std::fs::File::create(&filename)?,
+            file: std::fs::File::create(filename)?,
             pos: 0,
             buffers: HashMap::new(),
             stored_bytes: 0,
@@ -34,7 +34,7 @@ impl BinaryMerger {
         })
     }
 
-    pub fn try_from_json(size: usize, filename: String, json_file: String) -> Result<Self> {
+    pub fn try_from_json(size: usize, filename: &str, json_file: String) -> Result<Self> {
         if !std::path::Path::new(&json_file).exists() {
             bail!("Can't resume because {} doesn't exists.", json_file)
         }
@@ -42,11 +42,11 @@ impl BinaryMerger {
         let progress: Progress = serde_json::from_reader(std::fs::File::open(&json_file)?)?;
         let mut pos = progress.downloaded();
 
-        let file = if std::path::Path::new(&filename).exists() {
+        let file = if std::path::Path::new(filename).exists() {
             std::fs::OpenOptions::new().append(true).open(filename)?
         } else {
             pos = 0;
-            std::fs::File::create(&filename)?
+            std::fs::File::create(filename)?
         };
 
         let stored_bytes = file.metadata()?.len() as usize;

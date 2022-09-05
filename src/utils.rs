@@ -141,7 +141,7 @@ pub fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
         .url()
         .map(|x| {
             format!(
-                "{}://{} ({})",
+                "{}://{} -> {}",
                 x.scheme(),
                 x.domain().unwrap(),
                 x.to_string()
@@ -159,13 +159,13 @@ pub fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
     if error.is_timeout() {
         return Ok(format!(
             "{} {}",
-            "REQUEST TIMEOUT".colorize("bold red"),
+            "REQUEST TIMEOUT".colorize("bold yellow"),
             url
         ));
     } else if error.is_connect() {
         return Ok(format!(
             "{} {}",
-            "CONNECTION ERROR".colorize("bold red"),
+            "CONNECTION ERROR".colorize("bold yellow"),
             url
         ));
     }
@@ -173,26 +173,26 @@ pub fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
         match status {
             StatusCode::REQUEST_TIMEOUT => Ok(format!(
                 "{} {}",
-                "REQUEST TIMEOUT".colorize("bold red"),
+                "REQUEST TIMEOUT".colorize("bold yellow"),
                 url
             )),
             StatusCode::TOO_MANY_REQUESTS => Ok(format!(
                 "{ }{}",
-                "TOO MANY REQUESTS".colorize("bold red"),
+                "TOO MANY REQUESTS".colorize("bold yellow"),
                 url
             )),
             StatusCode::SERVICE_UNAVAILABLE => Ok(format!(
                 "{} {}",
-                "SERVICE UNAVAILABLE".colorize("bold red"),
+                "SERVICE UNAVAILABLE".colorize("bold yellow"),
                 url
             )),
             StatusCode::GATEWAY_TIMEOUT => Ok(format!(
                 "{} {}",
-                "GATEWAY TIMEOUT".colorize("bold red"),
+                "GATEWAY TIMEOUT".colorize("bold yellow"),
                 url
             )),
             _ => bail!(
-                "{} failed with HTTP {} ({})",
+                "{} failed with HTTP {} -> {}",
                 "Download".colorize("bold red"),
                 status,
                 error.url().map(|x| x.as_str()).unwrap().colorize("cyan")
@@ -200,7 +200,7 @@ pub fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
         }
     } else {
         bail!(
-            "{} failed ({})",
+            "{} failed -> {}",
             "Download".colorize("bold red"),
             error.url().map(|x| x.as_str()).unwrap().colorize("cyan")
         )

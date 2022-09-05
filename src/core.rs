@@ -1,18 +1,19 @@
 use crate::utils;
 use crate::{dash, hls};
-use crate::{Args, BinaryMerger, Decrypter, Estimater, InputType, Progress, StreamData};
+use crate::{Args, BinaryMerger, Decrypter, InputType, Progress, StreamData};
 use anyhow::{anyhow, bail, Result};
 use kdam::prelude::*;
+use kdam::{Column, RichProgress};
 use reqwest::blocking::Client;
 use reqwest::header;
-use reqwest::header::HeaderValue;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 pub struct DownloadState {
-    pub args: Args,
+    args: Args,
     client: Arc<Client>,
     progress: Progress,
+    pub pb: Arc<Mutex<RichProgress>>,
 }
 
 impl DownloadState {
@@ -29,6 +30,7 @@ impl DownloadState {
             args,
             client,
             progress: Progress::new_empty(),
+            pb: Arc::new(Mutex::new(RichProgress::new(tqdm!(), vec![]))),
         })
     }
 
@@ -126,6 +128,7 @@ impl DownloadState {
                     m3u8_rs::Playlist::MediaPlaylist(_) => {
                         self.progress.video =
                             StreamData::new(&self.args.input, &self.args.tempfile(), &playlist)?;
+                        self.fetch_alternative_streams(&master)?;
                     }
                     _ => bail!("Media playlist not found."),
                 }
@@ -158,17 +161,6 @@ impl DownloadState {
         }
 
         let media = dash::to_m3u8_as_media(&mpd, &self.args.input, &uri).unwrap();
-
-        // println!(
-        //     "{} {} stream.",
-        //     "Downloading".colorize("bold green"),
-        //     if self.args.alternative {
-        //         "alternative"
-        //     } else {
-        //         "video"
-        //     }
-        // );
-
         return Ok(media);
     }
 
@@ -273,42 +265,123 @@ impl DownloadState {
         let size =
             self.progress.video.total + self.progress.audio.clone().map(|x| x.total).unwrap_or(0);
         let pool = threadpool::ThreadPool::new(self.args.threads as usize);
-        let pb = Arc::new(Mutex::new(tqdm!(
-            total = size,
-            unit = "ts".to_owned(),
-            dynamic_ncols = true
+        self.pb = Arc::new(Mutex::new(RichProgress::new(
+            tqdm!(total = size, unit = "ts".to_owned(), dynamic_ncols = true),
+            vec![
+                Column::Spinner(
+                    "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+                        .chars()
+                        .map(|x| x.to_string())
+                        .collect::<Vec<String>>(),
+                    80.0,
+                    1.0,
+                ),
+                Column::text("[bold blue]?"),
+                Column::Bar,
+                Column::Percentage(2),
+                Column::text("•"),
+                Column::CountTotal,
+                Column::text("•"),
+                Column::Rate,
+                Column::text("•"),
+                Column::ElapsedTime,
+                Column::text("[cyan]>"),
+                Column::RemainingTime,
+                // Column::text("[cyan]ETA")
+            ],
         )));
 
         self.progress
             .json_file(&utils::replace_ext(&self.progress.video.file, "json"));
-        let tempfile = self.progress.video.file.clone();
+
+        let mut stored_bytes = 0;
         let segments = self.progress.video.to_playlist().segments;
 
-        let merger = if self.args.resume {
-            Arc::new(Mutex::new(BinaryMerger::try_from_json(
-                self.progress.video.total,
-                tempfile.clone(),
-                self.progress.json_file.clone(),
-            )?))
-        } else {
-            Arc::new(Mutex::new(BinaryMerger::new(
-                self.progress.video.total,
-                tempfile.clone(),
-                self.progress.clone(),
-            )?))
-        };
-        merger.lock().unwrap().update()?;
+        if let Some(audio) = &self.progress.audio {
+            self.pb.lock().unwrap().write(format!(
+                "{} audio stream to {}",
+                "Downloading".colorize("bold green"),
+                audio.file.colorize("cyan")
+            ));
 
-        println!(
-            "{} {} stream to {}.",
+            stored_bytes = self.download_segments_in_threads(
+                audio.to_playlist().segments,
+                &audio.file,
+                &pool,
+                stored_bytes,
+                Some(
+                    segments.len()
+                        * self
+                            .client
+                            .get(&self.args.get_url(&segments[1].uri)?)
+                            .send()?
+                            .content_length()
+                            .unwrap_or(0) as usize,
+                ),
+            )?;
+
+            self.pb.lock().unwrap().write(format!(
+                " {} audio stream successfully.",
+                "Downloaded".colorize("bold green"),
+            ));
+        }
+
+        self.pb.lock().unwrap().write(format!(
+            "{} {} stream to {}",
             "Downloading".colorize("bold green"),
             if self.args.alternative {
                 "alternative"
             } else {
                 "video"
             },
-            tempfile.colorize("cyan")
-        );
+            self.progress.video.file.colorize("cyan")
+        ));
+
+        let _ = self.download_segments_in_threads(
+            segments,
+            &self.progress.video.file,
+            &pool,
+            stored_bytes,
+            None,
+        )?;
+
+        self.pb.lock().unwrap().write(format!(
+            " {} {} stream successfully.",
+            "Downloaded".colorize("bold green"),
+            if self.args.alternative {
+                "alternative"
+            } else {
+                "video"
+            }
+        ));
+
+        println!();
+
+        Ok(())
+    }
+
+    fn download_segments_in_threads(
+        &self,
+        segments: Vec<m3u8_rs::MediaSegment>,
+        tempfile: &str,
+        pool: &threadpool::ThreadPool,
+        stored_bytes: usize,
+        relative_size: Option<usize>,
+    ) -> Result<usize> {
+        let merger = if self.args.resume {
+            Arc::new(Mutex::new(BinaryMerger::try_from_json(
+                self.progress.video.total,
+                tempfile,
+                self.progress.json_file.clone(),
+            )?))
+        } else {
+            Arc::new(Mutex::new(BinaryMerger::new(
+                self.progress.video.total,
+                tempfile,
+                self.progress.clone(),
+            )?))
+        };
+        merger.lock().unwrap().update()?;
 
         for (i, segment) in segments.iter().enumerate() {
             if self.args.resume {
@@ -319,19 +392,27 @@ impl DownloadState {
                     continue;
                 }
 
-                let mut pb = pb.lock().unwrap();
-                pb.set_description(format!(
-                    "{} / {}",
-                    utils::format_bytes(merger.stored(), 2).2,
-                    utils::format_bytes(merger.estimate(), 0).2
-                ));
+                let mut pb = self.pb.lock().unwrap();
+                pb.replace(
+                    1,
+                    Column::Text(format!(
+                        "[bold blue]{} / {}",
+                        utils::format_bytes(stored_bytes + merger.stored(), 2).2,
+                        if let Some(size) = relative_size {
+                            utils::format_bytes(stored_bytes + size + merger.estimate(), 0).2
+                        } else {
+                            utils::format_bytes(stored_bytes + merger.estimate(), 0).2
+                        }
+                    )),
+                );
                 pb.update_to(pos);
             }
 
             let client = self.client.clone();
             let merger = merger.clone();
-            let size = size.clone();
-            let pb = pb.clone();
+            let stored_bytes = stored_bytes.clone();
+            let relative_size = relative_size.clone();
+            let pb = self.pb.clone();
             let segment_url = self.args.get_url(&segment.uri)?;
             let byte_range = segment.byte_range.clone();
             let total_retries = self.args.retry_count;
@@ -352,125 +433,25 @@ impl DownloadState {
                     byte_range,
                     total_retries,
                     key_info,
+                    stored_bytes,
+                    relative_size,
                 )
                 .unwrap();
-
-                let merger = merger.lock().unwrap();
-                let mut pb = pb.lock().unwrap();
-                pb.set_description(format!(
-                    "{} / {}",
-                    utils::format_bytes(merger.stored(), 2).2,
-                    utils::format_bytes(merger.relative_estimate(size), 0).2
-                ));
-                pb.update(1);
             });
         }
 
         pool.join();
-        let mut gaurded_merger = merger.lock().unwrap();
-        gaurded_merger.flush()?;
+        let mut merger = merger.lock().unwrap();
+        merger.flush()?;
 
-        if gaurded_merger.buffered() {
-            pb.lock().unwrap().write(format!(
-                "File {} downloaded successfully.",
-                tempfile.colorize("bold green")
-            ));
-        } else {
+        if !merger.buffered() {
             bail!(
                 "File {} not downloaded successfully.",
                 tempfile.colorize("bold red")
             );
         }
 
-        if let Some(audio) = &self.progress.audio {
-            let stored_bytes = gaurded_merger.stored();
-            let tempfile = audio.file.clone();
-            let playlist = audio.to_playlist();
-            let segments = playlist.segments;
-            gaurded_merger.reset(audio.total, tempfile.clone())?;
-
-            println!(
-                "{} audio stream to {}.",
-                "Downloading".colorize("bold green"),
-                tempfile.colorize("cyan")
-            );
-
-            for (i, segment) in segments.iter().enumerate() {
-                if self.args.resume {
-                    let merger = merger.lock().unwrap();
-                    let pos = merger.position();
-
-                    if pos != 0 && pos > i {
-                        continue;
-                    }
-
-                    let mut pb = pb.lock().unwrap();
-                    pb.set_description(format!(
-                        "{} / {}",
-                        utils::format_bytes(merger.stored(), 2).2,
-                        utils::format_bytes(merger.estimate(), 0).2
-                    ));
-                    pb.update_to(pos);
-                }
-
-                let client = self.client.clone();
-                let merger = merger.clone();
-                let pb = pb.clone();
-                let segment_url = self.args.get_url(&segment.uri)?;
-                let byte_range = segment.byte_range.clone();
-                let total_retries = self.args.retry_count;
-                let key_info = match &segment.key {
-                    Some(m3u8_rs::Key {
-                        uri: Some(link), ..
-                    }) => Some((self.args.get_url(link)?, segment.key.clone().unwrap())),
-                    _ => None,
-                };
-
-                let stored_bytes = stored_bytes.clone();
-
-                pool.execute(move || {
-                    download_segments(
-                        client,
-                        merger.clone(),
-                        pb.clone(),
-                        i,
-                        segment_url,
-                        byte_range,
-                        total_retries,
-                        key_info,
-                    )
-                    .unwrap();
-
-                    let merger = merger.lock().unwrap();
-                    let mut pb = pb.lock().unwrap();
-                    pb.set_description(format!(
-                        "{} / {}",
-                        utils::format_bytes(merger.stored() + stored_bytes, 2).2,
-                        utils::format_bytes(merger.estimate() + stored_bytes, 0).2
-                    ));
-                    pb.update(1);
-                });
-            }
-
-            pool.join();
-            let mut gaurded_merger = merger.lock().unwrap();
-            gaurded_merger.flush()?;
-            let mut pb = pb.lock().unwrap();
-
-            if gaurded_merger.buffered() {
-                pb.write(format!(
-                    "File {} downloaded successfully.",
-                    tempfile.colorize("bold green")
-                ));
-            } else {
-                bail!(
-                    "File {} not downloaded successfully.",
-                    tempfile.colorize("bold red")
-                );
-            }
-        }
-
-        Ok(())
+        Ok(merger.stored())
     }
 
     pub fn transmux_trancode(&mut self) -> Result<()> {
@@ -539,12 +520,14 @@ impl DownloadState {
 fn download_segments(
     client: Arc<Client>,
     merger: Arc<Mutex<BinaryMerger>>,
-    pb: Arc<Mutex<kdam::Bar>>,
+    pb: Arc<Mutex<RichProgress>>,
     segment_index: usize,
     segment_url: String,
     byte_range: Option<m3u8_rs::ByteRange>,
     total_retries: u8,
     key_info: Option<(String, m3u8_rs::Key)>,
+    stored_bytes: usize,
+    relative_size: Option<usize>,
 ) -> Result<()> {
     let fetch_segment = || -> Result<Vec<u8>, reqwest::Error> {
         match byte_range {
@@ -613,27 +596,84 @@ fn download_segments(
     let mut merger = merger.lock().unwrap();
     merger.write(segment_index, &data)?;
     merger.flush()?;
+
+    let mut pb = pb.lock().unwrap();
+    pb.replace(
+        1,
+        Column::Text(format!(
+            "[bold blue]{} / {}",
+            utils::format_bytes(stored_bytes + merger.stored(), 2).2,
+            if let Some(size) = relative_size {
+                utils::format_bytes(stored_bytes + size + merger.estimate(), 0).2
+            } else {
+                utils::format_bytes(stored_bytes + merger.estimate(), 0).2
+            }
+        )),
+    );
+    pb.update(1);
+
     Ok(())
 }
 
 fn download_subtitles(args: &Args, client: &Arc<Client>, uri: &str) -> Result<String> {
-    println!("{} subtitles stream.", "Downloading".colorize("bold green"));
+    // return Ok("".to_owned());
 
     let uri = args.get_url(uri)?;
+
+    let segments = m3u8_rs::parse_media_playlist_res(&client.get(&uri).send()?.bytes()?.to_vec())
+    .map_err(|_| anyhow!("Couldn't parse {} as media playlist.", uri))?
+    .segments;
+
+    let mut pb = RichProgress::new(
+        tqdm!(total = segments.len(), unit = "ts".to_owned(), dynamic_ncols = true),
+        vec![
+            Column::Spinner(
+                "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+                    .chars()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<String>>(),
+                80.0,
+                1.0,
+            ),
+            Column::text("[bold blue]?"),
+            Column::Bar,
+            Column::Percentage(0),
+            Column::text("•"),
+            Column::CountTotal,
+            Column::text("•"),
+            Column::Rate,
+            Column::text("•"),
+            Column::ElapsedTime,
+            Column::text("[cyan]>"),
+            Column::RemainingTime,
+        ],
+    );
+    pb.write(format!("{} subtitles stream.", "Downloading".colorize("bold green")));
+
+    
     let mut subtitles = vec![];
 
-    for segment in m3u8_rs::parse_media_playlist_res(&client.get(&uri).send()?.bytes()?.to_vec())
-        .map_err(|_| anyhow!("Couldn't parse {} as media playlist.", uri))?
-        .segments
+    let mut total_bytes = 0;
+    for segment in &segments
     {
+        let bytes = client
+        .get(&args.get_url(&segment.uri)?)
+        .send()?
+        .bytes()?
+        .to_vec();
+
+        total_bytes += bytes.len();
+
         subtitles.extend_from_slice(
-            &client
-                .get(&args.get_url(&segment.uri)?)
-                .send()?
-                .bytes()?
-                .to_vec(),
+            &bytes,
         );
+
+        // println!("{}", pb.pb.get_counter() / segments.len());
+        pb.replace(1, Column::Text(format!("[bold blue]{}", utils::format_bytes(total_bytes, 2).2)));
+        pb.update(1);
     }
 
+    pb.clear();
+    
     Ok(String::from_utf8(subtitles)?)
 }

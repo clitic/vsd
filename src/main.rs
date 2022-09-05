@@ -1,9 +1,16 @@
 use anyhow::Error;
 use clap::Parser;
 use kdam::term::Colorizer;
+use std::sync::{Arc, Mutex};
+use kdam::{RichProgress, BarExt};
 
 fn error(e: Error) -> ! {
     println!("{}: {}", "Error".colorize("bold red"), e);
+    std::process::exit(1);
+}
+
+fn error_progress_bar(e: Error, pb: &Arc<Mutex<RichProgress>>) -> ! {
+    pb.lock().unwrap().write(format!("{}: {}", "Error".colorize("bold red"), e));
     std::process::exit(1);
 }
 
@@ -16,7 +23,7 @@ fn main() {
         vsd::chrome::collect(&args.input, args.headless, args.build).unwrap_or_else(|e| error(e));
     } else {
         let mut downloader = vsd::core::DownloadState::new(args).unwrap_or_else(|e| error(e));
-        downloader.playlist().unwrap_or_else(|e| error(e));
+        downloader.playlist().unwrap_or_else(|e| error_progress_bar(e, &downloader.pb));
         downloader.download().unwrap_or_else(|e| error(e));
         downloader.transmux_trancode().unwrap_or_else(|e| error(e));
     }
