@@ -131,14 +131,6 @@ impl BinaryMerger {
         }
     }
 
-    pub fn relative_estimate(&self, size: usize) -> usize {
-        if self.indexed == 0 {
-            0
-        } else {
-            (self.stored_bytes / self.indexed) * (size + 1)
-        }
-    }
-
     pub fn update(&mut self) -> Result<()> {
         self.json_file.seek(SeekFrom::Start(0))?;
         self.progress

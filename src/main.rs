@@ -1,16 +1,18 @@
 use anyhow::Error;
 use clap::Parser;
 use kdam::term::Colorizer;
+use kdam::{BarExt, RichProgress};
 use std::sync::{Arc, Mutex};
-use kdam::{RichProgress, BarExt};
 
 fn error(e: Error) -> ! {
-    println!("{}: {}", "Error".colorize("bold red"), e);
+    println!("{} {}", "Error".colorize("bold red"), e);
     std::process::exit(1);
 }
 
 fn error_progress_bar(e: Error, pb: &Arc<Mutex<RichProgress>>) -> ! {
-    pb.lock().unwrap().write(format!("{}: {}", "Error".colorize("bold red"), e));
+    pb.lock()
+        .unwrap()
+        .write(format!("{} {}", "Error".colorize("bold red"), e));
     std::process::exit(1);
 }
 
@@ -22,10 +24,15 @@ fn main() {
     } else if args.collect {
         vsd::chrome::collect(&args.input, args.headless, args.build).unwrap_or_else(|e| error(e));
     } else {
-        let mut downloader = vsd::core::DownloadState::new(args).unwrap_or_else(|e| error(e));
-        downloader.playlist().unwrap_or_else(|e| error_progress_bar(e, &downloader.pb));
-        downloader.download().unwrap_or_else(|e| error(e));
-        downloader.transmux_trancode().unwrap_or_else(|e| error(e));
+        let mut downloader = vsd::DownloadState::new(args).unwrap_or_else(|e| error(e));
+        downloader.fetch_playlists().unwrap_or_else(|e| error(e));
+        downloader
+            .download()
+            .unwrap_or_else(|e| error_progress_bar(e, &downloader.pb));
+        downloader
+            .progress
+            .transmux_trancode(downloader.args.output.clone(), downloader.args.alternative)
+            .unwrap_or_else(|e| error(e));
     }
 
     // let mpd = vsd::dash::parse(include_bytes!("../11331.xml")).unwrap();
