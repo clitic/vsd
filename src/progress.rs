@@ -1,9 +1,11 @@
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct StreamData {
     pub url: String,
+    pub language: Option<String>,
     pub file: String,
     pub downloaded: usize,
     pub total: usize,
@@ -11,9 +13,10 @@ pub struct StreamData {
 }
 
 impl StreamData {
-    pub fn new(url: &str, file: &str, playlist: &str) -> Result<Self> {
+    pub fn new(url: &str, language: Option<String>, file: &str, playlist: &str) -> Result<Self> {
         Ok(Self {
             url: url.to_owned(),
+            language, 
             file: file.to_owned(),
             downloaded: 0,
             total: m3u8_rs::parse_media_playlist_res(&playlist.as_bytes())
@@ -29,6 +32,10 @@ impl StreamData {
             .map_err(|_| anyhow!("Couldn't parse {} as media playlist.", self.url))
             .unwrap()
     }
+
+    pub fn relative_filename(&self, prefix: &str, ext: &str) -> String {
+        format!("{}{}{}", Path::new(&self.file).file_stem().unwrap().to_str().unwrap(), prefix, ext)
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -37,7 +44,7 @@ pub struct Progress {
     pub current: String,
     pub video: StreamData,
     pub audio: Option<StreamData>,
-    pub subtitles: Option<String>,
+    pub subtitles: Option<(String, Option<String>)>,
 }
 
 impl Progress {

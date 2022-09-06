@@ -41,7 +41,7 @@ pub fn find_hls_dash_links(text: &str) -> Vec<String> {
     unique_links
 }
 
-pub fn select(prompt: String, choices: &Vec<String>, raw: bool) -> Result<usize> {
+pub fn select(prompt: String, choices: &[String], raw: bool) -> Result<usize> {
     if raw {
         println!("{}", prompt);
 
@@ -60,6 +60,21 @@ pub fn select(prompt: String, choices: &Vec<String>, raw: bool) -> Result<usize>
         requestty::Question::select("theme")
             .message(prompt)
             .choices(choices)
+            .transform(|choice, _, backend| {
+                let text = choice
+                    .text
+                    .trim()
+                    .trim_start_matches(&format!("{})", choice.index + 1)).trim();
+                let resolution = text.split('.').next().unwrap().split(' ').next().unwrap();
+                let bandwidth = text
+                    .trim_start_matches(resolution)
+                    .trim()
+                    .split('s')
+                    .next()
+                    .unwrap();
+
+                write!(backend, "{}", format!("{} ({}s)", resolution, bandwidth).colorize("cyan"))
+            })
             .build(),
     )?
     .as_list_item()

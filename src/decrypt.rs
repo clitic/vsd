@@ -11,7 +11,7 @@ pub enum EncryptionMethod {
 }
 
 impl EncryptionMethod {
-    pub fn is_cenc(&self) -> bool {
+    pub fn _is_cenc(&self) -> bool {
         if let Self::CENC = self {
             true
         } else {

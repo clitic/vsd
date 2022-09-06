@@ -1,5 +1,5 @@
-use crate::Quality;
 use crate::utils::{format_bytes, select};
+use crate::Quality;
 use anyhow::{bail, Result};
 use std::fmt::Write;
 
@@ -82,7 +82,6 @@ pub fn master(
         return Ok(variants[0].uri.clone());
     }
 
-
     let uri = match quality {
         Quality::yt_144p => select_quality("144p", variants)?,
         Quality::yt_240p => select_quality("240p", variants)?,
@@ -125,36 +124,39 @@ pub fn master(
 pub fn alternative(master: &m3u8_rs::MasterPlaylist, raw_prompts: bool) -> Result<String> {
     let mut streams = vec![];
 
-    for (i, alternative) in master.alternatives.iter().enumerate() {
-        if alternative.uri.is_some() {
-            let mut stream = format!(
-                "{:#2}) {}: autoselect ({})",
-                i + 1,
-                alternative.media_type,
-                alternative.autoselect
-            );
+    for (i, alternative) in master
+        .alternatives
+        .iter()
+        .filter(|x| x.uri.is_some())
+        .enumerate()
+    {
+        let mut stream = format!(
+            "{:#2}) {}: autoselect ({})",
+            i + 1,
+            alternative.media_type,
+            alternative.autoselect
+        );
 
-            if let Some(language) = &alternative.language {
-                let _ = write!(stream, ", language ({})", language);
-            }
-
-            if let Some(channels) = &alternative.channels {
-                let _ = write!(stream, ", channels ({})", channels);
-            }
-
-            streams.push(stream);
+        if let Some(language) = &alternative.language {
+            let _ = write!(stream, ", language ({})", language);
         }
+
+        if let Some(channels) = &alternative.channels {
+            let _ = write!(stream, ", channels ({})", channels);
+        }
+
+        streams.push(stream);
     }
 
     if streams.len() == 0 {
-        let index = select(
-            "Select one alternative stream:".to_string(),
-            &streams,
-            raw_prompts,
-        )?;
-    
-        Ok(master.alternatives[index].uri.clone().unwrap())
-    } else {
         bail!("No alternative streams found in master playlist.")
     }
+    
+    let index = select(
+        "Select one alternative stream:".to_string(),
+        &streams,
+        raw_prompts,
+    )?;
+
+    Ok(master.alternatives[index].uri.clone().unwrap())
 }
