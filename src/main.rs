@@ -12,7 +12,7 @@ fn error(e: Error) -> ! {
 fn error_progress_bar(e: Error, pb: &Arc<Mutex<RichProgress>>) -> ! {
     pb.lock()
         .unwrap()
-        .write(format!("{} {}", "Error".colorize("bold red"), e));
+        .write(format!("      {} {}", "Error".colorize("bold red"), e));
     std::process::exit(1);
 }
 

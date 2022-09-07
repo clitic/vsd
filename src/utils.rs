@@ -117,12 +117,6 @@ pub fn check_ffmpeg(text: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn replace_ext(pth: &str, ext: &str) -> String {
-    let mut tpth = std::path::PathBuf::from(pth);
-    tpth.set_extension(ext);
-    tpth.to_str().unwrap().to_owned()
-}
-
 pub fn get_columns() -> u16 {
     kdam::term::get_columns_or(10)
 }

@@ -83,7 +83,7 @@ impl Progress {
     }
 
     pub fn set_json_file(&mut self) {
-        self.file = self.video.filename("json", Some("json"));
+        self.file = self.video.filename("resume", Some("json"));
     }
 
     pub fn update(&mut self, stream: &str, pos: usize, writer: &mut File) -> Result<()> {

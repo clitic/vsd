@@ -11,6 +11,6 @@ pub mod utils;
 
 pub use args::{Args, InputType, Quality};
 pub use decrypt::Decrypter;
-pub use merger::{BinaryMerger, Estimater};
+pub use merger::BinaryMerger;
 pub use progress::{Progress, StreamData};
 pub use download::DownloadState;

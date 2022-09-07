@@ -494,13 +494,13 @@ impl DownloadState {
     ) -> Result<usize> {
         let merger = if self.args.resume {
             Arc::new(Mutex::new(BinaryMerger::try_from_json(
-                self.progress.video.total,
+                segments.len(),
                 tempfile,
                 self.progress.file.clone(),
             )?))
         } else {
             Arc::new(Mutex::new(BinaryMerger::new(
-                self.progress.video.total,
+                segments.len(),
                 tempfile,
                 self.progress.clone(),
             )?))

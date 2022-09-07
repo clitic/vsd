@@ -1,7 +1,6 @@
 use anyhow::{bail, Result};
 use std::collections::HashMap;
 use std::io::Write;
-
 use crate::Progress;
 
 pub struct BinaryMerger {
@@ -133,23 +132,5 @@ impl BinaryMerger {
     pub fn update(&mut self) -> Result<()> {
         self.progress.update("video", self.pos, &mut self.json_file)?;
         Ok(())
-    }
-}
-
-pub struct Estimater {
-    stored_bytes: usize,
-}
-
-impl Estimater {
-    pub fn stored(&self) -> usize {
-        self.stored_bytes
-    }
-
-    pub fn estimate(&self, indexed: usize, size: usize) -> usize {
-        if indexed == 0 {
-            0
-        } else {
-            (self.stored_bytes / indexed) * (size + 1)
-        }
     }
 }
