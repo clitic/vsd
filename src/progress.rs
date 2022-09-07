@@ -2,8 +2,8 @@ use anyhow::{anyhow, bail, Result};
 use kdam::term::Colorizer;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::Write;
-use std::path::Path;
+use std::io::{Seek, SeekFrom};
+use std::path::{Path, PathBuf};
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct StreamData {
@@ -36,67 +36,79 @@ impl StreamData {
             .unwrap()
     }
 
-    pub fn relative_filename(&self, prefix: &str, ext: &str) -> String {
+    pub fn filename(&self, suffix: &str, ext: Option<&str>) -> String {
         format!(
-            "{}{}{}",
+            "({}) {}{}",
+            suffix,
             Path::new(&self.file).file_stem().unwrap().to_str().unwrap(),
-            prefix,
-            ext
+            if let Some(ext) = ext {
+                if ext.starts_with(".") {
+                    ext.to_owned()
+                } else {
+                    ".".to_owned() + ext
+                }
+            } else {
+                "".to_owned()
+            }
         )
+    }
+
+    pub fn set_suffix(&mut self, suffix: &str) {
+        self.file = format!("({}) {}", suffix, self.file);
+    }
+
+    pub fn set_extension(&mut self, ext: &str) {
+        let mut path = PathBuf::from(&self.file);
+        path.set_extension(ext);
+        self.file = path.to_str().unwrap().to_owned();
     }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Progress {
-    pub json_file: String,
-    pub current: String,
+    pub file: String,
     pub video: StreamData,
     pub audio: Option<StreamData>,
-    pub subtitles: Option<(String, Option<String>)>,
+    pub subtitles: Option<StreamData>,
 }
 
 impl Progress {
     pub fn new_empty() -> Self {
         Self {
-            json_file: "".to_owned(),
-            current: "video".to_owned(),
+            file: "".to_owned(),
             video: StreamData::default(),
             audio: None,
             subtitles: None,
         }
     }
 
-    pub fn json_file(&mut self, file: &str) {
-        self.json_file = file.to_owned();
+    pub fn set_json_file(&mut self) {
+        self.file = self.video.filename("json", Some("json"));
     }
 
-    pub fn current(&mut self, current: &str) {
-        self.current = current.to_owned();
-    }
-
-    pub fn update(&mut self, pos: usize, total: usize, json_file: &std::fs::File) {
-        match self.current.as_str() {
+    pub fn update(&mut self, stream: &str, pos: usize, writer: &mut File) -> Result<()> {
+        match stream {
             "video" => {
                 self.video.downloaded = pos;
-                self.video.total = total;
             }
 
             "audio" => {
                 if let Some(audio) = &mut self.audio {
                     audio.downloaded = pos;
-                    audio.total = total;
                 }
             }
+
             _ => (),
         }
 
-        serde_json::to_writer_pretty(json_file, self).unwrap();
+        writer.seek(SeekFrom::Start(0))?;
+        serde_json::to_writer(writer, self)?;
+        Ok(())
     }
 
-    pub fn downloaded(&self) -> usize {
-        return match self.current.as_str() {
+    pub fn downloaded(&self, stream: &str) -> usize {
+        return match stream {
             "video" => self.video.downloaded,
-
             "audio" => {
                 if let Some(audio) = &self.audio {
                     audio.downloaded
@@ -131,11 +143,9 @@ impl Progress {
                     args.push(audio.file.clone());
                 }
 
-                if let Some((subtitles, _)) = &self.subtitles {
-                    let path = self.video.relative_filename("_subtitles", "");
-                    File::create(&path)?.write_all(subtitles.as_bytes())?;
+                if let Some(subtitles) = &self.subtitles {
                     args.push("-i".to_owned());
-                    args.push(path);
+                    args.push(subtitles.file.clone());
                 }
 
                 args.push("-c:v".to_owned());
@@ -156,8 +166,8 @@ impl Progress {
                     }
                 }
 
-                args.push("-metadata".to_owned());
-                args.push(format!("title=\"{}\"", self.video.url));
+                // args.push("-metadata".to_owned());
+                // args.push(format!("title=\"{}\"", self.video.url));
 
                 if let Some(StreamData {
                     language: Some(language),
@@ -168,7 +178,11 @@ impl Progress {
                     args.push(format!("language={}", language));
                 }
 
-                if let Some((_, Some(language))) = &self.subtitles {
+                if let Some(StreamData {
+                    language: Some(language),
+                    ..
+                }) = &self.subtitles
+                {
                     args.push("-metadata:s:s:0".to_owned());
                     args.push(format!("language={}", language));
                     args.push("-disposition:s:0".to_owned());
@@ -202,16 +216,15 @@ impl Progress {
                 std::fs::remove_file(&audio.file)?;
             }
 
-            if self.subtitles.is_some() {
-                let path = self.video.relative_filename("_subtitles", "");
-                std::fs::remove_file(&path)?;
+            if let Some(subtitles) = &self.subtitles {
+                std::fs::remove_file(&subtitles.file)?;
             }
 
             std::fs::remove_file(&self.video.file)?;
         }
 
-        if std::path::Path::new(&self.json_file).exists() {
-            std::fs::remove_file(&self.json_file)?;
+        if std::path::Path::new(&self.file).exists() {
+            std::fs::remove_file(&self.file)?;
         }
         Ok(())
     }

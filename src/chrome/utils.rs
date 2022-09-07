@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use kdam::term::Colorizer;
+use std::path::{Path, PathBuf};
 
 pub fn launch_message(headless: bool) {
     println!(
@@ -26,35 +27,36 @@ pub fn filepath(url: &str, ext: &str) -> String {
         .find(|x| x.ends_with(&format!(".{}", ext)))
     {
         if output.ends_with(&format!(".ts.{}", ext)) {
-            crate::utils::replace_ext(output.trim_end_matches(&format!(".{}", ext)), ext)
+            let mut path = PathBuf::from(output.trim_end_matches(&format!(".{}", ext)));
+            path.set_extension(ext);
+            path.to_str().unwrap().to_owned()
         } else {
-            crate::utils::replace_ext(output, ext)
+            let mut path = PathBuf::from(output);
+            path.set_extension(ext);
+            path.to_str().unwrap().to_owned()
         }
     } else {
         match ext {
             "m3u8" => "playlist.m3u8".to_owned(),
-            "mpd" => "manifest.mpd".to_owned(),
+            "mpd" => "playlist.mpd".to_owned(),
             "vtt" => "subtitles.vtt".to_owned(),
             "srt" => "subtitles.srt".to_owned(),
             _ => format!("unknown.{}", ext),
         }
     };
 
-    if std::path::Path::new(&path).exists() {
-        let stemed_path = std::path::Path::new(&path)
-            .file_stem()
-            .unwrap()
-            .to_str()
-            .unwrap();
+    if Path::new(&path).exists() {
+        let stemed_path = Path::new(&path).file_stem().unwrap().to_str().unwrap();
 
-        for i in 1..9999 {
+        for i in 1.. {
             let core_file_copy = format!("{} ({}).{}", stemed_path, i, ext);
 
-            if !std::path::Path::new(&core_file_copy).exists() {
+            if !Path::new(&core_file_copy).exists() {
                 return core_file_copy;
             }
         }
     }
+
     path
 }
 

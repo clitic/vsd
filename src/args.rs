@@ -1,4 +1,3 @@
-use crate::utils;
 use anyhow::{bail, Result};
 use clap::{ArgEnum, ArgGroup, Parser};
 use kdam::term::Colorizer;
@@ -6,7 +5,7 @@ use reqwest::blocking::Client;
 use reqwest::cookie::Jar;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Proxy, Url};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 #[allow(non_camel_case_types)]
@@ -230,42 +229,64 @@ impl Args {
     }
 
     pub fn tempfile(&self) -> String {
-        let path = if let Some(output) = self
+        let output = self
             .input
             .split('?')
             .next()
             .unwrap()
             .split('/')
-            .find(|x| x.ends_with(".m3u8"))
-        {
+            .last()
+            .unwrap();
+
+        let output = if output.ends_with(".m3u") || output.ends_with(".m3u8") {
             if output.ends_with(".ts.m3u8") {
                 output.trim_end_matches(".m3u8").to_owned()
             } else {
-                utils::replace_ext(output, "ts")
+                let mut path = PathBuf::from(&output);
+                path.set_extension("ts");
+                path.to_str().unwrap().to_owned()
             }
+        } else if output.ends_with(".mpd") || output.ends_with(".xml") {
+            let mut path = PathBuf::from(&output);
+            path.set_extension("m4s");
+            path.to_str().unwrap().to_owned()
         } else {
-            "merged.ts".to_owned()
+            let mut path = PathBuf::from(
+                output
+                    .replace('<', "-")
+                    .replace('>', "-")
+                    .replace(':', "-")
+                    .replace('\"', "-")
+                    .replace('/', "-")
+                    .replace('\\', "-")
+                    .replace('|', "-")
+                    .replace('?', "-"),
+            );
+            path.set_extension("mp4");
+            path.to_str().unwrap().to_owned()
         };
 
-        if Path::new(&path).exists() && !self.resume {
-            let stemed_path = Path::new(&path).file_stem().unwrap().to_str().unwrap();
+        if Path::new(&output).exists() && !self.resume {
+            let stemed_path = Path::new(&output).file_stem().unwrap().to_str().unwrap();
+            let ext = Path::new(&output).extension().unwrap().to_str().unwrap();
 
-            for i in 1..9999 {
-                let core_file_copy = format!("{} ({}).ts", stemed_path, i);
+            for i in 1.. {
+                let core_file_copy = format!("{} ({}).{}", stemed_path, i, ext);
 
                 if !Path::new(&core_file_copy).exists() {
                     return core_file_copy;
                 }
             }
         }
-        path
+
+        output
     }
 
     pub fn input_type(&self) -> InputType {
         let url = self.input.split('?').next().unwrap();
 
         if url.starts_with("http") {
-            if url.ends_with(".m3u8") || url.ends_with(".m3u") || url.ends_with("ts.m3u8") {
+            if url.ends_with(".m3u") || url.ends_with(".m3u8") || url.ends_with("ts.m3u8") {
                 InputType::HlsUrl
             } else if url.ends_with(".mpd") || url.ends_with(".xml") {
                 InputType::DashUrl
@@ -273,7 +294,7 @@ impl Args {
                 InputType::Website
             }
         } else {
-            if url.ends_with(".m3u8") || url.ends_with(".m3u") || url.ends_with("ts.m3u8") {
+            if url.ends_with(".m3u") || url.ends_with(".m3u8") || url.ends_with("ts.m3u8") {
                 InputType::HlsLocalFile
             } else if url.ends_with(".mpd") || url.ends_with(".xml") {
                 InputType::DashLocalFile

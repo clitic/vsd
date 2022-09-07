@@ -156,9 +156,8 @@ pub fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
         .url()
         .map(|x| {
             format!(
-                "{}://{} -> {}",
-                x.scheme(),
-                x.domain().unwrap(),
+                "while requesting {} from {}://{}",
+
                 x.to_string()
                     .split("?")
                     .next()
@@ -166,7 +165,9 @@ pub fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
                     .split("/")
                     .last()
                     .unwrap()
-                    .colorize("cyan")
+                    .colorize("cyan"),
+                    x.scheme(),
+                    x.domain().unwrap(),
             )
         })
         .unwrap_or("".to_owned());
@@ -207,7 +208,7 @@ pub fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
                 url
             )),
             _ => bail!(
-                "{} failed with HTTP {} -> {}",
+                "   {} failed with HTTP {} -> {}",
                 "Download".colorize("bold red"),
                 status,
                 error.url().map(|x| x.as_str()).unwrap().colorize("cyan")
@@ -215,7 +216,7 @@ pub fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
         }
     } else {
         bail!(
-            "{} failed -> {}",
+            "   {} failed -> {}",
             "Download".colorize("bold red"),
             error.url().map(|x| x.as_str()).unwrap().colorize("cyan")
         )

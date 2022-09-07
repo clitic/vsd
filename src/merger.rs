@@ -1,7 +1,6 @@
-use std::collections::HashMap;
-use std::io::{Seek, SeekFrom, Write};
-
 use anyhow::{bail, Result};
+use std::collections::HashMap;
+use std::io::Write;
 
 use crate::Progress;
 
@@ -19,7 +18,7 @@ pub struct BinaryMerger {
 
 impl BinaryMerger {
     pub fn new(size: usize, filename: &str, progress: Progress) -> Result<Self> {
-        let json_file = progress.json_file.clone();
+        let json_file = progress.file.clone();
 
         Ok(Self {
             size: size - 1,
@@ -40,7 +39,7 @@ impl BinaryMerger {
         }
 
         let progress: Progress = serde_json::from_reader(std::fs::File::open(&json_file)?)?;
-        let mut pos = progress.downloaded();
+        let mut pos = progress.downloaded("video");
 
         let file = if std::path::Path::new(filename).exists() {
             std::fs::OpenOptions::new().append(true).open(filename)?
@@ -132,9 +131,7 @@ impl BinaryMerger {
     }
 
     pub fn update(&mut self) -> Result<()> {
-        self.json_file.seek(SeekFrom::Start(0))?;
-        self.progress
-            .update(self.pos, self.size + 1, &self.json_file);
+        self.progress.update("video", self.pos, &mut self.json_file)?;
         Ok(())
     }
 }
