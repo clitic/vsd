@@ -1,18 +1,16 @@
 use anyhow::Error;
 use clap::Parser;
 use kdam::term::Colorizer;
-use kdam::{BarExt, RichProgress};
+use kdam::RichProgress;
 use std::sync::{Arc, Mutex};
 
 fn error(e: Error) -> ! {
-    println!("{} {}", "Error".colorize("bold red"), e);
+    println!("{}: {}", "error".colorize("bold red"), e);
     std::process::exit(1);
 }
 
-fn error_progress_bar(e: Error, pb: &Arc<Mutex<RichProgress>>) -> ! {
-    pb.lock()
-        .unwrap()
-        .write(format!("      {} {}", "Error".colorize("bold red"), e));
+fn error_progress_bar(e: Error, _pb: &Arc<Mutex<RichProgress>>) -> ! {
+    println!("\n{}: {}", "error".colorize("bold red"), e);
     std::process::exit(1);
 }
 

@@ -1,3 +1,5 @@
+// REFERENCES: https://github.com/nilaoda/N_m3u8DL-RE/blob/main/src/N_m3u8DL-RE.Parser/Extractor/DASHExtractor2.cs
+
 use super::utils;
 use super::{AdaptationSet, MPDMediaSegmentTag, Representation, MPD};
 
@@ -106,9 +108,13 @@ pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
 }
 
 pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::MediaPlaylist> {
-    for (period_index, period) in mpd.period.iter().enumerate() {
-        let mut baseurl = mpd_url.clone().to_owned();
+    let mut baseurl = mpd_url.clone().to_owned();
 
+    if let Some(mpd_baseurl) = &mpd.baseurl {
+        baseurl = utils::join_url(&baseurl, &mpd_baseurl).unwrap();
+    }
+
+    for (period_index, period) in mpd.period.iter().enumerate() {
         if let Some(period_baseurl) = &period.baseurl {
             baseurl = utils::join_url(&baseurl, &period_baseurl).unwrap();
         }
@@ -339,7 +345,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                                 0.0
                             };
 
-                            let total = (duration * timescale
+                            let mut total = (duration * timescale
                                 / segment_template
                                     .duration
                                     .clone()
@@ -349,36 +355,41 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                             .ceil() as usize;
 
                             if total == 0 && mpd.live() {
-                                // let now = if let Some(publish_time) = &mpd.publish_time {
-                                //     iso8601::datetime(&publish_time).unwrap()
-                                // } else {
-                                //     // iso8601::DateTime::from()
-                                // };
+                                let now = if let Some(publish_time) = &mpd.publish_time {
+                                    chrono::DateTime::parse_from_rfc3339(publish_time).unwrap()
+                                } else {
+                                    chrono::Local::now().into()
+                                };
 
-                                // mpd.availability_start_time.clone().unwrap();
-
-                                // var now = publishTime == null ? DateTime.Now : DateTime.Parse(publishTime);
-                                // var availableTime = DateTime.Parse(availabilityStartTime!);
-                                // var ts = now - availableTime;
-                                // var updateTs = XmlConvert.ToTimeSpan(timeShiftBufferDepth!);
-                                // startNumber += (long)((ts.TotalSeconds - updateTs.TotalSeconds) * timescale / duration);
-                                // totalNumber = (long)(updateTs.TotalSeconds * timescale / duration);
-                                todo!("TODO SUPPORT LIVE STREAMS")
+                                let available_time = chrono::DateTime::parse_from_rfc3339(
+                                    mpd.availability_start_time.as_ref().unwrap(),
+                                )
+                                .unwrap();
+                                let ts = now - available_time;
+                                let update_ts = utils::iso8601_duration_to_seconds(
+                                    mpd.time_shift_buffer_depth.as_ref().unwrap(),
+                                )
+                                .unwrap();
+                                start_number += ((ts.num_seconds() as f32 - update_ts) * timescale
+                                    / segment_template
+                                        .duration
+                                        .clone()
+                                        .unwrap()
+                                        .parse::<f32>()
+                                        .unwrap())
+                                    as usize;
+                                total = (update_ts * timescale
+                                    / segment_template
+                                        .duration
+                                        .clone()
+                                        .unwrap()
+                                        .parse::<f32>()
+                                        .unwrap()) as usize;
                             }
 
-                            for _ in start_number..(start_number + total) {
-                                // {
-                                //     varDic[DASHTags.TemplateNumber] = index;
-                                //     var mediaUrl = ParserUtil.ReplaceVars(ParserUtil.CombineURL(segBaseUrl, media!), varDic);
-                                //     MediaSegment mediaSegment = new();
-                                //     mediaSegment.Url = mediaUrl;
-                                //     mediaSegment.Index = isLive ? index : segIndex; //直播直接用startNumber
-                                //     mediaSegment.Duration = duration / (double)timescale;
-                                //     streamSpec.Playlist.MediaParts[0].MediaSegments.Add(mediaSegment);
-                                // }
-
+                            for i in start_number..(start_number + total) {
                                 let mut template_vars = representation.template_vars();
-                                template_vars.insert("Number", start_number.to_string());
+                                template_vars.insert("Number", i.to_string());
 
                                 segments.push(m3u8_rs::MediaSegment {
                                     uri: utils::resolve_url_template(
@@ -402,8 +413,6 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                                         .into(),
                                     ..Default::default()
                                 });
-
-                                start_number += 1;
                             }
                         }
                     }
