@@ -247,7 +247,7 @@ impl DownloadState {
 
     fn dash_vod(&mut self, content: &[u8]) -> Result<()> {
         let mpd = dash::parse(content)?;
-        let master = dash::to_m3u8_as_master(&mpd);
+        let master = dash::to_m3u8_as_master(&mpd, None, None);
 
         let uri = if self.args.alternative {
             hls::alternative(&master, self.args.raw_prompts)?
@@ -440,7 +440,7 @@ impl DownloadState {
         drop(gaurded_pb);
 
         let pool = threadpool::ThreadPool::new(self.args.threads as usize);
-        
+
         stored_bytes = self.download_segments_in_threads(
             self.progress.video.to_playlist().segments,
             &self.progress.video.file,

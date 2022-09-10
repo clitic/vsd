@@ -44,7 +44,7 @@ fn resolution(res: Option<m3u8_rs::Resolution>) -> String {
 
 pub fn master(
     master: &m3u8_rs::MasterPlaylist,
-    quality: &Quality,
+    quality: &str,
     raw_prompts: bool,
 ) -> Result<String> {
     let variants = {
@@ -82,19 +82,20 @@ pub fn master(
         return Ok(variants[0].uri.clone());
     }
 
-    let uri = match quality {
+    let uri = match quality.parse::<Quality>().unwrap() {
         Quality::yt_144p => select_quality("144p", variants)?,
         Quality::yt_240p => select_quality("240p", variants)?,
         Quality::yt_360p => select_quality("360p", variants)?,
         Quality::yt_480p => select_quality("480p", variants)?,
-        Quality::HD => select_quality("720p", variants)?,
-        Quality::FHD => select_quality("1080p", variants)?,
-        Quality::FHD_2K => select_quality("2K", variants)?,
-        Quality::QHD => select_quality("1440p", variants)?,
-        Quality::UHD_4K => select_quality("4K", variants)?,
-        Quality::FUHD_8K => select_quality("8K", variants)?,
+        Quality::yt_720p => select_quality("720p", variants)?,
+        Quality::yt_1080p => select_quality("1080p", variants)?,
+        Quality::yt_2k => select_quality("2K", variants)?,
+        Quality::yt_1440p => select_quality("1440p", variants)?,
+        Quality::yt_4k => select_quality("4K", variants)?,
+        Quality::yt_8k => select_quality("8K", variants)?,
+        Quality::Resolution(w, h) => select_quality(&format!("{}x{}", w, h), variants)?,
         Quality::Highest => variants[0].uri.clone(),
-        Quality::Select => {
+        Quality::SelectLater => {
             let mut streams = vec![];
             for (i, variant) in variants.iter().enumerate() {
                 let band_fmt = format_bytes(variant.bandwidth as usize, 2);

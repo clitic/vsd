@@ -3,7 +3,11 @@
 use super::utils;
 use super::{AdaptationSet, MPDMediaSegmentTag, Representation, MPD};
 
-pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
+pub fn to_m3u8_as_master(
+    mpd: &MPD,
+    audio_language: Option<String>,
+    subtitles_language: Option<String>,
+) -> m3u8_rs::MasterPlaylist {
     let mut master = m3u8_rs::MasterPlaylist::default();
 
     for (period_index, period) in mpd.period.iter().enumerate() {
@@ -11,14 +15,15 @@ pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
             for (representation_index, representation) in
                 adaptation_set.representation.iter().enumerate()
             {
+                let uri = format!(
+                    "dash://period.{}.adaptation-set.{}.representation.{}",
+                    period_index, adaptation_set_index, representation_index
+                );
                 let media_type = representation.media_type(&adaptation_set);
 
                 if media_type == m3u8_rs::AlternativeMediaType::Video {
                     master.variants.push(m3u8_rs::VariantStream {
-                        uri: format!(
-                            "dash://period.{}.adaptation-set.{}.representation.{}",
-                            period_index, adaptation_set_index, representation_index
-                        ),
+                        uri,
                         bandwidth: representation.bandwidth.clone().unwrap(),
                         codecs: representation.codecs(&adaptation_set),
                         resolution: if let (Some(width), Some(height)) =
@@ -34,10 +39,7 @@ pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
                 } else {
                     master.alternatives.push(m3u8_rs::AlternativeMedia {
                         media_type,
-                        uri: Some(format!(
-                            "dash://period.{}.adaptation-set.{}.representation.{}",
-                            period_index, adaptation_set_index, representation_index
-                        )),
+                        uri: Some(uri),
                         language: representation.lang(&adaptation_set),
                         assoc_language: representation.lang(&adaptation_set),
                         channels: representation.channels(&adaptation_set),
@@ -57,38 +59,65 @@ pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
     let mut alternative_subtitles = vec![];
 
     for (i, alternative) in master.alternatives.iter().enumerate() {
-        let bandwidth = alternative
-            .characteristics
-            .clone()
-            .unwrap_or("BANDWIDTH=0".to_owned())
-            .split('=')
-            .nth(1)
-            .unwrap()
-            .parse::<usize>()
-            .unwrap();
+        if !matches!(
+            alternative.media_type,
+            m3u8_rs::AlternativeMediaType::Audio | m3u8_rs::AlternativeMediaType::Subtitles
+        ) {
+            continue;
+        }
+
+        let mut quality_factor = 0;
+        let mut language_factor = 0;
+
+        if let Some(bandwidth) = &alternative.characteristics {
+            quality_factor += bandwidth
+                .split('=')
+                .nth(1)
+                .unwrap()
+                .parse::<usize>()
+                .unwrap();
+        }
+
+        if let Some(channels) = &alternative.channels {
+            quality_factor += channels.parse::<usize>().unwrap();
+        }
+
+        if let Some(language) = alternative.language.as_ref().map(|x| x.to_lowercase()) {
+            match &alternative.media_type {
+                m3u8_rs::AlternativeMediaType::Audio => {
+                    if let Some(audio_language) = audio_language.as_ref().map(|x| x.to_lowercase()) {
+                        if language == audio_language {
+                            language_factor = 2;
+                        } else if language.get(0..2) == audio_language.get(0..2) {
+                            language_factor = 1;
+                        }
+                    }
+                }
+                m3u8_rs::AlternativeMediaType::Subtitles
+                | m3u8_rs::AlternativeMediaType::ClosedCaptions => {
+                    if let Some(subtitles_language) = subtitles_language.as_ref().map(|x| x.to_lowercase())
+                    {
+                        if language == subtitles_language {
+                            language_factor = 2;
+                        } else if language.get(0..2) == subtitles_language.get(0..2) {
+                            language_factor = 1;
+                        }
+                    }
+                }
+                _ => (),
+            }
+        }
 
         if alternative.media_type == m3u8_rs::AlternativeMediaType::Audio {
-            if alternative.uri.is_some() {
-                alternative_audio.push((i, bandwidth));
-            }
+            alternative_audio.push((i, quality_factor, language_factor));
+        } else if alternative.media_type == m3u8_rs::AlternativeMediaType::Subtitles {
+            alternative_subtitles.push((i, quality_factor, language_factor));
         }
-
-        if alternative.media_type == m3u8_rs::AlternativeMediaType::Subtitles {
-            if alternative.uri.is_some() {
-                alternative_subtitles.push((i, bandwidth));
-            }
-        }
-    }
-
-    if alternative_audio.len() > 1 {
-        alternative_audio.sort_by(|x, y| y.1.cmp(&x.1));
-    }
-
-    if alternative_subtitles.len() > 1 {
-        alternative_subtitles.sort_by(|x, y| y.1.cmp(&x.1));
     }
 
     if alternative_audio.len() != 0 {
+        alternative_audio.sort_by(|x, y| y.1.cmp(&x.1));
+        alternative_audio.sort_by(|x, y| y.2.cmp(&x.2));
         master
             .alternatives
             .get_mut(alternative_audio[0].0)
@@ -97,6 +126,7 @@ pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
     }
 
     if alternative_subtitles.len() != 0 {
+        alternative_subtitles.sort_by(|x, y| y.2.cmp(&x.2));
         master
             .alternatives
             .get_mut(alternative_subtitles[0].0)
