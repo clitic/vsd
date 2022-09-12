@@ -1,7 +1,7 @@
+use super::mp4parser;
+use super::{MP4Parser, Reader};
 use std::io::Cursor;
 use std::sync::{Arc, Mutex};
-use super::{MP4Parser, Reader};
-use super::mp4parser;
 
 pub struct MP4VTT {
     segments: Vec<Vec<u8>>,
@@ -9,8 +9,15 @@ pub struct MP4VTT {
 }
 
 impl MP4VTT {
-    pub fn new(segments: &[Vec<u8>], timescale: u32) -> Self {
-        MP4VTT { segments: segments.to_vec(), timescale }
+    pub fn new(segments: &[Vec<u8>], timescale: u32) -> Result<Self, String> {
+        if timescale == 0 {
+            return Err("Timescale should not be zero!".to_owned());
+        }
+
+        Ok(MP4VTT {
+            segments: segments.to_vec(),
+            timescale,
+        })
     }
 
     pub fn from_init(init: &[u8], segments: &[Vec<u8>]) -> Result<Self, String> {
@@ -27,9 +34,12 @@ impl MP4VTT {
             .full(
                 "mdhd",
                 Arc::new(move |mut _box| {
-                    // if (!(box.Version == 0 || box.Version == 1))
-                    //     throw new Exception("MDHD version can only be 0 or 1");
+                    if !(_box.version == 0 || _box.version == 1) {
+                        return Err("MDHD version can only be 0 or 1".to_owned());
+                    }
+
                     *timescale_c.lock().unwrap() = _box.reader.parse_mdhd(_box.version);
+                    Ok(())
                 }),
             )
             .basic("minf", Arc::new(mp4parser::children))
@@ -39,15 +49,19 @@ impl MP4VTT {
                 "wvtt",
                 Arc::new(move |_box| {
                     *saw_wvtt_c.lock().unwrap() = true;
+                    Ok(())
                 }),
             )
-            .parse(init, None, None);
+            .parse(init, None, None)?;
 
         let saw_wvtt = *saw_wvtt.lock().unwrap();
         let timescale = *timescale.lock().unwrap();
 
         if saw_wvtt && timescale != 0 {
-            Ok(Self { segments: segments.to_vec(), timescale })
+            Ok(Self {
+                segments: segments.to_vec(),
+                timescale,
+            })
         } else if timescale == 0 {
             Err("Missing timescale for VTT content!".to_owned())
         } else {
@@ -55,7 +69,7 @@ impl MP4VTT {
         }
     }
 
-    pub fn to_subtitles(&self) -> Subtitles {
+    pub fn to_subtitles(&self) -> Result<Subtitles, String> {
         let mut cues: Vec<Cue> = vec![];
 
         for data_seg in &self.segments {
@@ -81,46 +95,63 @@ impl MP4VTT {
                 .full(
                     "tfdt",
                     Arc::new(move |mut _box| {
-                        // if (!(box.Version == 0 || box.Version == 1))
-                        //     throw new Exception("TFDT version can only be 0 or 1");
+                        if !(_box.version == 0 || _box.version == 1) {
+                            return Err("TFDT version can only be 0 or 1".to_owned());
+                        }
 
                         *saw_tfdt_c.lock().unwrap() = true;
                         *base_time_c.lock().unwrap() = _box.reader.parse_tfdt(_box.version);
+                        Ok(())
                     }),
                 )
                 .full(
                     "tfhd",
                     Arc::new(move |mut _box| {
-                        // if (box.Flags == 1000)
-                        //     throw new Exception("A TFHD box should have a valid flags value");
+                        if _box.flags == 1000 {
+                            return Err("A TFHD box should have a valid flags value".to_owned());
+                        }
 
                         *default_duration_c.lock().unwrap() =
                             _box.reader.parse_tfhd(_box.flags).default_sample_duration;
+
+                        Ok(())
                     }),
                 )
                 .full(
                     "trun",
                     Arc::new(move |mut _box| {
-                        // if (box.Version == 1000)
-                        //     throw new Exception("A TRUN box should have a valid version value");
-                        // if (box.Flags == 1000)
-                        //     throw new Exception("A TRUN box should have a valid flags value");
+                        if _box.version == 1000 {
+                            return Err("A TRUN box should have a valid version value".to_owned());
+                        }
+
+                        if _box.flags == 1000 {
+                            return Err("A TRUN box should have a valid flags value".to_owned());
+                        }
 
                         *saw_trun_c.lock().unwrap() = true;
                         *presentations_c.lock().unwrap() =
                             _box.reader.parse_trun(_box.version, _box.flags).sample_data;
+                        Ok(())
                     }),
                 )
                 .basic(
                     "mdat",
                     mp4parser::alldata(Arc::new(move |data| {
-                        // if (saw_mdat)
-                        //     throw new Exception("VTT cues in mp4 with multiple MDAT are not currently supported");
-                        *saw_mdat_c.lock().unwrap() = true;
+                        let mut saw_mdat_once = saw_mdat_c.lock().unwrap();
+
+                        if *saw_mdat_once {
+                            return Err(
+                                "VTT cues in mp4 with multiple MDAT are not currently supported"
+                                    .to_owned(),
+                            );
+                        }
+
+                        *saw_mdat_once = true;
                         *raw_payload_c.lock().unwrap() = Some(data);
+                        Ok(())
                     })),
                 )
-                .parse(data_seg, Some(false), None);
+                .parse(data_seg, Some(false), None)?;
 
             let saw_tfdt = *saw_tfdt.lock().unwrap();
             let saw_trun = *saw_trun.lock().unwrap();
@@ -131,7 +162,7 @@ impl MP4VTT {
             let presentations = presentations.lock().unwrap().clone();
 
             if !saw_mdat && !saw_tfdt && !saw_trun {
-                // throw new Exception("A required box is missing");
+                return Err("A required box is missing".to_owned());
             }
 
             let mut current_time = base_time.clone();
@@ -172,16 +203,11 @@ impl MP4VTT {
                     } else if payload_name == "vtte" {
                         let _ = reader.read_bytes((payload_size - 8) as usize);
                     } else {
-                        // Console.WriteLine($"Unknown box {payload_name}! Skipping!");
                         reader.read_bytes((payload_size - 8) as usize);
                     }
 
                     if duration != 0 {
                         if let Some(payload) = payload {
-                            if self.timescale == 0 {
-                                // throw new Exception("Timescale should not be zero!");
-                            }
-
                             let cue = Cue::parse_vttc(
                                 &payload,
                                 start_time as f32 / self.timescale as f32,
@@ -208,32 +234,34 @@ impl MP4VTT {
                             }
                         }
                     } else {
-                        // throw new Exception("WVTT sample duration unknown, and no default found!");
+                        return Err(
+                            "WVTT sample duration unknown, and no default found!".to_owned()
+                        );
                     }
 
                     if !(presentation.sample_size == 0
                         || total_size <= presentation.sample_size as i32)
                     {
-                        // throw new Exception("The samples do not fit evenly into the sample sizes given in the TRUN box!");
+                        return Err("The samples do not fit evenly into the sample sizes given in the TRUN box!".to_owned());
                     }
 
-                    if presentation.sample_size != 0
-                        && (total_size < presentation.sample_size as i32)
+                    if !(presentation.sample_size != 0
+                        && (total_size < presentation.sample_size as i32))
                     {
-                        continue;
-                    } else {
                         break;
                     }
                 }
 
                 if reader.has_more_data() {
-                    //throw new Exception("MDAT which contain VTT cues and non-VTT data are not currently supported!");
+                    return Err(
+                        "MDAT which contain VTT cues and non-VTT data are not currently supported!"
+                            .to_owned(),
+                    );
                 }
             }
         }
-        
 
-        Subtitles { cues }
+        Ok(Subtitles { cues })
     }
 }
 
@@ -259,21 +287,25 @@ impl Cue {
                 "payl",
                 mp4parser::alldata(Arc::new(move |data| {
                     *payload_c.lock().unwrap() = String::from_utf8(data).unwrap();
+                    Ok(())
                 })),
             )
             .basic(
                 "iden",
                 mp4parser::alldata(Arc::new(move |data| {
                     *id_c.lock().unwrap() = String::from_utf8(data).unwrap();
+                    Ok(())
                 })),
             )
             .basic(
                 "sttg",
                 mp4parser::alldata(Arc::new(move |data| {
                     *settings_c.lock().unwrap() = String::from_utf8(data).unwrap();
+                    Ok(())
                 })),
             )
-            .parse(data, None, None);
+            .parse(data, None, None)
+            .unwrap();
 
         let payload = payload.lock().unwrap().to_owned();
         // let id = id.lock().unwrap().to_owned();
@@ -308,7 +340,7 @@ impl Subtitles {
                 cue.payload
             ))
         }
-        
+
         subtitles
     }
 
@@ -324,14 +356,14 @@ impl Subtitles {
                 cue.payload
             ))
         }
-        
+
         subtitles
     }
 }
 
 fn seconds_to_timestamp(seconds: f32, millisecond_sep: &str) -> String {
     let divmod = |x: usize, y: usize| (x / y as usize, x % y);
-    
+
     let (seconds, milliseconds) = divmod((seconds * 1000.0) as usize, 1000);
     let (minutes, seconds) = divmod(seconds, 60);
     let (hours, minutes) = divmod(minutes, 60);

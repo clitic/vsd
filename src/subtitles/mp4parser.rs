@@ -6,8 +6,10 @@ use std::sync::Arc;
 const BASIC_BOX: u8 = 0;
 const FULL_BOX: u8 = 1;
 
-pub(super) type DataHandler = Arc<dyn Fn(Vec<u8>)>;
-pub(super) type BoxHandler = Arc<dyn Fn(ParsedBox)>;
+type HandlerResult = Result<(), String>;
+
+pub(super) type DataHandler = Arc<dyn Fn(Vec<u8>) -> HandlerResult>;
+pub(super) type BoxHandler = Arc<dyn Fn(ParsedBox) -> HandlerResult>;
 
 #[allow(dead_code)]
 pub(super) struct TFHD {
@@ -86,7 +88,7 @@ impl MP4Parser {
         data: &[u8],
         partial_okay: Option<bool>,
         stop_on_partial: Option<bool>,
-    ) {
+    ) -> HandlerResult {
         let mut reader = Reader {
             cursor: Cursor::new(data.to_vec()),
         };
@@ -99,8 +101,10 @@ impl MP4Parser {
                 &mut reader,
                 partial_okay.unwrap_or(false),
                 stop_on_partial,
-            );
+            )?;
         }
+
+        Ok(())
     }
 
     fn parse_next(
@@ -109,13 +113,13 @@ impl MP4Parser {
         reader: &mut Reader,
         partial_okay: bool,
         stop_on_partial: Option<bool>,
-    ) {
+    ) -> HandlerResult {
         let stop_on_partial = stop_on_partial.unwrap_or(false);
         let start = reader.get_position();
 
         if stop_on_partial && start + 8 > reader.get_length() {
             self.done = true;
-            return ();
+            return Ok(());
         }
 
         let mut size = reader.read_u32() as i64;
@@ -132,7 +136,7 @@ impl MP4Parser {
             1 => {
                 if stop_on_partial && reader.get_position() + 8 > reader.get_length() {
                     self.done = true;
-                    return ();
+                    return Ok(());
                 }
                 size = reader.read_u64() as i64;
                 has_64_bit_size = true;
@@ -149,7 +153,7 @@ impl MP4Parser {
             if *self.headers.get(&(_type as i64)).unwrap() == FULL_BOX as i32 {
                 if stop_on_partial && reader.get_position() + 4 > reader.get_length() {
                     self.done = true;
-                    return ();
+                    return Ok(());
                 }
 
                 let version_and_flags = reader.read_u32();
@@ -165,7 +169,7 @@ impl MP4Parser {
 
             if stop_on_partial && end > reader.get_length() {
                 self.done = true;
-                return ();
+                return Ok(());
             }
 
             let payload_size = end - reader.get_position();
@@ -187,15 +191,19 @@ impl MP4Parser {
                 has_64_bit_size,
             };
 
-            box_definition(_box);
+            box_definition(_box)?;
         } else {
             reader.read_bytes(
                 (start + size as usize - reader.get_position())
                     .min(reader.get_length() - reader.get_position()),
             );
         }
+
+        Ok(())
     }
 }
+
+// CALLBACKS
 
 pub(super) fn alldata(handler: DataHandler) -> BoxHandler {
     Arc::new(move |mut _box: ParsedBox| {
@@ -204,18 +212,20 @@ pub(super) fn alldata(handler: DataHandler) -> BoxHandler {
     })
 }
 
-pub(super) fn children(mut _box: ParsedBox) {
+pub(super) fn children(mut _box: ParsedBox) -> HandlerResult {
     while _box.reader.has_more_data() && !_box.parser.done {
         _box.parser.parse_next(
             _box.start + _box.header_size() as i64,
             &mut _box.reader,
             _box.partial_okay,
             None,
-        );
+        )?;
     }
+
+    Ok(())
 }
 
-pub(super) fn sample_description(mut _box: ParsedBox) {
+pub(super) fn sample_description(mut _box: ParsedBox) -> HandlerResult {
     let header_size = _box.header_size();
 
     for _ in 0..(_box.reader.read_u32()) {
@@ -224,13 +234,17 @@ pub(super) fn sample_description(mut _box: ParsedBox) {
             &mut _box.reader,
             _box.partial_okay,
             None,
-        );
+        )?;
 
         if _box.parser.done {
             break;
         }
     }
+
+    Ok(())
 }
+
+// UTILS
 
 pub(super) fn type_to_string(_type: u32) -> String {
     String::from_utf8(vec![
@@ -244,7 +258,7 @@ pub(super) fn type_to_string(_type: u32) -> String {
 
 pub(super) fn type_from_string(name: &str) -> i32 {
     if name.len() != 4 {
-        // throw new Exception("Mp4 box names must be 4 characters long");
+        panic!("MP4 box names must be 4 characters long");
     }
 
     let mut code = 0;
