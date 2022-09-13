@@ -253,10 +253,10 @@ impl MP4VTT {
                 }
 
                 if reader.has_more_data() {
-                    return Err(
-                        "MDAT which contain VTT cues and non-VTT data are not currently supported!"
-                            .to_owned(),
-                    );
+                    // return Err(
+                    //     "MDAT which contain VTT cues and non-VTT data are not currently supported!"
+                    //         .to_owned(),
+                    // );
                 }
             }
         }

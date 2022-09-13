@@ -23,7 +23,7 @@ headless_chrome = "0.9"
 iso8601 = "0.5"
 kdam = "0.2"
 m3u8-rs = "5"
-mp4decrypt = "0.1.1"
+mp4decrypt = "0.2.0"
 openssl = "0.10"
 quick-xml = { version = "0.24", features = ["serialize"] }
 regex = "1"

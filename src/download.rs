@@ -1,5 +1,5 @@
 use crate::{dash, hls, utils};
-use crate::{Args, BinaryMerger, Decrypter, InputType, Progress, StreamData};
+use crate::{Args, BinaryMerger, Decrypter, InputType, Progress, StreamData, MP4VTT};
 use anyhow::{anyhow, bail, Result};
 use kdam::prelude::*;
 use kdam::{Column, RichProgress};
@@ -247,7 +247,7 @@ impl DownloadState {
 
     fn dash_vod(&mut self, content: &[u8]) -> Result<()> {
         let mpd = dash::parse(content)?;
-        let master = dash::to_m3u8_as_master(&mpd, None, None);
+        let master = dash::to_m3u8_as_master(&mpd, None, Some("fr".to_owned()));
 
         let uri = if self.args.alternative {
             hls::alternative(&master, self.args.raw_prompts)?
@@ -348,17 +348,33 @@ impl DownloadState {
         let mut gaurded_pb = self.pb.lock().unwrap();
 
         if let Some(subtitles) = &mut self.progress.subtitles {
-            let segments = subtitles.to_playlist().segments;
+            let playlist = subtitles.to_playlist();
+            let segments = playlist.segments;
             gaurded_pb.pb.set_total(segments.len());
 
-            if &self
+            let init = self
                 .client
                 .get(&self.args.get_url(&segments[0].uri)?)
                 .send()?
-                .bytes()?[..6]
-                == "WEBVTT".as_bytes()
-            {
+                .bytes()?
+                .to_vec();
+
+            let mut mp4vtt = false;
+
+            // println!("{}", segments[0].uri);
+            if &init[..6] == "WEBVTT".as_bytes() {
                 subtitles.set_extension("vtt");
+            } else if init[0] == "1".as_bytes()[0] {
+                subtitles.set_extension("srt");
+            } else {
+                let tag = dash::MPDMediaSegmentTag::from(segments[0].clone().unknown_tags);
+
+                if !segments[0].uri.split('?').next().unwrap().ends_with(".vtt")
+                    && tag.init
+                {
+                    subtitles.set_extension("vtt");
+                    mp4vtt = true;
+                }
             }
 
             gaurded_pb.write(format!(
@@ -389,6 +405,23 @@ impl DownloadState {
                     )),
                 );
                 gaurded_pb.update(1);
+            }
+
+            if mp4vtt {
+                gaurded_pb.write(format!(
+                    " {} embedded subtitles",
+                    "Extracting".colorize("bold cyan"),
+                ));
+
+                let split_data = mp4decrypt::mp4split(&subtitles_data).map_err(|x| anyhow!(x))?;
+
+                subtitles_data = MP4VTT::from_init(&split_data[0], &split_data[1..])
+                    .map_err(|x| anyhow!(x))?
+                    .to_subtitles()
+                    .map_err(|x| anyhow!(x))?
+                    .to_vtt()
+                    .as_bytes()
+                    .to_vec();
             }
 
             std::fs::File::create(&subtitles.file)?.write_all(&subtitles_data)?;

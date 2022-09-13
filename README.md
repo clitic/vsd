@@ -63,7 +63,7 @@ There are some alternatives to vsd but they lack in some features like [N_m3u8DL
 - [x] Supports resume and retries.
 - [ ] GUI
 - [ ] Supports Dash (soon)
-- [ ] Supports [SAMPLE-AES](https://datatracker.ietf.org/doc/html/rfc8216#section-4.3.2.4) playlist decryption.
+- [ ] Supports [SAMPLE-AES](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/HLS_Sample_Encryption/Encryption/Encryption.html) playlist decryption.
 - [ ] Supports live stream download. (soon)
 
 <a href="#Help">See More</a>

@@ -2,6 +2,7 @@
 
 use super::utils;
 use super::{AdaptationSet, MPDMediaSegmentTag, Representation, MPD};
+use std::collections::HashMap;
 
 pub fn to_m3u8_as_master(
     mpd: &MPD,
@@ -37,14 +38,30 @@ pub fn to_m3u8_as_master(
                         ..Default::default()
                     });
                 } else {
+                    let mut other_attributes = HashMap::new();
+
+                    if let Some(codecs) = &representation.codecs(&adaptation_set) {
+                        other_attributes.insert(
+                            "CODECS".to_owned(),
+                            m3u8_rs::QuotedOrUnquoted::Quoted(codecs.to_owned()),
+                        );
+                    }
+
+                    if let Some(bandwidth) = &representation.bandwidth {
+                        other_attributes.insert(
+                            "BANDWIDTH".to_owned(),
+                            m3u8_rs::QuotedOrUnquoted::Unquoted(bandwidth.to_string()),
+                        );
+                    }
+
                     master.alternatives.push(m3u8_rs::AlternativeMedia {
                         media_type,
                         uri: Some(uri),
                         language: representation.lang(&adaptation_set),
                         assoc_language: representation.lang(&adaptation_set),
                         channels: representation.channels(&adaptation_set),
-                        characteristics: if let Some(bandwidth) = representation.bandwidth {
-                            Some(format!("BANDWIDTH={}", bandwidth))
+                        other_attributes: if !other_attributes.is_empty() {
+                            Some(other_attributes)
                         } else {
                             None
                         },
@@ -69,13 +86,13 @@ pub fn to_m3u8_as_master(
         let mut quality_factor = 0;
         let mut language_factor = 0;
 
-        if let Some(bandwidth) = &alternative.characteristics {
-            quality_factor += bandwidth
-                .split('=')
-                .nth(1)
-                .unwrap()
-                .parse::<usize>()
-                .unwrap();
+        if let Some(m3u8_rs::QuotedOrUnquoted::Unquoted(bandwidth)) = alternative
+            .other_attributes
+            .as_ref()
+            .unwrap()
+            .get("BANDWIDTH")
+        {
+            quality_factor += bandwidth.parse::<usize>().unwrap();
         }
 
         if let Some(channels) = &alternative.channels {
@@ -85,7 +102,8 @@ pub fn to_m3u8_as_master(
         if let Some(language) = alternative.language.as_ref().map(|x| x.to_lowercase()) {
             match &alternative.media_type {
                 m3u8_rs::AlternativeMediaType::Audio => {
-                    if let Some(audio_language) = audio_language.as_ref().map(|x| x.to_lowercase()) {
+                    if let Some(audio_language) = audio_language.as_ref().map(|x| x.to_lowercase())
+                    {
                         if language == audio_language {
                             language_factor = 2;
                         } else if language.get(0..2) == audio_language.get(0..2) {
@@ -95,7 +113,8 @@ pub fn to_m3u8_as_master(
                 }
                 m3u8_rs::AlternativeMediaType::Subtitles
                 | m3u8_rs::AlternativeMediaType::ClosedCaptions => {
-                    if let Some(subtitles_language) = subtitles_language.as_ref().map(|x| x.to_lowercase())
+                    if let Some(subtitles_language) =
+                        subtitles_language.as_ref().map(|x| x.to_lowercase())
                     {
                         if language == subtitles_language {
                             language_factor = 2;
