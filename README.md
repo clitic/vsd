@@ -243,11 +243,11 @@ $ printf '\n[target.aarch64-linux-android]\nlinker = "aarch64-linux-android30-cl
 4. Now compile with target aarch64-linux-android.
 
 ```bash
-$ PATH=android-ndk-r22b/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
-$ OPENSSL_DIR="openssl-3.0.5-android-arm64-android30-static"
-$ OPENSSL_STATIC=true
-$ OPENSSL_NO_VENDOR=$true
-cargo build --release --target aarch64-linux-android
+$ PATH=android-ndk-r22b/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH \
+    OPENSSL_DIR="openssl-3.0.5-android-arm64-android30-static" \
+    OPENSSL_STATIC=true \
+    OPENSSL_NO_VENDOR=true \
+    cargo build --release --target aarch64-linux-android
 ```
 
 ## License

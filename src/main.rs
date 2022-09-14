@@ -24,6 +24,7 @@ fn main() {
     } else {
         let mut downloader = vsd::DownloadState::new(args).unwrap_or_else(|e| error(e));
         downloader.fetch_playlists().unwrap_or_else(|e| error(e));
+        downloader.check_segments().unwrap_or_else(|e| error(e));
         downloader
             .download()
             .unwrap_or_else(|e| error_progress_bar(e, &downloader.pb));

@@ -137,7 +137,7 @@ impl Iterator for LivePlaylist {
                     }
                 }
                 Err(e) => {
-                    if let Err(e) = utils::check_reqwest_error(&e) {
+                    if let Err(e) = utils::check_reqwest_error(&e, &self.uri) {
                         return Some(Err(format!("{}", e)));
                     } else {
                         continue;

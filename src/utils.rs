@@ -64,7 +64,8 @@ pub fn select(prompt: String, choices: &[String], raw: bool) -> Result<usize> {
                 let text = choice
                     .text
                     .trim()
-                    .trim_start_matches(&format!("{})", choice.index + 1)).trim();
+                    .trim_start_matches(&format!("{})", choice.index + 1))
+                    .trim();
                 let resolution = text.split('.').next().unwrap().split(' ').next().unwrap();
                 let bandwidth = text
                     .trim_start_matches(resolution)
@@ -73,7 +74,11 @@ pub fn select(prompt: String, choices: &[String], raw: bool) -> Result<usize> {
                     .next()
                     .unwrap();
 
-                write!(backend, "{}", format!("{} ({}s)", resolution, bandwidth).colorize("cyan"))
+                write!(
+                    backend,
+                    "{}",
+                    format!("{} ({}s)", resolution, bandwidth).colorize("cyan")
+                )
             })
             .build(),
     )?
@@ -145,74 +150,28 @@ pub fn scrape_website_message(url: &str) -> String {
     )
 }
 
-pub fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
-    let url = error
-        .url()
-        .map(|x| {
-            format!(
-                "while requesting {} from {}://{}",
-
-                x.to_string()
-                    .split("?")
-                    .next()
-                    .unwrap()
-                    .split("/")
-                    .last()
-                    .unwrap()
-                    .colorize("cyan"),
-                    x.scheme(),
-                    x.domain().unwrap(),
-            )
-        })
-        .unwrap_or("".to_owned());
+pub fn check_reqwest_error(error: &reqwest::Error, url: &str) -> Result<String> {
+    let request = "Request".colorize("bold yellow");
 
     if error.is_timeout() {
-        return Ok(format!(
-            "{} {}",
-            "REQUEST TIMEOUT".colorize("bold yellow"),
-            url
-        ));
+        return Ok(format!("    {} {} (timeout)", request, url));
     } else if error.is_connect() {
-        return Ok(format!(
-            "{} {}",
-            "CONNECTION ERROR".colorize("bold yellow"),
-            url
-        ));
+        return Ok(format!("    {} {} (connection error)", request, url));
     }
+
     if let Some(status) = error.status() {
         match status {
-            StatusCode::REQUEST_TIMEOUT => Ok(format!(
-                "{} {}",
-                "REQUEST TIMEOUT".colorize("bold yellow"),
-                url
-            )),
-            StatusCode::TOO_MANY_REQUESTS => Ok(format!(
-                "{ }{}",
-                "TOO MANY REQUESTS".colorize("bold yellow"),
-                url
-            )),
-            StatusCode::SERVICE_UNAVAILABLE => Ok(format!(
-                "{} {}",
-                "SERVICE UNAVAILABLE".colorize("bold yellow"),
-                url
-            )),
-            StatusCode::GATEWAY_TIMEOUT => Ok(format!(
-                "{} {}",
-                "GATEWAY TIMEOUT".colorize("bold yellow"),
-                url
-            )),
-            _ => bail!(
-                "   {} failed with HTTP {} -> {}",
-                "Download".colorize("bold red"),
-                status,
-                error.url().map(|x| x.as_str()).unwrap().colorize("cyan")
-            ),
+            StatusCode::REQUEST_TIMEOUT => Ok(format!("    {} {} (timeout)", request, url)),
+            StatusCode::TOO_MANY_REQUESTS => {
+                Ok(format!("    {} {} (too many requests)", request, url))
+            }
+            StatusCode::SERVICE_UNAVAILABLE => {
+                Ok(format!("    {} {} (service unavailable)", request, url))
+            }
+            StatusCode::GATEWAY_TIMEOUT => Ok(format!("    {} {} (gateway timeout)", request, url)),
+            _ => bail!("download failed {} (HTTP {})", url, status),
         }
     } else {
-        bail!(
-            "   {} failed -> {}",
-            "Download".colorize("bold red"),
-            error.url().map(|x| x.as_str()).unwrap().colorize("cyan")
-        )
+        bail!("download failed {}", url)
     }
 }

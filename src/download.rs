@@ -247,7 +247,8 @@ impl DownloadState {
 
     fn dash_vod(&mut self, content: &[u8]) -> Result<()> {
         let mpd = dash::parse(content)?;
-        let master = dash::to_m3u8_as_master(&mpd, None, Some("fr".to_owned()));
+        let mut master = dash::to_m3u8_as_master(&mpd);
+        hls::autoselect(&mut master, None, None);
 
         let uri = if self.args.alternative {
             hls::alternative(&master, self.args.raw_prompts)?
@@ -307,7 +308,7 @@ impl DownloadState {
         Ok(())
     }
 
-    fn check_segments(&self) -> Result<()> {
+    pub fn check_segments(&self) -> Result<()> {
         let mut segments = self.progress.video.to_playlist().segments;
 
         if let Some(audio) = &self.progress.audio {
@@ -317,7 +318,10 @@ impl DownloadState {
         self.args.get_url(&segments[0].uri)?;
 
         for segment in segments {
-            // println!("{segment:?}");
+            let segment_tags = dash::SegmentTag::from(&segment.unknown_tags);
+            if segment_tags.single {
+                bail!("single file dash streams are not supported")
+            }
 
             match &segment.key {
                 Some(m3u8_rs::Key {
@@ -342,38 +346,56 @@ impl DownloadState {
     }
 
     pub fn download(&mut self) -> Result<()> {
-        self.check_segments()?;
         self.progress.set_json_file();
 
         let mut gaurded_pb = self.pb.lock().unwrap();
 
+        // TODO fix extra \n
         if let Some(subtitles) = &mut self.progress.subtitles {
             let playlist = subtitles.to_playlist();
+            // println!("{:#?}", playlist);
             let segments = playlist.segments;
             gaurded_pb.pb.set_total(segments.len());
 
-            let init = self
+            let mut total_bytes = 0;
+
+            let mut subtitles_data = self
                 .client
                 .get(&self.args.get_url(&segments[0].uri)?)
                 .send()?
                 .bytes()?
                 .to_vec();
 
+            total_bytes += subtitles_data.len();
+
+            gaurded_pb.replace(
+                1,
+                Column::Text(format!(
+                    "[bold blue]{}",
+                    utils::format_bytes(total_bytes, 2).2
+                )),
+            );
+            gaurded_pb.update(1);
+
             let mut mp4vtt = false;
 
-            // println!("{}", segments[0].uri);
-            if &init[..6] == "WEBVTT".as_bytes() {
+            if &subtitles_data[..6] == "WEBVTT".as_bytes() {
                 subtitles.set_extension("vtt");
-            } else if init[0] == "1".as_bytes()[0] {
+            } else if subtitles_data[0] == "1".as_bytes()[0] {
                 subtitles.set_extension("srt");
             } else {
-                let tag = dash::MPDMediaSegmentTag::from(segments[0].clone().unknown_tags);
+                let playlist_tags = dash::PlaylistTag::from(&playlist.unknown_tags);
+                let segment_tags = dash::SegmentTag::from(&segments[0].unknown_tags);
+                let uri = segments[0].uri.split('?').next().unwrap();
 
-                if !segments[0].uri.split('?').next().unwrap().ends_with(".vtt")
-                    && tag.init
-                {
-                    subtitles.set_extension("vtt");
-                    mp4vtt = true;
+                if segment_tags.init {
+                    if playlist_tags.vtt || uri.ends_with(".mp4") || uri.ends_with(".cmft") {
+                        subtitles.set_extension("vtt");
+                        mp4vtt = true;
+                    } else if playlist_tags.ttml || uri.ends_with(".mp4") || uri.ends_with(".ismt")
+                    {
+                        bail!("embedded TTML is not supported.")
+                    }
                 }
             }
 
@@ -383,10 +405,7 @@ impl DownloadState {
                 subtitles.file.colorize("cyan")
             ));
 
-            let mut subtitles_data = vec![];
-            let mut total_bytes = 0;
-
-            for segment in &segments {
+            for segment in &segments[1..] {
                 let bytes = self
                     .client
                     .get(&self.args.get_url(&segment.uri)?)
@@ -584,7 +603,7 @@ impl DownloadState {
             let timer = timer.clone();
 
             pool.execute(move || {
-                download_segments(
+                if let Err(e) = download_segments(
                     client,
                     merger.clone(),
                     pb.clone(),
@@ -596,8 +615,11 @@ impl DownloadState {
                     stored_bytes,
                     relative_size,
                     timer,
-                )
-                .unwrap();
+                ) {
+                    let _ = pb.lock().unwrap();
+                    println!("\n{}: {}", "error".colorize("bold red"), e);
+                    std::process::exit(1);
+                }
             });
         }
 
@@ -667,7 +689,9 @@ fn download_segments(
             }
             Err(e) => {
                 if total_retries > retries {
-                    pb.lock().unwrap().write(utils::check_reqwest_error(&e)?);
+                    pb.lock()
+                        .unwrap()
+                        .write(utils::check_reqwest_error(&e, &segment_url)?);
                     retries += 1;
                     continue;
                 } else {
@@ -692,7 +716,9 @@ fn download_segments(
                 Ok(bytes) => break bytes,
                 Err(e) => {
                     if total_retries > retries {
-                        pb.lock().unwrap().write(utils::check_reqwest_error(&e)?);
+                        pb.lock()
+                            .unwrap()
+                            .write(utils::check_reqwest_error(&e, key_url)?);
                         retries += 1;
                         continue;
                     } else {

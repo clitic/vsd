@@ -4,5 +4,5 @@ mod to_m3u8;
 mod utils;
 
 pub use parser::*;
-pub use tags::MPDMediaSegmentTag;
+pub use tags::{PlaylistTag, SegmentTag};
 pub use to_m3u8::*;

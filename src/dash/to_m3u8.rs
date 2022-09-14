@@ -1,14 +1,9 @@
 // REFERENCES: https://github.com/nilaoda/N_m3u8DL-RE/blob/main/src/N_m3u8DL-RE.Parser/Extractor/DASHExtractor2.cs
 
 use super::utils;
-use super::{AdaptationSet, MPDMediaSegmentTag, Representation, MPD};
-use std::collections::HashMap;
+use super::{AdaptationSet, PlaylistTag, Representation, SegmentTag, MPD};
 
-pub fn to_m3u8_as_master(
-    mpd: &MPD,
-    audio_language: Option<String>,
-    subtitles_language: Option<String>,
-) -> m3u8_rs::MasterPlaylist {
+pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
     let mut master = m3u8_rs::MasterPlaylist::default();
 
     for (period_index, period) in mpd.period.iter().enumerate() {
@@ -38,119 +33,23 @@ pub fn to_m3u8_as_master(
                         ..Default::default()
                     });
                 } else {
-                    let mut other_attributes = HashMap::new();
-
-                    if let Some(codecs) = &representation.codecs(&adaptation_set) {
-                        other_attributes.insert(
-                            "CODECS".to_owned(),
-                            m3u8_rs::QuotedOrUnquoted::Quoted(codecs.to_owned()),
-                        );
-                    }
-
-                    if let Some(bandwidth) = &representation.bandwidth {
-                        other_attributes.insert(
-                            "BANDWIDTH".to_owned(),
-                            m3u8_rs::QuotedOrUnquoted::Unquoted(bandwidth.to_string()),
-                        );
-                    }
-
                     master.alternatives.push(m3u8_rs::AlternativeMedia {
                         media_type,
                         uri: Some(uri),
                         language: representation.lang(&adaptation_set),
                         assoc_language: representation.lang(&adaptation_set),
                         channels: representation.channels(&adaptation_set),
-                        other_attributes: if !other_attributes.is_empty() {
-                            Some(other_attributes)
-                        } else {
-                            None
-                        },
+                        other_attributes: PlaylistTag::default()
+                            .codecs(representation.codecs(&adaptation_set))
+                            .bandwidth(representation.bandwidth.map(|x| x as usize))
+                            .extension(representation.extension(&adaptation_set))
+                            .build()
+                            .into(),
                         ..Default::default()
                     });
                 }
             }
         }
-    }
-
-    let mut alternative_audio = vec![];
-    let mut alternative_subtitles = vec![];
-
-    for (i, alternative) in master.alternatives.iter().enumerate() {
-        if !matches!(
-            alternative.media_type,
-            m3u8_rs::AlternativeMediaType::Audio | m3u8_rs::AlternativeMediaType::Subtitles
-        ) {
-            continue;
-        }
-
-        let mut quality_factor = 0;
-        let mut language_factor = 0;
-
-        if let Some(m3u8_rs::QuotedOrUnquoted::Unquoted(bandwidth)) = alternative
-            .other_attributes
-            .as_ref()
-            .unwrap()
-            .get("BANDWIDTH")
-        {
-            quality_factor += bandwidth.parse::<usize>().unwrap();
-        }
-
-        if let Some(channels) = &alternative.channels {
-            quality_factor += channels.parse::<usize>().unwrap();
-        }
-
-        if let Some(language) = alternative.language.as_ref().map(|x| x.to_lowercase()) {
-            match &alternative.media_type {
-                m3u8_rs::AlternativeMediaType::Audio => {
-                    if let Some(audio_language) = audio_language.as_ref().map(|x| x.to_lowercase())
-                    {
-                        if language == audio_language {
-                            language_factor = 2;
-                        } else if language.get(0..2) == audio_language.get(0..2) {
-                            language_factor = 1;
-                        }
-                    }
-                }
-                m3u8_rs::AlternativeMediaType::Subtitles
-                | m3u8_rs::AlternativeMediaType::ClosedCaptions => {
-                    if let Some(subtitles_language) =
-                        subtitles_language.as_ref().map(|x| x.to_lowercase())
-                    {
-                        if language == subtitles_language {
-                            language_factor = 2;
-                        } else if language.get(0..2) == subtitles_language.get(0..2) {
-                            language_factor = 1;
-                        }
-                    }
-                }
-                _ => (),
-            }
-        }
-
-        if alternative.media_type == m3u8_rs::AlternativeMediaType::Audio {
-            alternative_audio.push((i, quality_factor, language_factor));
-        } else if alternative.media_type == m3u8_rs::AlternativeMediaType::Subtitles {
-            alternative_subtitles.push((i, quality_factor, language_factor));
-        }
-    }
-
-    if alternative_audio.len() != 0 {
-        alternative_audio.sort_by(|x, y| y.1.cmp(&x.1));
-        alternative_audio.sort_by(|x, y| y.2.cmp(&x.2));
-        master
-            .alternatives
-            .get_mut(alternative_audio[0].0)
-            .unwrap()
-            .autoselect = true;
-    }
-
-    if alternative_subtitles.len() != 0 {
-        alternative_subtitles.sort_by(|x, y| y.2.cmp(&x.2));
-        master
-            .alternatives
-            .get_mut(alternative_subtitles[0].0)
-            .unwrap()
-            .autoselect = true;
     }
 
     master
@@ -204,20 +103,14 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                                 } else {
                                     None
                                 },
-                                unknown_tags: MPDMediaSegmentTag::default()
-                                    .init(true)
-                                    .build()
-                                    .into(),
+                                unknown_tags: SegmentTag::default().init(true).build().into(),
                                 ..Default::default()
                             });
                         } else {
                             init_segment = Some(m3u8_rs::MediaSegment {
                                 uri: baseurl.clone(),
                                 duration: period.duration(&mpd).unwrap(),
-                                unknown_tags: MPDMediaSegmentTag::default()
-                                    .init(true)
-                                    .build()
-                                    .into(),
+                                unknown_tags: SegmentTag::default().init(true).build().into(),
                                 ..Default::default()
                             });
                         }
@@ -237,10 +130,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                                 } else {
                                     None
                                 },
-                                unknown_tags: MPDMediaSegmentTag::default()
-                                    .init(true)
-                                    .build()
-                                    .into(),
+                                unknown_tags: SegmentTag::default().init(true).build().into(),
                                 ..Default::default()
                             });
                         }
@@ -273,7 +163,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                                 None
                             },
                             key: mpd_to_m3u8_key(&representation, &adaptation_set),
-                            unknown_tags: MPDMediaSegmentTag::default()
+                            unknown_tags: SegmentTag::default()
                                 .kid(representation.default_kid(&adaptation_set))
                                 .into(),
                             ..Default::default()
@@ -297,7 +187,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                                 &utils::join_url(&baseurl, initialization).unwrap(),
                                 &representation.template_vars(),
                             ),
-                            unknown_tags: MPDMediaSegmentTag::default().init(true).build().into(),
+                            unknown_tags: SegmentTag::default().init(true).build().into(),
                             ..Default::default()
                         });
 
@@ -332,7 +222,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                                     ),
                                     duration: s.d as f32 / timescale,
                                     key: mpd_to_m3u8_key(&representation, &adaptation_set),
-                                    unknown_tags: MPDMediaSegmentTag::default()
+                                    unknown_tags: SegmentTag::default()
                                         .kid(representation.default_kid(&adaptation_set))
                                         .into(),
                                     ..Default::default()
@@ -374,7 +264,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                                         ),
                                         duration: s.d as f32 / timescale,
                                         key: mpd_to_m3u8_key(&representation, &adaptation_set),
-                                        unknown_tags: MPDMediaSegmentTag::default()
+                                        unknown_tags: SegmentTag::default()
                                             .kid(representation.default_kid(&adaptation_set))
                                             .into(),
                                         ..Default::default()
@@ -457,7 +347,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                                         .unwrap()
                                         / timescale,
                                     key: mpd_to_m3u8_key(&representation, &adaptation_set),
-                                    unknown_tags: MPDMediaSegmentTag::default()
+                                    unknown_tags: SegmentTag::default()
                                         .kid(representation.default_kid(&adaptation_set))
                                         .into(),
                                     ..Default::default()
@@ -472,7 +362,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                         uri: baseurl.clone(),
                         duration: period.duration(&mpd).unwrap(),
                         key: mpd_to_m3u8_key(&representation, &adaptation_set),
-                        unknown_tags: MPDMediaSegmentTag::default()
+                        unknown_tags: SegmentTag::default()
                             .kid(representation.default_kid(&adaptation_set))
                             .single(true)
                             .build()
@@ -488,6 +378,12 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Option<m3u8_rs::
                 return Some(m3u8_rs::MediaPlaylist {
                     segments,
                     end_list: true,
+                    unknown_tags: PlaylistTag::default()
+                        .codecs(representation.codecs(&adaptation_set))
+                        .bandwidth(representation.bandwidth.map(|x| x as usize))
+                        .extension(representation.extension(&adaptation_set))
+                        .build()
+                        .into(),
                     ..Default::default()
                 });
             }
