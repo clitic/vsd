@@ -175,3 +175,70 @@ pub fn check_reqwest_error(error: &reqwest::Error, url: &str) -> Result<String> 
         bail!("download failed {}", url)
     }
 }
+
+pub fn duration(duration: &str) -> Result<f32> {
+    let duration = duration.replace('s', "").replace(',', ".");
+    let mut duration = duration.split(':').rev();
+    let mut total_seconds = 0.0;
+
+    if let Some(seconds) = duration.next() {
+        total_seconds += seconds.parse::<f32>()?;
+    }
+
+    if let Some(minutes) = duration.next() {
+        total_seconds += minutes.parse::<f32>()? * 60.0;
+    }
+
+    if let Some(hours) = duration.next() {
+        total_seconds += hours.parse::<f32>()? * 3600.0;
+    }
+
+    Ok(total_seconds)
+}
+
+// use reqwest::header::HeaderValue;
+// use reqwest::header;
+
+// struct PartialRangeIter {
+//     start: u64,
+//     end: u64,
+//     buffer_size: u32,
+//   }
+
+//   impl PartialRangeIter {
+//     pub fn new(start: u64, end: u64, buffer_size: u32) -> Self {
+//       if buffer_size == 0 {
+//         panic!("invalid buffer_size, give a value greater than zero.");
+//       }
+
+//       PartialRangeIter {
+//         start,
+//         end,
+//         buffer_size,
+//       }
+//     }
+//   }
+
+//   impl Iterator for PartialRangeIter {
+//     type Item = HeaderValue;
+//     fn next(&mut self) -> Option<Self::Item> {
+//       if self.start > self.end {
+//         None
+//       } else {
+//         let prev_start = self.start;
+//         self.start += std::cmp::min(self.buffer_size as u64, self.end - self.start + 1);
+//         Some(HeaderValue::from_str(&format!("bytes={}-{}", prev_start, self.start - 1)).expect("string provided by format!"))
+//       }
+//     }
+//   }
+
+//   let response = client.head(url).send()?;
+//   let length = response
+//     .headers()
+//     .get(CONTENT_LENGTH)
+//     .ok_or("response doesn't include the content length")?;
+//   let length = u64::from_str(length.to_str()?).map_err(|_| "invalid Content-Length header")?;
+
+//   for range in PartialRangeIter::new(0, length - 1, CHUNK_SIZE)? {
+//     let mut response = client.get(url).header(RANGE, range).send()?;
+//     status == StatusCode::PARTIAL_CONTENT

@@ -15,4 +15,4 @@ pub use decrypt::Decrypter;
 pub use download::DownloadState;
 pub use merger::BinaryMerger;
 pub use progress::{Progress, StreamData};
-pub use subtitles::{Subtitles, MP4VTT};
+pub use subtitles::{Subtitles, MP4Subtitles};

@@ -1,5 +1,5 @@
 use crate::{dash, hls, utils};
-use crate::{Args, BinaryMerger, Decrypter, InputType, Progress, StreamData, MP4VTT};
+use crate::{Args, BinaryMerger, Decrypter, InputType, MP4Subtitles, Progress, StreamData};
 use anyhow::{anyhow, bail, Result};
 use kdam::prelude::*;
 use kdam::{Column, RichProgress};
@@ -377,7 +377,7 @@ impl DownloadState {
             );
             gaurded_pb.update(1);
 
-            let mut mp4vtt = false;
+            let mut mp4subtitles = false;
 
             if &subtitles_data[..6] == "WEBVTT".as_bytes() {
                 subtitles.set_extension("vtt");
@@ -389,12 +389,16 @@ impl DownloadState {
                 let uri = segments[0].uri.split('?').next().unwrap();
 
                 if segment_tags.init {
-                    if playlist_tags.vtt || uri.ends_with(".mp4") || uri.ends_with(".cmft") {
+                    if playlist_tags.vtt || uri.ends_with(".mp4") {
                         subtitles.set_extension("vtt");
-                        mp4vtt = true;
-                    } else if playlist_tags.ttml || uri.ends_with(".mp4") || uri.ends_with(".ismt")
-                    {
+                        mp4subtitles = true;
+                    } else if playlist_tags.ttml || uri.ends_with(".mp4") {
                         bail!("embedded TTML is not supported.")
+                    } else if uri.ends_with(".cmft") || uri.ends_with(".ismt") {
+                        subtitles.set_extension("vtt");
+                        mp4subtitles = true;
+                    } else {
+                        bail!("unknown embedded subtitles are not supported.")
                     }
                 }
             }
@@ -426,7 +430,7 @@ impl DownloadState {
                 gaurded_pb.update(1);
             }
 
-            if mp4vtt {
+            if mp4subtitles {
                 gaurded_pb.write(format!(
                     " {} embedded subtitles",
                     "Extracting".colorize("bold cyan"),
@@ -434,9 +438,9 @@ impl DownloadState {
 
                 let split_data = mp4decrypt::mp4split(&subtitles_data).map_err(|x| anyhow!(x))?;
 
-                subtitles_data = MP4VTT::from_init(&split_data[0], &split_data[1..])
+                subtitles_data = MP4Subtitles::from_init(&split_data[0])
                     .map_err(|x| anyhow!(x))?
-                    .to_subtitles()
+                    .to_subtitles(&split_data[1..])
                     .map_err(|x| anyhow!(x))?
                     .to_vtt()
                     .as_bytes()
