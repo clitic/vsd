@@ -1,124 +1,20 @@
+use super::{InputType, Quality};
 use anyhow::{bail, Result};
-use clap::{ArgGroup, Parser};
+use clap::Args;
 use kdam::term::Colorizer;
 use reqwest::blocking::Client;
 use reqwest::cookie::Jar;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Proxy, Url};
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use std::sync::Arc;
 
-#[allow(non_camel_case_types)]
-#[derive(Debug, Clone)]
-pub enum Quality {
-    yt_144p,
-    yt_240p,
-    yt_360p,
-    yt_480p,
-    yt_720p,
-    yt_1080p,
-    yt_2k,
-    yt_1440p,
-    yt_4k,
-    yt_8k,
-    Resolution(u16, u16),
-    Highest,
-    SelectLater,
-}
-
-impl FromStr for Quality {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s.to_lowercase().as_str() {
-            "144p" => Self::yt_144p,
-            "240p" => Self::yt_240p,
-            "360p" => Self::yt_360p,
-            "480p" => Self::yt_480p,
-            "720p" | "hd" => Self::yt_720p,
-            "1080p" | "fhd" => Self::yt_1080p,
-            "2k" => Self::yt_2k,
-            "1440p" | "qhd" => Self::yt_1440p,
-            "4k" => Self::yt_4k,
-            "8k" => Self::yt_8k,
-            "highest" | "max" => Self::Highest,
-            "select-later" => Self::SelectLater,
-            x if x.contains("x") => {
-                if let (Some(w), Some(h)) = (x.split("x").nth(0), x.split("x").nth(1)) {
-                    Self::Resolution(
-                        w.parse::<u16>().map_err(|_| "invalid width".to_owned())?,
-                        h.parse::<u16>().map_err(|_| "invalid height".to_owned())?,
-                    )
-                } else {
-                    Err("incorrect resolution format".to_owned())?
-                }
-            }
-            _ => Err(format!(
-                "\npossible values: [{}]\nFor custom resolution use {}",
-                [
-                    "144p",
-                    "240p",
-                    "360p",
-                    "480p",
-                    "720p",
-                    "hd",
-                    "1080p",
-                    "fhd",
-                    "2k",
-                    "1440p",
-                    "qhd",
-                    "4k",
-                    "8k",
-                    "highest",
-                    "max",
-                    "select-later",
-                ]
-                .iter()
-                .map(|x| x.colorize("green"))
-                .collect::<Vec<_>>().join(", "), "WIDTHxHEIGHT".colorize("green")
-            ))?,
-        })
-    }
-}
-
-fn input_validator(s: &str) -> Result<(), String> {
-    if s.starts_with("https://youtube.com")
-        || s.starts_with("https://www.youtube.com")
-        || s.starts_with("https://youtu.be")
-    {
-        Err("Youtube links aren't supported yet".to_owned())
-    } else {
-        Ok(())
-    }
-}
-
-fn quality_validator(s: &str) -> Result<(), String> {
-    let _ = s.parse::<Quality>()?;
-    Ok(())
-}
-
-fn threads_validator(s: &str) -> Result<(), String> {
-    let num_threads: usize = s.parse().map_err(|_| format!("`{}` isn't a number", s))?;
-    if std::ops::RangeInclusive::new(1, 16).contains(&num_threads) {
-        Ok(())
-    } else {
-        Err("number of threads should be in range `1-16`".to_string())
-    }
-}
-
-fn proxy_address_validator(s: &str) -> Result<(), String> {
-    if s.starts_with("http://") || s.starts_with("https://") {
-        Ok(())
-    } else {
-        Err("Proxy address should start with `http://` or `https://` only".to_string())
-    }
-}
-
-/// Command line program to download HLS video from websites and m3u8 links.
-#[derive(Debug, Clone, Parser)]
-#[clap(version, author = "clitic <clitic21@gmail.com>", about, group = ArgGroup::new("chrome").args(&["capture", "collect"]))]
-pub struct Args {
+/// Download HLS and Dash playlists.
+/// 
+/// Playlists which have separate audio tracks or subtitles streams, expects
+/// ffmpeg (https://www.ffmpeg.org/download.html) to be installed in system PATH.
+#[derive(Debug, Clone, Args)]
+pub struct Save {
     /// URL | .m3u8 | .m3u | .mpd | .xml
     #[clap(required = true, validator = input_validator)]
     pub input: String,
@@ -181,25 +77,6 @@ pub struct Args {
     #[clap(long)]
     pub save_directory: Option<String>,
 
-    /// Launch Google Chrome to capture requests made to fetch .m3u8 (HLS) and .mpd (Dash) files.
-    #[clap(long, help_heading = "CHROME OPTIONS")]
-    pub capture: bool,
-
-    /// Launch Google Chrome and collect .m3u8 (HLS), .mpd (Dash) and subtitles from a website and save them locally.
-    #[clap(long, help_heading = "CHROME OPTIONS")]
-    pub collect: bool,
-
-    /// Launch Google Chrome without a window for interaction.
-    /// This option should must be used with `--capture` or `--collect` flag only.
-    #[clap(long, requires = "chrome", help_heading = "CHROME OPTIONS")]
-    pub headless: bool,
-
-    /// Build http links for all uri present in .m3u8 file while collecting it.
-    /// Resultant .m3u8 file can be played and downloaded directly without the need of `--baseurl` flag.
-    /// This option should must be used with `--collect` flag only.
-    #[clap(long, requires = "collect", help_heading = "CHROME OPTIONS")]
-    pub build: bool,
-
     /// Custom headers for requests.
     /// This option can be used multiple times.
     #[clap(long, multiple_occurrences = true, number_of_values = 2, value_names = &["KEY", "VALUE"], help_heading = "CLIENT OPTIONS")]
@@ -228,7 +105,40 @@ pub struct Args {
     pub cookies: Vec<String>, // Vec<Vec<String>> not supported
 }
 
-impl Args {
+fn input_validator(s: &str) -> Result<(), String> {
+    if s.starts_with("https://youtube.com")
+        || s.starts_with("https://www.youtube.com")
+        || s.starts_with("https://youtu.be")
+    {
+        Err("Youtube links aren't supported yet".to_owned())
+    } else {
+        Ok(())
+    }
+}
+
+fn quality_validator(s: &str) -> Result<(), String> {
+    let _ = s.parse::<Quality>()?;
+    Ok(())
+}
+
+fn threads_validator(s: &str) -> Result<(), String> {
+    let num_threads: usize = s.parse().map_err(|_| format!("`{}` isn't a number", s))?;
+    if std::ops::RangeInclusive::new(1, 16).contains(&num_threads) {
+        Ok(())
+    } else {
+        Err("number of threads should be in range `1-16`".to_string())
+    }
+}
+
+fn proxy_address_validator(s: &str) -> Result<(), String> {
+    if s.starts_with("http://") || s.starts_with("https://") {
+        Ok(())
+    } else {
+        Err("Proxy address should start with `http://` or `https://` only".to_string())
+    }
+}
+
+impl Save {
     pub fn client(&self) -> Result<Arc<Client>> {
         let mut client_builder = Client::builder().user_agent(&self.user_agent);
 
@@ -360,37 +270,6 @@ impl Args {
             } else {
                 InputType::LocalFile
             }
-        }
-    }
-}
-pub enum InputType {
-    HlsUrl,
-    DashUrl,
-    Website,
-    HlsLocalFile,
-    DashLocalFile,
-    LocalFile,
-}
-
-impl InputType {
-    pub fn is_website(&self) -> bool {
-        match &self {
-            Self::Website => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_hls(&self) -> bool {
-        match &self {
-            Self::HlsUrl | Self::HlsLocalFile => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_dash(&self) -> bool {
-        match &self {
-            Self::DashUrl | Self::DashLocalFile => true,
-            _ => false,
         }
     }
 }

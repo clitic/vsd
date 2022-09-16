@@ -1,5 +1,5 @@
 use crate::utils::{format_bytes, select};
-use crate::Quality;
+use crate::args::Quality;
 use anyhow::{bail, Result};
 use std::fmt::Write;
 

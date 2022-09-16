@@ -1,3 +1,5 @@
+// REFERENCES: https://github.com/emarsden/dash-mpd-rs
+
 use super::utils;
 use serde::Deserialize;
 use std::collections::HashMap;

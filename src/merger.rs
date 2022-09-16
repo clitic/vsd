@@ -1,7 +1,9 @@
+use crate::Progress;
 use anyhow::{bail, Result};
 use std::collections::HashMap;
+use std::fs::File;
 use std::io::Write;
-use crate::Progress;
+use std::path::Path;
 
 pub struct BinaryMerger {
     size: usize,
@@ -21,30 +23,30 @@ impl BinaryMerger {
 
         Ok(Self {
             size: size - 1,
-            file: std::fs::File::create(filename)?,
+            file: File::create(filename)?,
             pos: 0,
             buffers: HashMap::new(),
             stored_bytes: 0,
             flushed_bytes: 0,
             indexed: 0,
             progress,
-            json_file: std::fs::File::create(json_file)?,
+            json_file: File::create(json_file)?,
         })
     }
 
     pub fn try_from_json(size: usize, filename: &str, json_file: String) -> Result<Self> {
-        if !std::path::Path::new(&json_file).exists() {
+        if !Path::new(&json_file).exists() {
             bail!("Can't resume because {} doesn't exists.", json_file)
         }
 
         let progress: Progress = serde_json::from_reader(std::fs::File::open(&json_file)?)?;
         let mut pos = progress.downloaded("video");
 
-        let file = if std::path::Path::new(filename).exists() {
+        let file = if Path::new(filename).exists() {
             std::fs::OpenOptions::new().append(true).open(filename)?
         } else {
             pos = 0;
-            std::fs::File::create(filename)?
+            File::create(filename)?
         };
 
         let stored_bytes = file.metadata()?.len() as usize;
@@ -64,7 +66,7 @@ impl BinaryMerger {
 
     pub fn reset(&mut self, size: usize, filename: String) -> Result<()> {
         self.size = size - 1;
-        self.file = std::fs::File::create(&filename)?;
+        self.file = File::create(&filename)?;
         self.pos = 0;
         self.buffers = HashMap::new();
         self.stored_bytes = 0;
@@ -130,7 +132,8 @@ impl BinaryMerger {
     }
 
     pub fn update(&mut self) -> Result<()> {
-        self.progress.update("video", self.pos, &mut self.json_file)?;
+        self.progress
+            .update("video", self.pos, &mut self.json_file)?;
         Ok(())
     }
 }

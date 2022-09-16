@@ -129,22 +129,24 @@ pub fn get_columns() -> u16 {
 pub fn scrape_website_message(url: &str) -> String {
     format!(
         "No links found on website source.\n\n\
-        {} Consider using {} flag and then \
-        run the command with same arguments by replacing the {} with captured m3u8 url.\n\n\
+        {} Consider using {} subcommand and then \
+        run the {} subcommand with same arguments by replacing the {} with captured url.\n\n\
         Suppose first command captures https://streaming.site/video_001/master.m3u8\n\
-        $ vsd --capture {}\n\
-        $ vsd https://streaming.site/video_001/master.m3u8 \n\n\
-        {} Consider using {} flag \
-        and then run the command with saved .m3u8 file as {}. \n\n\
+        $ vsd capture {}\n\
+        $ vsd save https://streaming.site/video_001/master.m3u8 \n\n\
+        {} Consider using {} subcommand \
+        and then run {} subcommand with saved playlist file as {}. \n\n\
         Suppose first command saves master.m3u8\n\
-        $ vsd --collect --build {}\n\
-        $ vsd master.m3u8",
+        $ vsd collect --build {}\n\
+        $ vsd save master.m3u8",
         "TRY THIS:".colorize("yellow"),
-        "--capture".colorize("bold green"),
+        "capture".colorize("bold green"),
+        "save".colorize("bold green"),
         "INPUT".colorize("bold green"),
         url,
         "OR THIS:".colorize("yellow"),
-        "--collect --build".colorize("bold green"),
+        "collect".colorize("bold green"),
+        "save".colorize("bold green"),
         "INPUT".colorize("bold green"),
         url,
     )
@@ -178,8 +180,15 @@ pub fn check_reqwest_error(error: &reqwest::Error, url: &str) -> Result<String> 
 
 pub fn duration(duration: &str) -> Result<f32> {
     let duration = duration.replace('s', "").replace(',', ".");
+    let is_frame = duration.split(':').count() >= 4;
     let mut duration = duration.split(':').rev();
     let mut total_seconds = 0.0;
+
+    if is_frame {
+        if let Some(seconds) = duration.next() {
+            total_seconds += seconds.parse::<f32>()? / 1000.0;
+        }
+    }
 
     if let Some(seconds) = duration.next() {
         total_seconds += seconds.parse::<f32>()?;
