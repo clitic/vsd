@@ -20,7 +20,7 @@ pub struct Collect {
     #[clap(long)]
     pub headless: bool,
 
-    /// Build http links for all uri present in .m3u8 file while collecting it.
+    /// Build http links for all uri(s) present in HLS playlists before saving it.
     #[clap(long)]
     pub build: bool,
 }

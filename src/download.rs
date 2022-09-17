@@ -384,18 +384,20 @@ impl DownloadState {
                 subtitles.set_extension("vtt");
             } else if subtitles_data[0] == "1".as_bytes()[0] {
                 subtitles.set_extension("srt");
+            } else if &subtitles_data[..3] == "<tt".as_bytes() {
+                bail!("raw ttml subtitles are not supported")
             } else {
                 let playlist_tags = dash::PlaylistTag::from(&playlist.unknown_tags);
                 let segment_tags = dash::SegmentTag::from(&segments[0].unknown_tags);
                 let uri = segments[0].uri.split('?').next().unwrap();
 
                 if segment_tags.init {
-                    if playlist_tags.vtt || uri.ends_with(".mp4") {
-                        subtitles.set_extension("vtt");
-                        mp4subtitles = true;
-                    } else if playlist_tags.ttml || uri.ends_with(".mp4") {
-                        bail!("embedded TTML is not supported.")
-                    } else if uri.ends_with(".cmft") || uri.ends_with(".ismt") {
+                    if playlist_tags.vtt
+                        || playlist_tags.ttml
+                        || uri.ends_with(".mp4")
+                        || uri.ends_with(".cmft")
+                        || uri.ends_with(".ismt")
+                    {
                         subtitles.set_extension("vtt");
                         mp4subtitles = true;
                     } else {
@@ -439,10 +441,11 @@ impl DownloadState {
 
                 let split_data = mp4decrypt::mp4split(&subtitles_data).map_err(|x| anyhow!(x))?;
 
-                subtitles_data = MP4Subtitles::from_init(&split_data[0])
+                subtitles_data = MP4Subtitles::new(&split_data[0], None)
                     .map_err(|x| anyhow!(x))?
-                    .to_subtitles(&split_data[1..])
+                    .add_cues(&split_data[1..])
                     .map_err(|x| anyhow!(x))?
+                    .to_subtitles()
                     .to_vtt()
                     .as_bytes()
                     .to_vec();

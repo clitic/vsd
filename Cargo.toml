@@ -19,7 +19,7 @@ anyhow = "1"
 base64 = "0.13"
 chrono = "0.4"
 clap = { version = "3", features = ["derive"] }
-glob = "0.3.0"
+glob = "0.3"
 headless_chrome = "0.9"
 iso8601 = "0.5"
 kdam = "0.2"

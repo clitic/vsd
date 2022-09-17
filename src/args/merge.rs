@@ -7,11 +7,11 @@ use std::path::Path;
 /// Merge multiple segments to a single file.
 #[derive(Debug, Clone, Args)]
 pub struct Merge {
-    /// List of files to merge together like init.mp4, *.m4s etc.
+    /// List of files to merge together like *.ts, *.m4s etc.
     #[clap(required = true)]
     pub files: Vec<String>,
 
-    /// Merged output file path.
+    /// Path  of merged output file.
     #[clap(short, long, required = true)]
     pub output: String,
 
@@ -28,6 +28,10 @@ impl Merge {
             for file in glob::glob(pattern)? {
                 files.push(file?);
             }
+        }
+
+        if files.len() <= 1 {
+            bail!("at least two files are required to merge together")
         }
 
         if self.ffmpeg {

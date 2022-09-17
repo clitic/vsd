@@ -1,58 +1,82 @@
 use crate::subtitles::MP4Subtitles;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use clap::{ArgEnum, Args};
 
 #[derive(Debug, Clone, ArgEnum)]
 pub enum Format {
-    VTT,
     SRT,
+    VTT,
 }
 
-
-//   -timescale TIMESCALE, --timescale TIMESCALE
-//                         set timescale manually if no init segment
-//   -init-path INIT_PATH, --init-path INIT_PATH
-//                         init segment path
-//   -segment-time SEGMENT_TIME, --segment-time SEGMENT_TIME
-//                         single segment duration, usually needed for ttml
-//                         content, calculation method: d / timescale
-
-// https://github.com/xhlove/dash-subtitle-extractor
-
 /// Extract subtitles embedded inside an mp4 file.
+///
+/// This is based on the https://github.com/xhlove/dash-subtitle-extractor
 #[derive(Debug, Clone, Args)]
 pub struct Extract {
-    /// List of segment files like init.mp4, *.m4s etc.
-    /// A single file mp4 can also be provided.
+    /// List of subtitles segment files where first file is init.mp4 and following files are *.m4s (segments).
+    /// A single mp4 file can also be provided.
     #[clap(required = true)]
-    pub files: Vec<String>,
+    files: Vec<String>,
 
     /// Subtitles output format.
-    #[clap(long, arg_enum, default_value_t = Format::SRT)]
-    pub format: Format,
+    #[clap(short, long, arg_enum, default_value_t = Format::SRT)]
+    format: Format,
+
+    /// Set timescale manually if no init segment is present.
+    /// If timescale is set to anything then webvtt codec is used.
+    #[clap(short, long)]
+    timescale: Option<u32>,
+    //   -segment-time SEGMENT_TIME, --segment-time SEGMENT_TIME
+    //                         single segment duration, usually needed for ttml
+    //                         content, calculation method: d / timescale
 }
 
 impl Extract {
     pub fn perform(&self) -> Result<()> {
-        let mut subtitles_data = vec![];
+        let mut files = vec![];
 
         for pattern in &self.files {
             for file in glob::glob(pattern)? {
-                subtitles_data.extend_from_slice(&std::fs::read(file?)?);
+                files.push(file?);
             }
         }
 
-        let split_data = mp4decrypt::mp4split(&subtitles_data).map_err(|x| anyhow!(x))?;
-
-        let subtitles = MP4Subtitles::from_init(&split_data[0])
-            .map_err(|x| anyhow!(x))?
-            .to_subtitles(&split_data[1..])
-            .map_err(|x| anyhow!(x))?;
-
-        match &self.format {
-            Format::VTT => print!("{}", subtitles.to_vtt()),
-            Format::SRT => print!("{}", subtitles.to_srt()),
+        if files.len() == 0 {
+            bail!("at least one file is required to extract subtitles")
         }
+
+        let subtitles = if files.len() == 1 {
+            let split_data =
+                mp4decrypt::mp4split(&std::fs::read(&files[0])?).map_err(|x| anyhow!(x))?;
+
+            let mut subtitles =
+                MP4Subtitles::new(&split_data[0], self.timescale).map_err(|x| anyhow!(x))?;
+
+            for data in &split_data[1..] {
+                subtitles.add_cue(data).map_err(|x| anyhow!(x))?;
+            }
+
+            subtitles.to_subtitles()
+        } else {
+            let mut subtitles = MP4Subtitles::new(&std::fs::read(&files[0])?, self.timescale)
+                .map_err(|x| anyhow!(x))?;
+
+            for file in &files[1..] {
+                subtitles
+                    .add_cue(&std::fs::read(file)?)
+                    .map_err(|x| anyhow!(x))?;
+            }
+
+            subtitles.to_subtitles()
+        };
+
+        print!(
+            "{}",
+            match &self.format {
+                Format::SRT => subtitles.to_srt(),
+                Format::VTT => subtitles.to_vtt(),
+            }
+        );
 
         Ok(())
     }

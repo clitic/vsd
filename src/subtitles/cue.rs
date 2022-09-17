@@ -75,7 +75,7 @@ pub struct Subtitles {
 }
 
 impl Subtitles {
-    pub(super) fn new(cues: Vec<Cue>) -> Self {
+    pub(super) fn new(cues: &Vec<Cue>) -> Self {
         Self {
             cues: cues
                 .iter()
