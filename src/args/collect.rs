@@ -4,7 +4,7 @@ use clap::Args;
 #[derive(Debug, Clone, Args)]
 #[clap(
     long_about = "Collect playlists and subtitles from a website and save them locally.\n\n\
-*Requires* any one of these to be installed:\n\
+Requires any one of these to be installed:\n\
 1. chrome - https://www.google.com/chrome\n\
 2. chromium - https://www.chromium.org/getting-involved/download-chromium\n\n\
 Launch Google Chrome and collect .m3u8 (HLS), .mpd (Dash) and subtitles from a website and save them locally. \

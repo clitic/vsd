@@ -86,20 +86,18 @@ cargo install vsd
 ### On x86_64 Linux
 
 ```bash
-$ wget https://github.com/clitic/vsd/releases/download/v0.1.2/vsd-v0.1.2-x86_64-unknown-linux-musl.tar.gz -O vsd-v0.1.2.tar.gz
-$ tar -xzf vsd-v0.1.2.tar.gz -C /usr/local/bin/
-$ chmod +x /usr/local/bin/vsd
-$ rm vsd-v0.1.2.tar.gz
+curl -L https://github.com/clitic/vsd/releases/download/v0.1.2/vsd-v0.1.2-x86_64-unknown-linux-musl.tar.gz | tar xz
 ```
 
 ### On Termux (Android 11+)
 
 ```bash
-$ pkg install wget ffmpeg
-$ wget https://github.com/clitic/vsd/releases/download/v0.1.2/vsd-v0.1.2-aarch64-linux-android.tar.gz -O vsd-v0.1.2.tar.gz
-$ tar -xzf vsd-v0.1.2.tar.gz -C $PREFIX/bin/
-$ chmod +x $PREFIX/bin/vsd
-$ rm vsd-v0.1.2.tar.gz
+curl -L https://github.com/clitic/vsd/releases/download/v0.1.2/vsd-v0.1.2-aarch64-linux-android.tar.gz | tar xz -C $PREFIX/bin
+```
+
+```bash
+# optional
+pkg install ffmpeg
 ```
 
 Also, see [running on android](https://github.com/clitic/vsd/blob/main/docs/running-on-android.md).
@@ -213,13 +211,96 @@ OPENSSL_STATIC=true cargo build --release
 
 ### Windows
 
-Build [openssl](https://github.com/openssl/openssl) library for windows or download and install it from [Win32OpenSSL](https://slproweb.com/products/Win32OpenSSL.html). vsd builds use openssl static build i.e. [openssl-3.0.5-VC-WIN64A-static.7z](https://drive.google.com/file/d/1LhVu97TiV4HSzxUH-rjiGXXZBs27iDbs/view?usp=sharing).
+Build [openssl](https://github.com/openssl/openssl) library for windows. vsd builds use openssl static build i.e. [openssl-v3.0.5-static-x86_64-windows-msvc.7z](https://drive.google.com/file/d/1LhVu97TiV4HSzxUH-rjiGXXZBs27iDbs/view?usp=sharing).
 
 ```powershell
-$env:OPENSSL_DIR="C:\openssl-3.0.5-VC-WIN64A-static"
-$env:OPENSSL_STATIC=$true
+$env:x86_64_PC_WINDOWS_MSVC_OPENSSL_DIR="C:\openssl-3.0.5-VC-WIN64A-static"
+$env:x86_64_PC_WINDOWS_MSVC_OPENSSL_STATIC=$true
+$env:x86_64_PC_WINDOWS_MSVC_NO_VENDOR=$true
 cargo build --release
 ```
+
+<!-- 
+### x86_64-unknown-linux-musl (On Linux 64-bit)
+
+
+```
+# MUSL
+
+# !apt install musl musl-dev musl-tools
+!wget https://github.com/richfelker/musl-cross-make/archive/refs/tags/v0.9.9.tar.gz
+!tar -xzf v0.9.9.tar.gz -C .
+!rm v0.9.9.tar.gz
+
+!cd musl-cross-make-0.9.9 && TARGET=x86_64-linux-musl make install
+!cd musl-cross-make-0.9.9/output && tar -czf /content/musl-cross-make-v0.9.9-linux-64bit.tar.gz *
+!rm -rf musl-cross-make-0.9.9
+```
+
+```
+# openssl (MUSL)
+
+# !apt install musl musl-dev musl-tools
+!wget https://github.com/openssl/openssl/archive/refs/tags/openssl-3.0.5.tar.gz
+!tar -xzf openssl-3.0.5.tar.gz -C .
+!rm openssl-3.0.5.tar.gz
+
+!cd openssl-openssl-3.0.5 && \
+	CC=/content/musl-cross-make-v0.9.9/bin/x86_64-linux-musl-gcc \
+	perl Configure linux-x86_64 no-shared --prefix=/content/openssl-build && \
+  make && make install_sw
+
+!cd openssl-build && tar -czf /content/openssl-v3.0.5-x86_64-linux-musl-static.tar.gz *
+!rm -rf openssl-openssl-3.0.5 openssl-build
+```
+
+```
+# openssl (Android 11+)
+
+!wget https://github.com/openssl/openssl/archive/refs/tags/openssl-3.0.5.tar.gz
+!tar -xzf openssl-3.0.5.tar.gz -C .
+!rm openssl-3.0.5.tar.gz
+
+cd openssl-openssl-3.0.5 && \
+	ANDROID_NDK_ROOT=/content/android-ndk-r25 && \
+	PATH=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$ANDROID_NDK_ROOT/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin:$PATH && \
+	perl Configure android-arm64 no-shared --prefix=/content/openssl-build --openssldir=/content/openssl-build -D__ANDROID_API__=30 && \
+	make && make install_sw
+
+!cd openssl-build && tar -czf /content/openssl-v3.0.5-android-arm64-android30-static.tar.gz *
+!rm -rf openssl-openssl-3.0.5 openssl-build
+```
+
+# MUSL (Prebuilt)
+!mkdir musl-cross-make-v0.9.9
+!tar -xzf /content/drive/MyDrive/musl-cross-make-v0.9.9-linux-64bit.tar.gz -C musl-cross-make-v0.9.9
+
+# openssl (Prebuilt)
+!mkdir openssl-v3.0.5
+!tar -xzf /content/drive/MyDrive/openssl-v3.0.5-x86_64-linux-musl-static.tar.gz -C openssl-v3.0.5
+
+3. Add build target x86_64-unknown-linux-musl.
+
+```bash
+$ rustup target add x86_64-unknown-linux-musl
+$ printf '\n[target.x86_64-unknown-linux-musl]\nlinker = "x86_64-linux-musl-gcc"\n' >> ~/.cargo/config.toml
+```
+
+```bash
+$ PATH=musl-cross-make-v0.9.9/bin:$PATH \
+    CC=x86_64-linux-musl-gcc \
+    CXX=x86_64-linux-musl-g++ \
+    PKG_CONFIG_ALLOW_CROSS=1 \
+    OPENSSL_DIR=openssl-v3.0.5 \
+    OPENSSL_STATIC=true \
+    OPENSSL_NO_VENDOR=true \
+    cargo build --release --target x86_64-unknown-linux-musl
+```
+
+!cd ./vsd/target/x86_64-unknown-linux-musl/release && tar -czf /content/vsd-v{version}-x86_64-unknown-linux-musl.tar.gz ./vsd -->
+
+<!-- [openssl-v3.0.5-static-x86_64-linux-gnu.tar.gz](https://drive.google.com/file/d/1u7I6hNJ3P7Z6mzIQEY3VxiClJ99JbDm5/view?usp=sharing)
+[openssl-v3.0.5-static-x86_64-linux-musl.tar.gz](https://drive.google.com/file/d/1V8qqgOl1fHgd2KLNplxsHgvwyvu67ITx/view?usp=sharing) -->
 
 ### Android (On Linux 64-bit)
 
@@ -231,7 +312,7 @@ $ unzip android-ndk-r22b-linux-x86_64.zip
 $ rm android-ndk-r22b-linux-x86_64.zip
 ```
 
-2. Build [openssl](https://github.com/openssl/openssl) library for android. vsd builds use openssl static build i.e. [openssl-3.0.5-android-arm64-android30-static.tar.gz](https://drive.google.com/file/d/1Fwst1R-in2-2jGieCapeUXfLgqR2urVA/view?usp=sharing).
+2. Build [openssl](https://github.com/openssl/openssl) library for android. vsd builds use openssl static build i.e. [openssl-v3.0.5-static-aarch64-linux-android30.tar.gz](https://drive.google.com/file/d/1Fwst1R-in2-2jGieCapeUXfLgqR2urVA/view?usp=sharing).
 
 3. Add android target aarch64-linux-android.
 
@@ -244,9 +325,9 @@ $ printf '\n[target.aarch64-linux-android]\nlinker = "aarch64-linux-android30-cl
 
 ```bash
 $ PATH=android-ndk-r22b/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH \
-    OPENSSL_DIR="openssl-3.0.5-android-arm64-android30-static" \
-    OPENSSL_STATIC=true \
-    OPENSSL_NO_VENDOR=true \
+    AARCH64_LINUX_ANDROID_OPENSSL_DIR=openssl-v3.0.5-static-aarch64-linux-android30 \
+    AARCH64_LINUX_ANDROID_OPENSSL_STATIC=true \
+    AARCH64_LINUX_ANDROID_OPENSSL_NO_VENDOR=true \
     cargo build --release --target aarch64-linux-android
 ```
 

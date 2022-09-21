@@ -3,7 +3,7 @@ use clap::Args;
 /// Capture requests made to fetch playlists.
 #[derive(Debug, Clone, Args)]
 #[clap(long_about = "Capture requests made to fetch playlists.\n\n\
-*Requires* any one of these to be installed:\n\
+Requires any one of these to be installed:\n\
 1. chrome - https://www.google.com/chrome\n\
 2. chromium - https://www.chromium.org/getting-involved/download-chromium\n\n\
 Launch Google Chrome to capture requests made to fetch .m3u8 (HLS) and .mpd (Dash) playlists. \
