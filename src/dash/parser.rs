@@ -174,13 +174,13 @@ impl MPD {
 }
 
 impl Period {
-    pub fn duration(&self, mpd: &MPD) -> Option<f32> {
+    pub fn duration(&self, mpd: &MPD) -> f32 {
         if let Some(duration) = &self.duration {
-            utils::iso8601_duration_to_seconds(&duration).ok()
+            utils::iso8601_duration_to_seconds(&duration).unwrap()
         } else if let Some(duration) = &mpd.media_presentation_duration {
-            utils::iso8601_duration_to_seconds(&duration).ok()
+            utils::iso8601_duration_to_seconds(&duration).unwrap()
         } else {
-            Some(0.0)
+            0.0
         }
     }
 }
@@ -380,43 +380,61 @@ impl Representation {
         adaptation_set.default_kid()
     }
 
-    pub fn template_vars(&self) -> HashMap<&str, String> {
+    pub fn template_vars(&self) -> HashMap<String, String> {
         let mut vars = HashMap::new();
 
-        vars.insert("RepresentationID", self.id.clone().unwrap_or("".to_owned()));
+        vars.insert("RepresentationID".to_owned(), self.id.clone().unwrap_or("".to_owned()));
 
         if let Some(bandwidth) = &self.bandwidth {
-            vars.insert("Bandwidth", bandwidth.to_string());
+            vars.insert("Bandwidth".to_owned(), bandwidth.to_string());
         } else {
-            vars.insert("Bandwidth", "".to_owned());
+            vars.insert("Bandwidth".to_owned(), "".to_owned());
         }
 
         vars
     }
-}
 
-impl Initialization {
-    pub fn range(&self) -> Option<(u64, u64)> {
-        if let Some(range) = &self.range {
-            return Some((
-                range.split('-').nth(0).unwrap().parse::<u64>().unwrap(),
-                range.split('-').nth(1).unwrap().parse::<u64>().unwrap(),
-            ));
+    pub fn segment_template(&self, adaptation_set: &AdaptationSet) -> Option<SegmentTemplate> {
+        if let Some(segment_template) = &self.segment_template {
+            Some(segment_template.to_owned())
+        } else if let Some(segment_template) = &adaptation_set.segment_template {
+            Some(segment_template.to_owned())
+        } else {
+            None
         }
-
-        None
     }
 }
 
-impl SegmentURL {
-    pub fn range(&self) -> Option<(u64, u64)> {
-        if let Some(range) = &self.media_range {
-            return Some((
-                range.split('-').nth(0).unwrap().parse::<u64>().unwrap(),
-                range.split('-').nth(1).unwrap().parse::<u64>().unwrap(),
-            ));
-        }
+impl SegmentList {
+    pub fn segment_duration(&self) -> f32 {
+        self.duration
+            .as_ref()
+            .map(|x| x.parse::<f32>().unwrap())
+            .unwrap_or(1.0)
+            / self
+                .timescale
+                .as_ref()
+                .map(|x| x.parse::<f32>().unwrap())
+                .unwrap_or(1.0)
+    }
+}
 
-        None
+impl SegmentTemplate {
+    pub fn timescale(&self) -> f32 {
+        self.timescale
+            .as_ref()
+            .map(|x| x.parse::<f32>().unwrap())
+            .unwrap_or(1.0)
+    }
+
+    pub fn duration(&self) -> f32 {
+        self.duration
+            .as_ref()
+            .map(|x| x.parse::<f32>().unwrap())
+            .unwrap_or(1.0)
+    }
+
+    pub fn start_number(&self) -> usize {
+        self.start_number.unwrap_or(0)
     }
 }
