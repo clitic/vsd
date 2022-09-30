@@ -20,7 +20,7 @@ use clap::{Parser, Subcommand};
 ///
 /// Know more about adaptive live streams from https://howvideo.works
 #[derive(Debug, Clone, Parser)]
-#[clap(version, author = "clitic <clitic21@gmail.com>", about)]
+#[command(version, author = "clitic <clitic21@gmail.com>", about)]
 pub struct Args {
     #[clap(subcommand)]
     pub command: Commands,
@@ -35,4 +35,5 @@ pub enum Commands {
     Merge(Merge),
     Save(Save),
     // Check(Check),
+    // Convert(Convert),
 }

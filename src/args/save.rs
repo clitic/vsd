@@ -16,7 +16,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, Args)]
 pub struct Save {
     /// URL | .m3u8 | .m3u | .mpd | .xml
-    #[clap(required = true, validator = input_validator)]
+    #[clap(required = true)]
     pub input: String,
 
     /// Path of final downloaded video stream.
@@ -32,15 +32,15 @@ pub struct Save {
 
     /// Automatic selection of some standard resolution streams with highest bandwidth stream variant from master playlist.
     /// possible values: [144p, 240p, 360p, 480p, 720p, hd, 1080p, fhd, 2k, 1440p, qhd, 4k, 8k, highest, max, select-later]
-    #[clap(short, long, default_value = "select-later", value_name = "WIDTHxHEIGHT", validator = quality_validator)]
-    pub quality: String,
+    #[clap(short, long, default_value = "select-later", value_name = "WIDTHxHEIGHT", value_parser = quality_parser)]
+    pub quality: Quality,
 
     // /// Automatic selection of some standard resolution streams with highest bandwidth stream variant from master playlist.
     // #[clap(long, number_of_values = 2, value_names = &["width", "height"])]
     // pub resolution: Vec<u64>,
     /// Maximum number of threads for parllel downloading of segments.
     /// Number of threads should be in range 1-16 (inclusive).
-    #[clap(short, long, default_value_t = 5, validator = threads_validator)]
+    #[clap(short, long, default_value_t = 5, value_parser = clap::value_parser!(u8).range(1..=16))]
     pub threads: u8,
 
     /// Maximum number of retries to download an individual segment.
@@ -66,7 +66,7 @@ pub struct Save {
 
     /// TODO: Decryption keys.
     /// This option can be used multiple times.
-    #[clap(short, long, multiple_occurrences = true, value_name = "<KID:KEY>|KEY")]
+    #[clap(short, long, value_name = "<KID:KEY>|KEY")]
     pub key: Vec<String>,
 
     /// TODO: Record duration for live playlist in seconds.
@@ -79,60 +79,39 @@ pub struct Save {
 
     /// Custom headers for requests.
     /// This option can be used multiple times.
-    #[clap(long, multiple_occurrences = true, number_of_values = 2, value_names = &["KEY", "VALUE"], help_heading = "CLIENT OPTIONS")]
+    #[clap(long, number_of_values = 2, value_names = &["KEY", "VALUE"], help_heading = "Client Options")]
     pub header: Vec<String>, // Vec<Vec<String>> not supported
 
     /// Update and set custom user agent for requests.
     #[clap(
         long,
         default_value = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.64 Safari/537.36",
-        help_heading = "CLIENT OPTIONS"
+        help_heading = "Client Options"
     )]
     pub user_agent: String,
 
     /// Set http or https proxy address for requests.
-    #[clap(long, validator = proxy_address_validator, help_heading = "CLIENT OPTIONS")]
+    #[clap(long, value_parser = proxy_address_parser, help_heading = "Client Options")]
     pub proxy_address: Option<String>,
 
     /// Enable cookie store which allows cookies to be stored.
-    #[clap(long, help_heading = "CLIENT OPTIONS")]
+    #[clap(long, help_heading = "Client Options")]
     pub enable_cookies: bool,
 
     /// Enable cookie store and fill it with some existing cookies.
     /// Example `--cookies "foo=bar; Domain=yolo.local" https://yolo.local`.
     /// This option can be used multiple times.
-    #[clap(long, multiple_occurrences = true, number_of_values = 2, value_names = &["COOKIES", "URL"], help_heading = "CLIENT OPTIONS")]
+    #[clap(long, number_of_values = 2, value_names = &["COOKIES", "URL"], help_heading = "Client Options")]
     pub cookies: Vec<String>, // Vec<Vec<String>> not supported
 }
 
-fn input_validator(s: &str) -> Result<(), String> {
-    if s.starts_with("https://youtube.com")
-        || s.starts_with("https://www.youtube.com")
-        || s.starts_with("https://youtu.be")
-    {
-        Err("Youtube links aren't supported yet".to_owned())
-    } else {
-        Ok(())
-    }
+fn quality_parser(s: &str) -> Result<Quality, String> {
+    s.parse::<Quality>()
 }
 
-fn quality_validator(s: &str) -> Result<(), String> {
-    let _ = s.parse::<Quality>()?;
-    Ok(())
-}
-
-fn threads_validator(s: &str) -> Result<(), String> {
-    let num_threads: usize = s.parse().map_err(|_| format!("`{}` isn't a number", s))?;
-    if std::ops::RangeInclusive::new(1, 16).contains(&num_threads) {
-        Ok(())
-    } else {
-        Err("number of threads should be in range `1-16`".to_string())
-    }
-}
-
-fn proxy_address_validator(s: &str) -> Result<(), String> {
+fn proxy_address_parser(s: &str) -> Result<String, String> {
     if s.starts_with("http://") || s.starts_with("https://") {
-        Ok(())
+        Ok(s.to_owned())
     } else {
         Err("Proxy address should start with `http://` or `https://` only".to_string())
     }

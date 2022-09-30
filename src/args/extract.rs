@@ -1,8 +1,8 @@
 use crate::subtitles::MP4Subtitles;
 use anyhow::{anyhow, bail, Result};
-use clap::{ArgEnum, Args};
+use clap::{Args, ValueEnum};
 
-#[derive(Debug, Clone, ArgEnum)]
+#[derive(Debug, Clone, ValueEnum)]
 pub enum Format {
     SRT,
     VTT,
@@ -19,7 +19,7 @@ pub struct Extract {
     files: Vec<String>,
 
     /// Subtitles output format.
-    #[clap(short, long, arg_enum, default_value_t = Format::SRT)]
+    #[clap(short, long, value_enum, default_value_t = Format::SRT)]
     format: Format,
 
     /// Set timescale manually if no init segment is present.
