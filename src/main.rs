@@ -3,7 +3,7 @@ use clap::Parser;
 use kdam::term::Colorizer;
 use kdam::RichProgress;
 use std::sync::{Arc, Mutex};
-use vsd::args::Commands;
+use vsd::commands::Commands;
 
 fn error(e: Error) -> ! {
     eprintln!("{}: {}", "error".colorize("bold red"), e);
@@ -16,13 +16,9 @@ fn error_progress_bar(e: Error, _pb: &Arc<Mutex<RichProgress>>) -> ! {
 }
 
 fn main() {
-    match vsd::args::Args::parse().command {
-        Commands::Capture(args) => {
-            vsd::chrome::capture(&args.url, args.headless).unwrap_or_else(|e| error(e))
-        }
-        Commands::Collect(args) => {
-            vsd::chrome::collect(&args.url, args.headless, args.build).unwrap_or_else(|e| error(e))
-        }
+    match vsd::commands::Args::parse().command {
+        Commands::Capture(args) => args.perform().unwrap_or_else(|e| error(e)),
+        Commands::Collect(args) => args.perform().unwrap_or_else(|e| error(e)),
         Commands::Decrypt(args) => args.perform().unwrap_or_else(|e| error(e)),
         Commands::Extract(args) => args.perform().unwrap_or_else(|e| error(e)),
         Commands::Merge(args) => args.perform().unwrap_or_else(|e| error(e)),

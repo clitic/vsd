@@ -1,5 +1,5 @@
 use crate::utils::{format_bytes, select};
-use crate::args::Quality;
+use crate::commands::Quality;
 use anyhow::{bail, Result};
 use std::fmt::Write;
 
@@ -83,16 +83,16 @@ pub fn master(
     }
 
     let uri = match quality {
-        Quality::yt_144p => select_quality("144p", variants)?,
-        Quality::yt_240p => select_quality("240p", variants)?,
-        Quality::yt_360p => select_quality("360p", variants)?,
-        Quality::yt_480p => select_quality("480p", variants)?,
-        Quality::yt_720p => select_quality("720p", variants)?,
-        Quality::yt_1080p => select_quality("1080p", variants)?,
-        Quality::yt_2k => select_quality("2K", variants)?,
-        Quality::yt_1440p => select_quality("1440p", variants)?,
-        Quality::yt_4k => select_quality("4K", variants)?,
-        Quality::yt_8k => select_quality("8K", variants)?,
+        Quality::Youtube144p => select_quality("144p", variants)?,
+        Quality::Youtube240p => select_quality("240p", variants)?,
+        Quality::Youtube360p => select_quality("360p", variants)?,
+        Quality::Youtube480p => select_quality("480p", variants)?,
+        Quality::Youtube720p => select_quality("720p", variants)?,
+        Quality::Youtube1080p => select_quality("1080p", variants)?,
+        Quality::Youtube2k => select_quality("2K", variants)?,
+        Quality::Youtube1440p => select_quality("1440p", variants)?,
+        Quality::Youtube4k => select_quality("4K", variants)?,
+        Quality::Youtube8k => select_quality("8K", variants)?,
         Quality::Resolution(w, h) => select_quality(&format!("{}x{}", w, h), variants)?,
         Quality::Highest => variants[0].uri.clone(),
         Quality::SelectLater => {

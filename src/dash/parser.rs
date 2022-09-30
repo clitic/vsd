@@ -8,7 +8,7 @@ pub fn parse(xml: &[u8]) -> Result<MPD, quick_xml::de::DeError> {
     quick_xml::de::from_reader::<_, MPD>(xml)
 }
 
-#[derive(Debug, Default, Clone, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct MPD {
     #[serde(rename = "type")]
     pub _type: Option<String>,
@@ -28,7 +28,7 @@ pub struct MPD {
     pub period: Vec<Period>,
 }
 
-#[derive(Debug, Default, Clone, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct Period {
     pub id: Option<String>,
     pub duration: Option<String>,
@@ -38,7 +38,7 @@ pub struct Period {
     pub adaptation_set: Vec<AdaptationSet>,
 }
 
-#[derive(Debug, Default, Clone, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct AdaptationSet {
     #[serde(rename = "mimeType")]
     pub mime_type: Option<String>,
@@ -60,7 +60,7 @@ pub struct AdaptationSet {
     pub representation: Vec<Representation>,
 }
 
-#[derive(Debug, Default, Clone, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct Representation {
     pub id: Option<String>,
     #[serde(rename = "mimeType")]
@@ -90,30 +90,30 @@ pub struct Representation {
     pub content_protection: Vec<ContentProtection>,
 }
 
-#[derive(Debug, Default, Clone, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct AudioChannelConfiguration {
     pub value: Option<String>,
 }
 
-#[derive(Debug, Default, Clone, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct Role {
     pub value: Option<String>,
 }
 
-#[derive(Debug, Default, Clone, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct SegmentBase {
     #[serde(rename = "Initialization")]
     pub initialization: Option<Initialization>,
 }
 
-#[derive(Debug, Default, Clone, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct Initialization {
     #[serde(rename = "sourceURL")]
     pub source_url: Option<String>,
     pub range: Option<String>,
 }
 
-#[derive(Debug, Default, Clone, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct SegmentList {
     pub duration: Option<String>,
     pub timescale: Option<String>,
@@ -123,7 +123,7 @@ pub struct SegmentList {
     pub segment_urls: Vec<SegmentURL>,
 }
 
-#[derive(Debug, Default, Clone, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct SegmentURL {
     pub media: Option<String>,
     #[serde(rename = "mediaRange")]
@@ -155,7 +155,7 @@ pub struct S {
     pub r: Option<i64>,
 }
 
-#[derive(Debug, Default, Clone, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct ContentProtection {
     #[serde(rename = "cenc:default_KID")]
     pub default_kid: Option<String>,
@@ -174,7 +174,7 @@ impl MPD {
 }
 
 impl Period {
-    pub fn duration(&self, mpd: &MPD) -> f32 {
+    pub(super) fn duration(&self, mpd: &MPD) -> f32 {
         if let Some(duration) = &self.duration {
             utils::iso8601_duration_to_seconds(&duration).unwrap()
         } else if let Some(duration) = &mpd.media_presentation_duration {
@@ -186,7 +186,7 @@ impl Period {
 }
 
 impl AdaptationSet {
-    pub fn mime_type(&self) -> Option<String> {
+    pub(super) fn mime_type(&self) -> Option<String> {
         if let Some(content_type) = &self.content_type {
             Some(content_type.to_owned())
         } else if let Some(mime_type) = &self.mime_type {
@@ -196,7 +196,7 @@ impl AdaptationSet {
         }
     }
 
-    pub fn frame_rate(&self) -> Option<f64> {
+    pub(super) fn frame_rate(&self) -> Option<f64> {
         if let Some(frame_rate) = &self.frame_rate {
             if frame_rate.contains("/") {
                 return Some(
@@ -221,7 +221,7 @@ impl AdaptationSet {
         None
     }
 
-    pub fn channels(&self) -> Option<String> {
+    pub(super) fn channels(&self) -> Option<String> {
         if let Some(audio_channel_configuration) = &self.audio_channel_configuration {
             if audio_channel_configuration.value.is_some() {
                 return audio_channel_configuration.value.clone();
@@ -231,7 +231,7 @@ impl AdaptationSet {
         None
     }
 
-    pub fn encryption_type(&self) -> Option<String> {
+    pub(super) fn encryption_type(&self) -> Option<String> {
         for content_protection in &self.content_protection {
             if content_protection.default_kid.is_some() {
                 return Some("CENC".to_string());
@@ -245,7 +245,7 @@ impl AdaptationSet {
         None
     }
 
-    pub fn default_kid(&self) -> Option<String> {
+    pub(super) fn default_kid(&self) -> Option<String> {
         for content_protection in &self.content_protection {
             if content_protection.default_kid.is_some() {
                 return content_protection.default_kid.clone();
@@ -267,7 +267,7 @@ impl Representation {
         }
     }
 
-    pub fn media_type(&self, adaptation_set: &AdaptationSet) -> m3u8_rs::AlternativeMediaType {
+    pub(super) fn media_type(&self, adaptation_set: &AdaptationSet) -> m3u8_rs::AlternativeMediaType {
         let mime_type = if let Some(mime_type) = adaptation_set.mime_type() {
             mime_type
         } else {
@@ -295,7 +295,7 @@ impl Representation {
         }
     }
 
-    pub fn extension(&self, adaptation_set: &AdaptationSet) -> Option<String> {
+    pub(super) fn extension(&self, adaptation_set: &AdaptationSet) -> Option<String> {
         let mime_type = if let Some(mime_type) = adaptation_set.mime_type() {
             mime_type
         } else {
@@ -305,7 +305,7 @@ impl Representation {
         mime_type.split('/').nth(1).map(|x| x.to_owned())
     }
 
-    pub fn codecs(&self, adaptation_set: &AdaptationSet) -> Option<String> {
+    pub(super) fn codecs(&self, adaptation_set: &AdaptationSet) -> Option<String> {
         if self.codecs.is_some() {
             self.codecs.clone()
         } else if adaptation_set.codecs.is_some() {
@@ -315,7 +315,7 @@ impl Representation {
         }
     }
 
-    pub fn lang(&self, adaptation_set: &AdaptationSet) -> Option<String> {
+    pub(super) fn lang(&self, adaptation_set: &AdaptationSet) -> Option<String> {
         if self.lang.is_some() {
             self.lang.clone()
         } else if adaptation_set.lang.is_some() {
@@ -325,7 +325,7 @@ impl Representation {
         }
     }
 
-    pub fn frame_rate(&self, adaptation_set: &AdaptationSet) -> Option<f64> {
+    pub(super) fn frame_rate(&self, adaptation_set: &AdaptationSet) -> Option<f64> {
         if let Some(frame_rate) = &self.frame_rate {
             if frame_rate.contains("/") {
                 return Some(
@@ -350,7 +350,7 @@ impl Representation {
         adaptation_set.frame_rate()
     }
 
-    pub fn channels(&self, adaptation_set: &AdaptationSet) -> Option<String> {
+    pub(super) fn channels(&self, adaptation_set: &AdaptationSet) -> Option<String> {
         if let Some(audio_channel_configuration) = &self.audio_channel_configuration {
             if audio_channel_configuration.value.is_some() {
                 return audio_channel_configuration.value.clone();
@@ -360,7 +360,7 @@ impl Representation {
         adaptation_set.channels()
     }
 
-    pub fn encryption_type(&self, adaptation_set: &AdaptationSet) -> Option<String> {
+    pub(super) fn encryption_type(&self, adaptation_set: &AdaptationSet) -> Option<String> {
         for content_protection in &self.content_protection {
             if content_protection.default_kid.is_some() {
                 return Some("CENC".to_string());
@@ -370,7 +370,7 @@ impl Representation {
         adaptation_set.encryption_type()
     }
 
-    pub fn default_kid(&self, adaptation_set: &AdaptationSet) -> Option<String> {
+    pub(super) fn default_kid(&self, adaptation_set: &AdaptationSet) -> Option<String> {
         for content_protection in &self.content_protection {
             if content_protection.default_kid.is_some() {
                 return content_protection.default_kid.clone();
@@ -380,7 +380,7 @@ impl Representation {
         adaptation_set.default_kid()
     }
 
-    pub fn template_vars(&self) -> HashMap<String, String> {
+    pub(super) fn template_vars(&self) -> HashMap<String, String> {
         let mut vars = HashMap::new();
 
         vars.insert("RepresentationID".to_owned(), self.id.clone().unwrap_or("".to_owned()));
@@ -394,7 +394,7 @@ impl Representation {
         vars
     }
 
-    pub fn segment_template(&self, adaptation_set: &AdaptationSet) -> Option<SegmentTemplate> {
+    pub(super) fn segment_template(&self, adaptation_set: &AdaptationSet) -> Option<SegmentTemplate> {
         if let Some(segment_template) = &self.segment_template {
             Some(segment_template.to_owned())
         } else if let Some(segment_template) = &adaptation_set.segment_template {
@@ -406,7 +406,7 @@ impl Representation {
 }
 
 impl SegmentList {
-    pub fn segment_duration(&self) -> f32 {
+    pub(super) fn segment_duration(&self) -> f32 {
         self.duration
             .as_ref()
             .map(|x| x.parse::<f32>().unwrap())
@@ -420,21 +420,21 @@ impl SegmentList {
 }
 
 impl SegmentTemplate {
-    pub fn timescale(&self) -> f32 {
+    pub(super) fn timescale(&self) -> f32 {
         self.timescale
             .as_ref()
             .map(|x| x.parse::<f32>().unwrap())
             .unwrap_or(1.0)
     }
 
-    pub fn duration(&self) -> f32 {
+    pub(super) fn duration(&self) -> f32 {
         self.duration
             .as_ref()
             .map(|x| x.parse::<f32>().unwrap())
             .unwrap_or(1.0)
     }
 
-    pub fn start_number(&self) -> usize {
+    pub(super) fn start_number(&self) -> usize {
         self.start_number.unwrap_or(0)
     }
 }

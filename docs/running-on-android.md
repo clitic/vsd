@@ -1,8 +1,8 @@
 # Running On Android
 
 1. Install [Termux](https://termux.com)
-2. Install [vsd](https://github.com/clitic/vsd#on-termux) on termux.
-3. Currrently `CHROME OPTIONS` doesn't work on android. So use a third party browser like [via](https://play.google.com/store/apps/details?id=mark.via.gp) to get m3u8 links from websites.
+2. Install [vsd](https://github.com/clitic/vsd#on-termux-android-11) on termux.
+3. Currrently `capture` and `collect` subcommands do not work on android. So use a third party browser like [via](https://play.google.com/store/apps/details?id=mark.via.gp) to get m3u8 links from websites.
 
 ## Step 1
 

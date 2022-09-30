@@ -4,8 +4,7 @@ mod merger;
 mod progress;
 mod subtitles;
 
-pub mod args;
-pub mod chrome;
+pub mod commands;
 pub mod dash;
 pub mod hls;
 pub mod utils;

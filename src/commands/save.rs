@@ -1,4 +1,3 @@
-use super::{InputType, Quality};
 use anyhow::{bail, Result};
 use clap::Args;
 use kdam::term::Colorizer;
@@ -10,80 +9,80 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 /// Download HLS and Dash playlists.
-/// 
+///
 /// Playlists which have separate audio tracks or subtitles streams, expects
 /// ffmpeg (https://www.ffmpeg.org/download.html) to be installed in system PATH.
 #[derive(Debug, Clone, Args)]
 pub struct Save {
     /// URL | .m3u8 | .m3u | .mpd | .xml
-    #[clap(required = true)]
+    #[arg(required = true)]
     pub input: String,
 
     /// Path of final downloaded video stream.
     /// For file extension any ffmpeg supported format could be provided.
     /// If playlist contains alternative streams vsd will try to transmux and trancode into single file using ffmpeg.
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub output: Option<String>,
 
     /// Base url for all segments.
     /// Usually needed for local m3u8 file.
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub baseurl: Option<String>,
 
     /// Automatic selection of some standard resolution streams with highest bandwidth stream variant from master playlist.
     /// possible values: [144p, 240p, 360p, 480p, 720p, hd, 1080p, fhd, 2k, 1440p, qhd, 4k, 8k, highest, max, select-later]
-    #[clap(short, long, default_value = "select-later", value_name = "WIDTHxHEIGHT", value_parser = quality_parser)]
+    #[arg(short, long, default_value = "select-later", value_name = "WIDTHxHEIGHT", value_parser = quality_parser)]
     pub quality: Quality,
 
     // /// Automatic selection of some standard resolution streams with highest bandwidth stream variant from master playlist.
-    // #[clap(long, number_of_values = 2, value_names = &["width", "height"])]
+    // #[arg(long, number_of_values = 2, value_names = &["width", "height"])]
     // pub resolution: Vec<u64>,
     /// Maximum number of threads for parllel downloading of segments.
     /// Number of threads should be in range 1-16 (inclusive).
-    #[clap(short, long, default_value_t = 5, value_parser = clap::value_parser!(u8).range(1..=16))]
+    #[arg(short, long, default_value_t = 5, value_parser = clap::value_parser!(u8).range(1..=16))]
     pub threads: u8,
 
     /// Maximum number of retries to download an individual segment.
-    #[clap(long, default_value_t = 15)]
+    #[arg(long, default_value_t = 15)]
     pub retry_count: u8,
 
     /// Raw style input prompts for old and unsupported terminals.
-    #[clap(long)]
+    #[arg(long)]
     pub raw_prompts: bool,
 
     /// Resume a download session.
     /// Download session can only be resumed if download session json file is present.
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub resume: bool,
 
     /// Download alternative streams such as audio and subtitles streams from master playlist instead of variant video streams.
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub alternative: bool,
 
     /// Skip downloading and muxing alternative streams.
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub skip: bool,
 
     /// TODO: Decryption keys.
     /// This option can be used multiple times.
-    #[clap(short, long, value_name = "<KID:KEY>|KEY")]
+    #[arg(short, long, value_name = "<KID:KEY>|KEY")]
     pub key: Vec<String>,
 
     /// TODO: Record duration for live playlist in seconds.
-    #[clap(long)]
+    #[arg(long)]
     pub record_duration: Option<f32>,
 
     /// TODO: Directory path
-    #[clap(long)]
+    #[arg(long)]
     pub save_directory: Option<String>,
 
     /// Custom headers for requests.
     /// This option can be used multiple times.
-    #[clap(long, number_of_values = 2, value_names = &["KEY", "VALUE"], help_heading = "Client Options")]
+    #[arg(long, number_of_values = 2, value_names = &["KEY", "VALUE"], help_heading = "Client Options")]
     pub header: Vec<String>, // Vec<Vec<String>> not supported
 
     /// Update and set custom user agent for requests.
-    #[clap(
+    #[arg(
         long,
         default_value = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.64 Safari/537.36",
         help_heading = "Client Options"
@@ -91,22 +90,88 @@ pub struct Save {
     pub user_agent: String,
 
     /// Set http or https proxy address for requests.
-    #[clap(long, value_parser = proxy_address_parser, help_heading = "Client Options")]
+    #[arg(long, value_parser = proxy_address_parser, help_heading = "Client Options")]
     pub proxy_address: Option<String>,
 
     /// Enable cookie store which allows cookies to be stored.
-    #[clap(long, help_heading = "Client Options")]
+    #[arg(long, help_heading = "Client Options")]
     pub enable_cookies: bool,
 
     /// Enable cookie store and fill it with some existing cookies.
     /// Example `--cookies "foo=bar; Domain=yolo.local" https://yolo.local`.
     /// This option can be used multiple times.
-    #[clap(long, number_of_values = 2, value_names = &["COOKIES", "URL"], help_heading = "Client Options")]
+    #[arg(long, number_of_values = 2, value_names = &["COOKIES", "URL"], help_heading = "Client Options")]
     pub cookies: Vec<String>, // Vec<Vec<String>> not supported
 }
 
+#[derive(Debug, Clone)]
+pub enum Quality {
+    Youtube144p,
+    Youtube240p,
+    Youtube360p,
+    Youtube480p,
+    Youtube720p,
+    Youtube1080p,
+    Youtube2k,
+    Youtube1440p,
+    Youtube4k,
+    Youtube8k,
+    Resolution(u16, u16),
+    Highest,
+    SelectLater,
+}
+
 fn quality_parser(s: &str) -> Result<Quality, String> {
-    s.parse::<Quality>()
+    Ok(match s.to_lowercase().as_str() {
+        "144p" => Quality::Youtube144p,
+        "240p" => Quality::Youtube240p,
+        "360p" => Quality::Youtube360p,
+        "480p" => Quality::Youtube480p,
+        "720p" | "hd" => Quality::Youtube720p,
+        "1080p" | "fhd" => Quality::Youtube1080p,
+        "2k" => Quality::Youtube2k,
+        "1440p" | "qhd" => Quality::Youtube1440p,
+        "4k" => Quality::Youtube4k,
+        "8k" => Quality::Youtube8k,
+        "highest" | "max" => Quality::Highest,
+        "select-later" => Quality::SelectLater,
+        x if x.contains("x") => {
+            if let (Some(w), Some(h)) = (x.split("x").nth(0), x.split("x").nth(1)) {
+                Quality::Resolution(
+                    w.parse::<u16>().map_err(|_| "invalid width".to_owned())?,
+                    h.parse::<u16>().map_err(|_| "invalid height".to_owned())?,
+                )
+            } else {
+                Err("incorrect resolution format".to_owned())?
+            }
+        }
+        _ => Err(format!(
+            "\npossible values: [{}]\nFor custom resolution use {}",
+            [
+                "144p",
+                "240p",
+                "360p",
+                "480p",
+                "720p",
+                "hd",
+                "1080p",
+                "fhd",
+                "2k",
+                "1440p",
+                "qhd",
+                "4k",
+                "8k",
+                "highest",
+                "max",
+                "select-later",
+            ]
+            .iter()
+            .map(|x| x.colorize("green"))
+            .collect::<Vec<_>>()
+            .join(", "),
+            "WIDTHxHEIGHT".colorize("green")
+        ))?,
+    })
 }
 
 fn proxy_address_parser(s: &str) -> Result<String, String> {
@@ -249,6 +314,38 @@ impl Save {
             } else {
                 InputType::LocalFile
             }
+        }
+    }
+}
+
+pub enum InputType {
+    HlsUrl,
+    DashUrl,
+    Website,
+    HlsLocalFile,
+    DashLocalFile,
+    LocalFile,
+}
+
+impl InputType {
+    pub fn is_website(&self) -> bool {
+        match &self {
+            Self::Website => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_hls(&self) -> bool {
+        match &self {
+            Self::HlsUrl | Self::HlsLocalFile => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_dash(&self) -> bool {
+        match &self {
+            Self::DashUrl | Self::DashLocalFile => true,
+            _ => false,
         }
     }
 }

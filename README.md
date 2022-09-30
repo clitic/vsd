@@ -100,7 +100,7 @@ curl -L https://github.com/clitic/vsd/releases/download/v0.1.2/vsd-v0.1.2-aarch6
 pkg install ffmpeg
 ```
 
-Also, see [running on android](https://github.com/clitic/vsd/blob/main/docs/running-on-android.md).
+Also, see [running on android](https://github.com/clitic/vsd/blob/main/docs/running-on-android.md)
 
 ## Usage
 

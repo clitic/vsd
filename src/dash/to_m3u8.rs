@@ -1,8 +1,8 @@
 // REFERENCES: https://github.com/nilaoda/N_m3u8DL-RE/blob/main/src/N_m3u8DL-RE.Parser/Extractor/DASHExtractor2.cs
 
 use super::utils;
-use super::{AdaptationSet, PlaylistTag, Representation, SegmentTag, MPD};
-use anyhow::{bail, Result};
+use super::{AdaptationSet, PlaylistTag, Representation, SegmentTag, TemplateResolver, MPD};
+use anyhow::{anyhow, bail, Result};
 
 pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
     let mut master = m3u8_rs::MasterPlaylist::default();
@@ -58,7 +58,9 @@ pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
 
 pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Result<m3u8_rs::MediaPlaylist> {
     if !uri.starts_with("dash://") {
-        bail!("incorrect mpd uri")
+        bail!(
+            "incorrect MPD uri format (expected: dash://period.{{}}.adaptation-set.{{}}.representation.{{}})"
+        )
     }
 
     let location = uri
@@ -67,15 +69,23 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Result<m3u8_rs::
         .collect::<Vec<usize>>();
 
     if location.len() != 3 {
-        bail!("incorrect mpd uri")
+        bail!(
+            "incorrect MPD uri format (expected: dash://period.{{}}.adaptation-set.{{}}.representation.{{}})"
+        )
     }
 
-    let period = &mpd.period[location[0]];
-    let adaptation_set = &period.adaptation_set[location[1]];
-    let representation = &adaptation_set.representation[location[2]];
-
-    // TODO; if slicing error then raise
-    // bail!("playlist not found")
+    let period = &mpd
+        .period
+        .get(location[0])
+        .ok_or(anyhow!("requested MPD playlist not found"))?;
+    let adaptation_set = &period
+        .adaptation_set
+        .get(location[1])
+        .ok_or(anyhow!("requested MPD playlist not found"))?;
+    let representation = &adaptation_set
+        .representation
+        .get(location[2])
+        .ok_or(anyhow!("requested MPD playlist not found"))?;
 
     // BASEURL
     let mut baseurl = mpd_url.to_owned();
@@ -156,7 +166,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Result<m3u8_rs::
     }
 
     if let Some(segment_template) = representation.segment_template(&adaptation_set) {
-        let mut template_resolver = utils::TemplateResolver::new(representation.template_vars());
+        let mut template_resolver = TemplateResolver::new(representation.template_vars());
 
         if let Some(initialization) = &segment_template.initialization {
             init_segment = Some(m3u8_rs::MediaSegment {

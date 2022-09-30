@@ -1,5 +1,5 @@
-use crate::args::InputType;
-use crate::{args, dash, hls, utils};
+use crate::commands::InputType;
+use crate::{commands, dash, hls, utils};
 use crate::{BinaryMerger, Decrypter, MP4Subtitles, Progress, StreamData};
 use anyhow::{anyhow, bail, Result};
 use kdam::prelude::*;
@@ -9,14 +9,14 @@ use reqwest::header;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 pub struct DownloadState {
-    pub args: args::Save,
+    pub args: commands::Save,
     pub client: Arc<Client>,
     pub progress: Progress,
     pub pb: Arc<Mutex<RichProgress>>,
 }
 
 impl DownloadState {
-    pub fn new(args: args::Save) -> Result<Self> {
+    pub fn new(args: commands::Save) -> Result<Self> {
         let client = args.client()?;
 
         if let Some(output) = &args.output {

@@ -8,16 +8,16 @@ use std::path::Path;
 #[derive(Debug, Clone, Args)]
 pub struct Merge {
     /// List of files to merge together like *.ts, *.m4s etc.
-    #[clap(required = true)]
-    pub files: Vec<String>,
+    #[arg(required = true)]
+    files: Vec<String>,
 
     /// Path  of merged output file.
-    #[clap(short, long, required = true)]
-    pub output: String,
+    #[arg(short, long, required = true)]
+    output: String,
 
     /// Merge using ffmpeg instead of binary merge.
-    #[clap(long)]
-    pub ffmpeg: bool,
+    #[arg(long)]
+    ffmpeg: bool,
 }
 
 impl Merge {

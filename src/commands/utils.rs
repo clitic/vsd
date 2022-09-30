@@ -2,14 +2,14 @@ use anyhow::{anyhow, Result};
 use kdam::term::Colorizer;
 use std::path::{Path, PathBuf};
 
-pub fn launch_message(headless: bool) {
+pub(super) fn chrome_launch_message(headless: bool) {
     println!(
         "Chrome will launch {} a window for 3 minutes.",
         if headless { "without" } else { "with" },
     );
 }
 
-pub fn warning_message() {
+pub(super) fn chrome_warning_message() {
     println!(
         "Sometimes video starts playing but links are not captured \
 		if such condition occurs then try re running the command.\n\
@@ -18,7 +18,7 @@ pub fn warning_message() {
     );
 }
 
-pub fn filepath(url: &str, ext: &str) -> String {
+pub(super) fn filepath(url: &str, ext: &str) -> String {
     let path = if let Some(output) = url
         .split('?')
         .next()
@@ -60,7 +60,7 @@ pub fn filepath(url: &str, ext: &str) -> String {
     path
 }
 
-pub fn build_links(m3u8: &[u8], file: &str, baseurl: &str) -> Result<()> {
+pub(super) fn build_links(m3u8: &[u8], file: &str, baseurl: &str) -> Result<()> {
     match m3u8_rs::parse_playlist_res(m3u8)
         .map_err(|_| anyhow!("Couldn't parse {} playlist.", baseurl))?
     {

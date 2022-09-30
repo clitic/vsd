@@ -16,18 +16,18 @@ enum EncryptionMethod {
 #[derive(Debug, Clone, Args)]
 pub struct Decrypt {
     /// Path of file to decrypt.
-    #[clap(required = true)]
+    #[arg(required = true)]
     file: String,
 
     /// Path of decrypted output file.
-    #[clap(short, long, required = true)]
+    #[arg(short, long, required = true)]
     output: String,
 
     /// Encryption method to use.
     ///
     /// AES-128 decryption is based on openssl aes-128-cbc decryption.
     /// CENC decryption is based on mp4decrypt from Bento4 (https://github.com/axiomatic-systems/Bento4).
-    #[clap(short, long, value_enum, required = true)]
+    #[arg(short, long, value_enum, required = true)]
     encryption: EncryptionMethod,
 
     /// Decryption KEY.
@@ -48,15 +48,15 @@ pub struct Decrypt {
     /// KIDs are only applicable to some encryption methods like MPEG-CENC.
     ///
     /// example: --key edef8ba9-79d6-4ace-a3c8-27dcd51d21ed:100b6c20940f779a4589152b57d2dacb
-    #[clap(short, long, required = true, value_name = "KEY|<KID:KEY>")]
+    #[arg(short, long, required = true, value_name = "KEY|<KID:KEY>")]
     key: Vec<String>,
 
     /// Initialization vector used while encrypting file.
-    #[clap(long)]
+    #[arg(long)]
     iv: Option<String>,
 
     /// Decrypt the fragments read from file, with track info read from this file.
-    #[clap(long)]
+    #[arg(long)]
     fragments_info: Option<String>,
 }
 

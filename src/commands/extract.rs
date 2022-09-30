@@ -15,16 +15,16 @@ pub enum Format {
 pub struct Extract {
     /// List of subtitles segment files where first file is init.mp4 and following files are *.m4s (segments).
     /// A single mp4 file can also be provided.
-    #[clap(required = true)]
+    #[arg(required = true)]
     files: Vec<String>,
 
     /// Subtitles output format.
-    #[clap(short, long, value_enum, default_value_t = Format::SRT)]
+    #[arg(short, long, value_enum, default_value_t = Format::SRT)]
     format: Format,
 
     /// Set timescale manually if no init segment is present.
     /// If timescale is set to anything then webvtt codec is used.
-    #[clap(short, long)]
+    #[arg(short, long)]
     timescale: Option<u32>,
     //   -segment-time SEGMENT_TIME, --segment-time SEGMENT_TIME
     //                         single segment duration, usually needed for ttml
