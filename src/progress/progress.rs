@@ -62,8 +62,12 @@ impl Progress {
         };
     }
 
-    pub fn mux(&self, output: Option<String>, alternative: bool) -> Result<()> {
-        if let Some(output) = &output {
+    pub fn mux(
+        &self,
+        output: &Option<String>,
+        alternative_media_type: &Option<m3u8_rs::AlternativeMediaType>,
+    ) -> Result<()> {
+        if let Some(output) = output {
             let mut args = vec!["-i".to_owned(), self.video.file.clone()];
 
             // args.push("-metadata".to_owned());
@@ -78,7 +82,7 @@ impl Progress {
             //     args.push(format!("language={}", language));
             // }
 
-            if !alternative {
+            if alternative_media_type.is_none() {
                 if let Some(audio) = &self.audio {
                     args.push("-i".to_owned());
                     args.push(audio.file.clone());

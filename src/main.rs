@@ -23,11 +23,10 @@ fn run() -> anyhow::Result<()> {
         Commands::Save(args) => {
             let mut downloader = DownloadState::new(args)?;
             downloader.fetch_playlists()?;
-            downloader.check_segments()?;
             downloader.download()?;
             downloader
                 .progress
-                .mux(downloader.args.output.clone(), downloader.args.alternative)?;
+                .mux(&downloader.args.output, &downloader.alternative_media_type)?;
         }
     }
 

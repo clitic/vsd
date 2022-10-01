@@ -17,6 +17,7 @@ pub struct DownloadState {
     pub client: Arc<Client>,
     pub progress: Progress,
     pub pb: Arc<Mutex<RichProgress>>,
+    pub alternative_media_type: Option<m3u8_rs::AlternativeMediaType>,
 }
 
 impl DownloadState {
@@ -30,6 +31,7 @@ impl DownloadState {
         }
 
         Ok(Self {
+            alternative_media_type: None,
             args,
             client,
             progress: Progress::new_empty(),
@@ -203,8 +205,9 @@ impl DownloadState {
         {
             m3u8_rs::Playlist::MasterPlaylist(master) => {
                 self.args.input = if self.args.alternative {
-                    self.args
-                        .get_url(&hls::alternative(&master, self.args.raw_prompts)?.uri.unwrap())?
+                    let alternative = hls::alternative(&master, self.args.raw_prompts)?;
+                    self.alternative_media_type = Some(alternative.media_type);
+                    self.args.get_url(&alternative.uri.unwrap())?
                 } else {
                     self.args.get_url(&hls::master(
                         &master,
@@ -256,7 +259,9 @@ impl DownloadState {
         hls::autoselect(&mut master, None, None);
 
         let uri = if self.args.alternative {
-            hls::alternative(&master, self.args.raw_prompts)?.uri.unwrap()
+            let alternative = hls::alternative(&master, self.args.raw_prompts)?;
+            self.alternative_media_type = Some(alternative.media_type);
+            alternative.uri.unwrap()
         } else {
             hls::master(&master, &self.args.quality, self.args.raw_prompts)?
         };
@@ -277,7 +282,7 @@ impl DownloadState {
             self.fetch_alternative_streams(&master, Some(mpd))?;
         }
 
-        return Ok(());
+        Ok(())
     }
 
     // fn hls_live(&mut self) -> Result<()> {
@@ -313,7 +318,7 @@ impl DownloadState {
     //     Ok(())
     // }
 
-    pub fn check_segments(&self) -> Result<()> {
+    fn check_segments(&self) -> Result<()> {
         let mut segments = self.progress.video.to_playlist().segments;
 
         if let Some(audio) = &self.progress.audio {
@@ -350,27 +355,78 @@ impl DownloadState {
         Ok(())
     }
 
-    pub fn download(&mut self) -> Result<()> {
-        self.progress.set_progress_file();
-
+    fn download_subtitles(&mut self, subtitles: StreamData) -> Result<StreamData> {
+        let mut subtitles = subtitles;
         let mut gaurded_pb = self.pb.lock().unwrap();
 
-        if let Some(subtitles) = &mut self.progress.subtitles {
-            let playlist = subtitles.to_playlist();
-            // println!("{:#?}", playlist);
-            let segments = playlist.segments;
-            gaurded_pb.pb.set_total(segments.len());
+        let playlist = subtitles.to_playlist();
+        let segments = playlist.segments;
+        gaurded_pb.pb.set_total(segments.len());
 
-            let mut total_bytes = 0;
+        let mut total_bytes = 0;
 
-            let mut subtitles_data = self
+        let mut subtitles_data = self
+            .client
+            .get(&self.args.get_url(&segments[0].uri)?)
+            .send()?
+            .bytes()?
+            .to_vec();
+
+        total_bytes += subtitles_data.len();
+
+        gaurded_pb.replace(
+            1,
+            Column::Text(format!(
+                "[bold blue]{}",
+                utils::format_bytes(total_bytes, 2).2
+            )),
+        );
+        gaurded_pb.update(1);
+
+        let mut mp4subtitles = false;
+
+        if &subtitles_data[..6] == "WEBVTT".as_bytes() {
+            subtitles.set_extension_mut("vtt");
+        } else if subtitles_data[0] == "1".as_bytes()[0] {
+            subtitles.set_extension_mut("srt");
+        } else if &subtitles_data[..3] == "<tt".as_bytes() {
+            bail!("raw ttml subtitles are not supported")
+        } else {
+            let playlist_tags = dash::PlaylistTag::from(&playlist.unknown_tags);
+            let segment_tags = dash::SegmentTag::from(&segments[0].unknown_tags);
+            let uri = segments[0].uri.split('?').next().unwrap();
+
+            if segment_tags.init {
+                if playlist_tags.vtt
+                    || playlist_tags.ttml
+                    || uri.ends_with(".mp4")
+                    || uri.ends_with(".cmft")
+                    || uri.ends_with(".ismt")
+                {
+                    subtitles.set_extension_mut("vtt");
+                    mp4subtitles = true;
+                } else {
+                    bail!("unknown embedded subtitles are not supported")
+                }
+            }
+        }
+
+        gaurded_pb.write(format!(
+            "{} subtitle stream to {}",
+            "Downloading".colorize("bold green"),
+            subtitles.file.colorize("cyan")
+        ));
+
+        for segment in &segments[1..] {
+            let bytes = self
                 .client
-                .get(&self.args.get_url(&segments[0].uri)?)
+                .get(&self.args.get_url(&segment.uri)?)
                 .send()?
                 .bytes()?
                 .to_vec();
 
-            total_bytes += subtitles_data.len();
+            total_bytes += bytes.len();
+            subtitles_data.extend_from_slice(&bytes);
 
             gaurded_pb.replace(
                 1,
@@ -380,88 +436,52 @@ impl DownloadState {
                 )),
             );
             gaurded_pb.update(1);
-
-            let mut mp4subtitles = false;
-
-            if &subtitles_data[..6] == "WEBVTT".as_bytes() {
-                subtitles.set_extension_mut("vtt");
-            } else if subtitles_data[0] == "1".as_bytes()[0] {
-                subtitles.set_extension_mut("srt");
-            } else if &subtitles_data[..3] == "<tt".as_bytes() {
-                bail!("raw ttml subtitles are not supported")
-            } else {
-                let playlist_tags = dash::PlaylistTag::from(&playlist.unknown_tags);
-                let segment_tags = dash::SegmentTag::from(&segments[0].unknown_tags);
-                let uri = segments[0].uri.split('?').next().unwrap();
-
-                if segment_tags.init {
-                    if playlist_tags.vtt
-                        || playlist_tags.ttml
-                        || uri.ends_with(".mp4")
-                        || uri.ends_with(".cmft")
-                        || uri.ends_with(".ismt")
-                    {
-                        subtitles.set_extension_mut("vtt");
-                        mp4subtitles = true;
-                    } else {
-                        bail!("unknown embedded subtitles are not supported.")
-                    }
-                }
-            }
-
-            gaurded_pb.write(format!(
-                "{} subtitle stream to {}",
-                "Downloading".colorize("bold green"),
-                subtitles.file.colorize("cyan")
-            ));
-
-            for segment in &segments[1..] {
-                let bytes = self
-                    .client
-                    .get(&self.args.get_url(&segment.uri)?)
-                    .send()?
-                    .bytes()?
-                    .to_vec();
-
-                total_bytes += bytes.len();
-                subtitles_data.extend_from_slice(&bytes);
-
-                gaurded_pb.replace(
-                    1,
-                    Column::Text(format!(
-                        "[bold blue]{}",
-                        utils::format_bytes(total_bytes, 2).2
-                    )),
-                );
-                gaurded_pb.update(1);
-            }
-
-            if mp4subtitles {
-                gaurded_pb.write(format!(
-                    " {} embedded subtitles",
-                    "Extracting".colorize("bold cyan"),
-                ));
-
-                let split_data = mp4decrypt::mp4split(&subtitles_data).map_err(|x| anyhow!(x))?;
-
-                subtitles_data = MP4Subtitles::new(&split_data[0], None)
-                    .map_err(|x| anyhow!(x))?
-                    .add_cues(&split_data[1..])
-                    .map_err(|x| anyhow!(x))?
-                    .to_subtitles()
-                    .to_vtt()
-                    .as_bytes()
-                    .to_vec();
-            }
-
-            std::fs::File::create(&subtitles.file)?.write_all(&subtitles_data)?;
-            subtitles.downloaded = gaurded_pb.pb.get_total();
-            gaurded_pb.write(format!(
-                " {} subtitle stream successfully",
-                "Downloaded".colorize("bold green"),
-            ));
         }
 
+        if mp4subtitles {
+            gaurded_pb.write(format!(
+                " {} embedded subtitles",
+                "Extracting".colorize("bold cyan"),
+            ));
+
+            let split_data = mp4decrypt::mp4split(&subtitles_data).map_err(|x| anyhow!(x))?;
+
+            subtitles_data = MP4Subtitles::new(&split_data[0], None)
+                .map_err(|x| anyhow!(x))?
+                .add_cues(&split_data[1..])
+                .map_err(|x| anyhow!(x))?
+                .to_subtitles()
+                .to_vtt()
+                .as_bytes()
+                .to_vec();
+        }
+
+        std::fs::File::create(&subtitles.file)?.write_all(&subtitles_data)?;
+        subtitles.downloaded = gaurded_pb.pb.get_total();
+        gaurded_pb.write(format!(
+            " {} subtitle stream successfully",
+            "Downloaded".colorize("bold green"),
+        ));
+
+        Ok(subtitles.to_owned())
+    }
+
+    pub fn download(&mut self) -> Result<()> {
+        self.progress.set_progress_file();
+
+        if let Some(m3u8_rs::AlternativeMediaType::Subtitles)
+        | Some(m3u8_rs::AlternativeMediaType::ClosedCaptions) = self.alternative_media_type
+        {
+            self.progress.video = self.download_subtitles(self.progress.video.to_owned())?;
+            return Ok(());
+        }
+
+        if let Some(subtitles) = &self.progress.subtitles {
+            self.progress.subtitles = Some(self.download_subtitles(subtitles.to_owned())?);
+        }
+
+        self.check_segments()?;
+        let mut gaurded_pb = self.pb.lock().unwrap();
         gaurded_pb.pb.reset(Some(
             self.progress.video.total + self.progress.audio.clone().map(|x| x.total).unwrap_or(0),
         ));
@@ -487,13 +507,17 @@ impl DownloadState {
             None
         };
 
-        self.progress.video.set_suffix("video");
+        self.progress.video.set_suffix(if self.args.alternative {
+            "audio-alternative"
+        } else {
+            "video"
+        });
 
         gaurded_pb.write(format!(
             "{} {} stream to {}",
             "Downloading".colorize("bold green"),
             if self.args.alternative {
-                "alternative"
+                "audio/alternative"
             } else {
                 "video"
             },
@@ -516,7 +540,7 @@ impl DownloadState {
             " {} {} stream successfully",
             "Downloaded".colorize("bold green"),
             if self.args.alternative {
-                "alternative"
+                "audio/alternative"
             } else {
                 "video"
             }

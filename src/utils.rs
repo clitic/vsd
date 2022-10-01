@@ -3,7 +3,7 @@ use kdam::term::Colorizer;
 use reqwest::StatusCode;
 use std::io::Write;
 
-pub fn format_bytes(bytesval: usize, precision: usize) -> (String, String, String) {
+pub(super) fn format_bytes(bytesval: usize, precision: usize) -> (String, String, String) {
     let mut val = bytesval as f32;
 
     for unit in ["bytes", "KB", "MB", "GB", "TB"] {
@@ -25,7 +25,7 @@ pub fn format_bytes(bytesval: usize, precision: usize) -> (String, String, Strin
     );
 }
 
-pub fn find_hls_dash_links(text: &str) -> Vec<String> {
+pub(super) fn find_hls_dash_links(text: &str) -> Vec<String> {
     let re = regex::Regex::new(r"(https|ftp|http)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-]\.(m3u8|m3u|mpd))").unwrap();
     let links = re
         .captures_iter(text)
@@ -41,7 +41,7 @@ pub fn find_hls_dash_links(text: &str) -> Vec<String> {
     unique_links
 }
 
-pub fn select(prompt: String, choices: &[String], raw: bool) -> Result<usize> {
+pub(super) fn select(prompt: String, choices: &[String], raw: bool) -> Result<usize> {
     if raw {
         println!("{}", prompt);
 
@@ -66,19 +66,24 @@ pub fn select(prompt: String, choices: &[String], raw: bool) -> Result<usize> {
                     .trim()
                     .trim_start_matches(&format!("{})", choice.index + 1))
                     .trim();
-                let resolution = text.split('.').next().unwrap().split(' ').next().unwrap();
-                let bandwidth = text
-                    .trim_start_matches(resolution)
-                    .trim()
-                    .split('s')
-                    .next()
-                    .unwrap();
 
-                write!(
-                    backend,
-                    "{}",
-                    format!("{} ({}s)", resolution, bandwidth).colorize("cyan")
-                )
+                if choice.text.contains("AUDIO") || choice.text.contains("SUBTITLES") {
+                    write!(backend, "{}", text.colorize("cyan"))
+                } else {
+                    let resolution = text.split('.').next().unwrap().split(' ').next().unwrap();
+                    let bandwidth = text
+                        .trim_start_matches(resolution)
+                        .trim()
+                        .split('s')
+                        .next()
+                        .unwrap();
+
+                    write!(
+                        backend,
+                        "{}",
+                        format!("{} ({}s)", resolution, bandwidth).colorize("cyan")
+                    )
+                }
             })
             .build(),
     )?
@@ -109,7 +114,7 @@ fn find_ffmpeg_with_path() -> Option<String> {
     )
 }
 
-pub fn check_ffmpeg(text: &str) -> Result<()> {
+pub(super) fn check_ffmpeg(text: &str) -> Result<()> {
     if find_ffmpeg_with_path().is_none() {
         bail!(
             "FFMPEG couldn't be located in PATH. \
@@ -122,11 +127,11 @@ pub fn check_ffmpeg(text: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn get_columns() -> u16 {
+pub(super) fn get_columns() -> u16 {
     kdam::term::get_columns_or(10)
 }
 
-pub fn scrape_website_message(url: &str) -> String {
+pub(super) fn scrape_website_message(url: &str) -> String {
     format!(
         "No links found on website source.\n\n\
         {} Consider using {} subcommand and then \
@@ -152,7 +157,7 @@ pub fn scrape_website_message(url: &str) -> String {
     )
 }
 
-pub fn check_reqwest_error(error: &reqwest::Error, url: &str) -> Result<String> {
+pub(super) fn check_reqwest_error(error: &reqwest::Error, url: &str) -> Result<String> {
     let request = "Request".colorize("bold yellow");
 
     if error.is_timeout() {
@@ -178,7 +183,7 @@ pub fn check_reqwest_error(error: &reqwest::Error, url: &str) -> Result<String> 
     }
 }
 
-pub fn duration(duration: &str) -> Result<f32> {
+pub(super) fn duration(duration: &str) -> Result<f32> {
     let duration = duration.replace('s', "").replace(',', ".");
     let is_frame = duration.split(':').count() >= 4;
     let mut duration = duration.split(':').rev();
@@ -215,7 +220,7 @@ pub fn duration(duration: &str) -> Result<f32> {
 //   }
 
 //   impl PartialRangeIter {
-//     pub fn new(start: u64, end: u64, buffer_size: u32) -> Self {
+//     pub(super) fn new(start: u64, end: u64, buffer_size: u32) -> Self {
 //       if buffer_size == 0 {
 //         panic!("invalid buffer_size, give a value greater than zero.");
 //       }
