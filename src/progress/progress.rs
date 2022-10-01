@@ -1,68 +1,9 @@
-use anyhow::{anyhow, bail, Result};
+use super::StreamData;
+use anyhow::{bail, Result};
 use kdam::term::Colorizer;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::{Seek, SeekFrom};
-use std::path::{Path, PathBuf};
-
-#[derive(Clone, Default, Serialize, Deserialize)]
-pub struct StreamData {
-    pub url: String,
-    pub language: Option<String>,
-    pub file: String,
-    pub downloaded: usize,
-    pub total: usize,
-    pub playlist: String,
-}
-
-impl StreamData {
-    pub fn new(url: &str, language: Option<String>, file: &str, playlist: &str) -> Result<Self> {
-        Ok(Self {
-            url: url.to_owned(),
-            language,
-            file: file.to_owned(),
-            downloaded: 0,
-            total: m3u8_rs::parse_media_playlist_res(&playlist.as_bytes())
-                .map_err(|_| anyhow!("Couldn't parse {} as media playlist.", url))?
-                .segments
-                .len(),
-            playlist: playlist.to_owned(),
-        })
-    }
-
-    pub fn to_playlist(&self) -> m3u8_rs::MediaPlaylist {
-        m3u8_rs::parse_media_playlist_res(self.playlist.as_bytes())
-            .map_err(|_| anyhow!("Couldn't parse {} as media playlist.", self.url))
-            .unwrap()
-    }
-
-    pub fn filename(&self, suffix: &str, ext: Option<&str>) -> String {
-        format!(
-            "({}) {}{}",
-            suffix,
-            Path::new(&self.file).file_stem().unwrap().to_str().unwrap(),
-            if let Some(ext) = ext {
-                if ext.starts_with(".") {
-                    ext.to_owned()
-                } else {
-                    ".".to_owned() + ext
-                }
-            } else {
-                "".to_owned()
-            }
-        )
-    }
-
-    pub fn set_suffix(&mut self, suffix: &str) {
-        self.file = format!("({}) {}", suffix, self.file);
-    }
-
-    pub fn set_extension(&mut self, ext: &str) {
-        let mut path = PathBuf::from(&self.file);
-        path.set_extension(ext);
-        self.file = path.to_str().unwrap().to_owned();
-    }
-}
+use std::io::{Seek, SeekFrom, Write};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Progress {
@@ -82,8 +23,8 @@ impl Progress {
         }
     }
 
-    pub fn set_json_file(&mut self) {
-        self.file = self.video.filename("resume", Some("json"));
+    pub fn set_progress_file(&mut self) {
+        self.file = self.video.set_extension("vsd");
     }
 
     pub fn update(&mut self, stream: &str, pos: usize, writer: &mut File) -> Result<()> {
@@ -102,7 +43,7 @@ impl Progress {
         }
 
         writer.seek(SeekFrom::Start(0))?;
-        serde_json::to_writer(writer, self)?;
+        writer.write_all(&bincode::serialize(self)?)?;
         Ok(())
     }
 
@@ -121,7 +62,7 @@ impl Progress {
         };
     }
 
-    pub fn transmux_trancode(&self, output: Option<String>, alternative: bool) -> Result<()> {
+    pub fn mux(&self, output: Option<String>, alternative: bool) -> Result<()> {
         if let Some(output) = &output {
             let mut args = vec!["-i".to_owned(), self.video.file.clone()];
 

@@ -1,6 +1,9 @@
 use crate::commands::InputType;
+use crate::decrypter::Decrypter;
+use crate::merger::BinaryMerger;
+use crate::progress::{Progress, StreamData};
+use crate::subtitles::MP4Subtitles;
 use crate::{commands, dash, hls, utils};
-use crate::{BinaryMerger, Decrypter, MP4Subtitles, Progress, StreamData};
 use anyhow::{anyhow, bail, Result};
 use kdam::prelude::*;
 use kdam::{Column, RichProgress};
@@ -8,6 +11,7 @@ use reqwest::blocking::Client;
 use reqwest::header;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
+
 pub struct DownloadState {
     pub args: commands::Save,
     pub client: Arc<Client>,
@@ -200,7 +204,7 @@ impl DownloadState {
             m3u8_rs::Playlist::MasterPlaylist(master) => {
                 self.args.input = if self.args.alternative {
                     self.args
-                        .get_url(&hls::alternative(&master, self.args.raw_prompts)?)?
+                        .get_url(&hls::alternative(&master, self.args.raw_prompts)?.uri.unwrap())?
                 } else {
                     self.args.get_url(&hls::master(
                         &master,
@@ -252,7 +256,7 @@ impl DownloadState {
         hls::autoselect(&mut master, None, None);
 
         let uri = if self.args.alternative {
-            hls::alternative(&master, self.args.raw_prompts)?
+            hls::alternative(&master, self.args.raw_prompts)?.uri.unwrap()
         } else {
             hls::master(&master, &self.args.quality, self.args.raw_prompts)?
         };
@@ -276,38 +280,38 @@ impl DownloadState {
         return Ok(());
     }
 
-    fn _hls_live(&mut self) -> Result<()> {
-        let live_playlist = hls::LivePlaylist::new(
-            &self.args.input,
-            self.client.clone(),
-            self.args.record_duration,
-        );
-        let mut file = std::fs::File::create(&self.args.tempfile())?;
-        let mut pb = tqdm!(
-            // total = total,
-            unit = "ts".to_owned(),
-            dynamic_ncols = true
-        );
-        pb.refresh();
-        let mut total_bytes = 0;
+    // fn hls_live(&mut self) -> Result<()> {
+    //     let live_playlist = hls::LivePlaylist::new(
+    //         &self.args.input,
+    //         self.client.clone(),
+    //         self.args.record_duration,
+    //     );
+    //     let mut file = std::fs::File::create(&self.args.tempfile())?;
+    //     let mut pb = tqdm!(
+    //         // total = total,
+    //         unit = "ts".to_owned(),
+    //         dynamic_ncols = true
+    //     );
+    //     pb.refresh();
+    //     let mut total_bytes = 0;
 
-        for media in live_playlist {
-            for seg in media.map_err(|x| anyhow!(x))?.segments {
-                let bytes = self
-                    .client
-                    .get(&self.args.get_url(&seg.uri)?)
-                    .send()?
-                    .bytes()?
-                    .to_vec();
-                total_bytes += bytes.len();
-                file.write_all(&bytes)?;
-                pb.set_description(utils::format_bytes(total_bytes, 2).2);
-                pb.update(1);
-            }
-        }
+    //     for media in live_playlist {
+    //         for seg in media.map_err(|x| anyhow!(x))?.segments {
+    //             let bytes = self
+    //                 .client
+    //                 .get(&self.args.get_url(&seg.uri)?)
+    //                 .send()?
+    //                 .bytes()?
+    //                 .to_vec();
+    //             total_bytes += bytes.len();
+    //             file.write_all(&bytes)?;
+    //             pb.set_description(utils::format_bytes(total_bytes, 2).2);
+    //             pb.update(1);
+    //         }
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     pub fn check_segments(&self) -> Result<()> {
         let mut segments = self.progress.video.to_playlist().segments;
@@ -347,11 +351,10 @@ impl DownloadState {
     }
 
     pub fn download(&mut self) -> Result<()> {
-        self.progress.set_json_file();
+        self.progress.set_progress_file();
 
         let mut gaurded_pb = self.pb.lock().unwrap();
 
-        // TODO fix extra \n
         if let Some(subtitles) = &mut self.progress.subtitles {
             let playlist = subtitles.to_playlist();
             // println!("{:#?}", playlist);
@@ -381,9 +384,9 @@ impl DownloadState {
             let mut mp4subtitles = false;
 
             if &subtitles_data[..6] == "WEBVTT".as_bytes() {
-                subtitles.set_extension("vtt");
+                subtitles.set_extension_mut("vtt");
             } else if subtitles_data[0] == "1".as_bytes()[0] {
-                subtitles.set_extension("srt");
+                subtitles.set_extension_mut("srt");
             } else if &subtitles_data[..3] == "<tt".as_bytes() {
                 bail!("raw ttml subtitles are not supported")
             } else {
@@ -398,7 +401,7 @@ impl DownloadState {
                         || uri.ends_with(".cmft")
                         || uri.ends_with(".ismt")
                     {
-                        subtitles.set_extension("vtt");
+                        subtitles.set_extension_mut("vtt");
                         mp4subtitles = true;
                     } else {
                         bail!("unknown embedded subtitles are not supported.")

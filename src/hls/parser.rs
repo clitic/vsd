@@ -1,5 +1,5 @@
-use crate::utils::{format_bytes, select};
 use crate::commands::Quality;
+use crate::utils::{format_bytes, select};
 use anyhow::{bail, Result};
 use std::fmt::Write;
 
@@ -122,42 +122,49 @@ pub fn master(
     Ok(uri)
 }
 
-pub fn alternative(master: &m3u8_rs::MasterPlaylist, raw_prompts: bool) -> Result<String> {
-    let mut streams = vec![];
-
-    for (i, alternative) in master
+pub fn alternative(
+    master: &m3u8_rs::MasterPlaylist,
+    raw_prompts: bool,
+) -> Result<m3u8_rs::AlternativeMedia> {
+    let streams = master
         .alternatives
         .iter()
         .filter(|x| x.uri.is_some())
         .enumerate()
-    {
-        let mut stream = format!(
-            "{:#2}) {}: autoselect ({})",
-            i + 1,
-            alternative.media_type,
-            alternative.autoselect
-        );
+        .map(|(i, alternative)| {
+            let mut stream = format!(
+                "{:#2}) {}: autoselect ({})",
+                i + 1,
+                alternative.media_type,
+                alternative.autoselect
+            );
 
-        if let Some(language) = &alternative.language {
-            let _ = write!(stream, ", language ({})", language);
-        }
+            if let Some(language) = &alternative.language {
+                let _ = write!(stream, ", language ({})", language);
+            }
 
-        if let Some(channels) = &alternative.channels {
-            let _ = write!(stream, ", channels ({})", channels);
-        }
+            if let Some(channels) = &alternative.channels {
+                let _ = write!(stream, ", channels ({})", channels);
+            }
 
-        streams.push(stream);
-    }
+            stream
+        })
+        .collect::<Vec<String>>();
 
     if streams.len() == 0 {
         bail!("No alternative streams found in master playlist.")
     }
-    
+
     let index = select(
         "Select one alternative stream:".to_string(),
         &streams,
         raw_prompts,
     )?;
 
-    Ok(master.alternatives[index].uri.clone().unwrap())
+    Ok(master
+        .alternatives
+        .iter()
+        .filter(|x| x.uri.is_some())
+        .nth(index)
+        .unwrap().to_owned())
 }

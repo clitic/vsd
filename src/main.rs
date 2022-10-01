@@ -1,38 +1,42 @@
-use anyhow::Error;
+mod commands;
+mod dash;
+mod decrypter;
+mod download;
+mod hls;
+mod merger;
+mod progress;
+mod subtitles;
+mod utils;
+
 use clap::Parser;
+use commands::{Args, Commands};
+use download::DownloadState;
 use kdam::term::Colorizer;
-use kdam::RichProgress;
-use std::sync::{Arc, Mutex};
-use vsd::commands::Commands;
 
-fn error(e: Error) -> ! {
-    eprintln!("{}: {}", "error".colorize("bold red"), e);
-    std::process::exit(1);
-}
+fn run() -> anyhow::Result<()> {
+    match Args::parse().command {
+        Commands::Capture(args) => args.perform()?,
+        Commands::Collect(args) => args.perform()?,
+        Commands::Decrypt(args) => args.perform()?,
+        Commands::Extract(args) => args.perform()?,
+        Commands::Merge(args) => args.perform()?,
+        Commands::Save(args) => {
+            let mut downloader = DownloadState::new(args)?;
+            downloader.fetch_playlists()?;
+            downloader.check_segments()?;
+            downloader.download()?;
+            downloader
+                .progress
+                .mux(downloader.args.output.clone(), downloader.args.alternative)?;
+        }
+    }
 
-fn error_progress_bar(e: Error, _pb: &Arc<Mutex<RichProgress>>) -> ! {
-    eprintln!("\n{}: {}", "error".colorize("bold red"), e);
-    std::process::exit(1);
+    Ok(())
 }
 
 fn main() {
-    match vsd::commands::Args::parse().command {
-        Commands::Capture(args) => args.perform().unwrap_or_else(|e| error(e)),
-        Commands::Collect(args) => args.perform().unwrap_or_else(|e| error(e)),
-        Commands::Decrypt(args) => args.perform().unwrap_or_else(|e| error(e)),
-        Commands::Extract(args) => args.perform().unwrap_or_else(|e| error(e)),
-        Commands::Merge(args) => args.perform().unwrap_or_else(|e| error(e)),
-        Commands::Save(args) => {
-            let mut downloader = vsd::DownloadState::new(args).unwrap_or_else(|e| error(e));
-            downloader.fetch_playlists().unwrap_or_else(|e| error(e));
-            downloader.check_segments().unwrap_or_else(|e| error(e));
-            downloader
-                .download()
-                .unwrap_or_else(|e| error_progress_bar(e, &downloader.pb));
-            downloader
-                .progress
-                .transmux_trancode(downloader.args.output.clone(), downloader.args.alternative)
-                .unwrap_or_else(|e| error(e));
-        }
+    if let Err(e) = run() {
+        eprintln!("{}: {}", "error".colorize("bold red"), e);
+        std::process::exit(1);
     }
 }

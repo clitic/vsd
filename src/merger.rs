@@ -1,11 +1,11 @@
-use crate::Progress;
+use crate::progress::Progress;
 use anyhow::{bail, Result};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 
-pub struct BinaryMerger {
+pub(super) struct BinaryMerger {
     size: usize,
     file: std::fs::File,
     pos: usize,
@@ -18,7 +18,7 @@ pub struct BinaryMerger {
 }
 
 impl BinaryMerger {
-    pub fn new(size: usize, filename: &str, progress: Progress) -> Result<Self> {
+    pub(super) fn new(size: usize, filename: &str, progress: Progress) -> Result<Self> {
         let json_file = progress.file.clone();
 
         Ok(Self {
@@ -34,7 +34,7 @@ impl BinaryMerger {
         })
     }
 
-    pub fn try_from_json(size: usize, filename: &str, json_file: String) -> Result<Self> {
+    pub(super) fn try_from_json(size: usize, filename: &str, json_file: String) -> Result<Self> {
         if !Path::new(&json_file).exists() {
             bail!("Can't resume because {} doesn't exists.", json_file)
         }
@@ -64,18 +64,7 @@ impl BinaryMerger {
         })
     }
 
-    pub fn reset(&mut self, size: usize, filename: String) -> Result<()> {
-        self.size = size - 1;
-        self.file = File::create(&filename)?;
-        self.pos = 0;
-        self.buffers = HashMap::new();
-        self.stored_bytes = 0;
-        self.flushed_bytes = 0;
-        self.indexed = 0;
-        Ok(())
-    }
-
-    pub fn write(&mut self, pos: usize, buf: &[u8]) -> Result<()> {
+    pub(super) fn write(&mut self, pos: usize, buf: &[u8]) -> Result<()> {
         if pos == 0 || (self.pos != 0 && self.pos == pos) {
             self.file.write_all(buf)?;
             self.file.flush()?;
@@ -93,7 +82,7 @@ impl BinaryMerger {
         Ok(())
     }
 
-    pub fn flush(&mut self) -> Result<()> {
+    pub(super) fn flush(&mut self) -> Result<()> {
         while self.pos <= self.size {
             let op_buf = self.buffers.remove(&self.pos);
 
@@ -111,19 +100,19 @@ impl BinaryMerger {
         Ok(())
     }
 
-    pub fn position(&self) -> usize {
+    pub(super) fn position(&self) -> usize {
         self.pos
     }
 
-    pub fn buffered(&self) -> bool {
+    pub(super) fn buffered(&self) -> bool {
         self.buffers.is_empty() && self.pos >= (self.size + 1)
     }
 
-    pub fn stored(&self) -> usize {
+    pub(super) fn stored(&self) -> usize {
         self.stored_bytes
     }
 
-    pub fn estimate(&self) -> usize {
+    pub(super) fn estimate(&self) -> usize {
         if self.indexed == 0 {
             0
         } else {
@@ -131,7 +120,7 @@ impl BinaryMerger {
         }
     }
 
-    pub fn update(&mut self) -> Result<()> {
+    pub(super) fn update(&mut self) -> Result<()> {
         self.progress
             .update("video", self.pos, &mut self.json_file)?;
         Ok(())

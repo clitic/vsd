@@ -314,12 +314,4 @@ impl MP4Subtitles {
     pub fn to_subtitles(&self) -> Subtitles {
         Subtitles::new(&self.cues)
     }
-
-    pub fn is_vtt(&self) -> bool {
-        self.saw_wvtt
-    }
-
-    pub fn is_ttml(&self) -> bool {
-        self.saw_stpp
-    }
 }
