@@ -176,9 +176,9 @@ impl MPD {
 impl Period {
     pub(super) fn duration(&self, mpd: &MPD) -> f32 {
         if let Some(duration) = &self.duration {
-            utils::iso8601_duration_to_seconds(&duration).unwrap()
+            utils::iso8601_duration_to_seconds(duration).unwrap()
         } else if let Some(duration) = &mpd.media_presentation_duration {
-            utils::iso8601_duration_to_seconds(&duration).unwrap()
+            utils::iso8601_duration_to_seconds(duration).unwrap()
         } else {
             0.0
         }
@@ -189,20 +189,15 @@ impl AdaptationSet {
     pub(super) fn mime_type(&self) -> Option<String> {
         if let Some(content_type) = &self.content_type {
             Some(content_type.to_owned())
-        } else if let Some(mime_type) = &self.mime_type {
-            Some(mime_type.to_owned())
-        } else {
-            None
-        }
+        } else { self.mime_type.as_ref().map(|mime_type| mime_type.to_owned()) }
     }
 
     pub(super) fn frame_rate(&self) -> Option<f64> {
         if let Some(frame_rate) = &self.frame_rate {
-            if frame_rate.contains("/") {
+            if frame_rate.contains('/') {
                 return Some(
                     frame_rate
-                        .split('/')
-                        .nth(0)
+                        .split('/').next()
                         .unwrap()
                         .parse::<f64>()
                         .unwrap()
@@ -238,7 +233,7 @@ impl AdaptationSet {
             }
         }
 
-        if self.content_protection.len() != 0 {
+        if !self.content_protection.is_empty() {
             return Some("UNKNOWN".to_string());
         }
 
@@ -260,11 +255,7 @@ impl Representation {
     fn get_mime_type(&self) -> Option<String> {
         if let Some(content_type) = &self.content_type {
             Some(content_type.to_owned())
-        } else if let Some(mime_type) = &self.mime_type {
-            Some(mime_type.to_owned())
-        } else {
-            None
-        }
+        } else { self.mime_type.as_ref().map(|mime_type| mime_type.to_owned()) }
     }
 
     pub(super) fn media_type(&self, adaptation_set: &AdaptationSet) -> m3u8_rs::AlternativeMediaType {
@@ -327,11 +318,10 @@ impl Representation {
 
     pub(super) fn frame_rate(&self, adaptation_set: &AdaptationSet) -> Option<f64> {
         if let Some(frame_rate) = &self.frame_rate {
-            if frame_rate.contains("/") {
+            if frame_rate.contains('/') {
                 return Some(
                     frame_rate
-                        .split('/')
-                        .nth(0)
+                        .split('/').next()
                         .unwrap()
                         .parse::<f64>()
                         .unwrap()
@@ -397,11 +387,7 @@ impl Representation {
     pub(super) fn segment_template(&self, adaptation_set: &AdaptationSet) -> Option<SegmentTemplate> {
         if let Some(segment_template) = &self.segment_template {
             Some(segment_template.to_owned())
-        } else if let Some(segment_template) = &adaptation_set.segment_template {
-            Some(segment_template.to_owned())
-        } else {
-            None
-        }
+        } else { adaptation_set.segment_template.as_ref().map(|segment_template| segment_template.to_owned()) }
     }
 }
 

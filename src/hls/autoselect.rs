@@ -65,7 +65,7 @@ pub fn autoselect(
         }
     }
 
-    if alternative_audio.len() != 0 {
+    if !alternative_audio.is_empty() {
         alternative_audio.sort_by(|x, y| y.1.cmp(&x.1));
         alternative_audio.sort_by(|x, y| y.2.cmp(&x.2));
         master
@@ -75,7 +75,7 @@ pub fn autoselect(
             .autoselect = true;
     }
 
-    if alternative_subtitles.len() != 0 {
+    if !alternative_subtitles.is_empty() {
         alternative_subtitles.sort_by(|x, y| y.2.cmp(&x.2));
         master
             .alternatives

@@ -180,7 +180,7 @@ impl MP4Parser {
             };
 
             let _box = ParsedBox {
-                parser: self.clone().to_owned(),
+                parser: self.clone(),
                 partial_okay: partial_okay || false,
                 start: start as i64 + abs_start,
                 version,

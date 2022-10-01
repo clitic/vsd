@@ -65,7 +65,7 @@ impl Decrypt {
         let data = match &self.encryption {
             EncryptionMethod::AES_128 => decrypt(
                 Cipher::aes_128_cbc(),
-                &if self.key[0].ends_with("=") {
+                &if self.key[0].ends_with('=') {
                     base64::decode(&self.key[0])?
                 } else {
                     std::fs::read(&self.key[0])?
@@ -78,7 +78,7 @@ impl Decrypt {
 
                 for key in &self.key {
                     keys.insert(
-                        key.split(':').next().unwrap().replace("-", ""),
+                        key.split(':').next().unwrap().replace('-', ""),
                         key.split(':').nth(1).unwrap_or("").to_owned(),
                     );
                 }

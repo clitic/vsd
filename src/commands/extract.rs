@@ -41,7 +41,7 @@ impl Extract {
             }
         }
 
-        if files.len() == 0 {
+        if files.is_empty() {
             bail!("at least one file is required to extract subtitles")
         }
 

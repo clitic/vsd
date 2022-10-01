@@ -19,7 +19,7 @@ impl StreamData {
             language,
             file: file.to_owned(),
             downloaded: 0,
-            total: m3u8_rs::parse_media_playlist_res(&playlist.as_bytes())
+            total: m3u8_rs::parse_media_playlist_res(playlist.as_bytes())
                 .map_err(|_| anyhow!("Couldn't parse {} as media playlist.", url))?
                 .segments
                 .len(),
@@ -39,7 +39,7 @@ impl StreamData {
             suffix,
             Path::new(&self.file).file_stem().unwrap().to_str().unwrap(),
             if let Some(ext) = ext {
-                if ext.starts_with(".") {
+                if ext.starts_with('.') {
                     ext.to_owned()
                 } else {
                     ".".to_owned() + ext

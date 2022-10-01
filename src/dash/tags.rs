@@ -106,11 +106,7 @@ impl From<&ExtTags> for PlaylistTag {
         let mut mpd_tags = HashMap::new();
 
         for (k, v) in tags.iter().filter_map(|x| {
-            if let Some(rest) = &x.rest {
-                Some((x.tag.to_owned(), m3u8_rs::QuotedOrUnquoted::Quoted(rest.to_owned())))
-            } else {
-                None
-            }
+            x.rest.as_ref().map(|rest| (x.tag.to_owned(), m3u8_rs::QuotedOrUnquoted::Quoted(rest.to_owned())))
         }) {
             mpd_tags.insert(k, v);
         }
@@ -215,7 +211,7 @@ impl Into<ExtTags> for SegmentTag {
         if self.kid.is_some() {
             m3u8_tags.push(m3u8_rs::ExtTag {
                 tag: "DASH-KID".to_owned(),
-                rest: self.kid.clone(),
+                rest: self.kid,
             });
         }
 

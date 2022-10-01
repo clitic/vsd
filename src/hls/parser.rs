@@ -151,7 +151,7 @@ pub fn alternative(
         })
         .collect::<Vec<String>>();
 
-    if streams.len() == 0 {
+    if streams.is_empty() {
         bail!("No alternative streams found in master playlist.")
     }
 

@@ -16,13 +16,13 @@ pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
                     "dash://period.{}.adaptation-set.{}.representation.{}",
                     period_index, adaptation_set_index, representation_index
                 );
-                let media_type = representation.media_type(&adaptation_set);
+                let media_type = representation.media_type(adaptation_set);
 
                 if media_type == m3u8_rs::AlternativeMediaType::Video {
                     master.variants.push(m3u8_rs::VariantStream {
                         uri,
-                        bandwidth: representation.bandwidth.clone().unwrap(),
-                        codecs: representation.codecs(&adaptation_set),
+                        bandwidth: representation.bandwidth.unwrap(),
+                        codecs: representation.codecs(adaptation_set),
                         resolution: if let (Some(width), Some(height)) =
                             (representation.width, representation.height)
                         {
@@ -30,20 +30,20 @@ pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
                         } else {
                             None
                         },
-                        frame_rate: representation.frame_rate(&adaptation_set),
+                        frame_rate: representation.frame_rate(adaptation_set),
                         ..Default::default()
                     });
                 } else {
                     master.alternatives.push(m3u8_rs::AlternativeMedia {
                         media_type,
                         uri: Some(uri),
-                        language: representation.lang(&adaptation_set),
-                        assoc_language: representation.lang(&adaptation_set),
-                        channels: representation.channels(&adaptation_set),
+                        language: representation.lang(adaptation_set),
+                        assoc_language: representation.lang(adaptation_set),
+                        channels: representation.channels(adaptation_set),
                         other_attributes: PlaylistTag::default()
-                            .codecs(representation.codecs(&adaptation_set))
+                            .codecs(representation.codecs(adaptation_set))
                             .bandwidth(representation.bandwidth.map(|x| x as usize))
-                            .extension(representation.extension(&adaptation_set))
+                            .extension(representation.extension(adaptation_set))
                             .build()
                             .into(),
                         ..Default::default()
@@ -91,28 +91,28 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Result<m3u8_rs::
     let mut baseurl = mpd_url.to_owned();
 
     if let Some(mpd_baseurl) = &mpd.baseurl {
-        baseurl = utils::join_url(&baseurl, &mpd_baseurl)?;
+        baseurl = utils::join_url(&baseurl, mpd_baseurl)?;
     }
 
     if let Some(period_baseurl) = &period.baseurl {
-        baseurl = utils::join_url(&baseurl, &period_baseurl)?;
+        baseurl = utils::join_url(&baseurl, period_baseurl)?;
     }
 
     if let Some(adaptation_set_baseurl) = &adaptation_set.baseurl {
-        baseurl = utils::join_url(&baseurl, &adaptation_set_baseurl)?;
+        baseurl = utils::join_url(&baseurl, adaptation_set_baseurl)?;
     }
 
     if let Some(representation_baseurl) = &representation.baseurl {
-        baseurl = utils::join_url(&baseurl, &representation_baseurl)?;
+        baseurl = utils::join_url(&baseurl, representation_baseurl)?;
     }
 
     // MPD DURATION
-    let mpd_duration = period.duration(&mpd);
+    let mpd_duration = period.duration(mpd);
 
     // KEYS
-    let key = mpd_to_m3u8_key(&representation, &adaptation_set);
+    let key = mpd_to_m3u8_key(representation, adaptation_set);
     let unknown_tags: Vec<m3u8_rs::ExtTag> = SegmentTag::default()
-        .kid(representation.default_kid(&adaptation_set))
+        .kid(representation.default_kid(adaptation_set))
         .into();
 
     // SEGMENTS
@@ -123,7 +123,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Result<m3u8_rs::
         if let Some(initialization) = &segment_base.initialization {
             if let Some(source_url) = &initialization.source_url {
                 init_segment = Some(m3u8_rs::MediaSegment {
-                    uri: utils::join_url(&baseurl, &source_url)?,
+                    uri: utils::join_url(&baseurl, source_url)?,
                     byte_range: mpd_range_to_m3u8_byte_range(&initialization.range),
                     unknown_tags: SegmentTag::default().init(true).build().into(),
                     ..Default::default()
@@ -143,7 +143,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Result<m3u8_rs::
         if let Some(initialization) = &segment_list.initialization {
             if let Some(source_url) = &initialization.source_url {
                 init_segment = Some(m3u8_rs::MediaSegment {
-                    uri: utils::join_url(&baseurl, &source_url)?,
+                    uri: utils::join_url(&baseurl, source_url)?,
                     byte_range: mpd_range_to_m3u8_byte_range(&initialization.range),
                     unknown_tags: SegmentTag::default().init(true).build().into(),
                     ..Default::default()
@@ -165,7 +165,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Result<m3u8_rs::
         }
     }
 
-    if let Some(segment_template) = representation.segment_template(&adaptation_set) {
+    if let Some(segment_template) = representation.segment_template(adaptation_set) {
         let mut template_resolver = TemplateResolver::new(representation.template_vars());
 
         if let Some(initialization) = &segment_template.initialization {
@@ -192,7 +192,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Result<m3u8_rs::
                     segments.push(m3u8_rs::MediaSegment {
                         uri: template_resolver.resolve(&utils::join_url(
                             &baseurl,
-                            &segment_template.media.as_ref().unwrap(),
+                            segment_template.media.as_ref().unwrap(),
                         )?),
                         duration: s.d as f32 / timescale,
                         key: key.clone(),
@@ -217,7 +217,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Result<m3u8_rs::
                         segments.push(m3u8_rs::MediaSegment {
                             uri: template_resolver.resolve(&utils::join_url(
                                 &baseurl,
-                                &segment_template.media.as_ref().unwrap(),
+                                segment_template.media.as_ref().unwrap(),
                             )?),
                             duration: s.d as f32 / timescale,
                             key: key.clone(),
@@ -262,7 +262,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Result<m3u8_rs::
                     segments.push(m3u8_rs::MediaSegment {
                         uri: template_resolver.resolve(&utils::join_url(
                             &baseurl,
-                            &segment_template.media.as_ref().unwrap(),
+                            segment_template.media.as_ref().unwrap(),
                         )?),
                         duration: segment_duration,
                         key: key.clone(),
@@ -274,13 +274,13 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Result<m3u8_rs::
         }
     }
 
-    if segments.len() == 0 {
+    if segments.is_empty() {
         segments.push(m3u8_rs::MediaSegment {
             uri: baseurl,
             duration: mpd_duration,
-            key: key.clone(),
+            key,
             unknown_tags: SegmentTag::default()
-                .kid(representation.default_kid(&adaptation_set))
+                .kid(representation.default_kid(adaptation_set))
                 .single(true)
                 .build()
                 .into(),
@@ -296,9 +296,9 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Result<m3u8_rs::
         segments,
         end_list: true,
         unknown_tags: PlaylistTag::default()
-            .codecs(representation.codecs(&adaptation_set))
+            .codecs(representation.codecs(adaptation_set))
             .bandwidth(representation.bandwidth.map(|x| x as usize))
-            .extension(representation.extension(&adaptation_set))
+            .extension(representation.extension(adaptation_set))
             .build()
             .into(),
         ..Default::default()
@@ -306,26 +306,18 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Result<m3u8_rs::
 }
 
 fn mpd_range_to_m3u8_byte_range(range: &Option<String>) -> Option<m3u8_rs::ByteRange> {
-    if let Some(range) = range {
-        Some(m3u8_rs::ByteRange {
-            length: range.split('-').nth(0).unwrap().parse::<u64>().unwrap(),
+    range.as_ref().map(|range| m3u8_rs::ByteRange {
+            length: range.split('-').next().unwrap().parse::<u64>().unwrap(),
             offset: Some(range.split('-').nth(1).unwrap().parse::<u64>().unwrap()),
         })
-    } else {
-        None
-    }
 }
 
 fn mpd_to_m3u8_key(
     representation: &Representation,
     adaptation_set: &AdaptationSet,
 ) -> Option<m3u8_rs::Key> {
-    if let Some(key) = representation.encryption_type(&adaptation_set) {
-        Some(m3u8_rs::Key {
+    representation.encryption_type(adaptation_set).map(|key| m3u8_rs::Key {
             method: m3u8_rs::KeyMethod::Other(key),
             ..Default::default()
         })
-    } else {
-        None
-    }
 }

@@ -46,7 +46,7 @@ impl Collect {
         .map_err(|e| anyhow!(e))?;
 
         let tab = browser.wait_for_initial_tab().map_err(|e| anyhow!(e))?;
-        let build = self.build.clone();
+        let build = self.build;
 
         tab.enable_response_handling(Box::new(move |params, get_response_body| {
             if params._type == ResourceType::XHR || params._type == ResourceType::Fetch {
@@ -89,7 +89,7 @@ fn decode_body(body: GetResponseBodyReturnObject) -> Result<Vec<u8>> {
 
 fn save_to_disk(url: &str, body: GetResponseBodyReturnObject, build: bool) -> Result<()> {
     if url.contains(".m3u") {
-        let file = utils::filepath(&url, "m3u8");
+        let file = utils::filepath(url, "m3u8");
 
         if build {
             utils::build_links(&decode_body(body)?, &file, url)?;

@@ -48,7 +48,7 @@ impl Progress {
     }
 
     pub fn downloaded(&self, stream: &str) -> usize {
-        return match stream {
+        match stream {
             "video" => self.video.downloaded,
             "audio" => {
                 if let Some(audio) = &self.audio {
@@ -59,7 +59,7 @@ impl Progress {
             }
 
             _ => 0,
-        };
+        }
     }
 
     pub fn mux(

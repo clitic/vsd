@@ -18,11 +18,11 @@ pub(super) fn format_bytes(bytesval: usize, precision: usize) -> (String, String
         val /= 1024.0;
     }
 
-    return (
+    (
         format!("{:.precision$}", bytesval, precision = precision),
         "".to_owned(),
         format!("{:.precision$}", bytesval, precision = precision),
-    );
+    )
 }
 
 pub(super) fn find_hls_dash_links(text: &str) -> Vec<String> {

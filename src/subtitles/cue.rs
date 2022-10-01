@@ -26,7 +26,7 @@ impl Cue {
         let settings = Arc::new(Mutex::new(String::new()));
 
         let payload_c = payload.clone();
-        let id_c = id.clone();
+        let id_c = id;
         let settings_c = settings.clone();
 
         MP4Parser::default()
@@ -79,7 +79,7 @@ impl Subtitles {
         Self {
             cues: cues
                 .iter()
-                .filter(|x| !(x.payload == "" || (x.start_time == x.end_time)))
+                .filter(|x| !(x.payload.is_empty() || (x.start_time == x.end_time)))
                 .map(|x| x.to_owned())
                 .collect(),
         }

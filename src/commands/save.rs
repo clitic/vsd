@@ -135,8 +135,8 @@ fn quality_parser(s: &str) -> Result<Quality, String> {
         "8k" => Quality::Youtube8k,
         "highest" | "max" => Quality::Highest,
         "select-later" => Quality::SelectLater,
-        x if x.contains("x") => {
-            if let (Some(w), Some(h)) = (x.split("x").nth(0), x.split("x").nth(1)) {
+        x if x.contains('x') => {
+            if let (Some(w), Some(h)) = (x.split('x').next(), x.split('x').nth(1)) {
                 Quality::Resolution(
                     w.parse::<u16>().map_err(|_| "invalid width".to_owned())?,
                     h.parse::<u16>().map_err(|_| "invalid height".to_owned())?,
@@ -306,14 +306,12 @@ impl Save {
             } else {
                 InputType::Website
             }
+        } else if url.ends_with(".m3u") || url.ends_with(".m3u8") || url.ends_with("ts.m3u8") {
+            InputType::HlsLocalFile
+        } else if url.ends_with(".mpd") || url.ends_with(".xml") {
+            InputType::DashLocalFile
         } else {
-            if url.ends_with(".m3u") || url.ends_with(".m3u8") || url.ends_with("ts.m3u8") {
-                InputType::HlsLocalFile
-            } else if url.ends_with(".mpd") || url.ends_with(".xml") {
-                InputType::DashLocalFile
-            } else {
-                InputType::LocalFile
-            }
+            InputType::LocalFile
         }
     }
 }

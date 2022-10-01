@@ -171,7 +171,7 @@ impl MP4Subtitles {
                 return Err("A required box is missing".to_owned());
             }
 
-            let mut current_time = base_time.clone();
+            let mut current_time = base_time;
 
             let mut reader = Reader {
                 cursor: Cursor::new(raw_payload.unwrap()),

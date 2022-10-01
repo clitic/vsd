@@ -139,7 +139,7 @@ impl DownloadState {
 
             let playlist = if let Some(mpd) = &mpd {
                 let mut playlist = vec![];
-                dash::to_m3u8_as_media(&mpd, &self.args.input, &uri)
+                dash::to_m3u8_as_media(mpd, &self.args.input, &uri)
                     .unwrap()
                     .write_to(&mut playlist)?;
 
@@ -623,8 +623,8 @@ impl DownloadState {
 
             let client = self.client.clone();
             let merger = merger.clone();
-            let stored_bytes = stored_bytes.clone();
-            let relative_size = relative_size.clone();
+            let stored_bytes = stored_bytes;
+            let relative_size = relative_size;
             let pb = self.pb.clone();
             let segment_url = self.args.get_url(&segment.uri)?;
             let byte_range = segment.byte_range.clone();
