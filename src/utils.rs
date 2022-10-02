@@ -67,7 +67,7 @@ pub(super) fn select(prompt: String, choices: &[String], raw: bool) -> Result<us
                     .trim_start_matches(&format!("{})", choice.index + 1))
                     .trim();
 
-                if choice.text.contains("AUDIO") || choice.text.contains("SUBTITLES") {
+                if choice.text.contains("AUDIO") || choice.text.contains("SUBTITLES") || choice.text.contains("http") {
                     write!(backend, "{}", text.colorize("cyan"))
                 } else {
                     let resolution = text.split('.').next().unwrap().split(' ').next().unwrap();

@@ -13,91 +13,14 @@ use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 pub struct DownloadState {
+    pub alternative_media_type: Option<m3u8_rs::AlternativeMediaType>,
     pub args: commands::Save,
     pub client: Arc<Client>,
     pub progress: Progress,
-    pub pb: Arc<Mutex<RichProgress>>,
-    pub alternative_media_type: Option<m3u8_rs::AlternativeMediaType>,
 }
 
 impl DownloadState {
-    pub fn new(args: commands::Save) -> Result<Self> {
-        let client = args.client()?;
-
-        if let Some(output) = &args.output {
-            if !output.ends_with(".ts") {
-                utils::check_ffmpeg("the given output doesn't have .ts file extension")?
-            }
-        }
-
-        Ok(Self {
-            alternative_media_type: None,
-            args,
-            client,
-            progress: Progress::new_empty(),
-            pb: Arc::new(Mutex::new(RichProgress::new(
-                tqdm!(unit = " SEG".to_owned(), dynamic_ncols = true),
-                vec![
-                    Column::Spinner(
-                        "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-                            .chars()
-                            .map(|x| x.to_string())
-                            .collect::<Vec<String>>(),
-                        80.0,
-                        1.0,
-                    ),
-                    Column::text("[bold blue]?"),
-                    Column::Bar,
-                    Column::Percentage(0),
-                    Column::text("•"),
-                    Column::CountTotal,
-                    Column::text("•"),
-                    Column::ElapsedTime,
-                    Column::text("[cyan]>"),
-                    Column::RemainingTime,
-                    Column::text("•"),
-                    Column::Rate,
-                ],
-            ))),
-        })
-    }
-
-    fn scrape_website(&mut self) -> Result<()> {
-        println!(
-            "{} website for HLS and DASH stream links.",
-            "Scraping".colorize("bold green"),
-        );
-        let links =
-            crate::utils::find_hls_dash_links(&self.client.get(&self.args.input).send()?.text()?);
-
-        match links.len() {
-            0 => bail!(utils::scrape_website_message(&self.args.input)),
-            1 => {
-                self.args.input = links[0].clone();
-                println!("{} {}", "Found".colorize("bold green"), &links[0]);
-            }
-            _ => {
-                let mut elinks = vec![];
-                for (i, link) in links.iter().enumerate() {
-                    elinks.push(format!("{:2}) {}", i + 1, link));
-                }
-                let index = utils::select(
-                    "Select one link:".to_string(),
-                    &elinks,
-                    self.args.raw_prompts,
-                )?;
-                self.args.input = links[index].clone();
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn fetch_playlists(&mut self) -> Result<()> {
-        if self.args.input_type().is_website() {
-            self.scrape_website()?;
-        }
-
+    pub fn perform(&mut self) -> Result<()> {
         let input_type = self.args.input_type();
 
         let content = match input_type {
@@ -122,80 +45,9 @@ impl DownloadState {
             bail!("Only HLS and DASH streams are supported.")
         }
 
-        Ok(())
-    }
-
-    fn fetch_alternative_streams(
-        &mut self,
-        master: &m3u8_rs::MasterPlaylist,
-        mpd: Option<dash::MPD>,
-    ) -> Result<()> {
-        let fetch_playlist = |uri: &str| -> Result<(String, String, Option<&str>)> {
-            let uri = if uri.starts_with("dash://") {
-                uri.to_owned()
-            } else {
-                self.args.get_url(uri)?
-            };
-
-            let playlist = if let Some(mpd) = &mpd {
-                let mut playlist = vec![];
-                dash::to_m3u8_as_media(mpd, &self.args.input, &uri)
-                    .unwrap()
-                    .write_to(&mut playlist)?;
-
-                String::from_utf8(playlist)?
-            } else {
-                self.client.get(&uri).send()?.text()?
-            };
-
-            Ok((
-                uri,
-                playlist,
-                if mpd.is_some() {
-                    Some("m4s")
-                } else {
-                    Some("ts")
-                },
-            ))
-        };
-
-        for alternative in &master.alternatives {
-            match alternative.media_type {
-                m3u8_rs::AlternativeMediaType::Audio => {
-                    if alternative.autoselect {
-                        if let Some(uri) = &alternative.uri {
-                            if self.progress.audio.is_none() {
-                                let (uri, playlist, ext) = fetch_playlist(uri)?;
-                                self.progress.audio = Some(StreamData::new(
-                                    &uri,
-                                    alternative.language.clone(),
-                                    &self.progress.video.filename("audio", ext),
-                                    &playlist,
-                                )?);
-                            }
-                        }
-                    }
-                }
-                m3u8_rs::AlternativeMediaType::Subtitles
-                | m3u8_rs::AlternativeMediaType::ClosedCaptions => {
-                    if alternative.autoselect {
-                        if let Some(uri) = &alternative.uri {
-                            if self.progress.subtitles.is_none() {
-                                let (uri, playlist, _) = fetch_playlist(uri)?;
-                                self.progress.subtitles = Some(StreamData::new(
-                                    &uri,
-                                    alternative.language.clone(),
-                                    &self.progress.video.filename("subtitles", Some("txt")),
-                                    &playlist,
-                                )?);
-                            }
-                        }
-                    }
-                }
-                _ => (),
-            }
-        }
-
+        self.download()?;
+        self.progress
+            .mux(&self.args.output, &self.alternative_media_type)?;
         Ok(())
     }
 
@@ -285,38 +137,79 @@ impl DownloadState {
         Ok(())
     }
 
-    // fn hls_live(&mut self) -> Result<()> {
-    //     let live_playlist = hls::LivePlaylist::new(
-    //         &self.args.input,
-    //         self.client.clone(),
-    //         self.args.record_duration,
-    //     );
-    //     let mut file = std::fs::File::create(&self.args.tempfile())?;
-    //     let mut pb = tqdm!(
-    //         // total = total,
-    //         unit = "ts".to_owned(),
-    //         dynamic_ncols = true
-    //     );
-    //     pb.refresh();
-    //     let mut total_bytes = 0;
+    fn fetch_alternative_streams(
+        &mut self,
+        master: &m3u8_rs::MasterPlaylist,
+        mpd: Option<dash::MPD>,
+    ) -> Result<()> {
+        let fetch_playlist = |uri: &str| -> Result<(String, String, Option<&str>)> {
+            let uri = if uri.starts_with("dash://") {
+                uri.to_owned()
+            } else {
+                self.args.get_url(uri)?
+            };
 
-    //     for media in live_playlist {
-    //         for seg in media.map_err(|x| anyhow!(x))?.segments {
-    //             let bytes = self
-    //                 .client
-    //                 .get(&self.args.get_url(&seg.uri)?)
-    //                 .send()?
-    //                 .bytes()?
-    //                 .to_vec();
-    //             total_bytes += bytes.len();
-    //             file.write_all(&bytes)?;
-    //             pb.set_description(utils::format_bytes(total_bytes, 2).2);
-    //             pb.update(1);
-    //         }
-    //     }
+            let playlist = if let Some(mpd) = &mpd {
+                let mut playlist = vec![];
+                dash::to_m3u8_as_media(mpd, &self.args.input, &uri)
+                    .unwrap()
+                    .write_to(&mut playlist)?;
 
-    //     Ok(())
-    // }
+                String::from_utf8(playlist)?
+            } else {
+                self.client.get(&uri).send()?.text()?
+            };
+
+            Ok((
+                uri,
+                playlist,
+                if mpd.is_some() {
+                    Some("m4s")
+                } else {
+                    Some("ts")
+                },
+            ))
+        };
+
+        for alternative in &master.alternatives {
+            match alternative.media_type {
+                m3u8_rs::AlternativeMediaType::Audio => {
+                    if alternative.autoselect {
+                        if let Some(uri) = &alternative.uri {
+                            if self.progress.audio.is_none() {
+                                let (uri, playlist, ext) = fetch_playlist(uri)?;
+                                self.progress.audio = Some(StreamData::new(
+                                    &uri,
+                                    alternative.language.clone(),
+                                    &self.progress.video.filename("audio", ext),
+                                    &playlist,
+                                )?);
+                            }
+                        }
+                    }
+                }
+                m3u8_rs::AlternativeMediaType::Subtitles
+                | m3u8_rs::AlternativeMediaType::ClosedCaptions => {
+                    if alternative.autoselect {
+                        if let Some(uri) = &alternative.uri {
+                            if self.progress.subtitles.is_none() {
+                                let (uri, playlist, _) = fetch_playlist(uri)?;
+                                self.progress.subtitles = Some(StreamData::new(
+                                    &uri,
+                                    alternative.language.clone(),
+                                    &self.progress.video.filename("subtitles", Some("txt")),
+                                    &playlist,
+                                )?);
+                            }
+                        }
+                    }
+                }
+                _ => (),
+            }
+        }
+
+        Ok(())
+    }
 
     fn check_segments(&self) -> Result<()> {
         let mut segments = self.progress.video.to_playlist().segments;
@@ -355,13 +248,16 @@ impl DownloadState {
         Ok(())
     }
 
-    fn download_subtitles(&mut self, subtitles: StreamData) -> Result<StreamData> {
+    fn download_subtitles(
+        &mut self,
+        subtitles: StreamData,
+        pb: &mut RichProgress,
+    ) -> Result<StreamData> {
         let mut subtitles = subtitles;
-        let mut gaurded_pb = self.pb.lock().unwrap();
 
         let playlist = subtitles.to_playlist();
         let segments = playlist.segments;
-        gaurded_pb.pb.set_total(segments.len());
+        pb.pb.set_total(segments.len());
 
         let mut total_bytes = 0;
 
@@ -374,14 +270,14 @@ impl DownloadState {
 
         total_bytes += subtitles_data.len();
 
-        gaurded_pb.replace(
+        pb.replace(
             1,
             Column::Text(format!(
                 "[bold blue]{}",
                 utils::format_bytes(total_bytes, 2).2
             )),
         );
-        gaurded_pb.update(1);
+        pb.update(1);
 
         let mut mp4subtitles = false;
 
@@ -411,7 +307,7 @@ impl DownloadState {
             }
         }
 
-        gaurded_pb.write(format!(
+        pb.write(format!(
             "{} subtitle stream to {}",
             "Downloading".colorize("bold green"),
             subtitles.file.colorize("cyan")
@@ -428,18 +324,18 @@ impl DownloadState {
             total_bytes += bytes.len();
             subtitles_data.extend_from_slice(&bytes);
 
-            gaurded_pb.replace(
+            pb.replace(
                 1,
                 Column::Text(format!(
                     "[bold blue]{}",
                     utils::format_bytes(total_bytes, 2).2
                 )),
             );
-            gaurded_pb.update(1);
+            pb.update(1);
         }
 
         if mp4subtitles {
-            gaurded_pb.write(format!(
+            pb.write(format!(
                 " {} embedded subtitles",
                 "Extracting".colorize("bold cyan"),
             ));
@@ -457,8 +353,8 @@ impl DownloadState {
         }
 
         std::fs::File::create(&subtitles.file)?.write_all(&subtitles_data)?;
-        subtitles.downloaded = gaurded_pb.pb.get_total();
-        gaurded_pb.write(format!(
+        subtitles.downloaded = pb.pb.get_total();
+        pb.write(format!(
             " {} subtitle stream successfully",
             "Downloaded".colorize("bold green"),
         ));
@@ -469,25 +365,51 @@ impl DownloadState {
     pub fn download(&mut self) -> Result<()> {
         self.progress.set_progress_file();
 
-        if let Some(m3u8_rs::AlternativeMediaType::Subtitles)
-        | Some(m3u8_rs::AlternativeMediaType::ClosedCaptions) = self.alternative_media_type
-        {
-            self.progress.video = self.download_subtitles(self.progress.video.to_owned())?;
+        let mut pb = RichProgress::new(
+            tqdm!(unit = " SEG".to_owned(), dynamic_ncols = true),
+            vec![
+                Column::Spinner(
+                    "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+                        .chars()
+                        .map(|x| x.to_string())
+                        .collect::<Vec<String>>(),
+                    80.0,
+                    1.0,
+                ),
+                Column::text("[bold blue]?"),
+                Column::Bar,
+                Column::Percentage(0),
+                Column::text("•"),
+                Column::CountTotal,
+                Column::text("•"),
+                Column::ElapsedTime,
+                Column::text("[cyan]>"),
+                Column::RemainingTime,
+                Column::text("•"),
+                Column::Rate,
+            ],
+        );
+
+        if matches!(
+            self.alternative_media_type,
+            Some(m3u8_rs::AlternativeMediaType::Subtitles)
+                | Some(m3u8_rs::AlternativeMediaType::ClosedCaptions)
+        ) {
+            self.progress.video =
+                self.download_subtitles(self.progress.video.to_owned(), &mut pb)?;
             return Ok(());
         }
 
         if let Some(subtitles) = &self.progress.subtitles {
-            self.progress.subtitles = Some(self.download_subtitles(subtitles.to_owned())?);
+            self.progress.subtitles = Some(self.download_subtitles(subtitles.to_owned(), &mut pb)?);
         }
 
         self.check_segments()?;
-        let mut gaurded_pb = self.pb.lock().unwrap();
-        gaurded_pb.pb.reset(Some(
+        pb.pb.reset(Some(
             self.progress.video.total + self.progress.audio.clone().map(|x| x.total).unwrap_or(0),
         ));
-        gaurded_pb.replace(3, Column::Percentage(2));
-        gaurded_pb
-            .columns
+        pb.replace(3, Column::Percentage(2));
+        pb.columns
             .extend_from_slice(&[Column::text("•"), Column::text("[yellow]?")]);
 
         let mut stored_bytes = 0;
@@ -513,7 +435,7 @@ impl DownloadState {
             "video"
         });
 
-        gaurded_pb.write(format!(
+        pb.write(format!(
             "{} {} stream to {}",
             "Downloading".colorize("bold green"),
             if self.args.alternative {
@@ -523,20 +445,20 @@ impl DownloadState {
             },
             self.progress.video.file.colorize("cyan")
         ));
-
-        drop(gaurded_pb);
+        let pb = Arc::new(Mutex::new(pb));
 
         let pool = threadpool::ThreadPool::new(self.args.threads as usize);
 
-        stored_bytes = self.download_segments_in_threads(
+        stored_bytes = self.download_segments(
             self.progress.video.to_playlist().segments,
             &self.progress.video.file,
             &pool,
+            &pb,
             stored_bytes,
             relative_size,
         )?;
 
-        self.pb.lock().unwrap().write(format!(
+        pb.lock().unwrap().write(format!(
             " {} {} stream successfully",
             "Downloaded".colorize("bold green"),
             if self.args.alternative {
@@ -547,21 +469,22 @@ impl DownloadState {
         ));
 
         if let Some(audio) = &self.progress.audio {
-            self.pb.lock().unwrap().write(format!(
+            pb.lock().unwrap().write(format!(
                 "{} audio stream to {}",
                 "Downloading".colorize("bold green"),
                 audio.file.colorize("cyan")
             ));
 
-            let _ = self.download_segments_in_threads(
+            let _ = self.download_segments(
                 audio.to_playlist().segments,
                 &audio.file,
                 &pool,
+                &pb,
                 stored_bytes,
                 None,
             )?;
 
-            self.pb.lock().unwrap().write(format!(
+            pb.lock().unwrap().write(format!(
                 " {} audio stream successfully",
                 "Downloaded".colorize("bold green"),
             ));
@@ -571,11 +494,12 @@ impl DownloadState {
         Ok(())
     }
 
-    fn download_segments_in_threads(
+    fn download_segments(
         &self,
         segments: Vec<m3u8_rs::MediaSegment>,
         tempfile: &str,
         pool: &threadpool::ThreadPool,
+        pb: &Arc<Mutex<RichProgress>>,
         stored_bytes: usize,
         relative_size: Option<usize>,
     ) -> Result<usize> {
@@ -605,8 +529,8 @@ impl DownloadState {
                     continue;
                 }
 
-                let mut pb = self.pb.lock().unwrap();
-                pb.replace(
+                let mut gaurded_pb = pb.lock().unwrap();
+                gaurded_pb.replace(
                     1,
                     Column::Text(format!(
                         "[bold blue]{} / {}",
@@ -618,40 +542,31 @@ impl DownloadState {
                         }
                     )),
                 );
-                pb.update_to(pos);
+                gaurded_pb.update_to(pos);
             }
 
-            let client = self.client.clone();
-            let merger = merger.clone();
-            let stored_bytes = stored_bytes;
-            let relative_size = relative_size;
-            let pb = self.pb.clone();
-            let segment_url = self.args.get_url(&segment.uri)?;
-            let byte_range = segment.byte_range.clone();
-            let total_retries = self.args.retry_count;
-            let key_info = match &segment.key {
-                Some(m3u8_rs::Key {
-                    uri: Some(link), ..
-                }) => Some((self.args.get_url(link)?, segment.key.clone().unwrap())),
-                _ => None,
+            let sync_data = SyncData {
+                byte_range: segment.byte_range.clone(),
+                client: self.client.clone(),
+                key_info: match &segment.key {
+                    Some(m3u8_rs::Key {
+                        uri: Some(link), ..
+                    }) => Some((self.args.get_url(link)?, segment.key.clone().unwrap())),
+                    _ => None,
+                },
+                merger: merger.clone(),
+                pb: pb.clone(),
+                relative_size,
+                segment_index: i,
+                segment_url: self.args.get_url(&segment.uri)?,
+                stored_bytes,
+                timer: timer.clone(),
+                total_retries: self.args.retry_count,
             };
-            let timer = timer.clone();
 
             pool.execute(move || {
-                if let Err(e) = download_segments(
-                    client,
-                    merger.clone(),
-                    pb.clone(),
-                    i,
-                    segment_url,
-                    byte_range,
-                    total_retries,
-                    key_info,
-                    stored_bytes,
-                    relative_size,
-                    timer,
-                ) {
-                    let _ = pb.lock().unwrap();
+                if let Err(e) = download_segment(&sync_data) {
+                    let _ = sync_data.pb.lock().unwrap();
                     println!("\n{}: {}", "error".colorize("bold red"), e);
                     std::process::exit(1);
                 }
@@ -673,26 +588,28 @@ impl DownloadState {
     }
 }
 
-fn download_segments(
+struct SyncData {
+    byte_range: Option<m3u8_rs::ByteRange>,
     client: Arc<Client>,
+    key_info: Option<(String, m3u8_rs::Key)>,
     merger: Arc<Mutex<BinaryMerger>>,
     pb: Arc<Mutex<RichProgress>>,
+    relative_size: Option<usize>,
     segment_index: usize,
     segment_url: String,
-    byte_range: Option<m3u8_rs::ByteRange>,
-    total_retries: u8,
-    key_info: Option<(String, m3u8_rs::Key)>,
     stored_bytes: usize,
-    relative_size: Option<usize>,
     timer: Arc<std::time::Instant>,
-) -> Result<()> {
+    total_retries: u8,
+}
+
+fn download_segment(sync_data: &SyncData) -> Result<()> {
     let fetch_segment = || -> Result<Vec<u8>, reqwest::Error> {
-        match byte_range {
+        match sync_data.byte_range {
             Some(m3u8_rs::ByteRange {
                 length: start,
                 offset: Some(end),
-            }) => Ok(client
-                .get(&segment_url)
+            }) => Ok(sync_data.client
+                .get(&sync_data.segment_url)
                 .header(
                     header::RANGE,
                     format!("bytes={}-{}", start, start + end - 1),
@@ -700,7 +617,7 @@ fn download_segments(
                 .send()?
                 .bytes()?
                 .to_vec()),
-            _ => Ok(client.get(&segment_url).send()?.bytes()?.to_vec()),
+            _ => Ok(sync_data.client.get(&sync_data.segment_url).send()?.bytes()?.to_vec()),
         }
     };
 
@@ -708,10 +625,10 @@ fn download_segments(
     let mut data = loop {
         match fetch_segment() {
             Ok(bytes) => {
-                let elapsed_time = timer.elapsed().as_secs() as usize;
+                let elapsed_time = sync_data.timer.elapsed().as_secs() as usize;
                 if elapsed_time != 0 {
-                    let stored = merger.lock().unwrap().stored() + bytes.len();
-                    pb.lock().unwrap().replace(
+                    let stored = sync_data.merger.lock().unwrap().stored() + bytes.len();
+                    sync_data.pb.lock().unwrap().replace(
                         13,
                         Column::Text(format!(
                             "[yellow]{}/s",
@@ -723,16 +640,16 @@ fn download_segments(
                 break bytes;
             }
             Err(e) => {
-                if total_retries > retries {
-                    pb.lock()
+                if sync_data.total_retries > retries {
+                    sync_data.pb.lock()
                         .unwrap()
-                        .write(utils::check_reqwest_error(&e, &segment_url)?);
+                        .write(utils::check_reqwest_error(&e, &sync_data.segment_url)?);
                     retries += 1;
                     continue;
                 } else {
                     bail!(
                         "Reached maximum number of retries for segment at index {}.",
-                        segment_index
+                        sync_data.segment_index
                     )
                 }
             }
@@ -741,17 +658,17 @@ fn download_segments(
 
     // Decrypt
     let fetch_key = |key_url| -> Result<Vec<u8>, reqwest::Error> {
-        Ok(client.get(key_url).send()?.bytes()?.to_vec())
+        Ok(sync_data.client.get(key_url).send()?.bytes()?.to_vec())
     };
 
     retries = 0;
-    if let Some((key_url, key)) = &key_info {
+    if let Some((key_url, key)) = &sync_data.key_info {
         let key_content = loop {
             match fetch_key(key_url) {
                 Ok(bytes) => break bytes,
                 Err(e) => {
-                    if total_retries > retries {
-                        pb.lock()
+                    if sync_data.total_retries > retries {
+                        sync_data.pb.lock()
                             .unwrap()
                             .write(utils::check_reqwest_error(&e, key_url)?);
                         retries += 1;
@@ -768,27 +685,59 @@ fn download_segments(
             .decrypt(&data, None)?;
     }
 
-    let mut guarded_merger = merger.lock().unwrap();
-    guarded_merger.write(segment_index, &data)?;
+    let mut guarded_merger = sync_data.merger.lock().unwrap();
+    guarded_merger.write(sync_data.segment_index, &data)?;
     guarded_merger.flush()?;
     let stored = guarded_merger.stored();
     let estimate = guarded_merger.estimate();
 
-    let mut gaurded_pb = pb.lock().unwrap();
+    let mut gaurded_pb = sync_data.pb.lock().unwrap();
     gaurded_pb.replace(
         1,
         Column::Text(format!(
             "[bold blue]{} / {}",
-            utils::format_bytes(stored_bytes + stored, 2).2,
-            if let Some(size) = relative_size {
-                utils::format_bytes(stored_bytes + size + estimate, 0).2
+            utils::format_bytes(sync_data.stored_bytes + stored, 2).2,
+            if let Some(size) = sync_data.relative_size {
+                utils::format_bytes(sync_data.stored_bytes + size + estimate, 0).2
             } else {
-                utils::format_bytes(stored_bytes + estimate, 0).2
+                utils::format_bytes(sync_data.stored_bytes + estimate, 0).2
             },
         )),
     );
 
     gaurded_pb.update(1);
-
     Ok(())
 }
+
+// fn hls_live(&mut self) -> Result<()> {
+//     let live_playlist = hls::LivePlaylist::new(
+//         &self.args.input,
+//         self.client.clone(),
+//         self.args.record_duration,
+//     );
+//     let mut file = std::fs::File::create(&self.args.tempfile())?;
+//     let mut pb = tqdm!(
+//         // total = total,
+//         unit = "ts".to_owned(),
+//         dynamic_ncols = true
+//     );
+//     pb.refresh();
+//     let mut total_bytes = 0;
+
+//     for media in live_playlist {
+//         for seg in media.map_err(|x| anyhow!(x))?.segments {
+//             let bytes = self
+//                 .client
+//                 .get(&self.args.get_url(&seg.uri)?)
+//                 .send()?
+//                 .bytes()?
+//                 .to_vec();
+//             total_bytes += bytes.len();
+//             file.write_all(&bytes)?;
+//             pb.set_description(utils::format_bytes(total_bytes, 2).2);
+//             pb.update(1);
+//         }
+//     }
+
+//     Ok(())
+// }

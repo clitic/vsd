@@ -1,3 +1,5 @@
+use crate::download::DownloadState;
+use crate::progress::Progress;
 use anyhow::{bail, Result};
 use clap::Args;
 use kdam::term::Colorizer;
@@ -68,13 +70,12 @@ pub struct Save {
     #[arg(short, long, value_name = "<KID:KEY>|KEY")]
     pub key: Vec<String>,
 
-    /// TODO: Record duration for live playlist in seconds.
-    #[arg(long)]
-    pub record_duration: Option<f32>,
-
+    // /// TODO: Record duration for live playlist in seconds.
+    // #[arg(long)]
+    // pub record_duration: Option<f32>,
     /// TODO: Directory path
     #[arg(long)]
-    pub save_directory: Option<String>,
+    pub directory: Option<String>,
 
     /// Custom headers for requests.
     /// This option can be used multiple times.
@@ -183,7 +184,7 @@ fn proxy_address_parser(s: &str) -> Result<String, String> {
 }
 
 impl Save {
-    pub fn client(&self) -> Result<Arc<Client>> {
+    fn client(&self) -> Result<Arc<Client>> {
         let mut client_builder = Client::builder().user_agent(&self.user_agent);
 
         if !self.header.is_empty() {
@@ -313,6 +314,51 @@ impl Save {
         } else {
             InputType::LocalFile
         }
+    }
+
+    pub fn to_download_state(mut self) -> Result<DownloadState> {
+        let client = self.client()?;
+
+        if let Some(output) = &self.output {
+            if !output.ends_with(".ts") {
+                crate::utils::check_ffmpeg("the given output doesn't have .ts file extension")?
+            }
+        }
+
+        if self.input_type().is_website() {
+            println!(
+                "{} website for HLS and DASH stream links.",
+                "Scraping".colorize("bold green"),
+            );
+            let links = crate::utils::find_hls_dash_links(&client.get(&self.input).send()?.text()?);
+
+            match links.len() {
+                0 => bail!(crate::utils::scrape_website_message(&self.input)),
+                1 => {
+                    self.input = links[0].clone();
+                    println!("{} {}", "Found".colorize("bold green"), &links[0]);
+                }
+                _ => {
+                    let mut elinks = vec![];
+                    for (i, link) in links.iter().enumerate() {
+                        elinks.push(format!("{:2}) {}", i + 1, link));
+                    }
+                    let index = crate::utils::select(
+                        "Select one link:".to_string(),
+                        &elinks,
+                        self.raw_prompts,
+                    )?;
+                    self.input = links[index].clone();
+                }
+            }
+        }
+
+        Ok(DownloadState {
+            alternative_media_type: None,
+            args: self,
+            client,
+            progress: Progress::new_empty(),
+        })
     }
 }
 

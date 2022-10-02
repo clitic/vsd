@@ -10,7 +10,6 @@ mod utils;
 
 use clap::Parser;
 use commands::{Args, Commands};
-use download::DownloadState;
 use kdam::term::Colorizer;
 
 fn run() -> anyhow::Result<()> {
@@ -20,14 +19,7 @@ fn run() -> anyhow::Result<()> {
         Commands::Decrypt(args) => args.perform()?,
         Commands::Extract(args) => args.perform()?,
         Commands::Merge(args) => args.perform()?,
-        Commands::Save(args) => {
-            let mut downloader = DownloadState::new(args)?;
-            downloader.fetch_playlists()?;
-            downloader.download()?;
-            downloader
-                .progress
-                .mux(&downloader.args.output, &downloader.alternative_media_type)?;
-        }
+        Commands::Save(args) => args.to_download_state()?.perform()?,
     }
 
     Ok(())
