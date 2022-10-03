@@ -36,9 +36,6 @@ pub struct Save {
     #[arg(short, long, default_value = "select-later", value_name = "WIDTHxHEIGHT", value_parser = quality_parser)]
     pub quality: Quality,
 
-    // /// Automatic selection of some standard resolution streams with highest bandwidth stream variant from master playlist.
-    // #[arg(long, number_of_values = 2, value_names = &["width", "height"])]
-    // pub resolution: Vec<u64>,
     /// Maximum number of threads for parllel downloading of segments.
     /// Number of threads should be in range 1-16 (inclusive).
     #[arg(short, long, default_value_t = 5, value_parser = clap::value_parser!(u8).range(1..=16))]
@@ -73,6 +70,9 @@ pub struct Save {
     // /// TODO: Record duration for live playlist in seconds.
     // #[arg(long)]
     // pub record_duration: Option<f32>,
+    
+    // TODO no mux flag
+    
     /// TODO: Directory path
     #[arg(long)]
     pub directory: Option<String>,

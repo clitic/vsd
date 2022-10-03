@@ -94,7 +94,16 @@ pub fn master(
         Quality::Youtube4k => select_quality("4K", variants)?,
         Quality::Youtube8k => select_quality("8K", variants)?,
         Quality::Resolution(w, h) => select_quality(&format!("{}x{}", w, h), variants)?,
-        Quality::Highest => variants[0].uri.clone(),
+        Quality::Highest => {
+            let band_fmt = format_bytes(variants[0].bandwidth as usize, 2);
+            println!(
+                "Selected variant stream of quality {} ({} {}/s).",
+                resolution(variants[0].resolution),
+                band_fmt.0,
+                band_fmt.1
+            );
+            variants[0].uri.clone()
+        },
         Quality::SelectLater => {
             let mut streams = vec![];
             for (i, variant) in variants.iter().enumerate() {

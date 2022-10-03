@@ -211,157 +211,6 @@ impl DownloadState {
         Ok(())
     }
 
-    fn check_segments(&self) -> Result<()> {
-        let mut segments = self.progress.video.to_playlist().segments;
-
-        if let Some(audio) = &self.progress.audio {
-            segments.extend_from_slice(&audio.to_playlist().segments);
-        }
-
-        self.args.get_url(&segments[0].uri)?;
-
-        for segment in segments {
-            let segment_tags = dash::SegmentTag::from(&segment.unknown_tags);
-            if segment_tags.single {
-                bail!("single file dash streams are not supported")
-            }
-
-            match &segment.key {
-                Some(m3u8_rs::Key {
-                    method: m3u8_rs::KeyMethod::SampleAES,
-                    ..
-                }) => bail!("SAMPLE-AES encrypted playlists are not supported."),
-                Some(m3u8_rs::Key {
-                    method: m3u8_rs::KeyMethod::Other(x),
-                    ..
-                }) => {
-                    if x == "CENC" && self.args.key.is_empty() {
-                        bail!("CENC encrypted playlists requires --key")
-                    } else {
-                        bail!("{} encrypted playlists are not supported.", x)
-                    }
-                }
-                _ => (),
-            }
-        }
-
-        Ok(())
-    }
-
-    fn download_subtitles(
-        &mut self,
-        subtitles: StreamData,
-        pb: &mut RichProgress,
-    ) -> Result<StreamData> {
-        let mut subtitles = subtitles;
-
-        let playlist = subtitles.to_playlist();
-        let segments = playlist.segments;
-        pb.pb.set_total(segments.len());
-
-        let mut total_bytes = 0;
-
-        let mut subtitles_data = self
-            .client
-            .get(&self.args.get_url(&segments[0].uri)?)
-            .send()?
-            .bytes()?
-            .to_vec();
-
-        total_bytes += subtitles_data.len();
-
-        pb.replace(
-            1,
-            Column::Text(format!(
-                "[bold blue]{}",
-                utils::format_bytes(total_bytes, 2).2
-            )),
-        );
-        pb.update(1);
-
-        let mut mp4subtitles = false;
-
-        if &subtitles_data[..6] == "WEBVTT".as_bytes() {
-            subtitles.set_extension_mut("vtt");
-        } else if subtitles_data[0] == "1".as_bytes()[0] {
-            subtitles.set_extension_mut("srt");
-        } else if &subtitles_data[..3] == "<tt".as_bytes() {
-            bail!("raw ttml subtitles are not supported")
-        } else {
-            let playlist_tags = dash::PlaylistTag::from(&playlist.unknown_tags);
-            let segment_tags = dash::SegmentTag::from(&segments[0].unknown_tags);
-            let uri = segments[0].uri.split('?').next().unwrap();
-
-            if segment_tags.init {
-                if playlist_tags.vtt
-                    || playlist_tags.ttml
-                    || uri.ends_with(".mp4")
-                    || uri.ends_with(".cmft")
-                    || uri.ends_with(".ismt")
-                {
-                    subtitles.set_extension_mut("vtt");
-                    mp4subtitles = true;
-                } else {
-                    bail!("unknown embedded subtitles are not supported")
-                }
-            }
-        }
-
-        pb.write(format!(
-            "{} subtitle stream to {}",
-            "Downloading".colorize("bold green"),
-            subtitles.file.colorize("cyan")
-        ));
-
-        for segment in &segments[1..] {
-            let bytes = self
-                .client
-                .get(&self.args.get_url(&segment.uri)?)
-                .send()?
-                .bytes()?
-                .to_vec();
-
-            total_bytes += bytes.len();
-            subtitles_data.extend_from_slice(&bytes);
-
-            pb.replace(
-                1,
-                Column::Text(format!(
-                    "[bold blue]{}",
-                    utils::format_bytes(total_bytes, 2).2
-                )),
-            );
-            pb.update(1);
-        }
-
-        if mp4subtitles {
-            pb.write(format!(
-                " {} embedded subtitles",
-                "Extracting".colorize("bold cyan"),
-            ));
-
-            let split_data = mp4decrypt::mp4split(&subtitles_data).map_err(|x| anyhow!(x))?;
-
-            subtitles_data = MP4Subtitles::new(&split_data[0], None)
-                .map_err(|x| anyhow!(x))?
-                .add_cues(&split_data[1..])
-                .map_err(|x| anyhow!(x))?
-                .to_subtitles()
-                .to_vtt()
-                .as_bytes()
-                .to_vec();
-        }
-
-        std::fs::File::create(&subtitles.file)?.write_all(&subtitles_data)?;
-        subtitles.downloaded = pb.pb.get_total();
-        pb.write(format!(
-            " {} subtitle stream successfully",
-            "Downloaded".colorize("bold green"),
-        ));
-
-        Ok(subtitles.to_owned())
-    }
-
     pub fn download(&mut self) -> Result<()> {
         self.progress.set_progress_file();
 
@@ -494,6 +343,176 @@ impl DownloadState {
         Ok(())
     }
 
+    fn download_subtitles(
+        &mut self,
+        subtitles: StreamData,
+        pb: &mut RichProgress,
+    ) -> Result<StreamData> {
+        let mut subtitles = subtitles;
+
+        let playlist = subtitles.to_playlist();
+        let segments = playlist.segments;
+        pb.pb.set_total(segments.len());
+
+        let mut total_bytes = 0;
+
+        let mut subtitles_data = self
+            .client
+            .get(&self.args.get_url(&segments[0].uri)?)
+            .send()?
+            .bytes()?
+            .to_vec();
+
+        total_bytes += subtitles_data.len();
+
+        pb.replace(
+            1,
+            Column::Text(format!(
+                "[bold blue]{}",
+                utils::format_bytes(total_bytes, 2).2
+            )),
+        );
+        pb.update(1);
+
+        let mut mp4subtitles = false;
+
+        if &subtitles_data[..6] == "WEBVTT".as_bytes() {
+            subtitles.set_extension_mut("vtt");
+        } else if subtitles_data[0] == "1".as_bytes()[0] {
+            subtitles.set_extension_mut("srt");
+        } else if &subtitles_data[..3] == "<tt".as_bytes() {
+            bail!("raw ttml subtitles are not supported")
+        } else {
+            let playlist_tags = dash::PlaylistTag::from(&playlist.unknown_tags);
+            let segment_tags = dash::SegmentTag::from(&segments[0].unknown_tags);
+            let uri = segments[0].uri.split('?').next().unwrap();
+
+            if segment_tags.init {
+                if playlist_tags.vtt
+                    || playlist_tags.ttml
+                    || uri.ends_with(".mp4")
+                    || uri.ends_with(".cmft")
+                    || uri.ends_with(".ismt")
+                {
+                    subtitles.set_extension_mut("vtt");
+                    mp4subtitles = true;
+                } else {
+                    bail!("unknown embedded subtitles are not supported")
+                }
+            }
+        }
+
+        pb.write(format!(
+            "{} subtitle stream to {}",
+            "Downloading".colorize("bold green"),
+            subtitles.file.colorize("cyan")
+        ));
+
+        for segment in &segments[1..] {
+            let bytes = self
+                .client
+                .get(&self.args.get_url(&segment.uri)?)
+                .send()?
+                .bytes()?
+                .to_vec();
+
+            total_bytes += bytes.len();
+            subtitles_data.extend_from_slice(&bytes);
+
+            pb.replace(
+                1,
+                Column::Text(format!(
+                    "[bold blue]{}",
+                    utils::format_bytes(total_bytes, 2).2
+                )),
+            );
+            pb.update(1);
+        }
+
+        if mp4subtitles {
+            pb.write(format!(
+                " {} embedded subtitles",
+                "Extracting".colorize("bold cyan"),
+            ));
+
+            let split_data = mp4decrypt::mp4split(&subtitles_data).map_err(|x| anyhow!(x))?;
+
+            subtitles_data = MP4Subtitles::new(&split_data[0], None)
+                .map_err(|x| anyhow!(x))?
+                .add_cues(&split_data[1..])
+                .map_err(|x| anyhow!(x))?
+                .to_subtitles()
+                .to_vtt()
+                .as_bytes()
+                .to_vec();
+        }
+
+        std::fs::File::create(&subtitles.file)?.write_all(&subtitles_data)?;
+        subtitles.downloaded = pb.pb.get_total();
+        pb.write(format!(
+            " {} subtitle stream successfully",
+            "Downloaded".colorize("bold green"),
+        ));
+
+        Ok(subtitles.to_owned())
+    }
+
+    fn check_segments(&self) -> Result<()> {
+        let mut segments = self.progress.video.to_playlist().segments;
+
+        if let Some(audio) = &self.progress.audio {
+            segments.extend_from_slice(&audio.to_playlist().segments);
+        }
+
+        self.args.get_url(&segments[0].uri)?;
+
+        let mut encryption_type = None;
+
+        for segment in segments {
+            let segment_tags = dash::SegmentTag::from(&segment.unknown_tags);
+            if segment_tags.single {
+                bail!("single file dash streams are not supported")
+            }
+
+            match &segment.key {
+                Some(m3u8_rs::Key {
+                    method: m3u8_rs::KeyMethod::AES128,
+                    ..
+                }) => encryption_type = Some("AES-128"),
+                Some(m3u8_rs::Key {
+                    method: m3u8_rs::KeyMethod::SampleAES,
+                    ..
+                }) => {
+                    println!("{} SAMPLE-AES streams found in playlist", "Encrypted".colorize("bold yellow"));
+                    bail!("SAMPLE-AES encrypted playlists are not supported.")
+                },
+                Some(m3u8_rs::Key {
+                    method: m3u8_rs::KeyMethod::Other(x),
+                    ..
+                }) => {
+                    if x == "CENC" {
+                        if self.args.key.is_empty() {
+                            println!("{} CENC streams found in playlist", "Encrypted".colorize("bold yellow"));
+                            bail!("CENC encrypted playlists requires --key")
+                        }
+
+                        encryption_type = Some("CENC");
+                    } else {
+                        println!("{} {} streams found in playlist", "Encrypted".colorize("bold yellow"), x);
+                        bail!("{} encrypted playlists are not supported.", x)
+                    }
+                }
+                _ => (),
+            }
+        }
+
+        if let Some(encryption_type) = encryption_type {
+            println!("  {} {} streams found in playlist", "Encrypted".colorize("bold yellow"), encryption_type);
+        }
+
+        Ok(())
+    }
+
     fn download_segments(
         &self,
         segments: Vec<m3u8_rs::MediaSegment>,
@@ -533,13 +552,15 @@ impl DownloadState {
                 gaurded_pb.replace(
                     1,
                     Column::Text(format!(
-                        "[bold blue]{} / {}",
-                        utils::format_bytes(stored_bytes + merger.stored(), 2).2,
-                        if let Some(size) = relative_size {
-                            utils::format_bytes(stored_bytes + size + merger.estimate(), 0).2
-                        } else {
-                            utils::format_bytes(stored_bytes + merger.estimate(), 0).2
-                        }
+                        "[bold blue]{}",
+                        utils::format_download_bytes(
+                            stored_bytes + merger.stored(),
+                            if let Some(size) = relative_size {
+                                stored_bytes + size + merger.estimate()
+                            } else {
+                                stored_bytes + merger.estimate()
+                            }
+                        ),
                     )),
                 );
                 gaurded_pb.update_to(pos);
@@ -608,7 +629,8 @@ fn download_segment(sync_data: &SyncData) -> Result<()> {
             Some(m3u8_rs::ByteRange {
                 length: start,
                 offset: Some(end),
-            }) => Ok(sync_data.client
+            }) => Ok(sync_data
+                .client
                 .get(&sync_data.segment_url)
                 .header(
                     header::RANGE,
@@ -617,7 +639,12 @@ fn download_segment(sync_data: &SyncData) -> Result<()> {
                 .send()?
                 .bytes()?
                 .to_vec()),
-            _ => Ok(sync_data.client.get(&sync_data.segment_url).send()?.bytes()?.to_vec()),
+            _ => Ok(sync_data
+                .client
+                .get(&sync_data.segment_url)
+                .send()?
+                .bytes()?
+                .to_vec()),
         }
     };
 
@@ -641,7 +668,9 @@ fn download_segment(sync_data: &SyncData) -> Result<()> {
             }
             Err(e) => {
                 if sync_data.total_retries > retries {
-                    sync_data.pb.lock()
+                    sync_data
+                        .pb
+                        .lock()
                         .unwrap()
                         .write(utils::check_reqwest_error(&e, &sync_data.segment_url)?);
                     retries += 1;
@@ -668,7 +697,9 @@ fn download_segment(sync_data: &SyncData) -> Result<()> {
                 Ok(bytes) => break bytes,
                 Err(e) => {
                     if sync_data.total_retries > retries {
-                        sync_data.pb.lock()
+                        sync_data
+                            .pb
+                            .lock()
                             .unwrap()
                             .write(utils::check_reqwest_error(&e, key_url)?);
                         retries += 1;
@@ -695,13 +726,15 @@ fn download_segment(sync_data: &SyncData) -> Result<()> {
     gaurded_pb.replace(
         1,
         Column::Text(format!(
-            "[bold blue]{} / {}",
-            utils::format_bytes(sync_data.stored_bytes + stored, 2).2,
-            if let Some(size) = sync_data.relative_size {
-                utils::format_bytes(sync_data.stored_bytes + size + estimate, 0).2
-            } else {
-                utils::format_bytes(sync_data.stored_bytes + estimate, 0).2
-            },
+            "[bold blue]{}",
+            utils::format_download_bytes(
+                sync_data.stored_bytes + stored,
+                if let Some(size) = sync_data.relative_size {
+                    sync_data.stored_bytes + size + estimate
+                } else {
+                    sync_data.stored_bytes + estimate
+                }
+            ),
         )),
     );
 

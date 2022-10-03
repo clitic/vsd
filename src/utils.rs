@@ -25,6 +25,21 @@ pub(super) fn format_bytes(bytesval: usize, precision: usize) -> (String, String
     )
 }
 
+pub(super) fn format_download_bytes(downloaded: usize, total: usize) -> String {
+    let downloaded = format_bytes(downloaded, 2);
+    let mut total = format_bytes(total, 2);
+
+    if total.1 == "MB" {
+        total.0 = total.0.split('.').next().unwrap().to_owned();
+    }
+
+    if downloaded.1 == total.1 {
+        format!("{} / {} {}", downloaded.0, total.0, downloaded.1)
+    } else {
+        format!("{} / {}", downloaded.2, total.2)
+    }
+}
+
 pub(super) fn find_hls_dash_links(text: &str) -> Vec<String> {
     let re = regex::Regex::new(r"(https|ftp|http)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-]\.(m3u8|m3u|mpd))").unwrap();
     let links = re
