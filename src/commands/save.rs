@@ -7,7 +7,7 @@ use reqwest::blocking::Client;
 use reqwest::cookie::Jar;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Proxy, Url};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 /// Download HLS and Dash playlists.
@@ -49,7 +49,7 @@ pub struct Save {
     #[arg(long)]
     pub raw_prompts: bool,
 
-    /// Resume a download session.
+    /// BUG: Resume a download session.
     /// Download session can only be resumed if download session json file is present.
     #[arg(short, long)]
     pub resume: bool,
@@ -72,7 +72,7 @@ pub struct Save {
     // pub record_duration: Option<f32>,
     
     // TODO no mux flag
-    
+
     /// TODO: Directory path
     #[arg(long)]
     pub directory: Option<String>,
@@ -279,19 +279,6 @@ impl Save {
             path.set_extension("mp4");
             path.to_str().unwrap().to_owned()
         };
-
-        if Path::new(&output).exists() && !self.resume {
-            let stemed_path = Path::new(&output).file_stem().unwrap().to_str().unwrap();
-            let ext = Path::new(&output).extension().unwrap().to_str().unwrap();
-
-            for i in 1.. {
-                let core_file_copy = format!("{} ({}).{}", stemed_path, i, ext);
-
-                if !Path::new(&core_file_copy).exists() {
-                    return core_file_copy;
-                }
-            }
-        }
 
         output
     }

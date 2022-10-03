@@ -34,7 +34,7 @@ impl StreamData {
     }
 
     pub fn filename(&self, suffix: &str, ext: Option<&str>) -> String {
-        format!(
+        finalize_path(&format!(
             "({}) {}{}",
             suffix,
             Path::new(&self.file).file_stem().unwrap().to_str().unwrap(),
@@ -47,11 +47,11 @@ impl StreamData {
             } else {
                 "".to_owned()
             }
-        )
+        ))
     }
 
     pub fn set_suffix(&mut self, suffix: &str) {
-        self.file = format!("({}) {}", suffix, self.file);
+        self.file = finalize_path(&format!("({}) {}", suffix, self.file));
     }
 
     pub fn set_extension(&self, ext: &str) -> String {
@@ -61,6 +61,23 @@ impl StreamData {
     }
 
     pub fn set_extension_mut(&mut self, ext: &str) {
-        self.file = self.set_extension(ext);
+        self.file = finalize_path(&self.set_extension(ext));
     }
+}
+
+fn finalize_path(path: &str) -> String {
+    if Path::new(path).exists() {
+        let stemed_path = Path::new(path).file_stem().unwrap().to_str().unwrap();
+        let ext = Path::new(path).extension().unwrap().to_str().unwrap();
+
+        for i in 1.. {
+            let core_file_copy = format!("{} ({}).{}", stemed_path, i, ext);
+
+            if !Path::new(&core_file_copy).exists() {
+                return core_file_copy;
+            }
+        }
+    }
+
+    path.to_owned()
 }
