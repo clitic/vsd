@@ -9,13 +9,16 @@ use kdam::prelude::*;
 use kdam::{Column, RichProgress};
 use reqwest::blocking::Client;
 use reqwest::header;
+use std::collections::HashMap;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 pub struct DownloadState {
     pub alternative_media_type: Option<m3u8_rs::AlternativeMediaType>,
     pub args: commands::Save,
+    pub cenc_encrypted: bool,
     pub client: Arc<Client>,
+    pub dash: bool,
     pub progress: Progress,
 }
 
@@ -40,7 +43,8 @@ impl DownloadState {
         if input_type.is_hls() {
             self.hls_vod(&content)?;
         } else if input_type.is_dash() {
-            self.dash_vod(&content)?
+            self.dash = true;
+            self.dash_vod(&content)?;
         } else {
             bail!("Only HLS and DASH streams are supported.")
         }
@@ -457,7 +461,7 @@ impl DownloadState {
         Ok(subtitles.to_owned())
     }
 
-    fn check_segments(&self) -> Result<()> {
+    fn check_segments(&mut self) -> Result<()> {
         let mut segments = self.progress.video.to_playlist().segments;
 
         if let Some(audio) = &self.progress.audio {
@@ -483,22 +487,32 @@ impl DownloadState {
                     method: m3u8_rs::KeyMethod::SampleAES,
                     ..
                 }) => {
-                    println!("{} SAMPLE-AES streams found in playlist", "Encrypted".colorize("bold yellow"));
+                    println!(
+                        "{} SAMPLE-AES streams found in playlist",
+                        "Encrypted".colorize("bold yellow")
+                    );
                     bail!("SAMPLE-AES encrypted playlists are not supported.")
-                },
+                }
                 Some(m3u8_rs::Key {
                     method: m3u8_rs::KeyMethod::Other(x),
                     ..
                 }) => {
                     if x == "CENC" {
                         if self.args.key.is_empty() {
-                            println!("{} CENC streams found in playlist", "Encrypted".colorize("bold yellow"));
-                            bail!("CENC encrypted playlists requires --key")
+                            println!(
+                                "{} CENC streams found in playlist",
+                                "Encrypted".colorize("bold yellow")
+                            );
+                            bail!("CENC encrypted playlists requires at least one key specified using {} flag", "--key".colorize("bold green"))
                         }
 
                         encryption_type = Some("CENC");
                     } else {
-                        println!("{} {} streams found in playlist", "Encrypted".colorize("bold yellow"), x);
+                        println!(
+                            "{} {} streams found in playlist",
+                            "Encrypted".colorize("bold yellow"),
+                            x
+                        );
                         bail!("{} encrypted playlists are not supported.", x)
                     }
                 }
@@ -507,7 +521,15 @@ impl DownloadState {
         }
 
         if let Some(encryption_type) = encryption_type {
-            println!("  {} {} streams found in playlist", "Encrypted".colorize("bold yellow"), encryption_type);
+            if encryption_type == "CENC" {
+                self.cenc_encrypted = true;
+            }
+
+            println!(
+                "  {} {} streams found in playlist",
+                "Encrypted".colorize("bold yellow"),
+                encryption_type
+            );
         }
 
         Ok(())
@@ -539,7 +561,47 @@ impl DownloadState {
 
         let timer = Arc::new(std::time::Instant::now());
 
-        for (i, segment) in segments.iter().enumerate() {
+        let default_kid = dash::SegmentTag::from(&segments[1].unknown_tags).kid;
+
+        let mut segments = segments.iter().enumerate();
+
+        let dash_decrypt = if self.dash && self.cenc_encrypted {
+            let segment = segments.next().unwrap().1;
+
+            if dash::SegmentTag::from(&segment.unknown_tags).init {
+                // TODO handle progress bar
+                // pb.lock().unwrap().pb.set_total(total)
+                let init_segment = self
+                    .client
+                    .get(self.args.get_url(&segment.uri)?)
+                    .send()?
+                    .bytes()?
+                    .to_vec();
+                let mut keys = HashMap::new();
+
+                for key in &self.args.key {
+                    if let Some(kid) = &default_kid {
+                        keys.insert(kid.replace('-', ""), key.1.to_owned());
+                    }
+
+                    if let Some(kid) = &key.0 {
+                        keys.insert(kid.replace('-', ""), key.1.to_owned());
+                    }
+                }
+
+                if keys.is_empty() {
+                    bail!("specify key using kid:key syntax")
+                }
+
+                Some((init_segment, keys))
+            } else {
+                bail!("stream is CENC encrypted without a init segment")
+            }
+        } else {
+            None
+        };
+
+        for (i, segment) in segments {
             if self.args.resume {
                 let merger = merger.lock().unwrap();
                 let pos = merger.position();
@@ -569,10 +631,12 @@ impl DownloadState {
             let sync_data = SyncData {
                 byte_range: segment.byte_range.clone(),
                 client: self.client.clone(),
+                dash_decrypt: dash_decrypt.clone(),
                 key_info: match &segment.key {
                     Some(m3u8_rs::Key {
                         uri: Some(link), ..
                     }) => Some((self.args.get_url(link)?, segment.key.clone().unwrap())),
+                    Some(_) => Some(("dash".to_owned(), segment.key.clone().unwrap())),
                     _ => None,
                 },
                 merger: merger.clone(),
@@ -586,7 +650,7 @@ impl DownloadState {
             };
 
             pool.execute(move || {
-                if let Err(e) = download_segment(&sync_data) {
+                if let Err(e) = sync_data.perform() {
                     let _ = sync_data.pb.lock().unwrap();
                     println!("\n{}: {}", "error".colorize("bold red"), e);
                     std::process::exit(1);
@@ -612,6 +676,7 @@ impl DownloadState {
 struct SyncData {
     byte_range: Option<m3u8_rs::ByteRange>,
     client: Arc<Client>,
+    dash_decrypt: Option<(Vec<u8>, HashMap<String, String>)>,
     key_info: Option<(String, m3u8_rs::Key)>,
     merger: Arc<Mutex<BinaryMerger>>,
     pb: Arc<Mutex<RichProgress>>,
@@ -623,123 +688,142 @@ struct SyncData {
     total_retries: u8,
 }
 
-fn download_segment(sync_data: &SyncData) -> Result<()> {
-    let fetch_segment = || -> Result<Vec<u8>, reqwest::Error> {
-        match sync_data.byte_range {
-            Some(m3u8_rs::ByteRange {
-                length: start,
-                offset: Some(end),
-            }) => Ok(sync_data
-                .client
-                .get(&sync_data.segment_url)
-                .header(
-                    header::RANGE,
-                    format!("bytes={}-{}", start, start + end - 1),
-                )
-                .send()?
-                .bytes()?
-                .to_vec()),
-            _ => Ok(sync_data
-                .client
-                .get(&sync_data.segment_url)
-                .send()?
-                .bytes()?
-                .to_vec()),
+impl SyncData {
+    fn perform(&self) -> Result<()> {
+        let mut segment = self.download_segment()?;
+
+        if let Some(decrypter) = self.decrypter()? {
+            if let Some((init_segment, keys)) = &self.dash_decrypt {
+                let mut init_segment = init_segment.to_owned();
+                init_segment.extend_from_slice(&segment);
+                segment = decrypter.decrypt(&init_segment, Some(keys.to_owned()))?;
+            } else {
+                segment = decrypter.decrypt(&segment, None)?;
+            };
         }
-    };
 
-    let mut retries = 0;
-    let mut data = loop {
-        match fetch_segment() {
-            Ok(bytes) => {
-                let elapsed_time = sync_data.timer.elapsed().as_secs() as usize;
-                if elapsed_time != 0 {
-                    let stored = sync_data.merger.lock().unwrap().stored() + bytes.len();
-                    sync_data.pb.lock().unwrap().replace(
-                        13,
-                        Column::Text(format!(
-                            "[yellow]{}/s",
-                            utils::format_bytes(stored / elapsed_time, 2).2
-                        )),
-                    );
-                }
+        let mut guarded_merger = self.merger.lock().unwrap();
+        guarded_merger.write(self.segment_index, &segment)?;
+        guarded_merger.flush()?;
 
-                break bytes;
-            }
-            Err(e) => {
-                if sync_data.total_retries > retries {
-                    sync_data
-                        .pb
-                        .lock()
-                        .unwrap()
-                        .write(utils::check_reqwest_error(&e, &sync_data.segment_url)?);
-                    retries += 1;
-                    continue;
-                } else {
-                    bail!(
-                        "Reached maximum number of retries for segment at index {}.",
-                        sync_data.segment_index
+        self.notify(guarded_merger.stored(), guarded_merger.estimate())?;
+        Ok(())
+    }
+
+    fn download_segment(&self) -> Result<Vec<u8>> {
+        let fetch_segment = || -> Result<Vec<u8>, reqwest::Error> {
+            match self.byte_range {
+                Some(m3u8_rs::ByteRange {
+                    length: start,
+                    offset: Some(end),
+                }) => Ok(self
+                    .client
+                    .get(&self.segment_url)
+                    .header(
+                        header::RANGE,
+                        format!("bytes={}-{}", start, start + end - 1),
                     )
-                }
+                    .send()?
+                    .bytes()?
+                    .to_vec()),
+                _ => Ok(self.client.get(&self.segment_url).send()?.bytes()?.to_vec()),
             }
-        }
-    };
+        };
 
-    // Decrypt
-    let fetch_key = |key_url| -> Result<Vec<u8>, reqwest::Error> {
-        Ok(sync_data.client.get(key_url).send()?.bytes()?.to_vec())
-    };
+        let mut retries = 0;
+        let data = loop {
+            match fetch_segment() {
+                Ok(bytes) => {
+                    let elapsed_time = self.timer.elapsed().as_secs() as usize;
+                    if elapsed_time != 0 {
+                        let stored = self.merger.lock().unwrap().stored() + bytes.len();
+                        self.pb.lock().unwrap().replace(
+                            13,
+                            Column::Text(format!(
+                                "[yellow]{}/s",
+                                utils::format_bytes(stored / elapsed_time, 2).2
+                            )),
+                        );
+                    }
 
-    retries = 0;
-    if let Some((key_url, key)) = &sync_data.key_info {
-        let key_content = loop {
-            match fetch_key(key_url) {
-                Ok(bytes) => break bytes,
+                    break bytes;
+                }
                 Err(e) => {
-                    if sync_data.total_retries > retries {
-                        sync_data
-                            .pb
+                    if self.total_retries > retries {
+                        self.pb
                             .lock()
                             .unwrap()
-                            .write(utils::check_reqwest_error(&e, key_url)?);
+                            .write(utils::check_reqwest_error(&e, &self.segment_url)?);
                         retries += 1;
                         continue;
                     } else {
-                        bail!("Reached maximum number of retries to download decryption key.")
+                        bail!(
+                            "Reached maximum number of retries for segment at index {}.",
+                            self.segment_index
+                        )
                     }
                 }
             }
         };
 
-        data = Decrypter::from_key(key, &key_content)
-            .unwrap()
-            .decrypt(&data, None)?;
+        Ok(data)
     }
 
-    let mut guarded_merger = sync_data.merger.lock().unwrap();
-    guarded_merger.write(sync_data.segment_index, &data)?;
-    guarded_merger.flush()?;
-    let stored = guarded_merger.stored();
-    let estimate = guarded_merger.estimate();
+    fn decrypter(&self) -> Result<Option<Decrypter>> {
+        let fetch_key = |key_url| -> Result<Vec<u8>, reqwest::Error> {
+            Ok(self.client.get(key_url).send()?.bytes()?.to_vec())
+        };
 
-    let mut gaurded_pb = sync_data.pb.lock().unwrap();
-    gaurded_pb.replace(
-        1,
-        Column::Text(format!(
-            "[bold blue]{}",
-            utils::format_download_bytes(
-                sync_data.stored_bytes + stored,
-                if let Some(size) = sync_data.relative_size {
-                    sync_data.stored_bytes + size + estimate
-                } else {
-                    sync_data.stored_bytes + estimate
+        let mut retries = 0;
+
+        if let Some((key_url, key)) = &self.key_info {
+            if key_url == "dash" {
+                return Ok(Some(Decrypter::from_key(key, &[]).unwrap()));
+            }
+
+            let key_content = loop {
+                match fetch_key(key_url) {
+                    Ok(bytes) => break bytes,
+                    Err(e) => {
+                        if self.total_retries > retries {
+                            self.pb
+                                .lock()
+                                .unwrap()
+                                .write(utils::check_reqwest_error(&e, key_url)?);
+                            retries += 1;
+                            continue;
+                        } else {
+                            bail!("Reached maximum number of retries to download decryption key.")
+                        }
+                    }
                 }
-            ),
-        )),
-    );
+            };
 
-    gaurded_pb.update(1);
-    Ok(())
+            return Ok(Some(Decrypter::from_key(key, &key_content).unwrap()));
+        }
+
+        Ok(None)
+    }
+
+    fn notify(&self, stored: usize, estimate: usize) -> Result<()> {
+        let mut gaurded_pb = self.pb.lock().unwrap();
+        gaurded_pb.replace(
+            1,
+            Column::Text(format!(
+                "[bold blue]{}",
+                utils::format_download_bytes(
+                    self.stored_bytes + stored,
+                    if let Some(size) = self.relative_size {
+                        self.stored_bytes + size + estimate
+                    } else {
+                        self.stored_bytes + estimate
+                    }
+                ),
+            )),
+        );
+        gaurded_pb.update(1);
+        Ok(())
+    }
 }
 
 // fn hls_live(&mut self) -> Result<()> {

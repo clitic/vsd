@@ -64,8 +64,8 @@ pub struct Save {
 
     /// TODO: Decryption keys.
     /// This option can be used multiple times.
-    #[arg(short, long, value_name = "<KID:KEY>|KEY")]
-    pub key: Vec<String>,
+    #[arg(short, long, value_name = "<KID:KEY>|KEY", value_parser = key_parser)]
+    pub key: Vec<(Option<String>, String)>,
 
     // /// TODO: Record duration for live playlist in seconds.
     // #[arg(long)]
@@ -173,6 +173,14 @@ fn quality_parser(s: &str) -> Result<Quality, String> {
             "WIDTHxHEIGHT".colorize("green")
         ))?,
     })
+}
+
+fn key_parser(s: &str) -> Result<(Option<String>, String), String> {
+    if s.contains(':') {
+        Ok((Some(s.split(':').next().unwrap().to_owned()), s.split(':').nth(1).unwrap().to_owned()))
+    } else {
+        Ok((None, s.to_owned()))
+    }
 }
 
 fn proxy_address_parser(s: &str) -> Result<String, String> {
@@ -343,7 +351,9 @@ impl Save {
         Ok(DownloadState {
             alternative_media_type: None,
             args: self,
+            cenc_encrypted: false,
             client,
+            dash: false,
             progress: Progress::new_empty(),
         })
     }
