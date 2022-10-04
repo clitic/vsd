@@ -202,7 +202,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Result<m3u8_rs::
 
                     start_number += 1;
 
-                    let mut repeat_count = s.r.unwrap();
+                    let mut repeat_count = s.r.unwrap_or(0);
 
                     if repeat_count < 0 {
                         repeat_count = ((mpd_duration * timescale / s.d as f32) - 1.0) as i64;

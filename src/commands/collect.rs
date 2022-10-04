@@ -81,7 +81,7 @@ impl Collect {
 
 fn decode_body(body: GetResponseBodyReturnObject) -> Result<Vec<u8>> {
     if body.base64_encoded {
-        Ok(base64::decode(body.body)?)
+        Ok(openssl::base64::decode_block(&body.body)?)
     } else {
         Ok(body.body.as_bytes().to_vec())
     }

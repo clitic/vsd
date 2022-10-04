@@ -16,7 +16,6 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1"
-base64 = "0.13"
 bincode = "1"
 chrono = "0.4"
 clap = { version = "4", features = ["derive", "wrap_help"] }

@@ -66,7 +66,7 @@ impl Decrypt {
             EncryptionMethod::AES_128 => decrypt(
                 Cipher::aes_128_cbc(),
                 &if self.key[0].ends_with('=') {
-                    base64::decode(&self.key[0])?
+                    openssl::base64::decode_block(&self.key[0])?
                 } else {
                     std::fs::read(&self.key[0])?
                 },

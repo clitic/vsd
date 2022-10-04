@@ -16,7 +16,8 @@ use std::sync::{Arc, Mutex};
 pub struct DownloadState {
     pub alternative_media_type: Option<m3u8_rs::AlternativeMediaType>,
     pub args: commands::Save,
-    pub cenc_encrypted: bool,
+    pub cenc_encrypted_audio: bool,
+    pub cenc_encrypted_video: bool,
     pub client: Arc<Client>,
     pub dash: bool,
     pub progress: Progress,
@@ -215,7 +216,54 @@ impl DownloadState {
         Ok(())
     }
 
+    fn dash_decrypt(
+        &self,
+        segment: &m3u8_rs::MediaSegment,
+        default_kid: Option<String>,
+        pb: &Arc<Mutex<RichProgress>>,
+    ) -> Result<(Vec<u8>, HashMap<String, String>)> {
+        if dash::SegmentTag::from(&segment.unknown_tags).init {
+            let init_segment = self
+                .client
+                .get(self.args.get_url(&segment.uri)?)
+                .send()?
+                .bytes()?
+                .to_vec();
+            let mut keys = HashMap::new();
+
+            for key in &self.args.key {
+                if let Some(kid) = &default_kid {
+                    keys.insert(kid.to_owned(), key.1.to_owned());
+                }
+
+                if let Some(kid) = &key.0 {
+                    keys.insert(kid.to_owned(), key.1.to_owned());
+                }
+            }
+
+            if keys.is_empty() {
+                bail!("specify key using kid:key syntax")
+            }
+
+            let mut message = format!(
+                "       {} KID -> KEY (in hex)",
+                "Keys".colorize("bold green")
+            );
+
+            for (kid, key) in &keys {
+                message += &format!("\n            {} -> {}", kid, key);
+            }
+
+            pb.lock().unwrap().write(message);
+
+            Ok((init_segment, keys))
+        } else {
+            bail!("stream is CENC encrypted without a init segment?")
+        }
+    }
+
     pub fn download(&mut self) -> Result<()> {
+        self.check_segments()?;
         self.progress.set_progress_file();
 
         let mut pb = RichProgress::new(
@@ -257,9 +305,19 @@ impl DownloadState {
             self.progress.subtitles = Some(self.download_subtitles(subtitles.to_owned(), &mut pb)?);
         }
 
-        self.check_segments()?;
+        let mut segment_factor = 0;
+
+        if self.dash && self.cenc_encrypted_video {
+            segment_factor += 1;
+        }
+
+        if self.dash && self.cenc_encrypted_audio {
+            segment_factor += 1;
+        }
+
         pb.pb.reset(Some(
-            self.progress.video.total + self.progress.audio.clone().map(|x| x.total).unwrap_or(0),
+            self.progress.video.total + self.progress.audio.clone().map(|x| x.total).unwrap_or(0)
+                - segment_factor,
         ));
         pb.replace(3, Column::Percentage(2));
         pb.columns
@@ -270,7 +328,7 @@ impl DownloadState {
             let segments = audio.to_playlist().segments;
 
             Some(
-                segments.len()
+                (segments.len() - if self.cenc_encrypted_audio { 1 } else { 0 })
                     * self
                         .client
                         .get(&self.args.get_url(&segments[1].uri)?)
@@ -299,16 +357,35 @@ impl DownloadState {
             self.progress.video.file.colorize("cyan")
         ));
         let pb = Arc::new(Mutex::new(pb));
-
         let pool = threadpool::ThreadPool::new(self.args.threads as usize);
+        let video_segments = self.progress.video.to_playlist().segments;
+
+        let dash_decrypt = if self.dash && self.cenc_encrypted_video {
+            Some(
+                self.dash_decrypt(
+                    &video_segments[0],
+                    dash::SegmentTag::from(&video_segments[1].unknown_tags)
+                        .kid
+                        .map(|x| x.replace('-', "")),
+                    &pb,
+                )?,
+            )
+        } else {
+            None
+        };
 
         stored_bytes = self.download_segments(
-            self.progress.video.to_playlist().segments,
+            if dash_decrypt.is_some() {
+                video_segments[1..].to_vec()
+            } else {
+                video_segments
+            },
             &self.progress.video.file,
             &pool,
             &pb,
             stored_bytes,
             relative_size,
+            dash_decrypt,
         )?;
 
         pb.lock().unwrap().write(format!(
@@ -328,13 +405,34 @@ impl DownloadState {
                 audio.file.colorize("cyan")
             ));
 
+            let audio_segments = audio.to_playlist().segments;
+
+            let dash_decrypt = if self.dash && self.cenc_encrypted_audio {
+                Some(
+                    self.dash_decrypt(
+                        &audio_segments[0],
+                        dash::SegmentTag::from(&audio_segments[1].unknown_tags)
+                            .kid
+                            .map(|x| x.replace('-', "")),
+                        &pb,
+                    )?,
+                )
+            } else {
+                None
+            };
+
             let _ = self.download_segments(
-                audio.to_playlist().segments,
+                if dash_decrypt.is_some() {
+                    audio_segments[1..].to_vec()
+                } else {
+                    audio_segments
+                },
                 &audio.file,
                 &pool,
                 &pb,
                 stored_bytes,
                 None,
+                dash_decrypt,
             )?;
 
             pb.lock().unwrap().write(format!(
@@ -344,6 +442,105 @@ impl DownloadState {
         }
 
         println!();
+        Ok(())
+    }
+
+    fn check_segments(&mut self) -> Result<()> {
+        let mut all_segments = vec![self.progress.video.to_playlist().segments];
+        self.args.get_url(&all_segments[0][0].uri)?;
+
+        if let Some(audio) = &self.progress.audio {
+            all_segments.push(audio.to_playlist().segments);
+        }
+
+        let mut encryption_type = None;
+        let mut kids = vec![];
+
+        for (i, segments) in all_segments.iter().enumerate() {
+            let stream_type = if i == 0 {
+                "video"
+            } else if i == 0 && self.alternative_media_type.is_some() {
+                "audio/alternative"
+            } 
+            else {
+                "audio"
+            };
+
+            for segment in segments {
+            let segment_tags = dash::SegmentTag::from(&segment.unknown_tags);
+            if segment_tags.single {
+                bail!("single file dash streams are not supported")
+            }
+
+            match &segment.key {
+                Some(m3u8_rs::Key {
+                    method: m3u8_rs::KeyMethod::AES128,
+                    ..
+                }) => encryption_type = Some("AES-128"),
+                Some(m3u8_rs::Key {
+                    method: m3u8_rs::KeyMethod::SampleAES,
+                    ..
+                }) => {
+                    println!(
+                        "{} SAMPLE-AES streams found in playlist",
+                        "Encrypted".colorize("bold yellow")
+                    );
+                    bail!("SAMPLE-AES encrypted playlists are not supported.")
+                }
+                Some(m3u8_rs::Key {
+                    method: m3u8_rs::KeyMethod::Other(x),
+                    ..
+                }) => {
+                    if x == "CENC" {
+                        encryption_type = Some("CENC");
+
+                        if i == 0 {
+                            self.cenc_encrypted_video = true;
+                        } else if i == 1 {
+                            self.cenc_encrypted_audio = true;
+                        }
+
+                        if let Some(kid) = &segment_tags.kid {
+                            let formatted_kid = format!("({}) {}", stream_type, kid.to_owned());
+                            if !kids.contains(&formatted_kid) {
+                                kids.push(formatted_kid);
+                            }
+                        }
+                    } else {
+                        println!(
+                            "{} {} streams found in playlist",
+                            "Encrypted".colorize("bold yellow"),
+                            x
+                        );
+                        bail!("{} encrypted playlists are not supported.", x)
+                    }
+                }
+                _ => (),
+            }
+        }}
+
+        if let Some(encryption_type) = encryption_type {
+            if encryption_type == "CENC" {
+                if self.args.key.len() != kids.len() {
+                    println!(
+                        "{} CENC streams found in playlist",
+                        "Encrypted".colorize("bold yellow")
+                    );
+                    bail!(
+                        "use {} flag to specify CENC decryption keys for following kid(s): {}",
+                        "--key".colorize("bold green"),
+                        kids.join(", ")
+                    )
+                }
+            }
+
+            println!(
+                "  {} {} streams found in playlist",
+                "Encrypted".colorize("bold yellow"),
+                encryption_type
+            );
+        }
+
         Ok(())
     }
 
@@ -461,80 +658,6 @@ impl DownloadState {
         Ok(subtitles.to_owned())
     }
 
-    fn check_segments(&mut self) -> Result<()> {
-        let mut segments = self.progress.video.to_playlist().segments;
-
-        if let Some(audio) = &self.progress.audio {
-            segments.extend_from_slice(&audio.to_playlist().segments);
-        }
-
-        self.args.get_url(&segments[0].uri)?;
-
-        let mut encryption_type = None;
-
-        for segment in segments {
-            let segment_tags = dash::SegmentTag::from(&segment.unknown_tags);
-            if segment_tags.single {
-                bail!("single file dash streams are not supported")
-            }
-
-            match &segment.key {
-                Some(m3u8_rs::Key {
-                    method: m3u8_rs::KeyMethod::AES128,
-                    ..
-                }) => encryption_type = Some("AES-128"),
-                Some(m3u8_rs::Key {
-                    method: m3u8_rs::KeyMethod::SampleAES,
-                    ..
-                }) => {
-                    println!(
-                        "{} SAMPLE-AES streams found in playlist",
-                        "Encrypted".colorize("bold yellow")
-                    );
-                    bail!("SAMPLE-AES encrypted playlists are not supported.")
-                }
-                Some(m3u8_rs::Key {
-                    method: m3u8_rs::KeyMethod::Other(x),
-                    ..
-                }) => {
-                    if x == "CENC" {
-                        if self.args.key.is_empty() {
-                            println!(
-                                "{} CENC streams found in playlist",
-                                "Encrypted".colorize("bold yellow")
-                            );
-                            bail!("CENC encrypted playlists requires at least one key specified using {} flag", "--key".colorize("bold green"))
-                        }
-
-                        encryption_type = Some("CENC");
-                    } else {
-                        println!(
-                            "{} {} streams found in playlist",
-                            "Encrypted".colorize("bold yellow"),
-                            x
-                        );
-                        bail!("{} encrypted playlists are not supported.", x)
-                    }
-                }
-                _ => (),
-            }
-        }
-
-        if let Some(encryption_type) = encryption_type {
-            if encryption_type == "CENC" {
-                self.cenc_encrypted = true;
-            }
-
-            println!(
-                "  {} {} streams found in playlist",
-                "Encrypted".colorize("bold yellow"),
-                encryption_type
-            );
-        }
-
-        Ok(())
-    }
-
     fn download_segments(
         &self,
         segments: Vec<m3u8_rs::MediaSegment>,
@@ -543,6 +666,7 @@ impl DownloadState {
         pb: &Arc<Mutex<RichProgress>>,
         stored_bytes: usize,
         relative_size: Option<usize>,
+        dash_decrypt: Option<(Vec<u8>, HashMap<String, String>)>,
     ) -> Result<usize> {
         let merger = if self.args.resume {
             Arc::new(Mutex::new(BinaryMerger::try_from_json(
@@ -561,47 +685,7 @@ impl DownloadState {
 
         let timer = Arc::new(std::time::Instant::now());
 
-        let default_kid = dash::SegmentTag::from(&segments[1].unknown_tags).kid;
-
-        let mut segments = segments.iter().enumerate();
-
-        let dash_decrypt = if self.dash && self.cenc_encrypted {
-            let segment = segments.next().unwrap().1;
-
-            if dash::SegmentTag::from(&segment.unknown_tags).init {
-                // TODO handle progress bar
-                // pb.lock().unwrap().pb.set_total(total)
-                let init_segment = self
-                    .client
-                    .get(self.args.get_url(&segment.uri)?)
-                    .send()?
-                    .bytes()?
-                    .to_vec();
-                let mut keys = HashMap::new();
-
-                for key in &self.args.key {
-                    if let Some(kid) = &default_kid {
-                        keys.insert(kid.replace('-', ""), key.1.to_owned());
-                    }
-
-                    if let Some(kid) = &key.0 {
-                        keys.insert(kid.replace('-', ""), key.1.to_owned());
-                    }
-                }
-
-                if keys.is_empty() {
-                    bail!("specify key using kid:key syntax")
-                }
-
-                Some((init_segment, keys))
-            } else {
-                bail!("stream is CENC encrypted without a init segment")
-            }
-        } else {
-            None
-        };
-
-        for (i, segment) in segments {
+        for (i, segment) in segments.iter().enumerate() {
             if self.args.resume {
                 let merger = merger.lock().unwrap();
                 let pos = merger.position();

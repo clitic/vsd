@@ -62,7 +62,7 @@ pub struct Save {
     #[arg(short, long)]
     pub skip: bool,
 
-    /// TODO: Decryption keys.
+    /// TODO: Decryption keys. use base64: prefix
     /// This option can be used multiple times.
     #[arg(short, long, value_name = "<KID:KEY>|KEY", value_parser = key_parser)]
     pub key: Vec<(Option<String>, String)>,
@@ -70,9 +70,8 @@ pub struct Save {
     // /// TODO: Record duration for live playlist in seconds.
     // #[arg(long)]
     // pub record_duration: Option<f32>,
-    
-    // TODO no mux flag
 
+    // TODO no mux flag
     /// TODO: Directory path
     #[arg(long)]
     pub directory: Option<String>,
@@ -176,10 +175,28 @@ fn quality_parser(s: &str) -> Result<Quality, String> {
 }
 
 fn key_parser(s: &str) -> Result<(Option<String>, String), String> {
-    if s.contains(':') {
-        Ok((Some(s.split(':').next().unwrap().to_owned()), s.split(':').nth(1).unwrap().to_owned()))
+    let key = if s.contains(':') && !s.starts_with("base64") {
+        (
+            Some(s.split(':').next().unwrap().replace('-', "")),
+            s.split(':').nth(1).unwrap().to_owned(),
+        )
     } else {
-        Ok((None, s.to_owned()))
+        (None, s.to_owned())
+    };
+
+    if key.1.starts_with("base64:") {
+        Ok((
+            key.0,
+            openssl::bn::BigNum::from_slice(
+                &openssl::base64::decode_block(key.1.trim_start_matches("base64:")).map_err(|e| e.to_string())?,
+            )
+            .map_err(|e| e.to_string())?
+            .to_hex_str()
+            .map_err(|e| e.to_string())?
+            .to_ascii_lowercase(),
+        ))
+    } else {
+        Ok(key)
     }
 }
 
@@ -351,7 +368,8 @@ impl Save {
         Ok(DownloadState {
             alternative_media_type: None,
             args: self,
-            cenc_encrypted: false,
+            cenc_encrypted_audio: false,
+            cenc_encrypted_video: false,
             client,
             dash: false,
             progress: Progress::new_empty(),
