@@ -62,9 +62,13 @@ pub struct Save {
     #[arg(short, long)]
     pub skip: bool,
 
-    /// TODO: Decryption keys. use base64: prefix
+    /// Decryption keys for decrypting CENC encrypted streams.
+    /// Key value should be specified in hex.
+    /// Use `base64:` prefix if key is in base64 format.
+    /// Streams encrypted with a single key can use `--key base64:MhbcGzyxPfkOsp3FS8qPyA==` like key format.
+    /// Streams encrypted with multiple keys can use `--key eb676abbcb345e96bbcf616630f1a3da:100b6c20940f779a4589152b57d2dacb like key format.
     /// This option can be used multiple times.
-    #[arg(short, long, value_name = "<KID:KEY>|KEY", value_parser = key_parser)]
+    #[arg(short, long, value_name = "<KID:(base64:)KEY>|(base64:)KEY", value_parser = key_parser)]
     pub key: Vec<(Option<String>, String)>,
 
     // /// TODO: Record duration for live playlist in seconds.
@@ -176,9 +180,13 @@ fn quality_parser(s: &str) -> Result<Quality, String> {
 
 fn key_parser(s: &str) -> Result<(Option<String>, String), String> {
     let key = if s.contains(':') && !s.starts_with("base64") {
+        let kid = s.split(':').next().unwrap();
+
         (
-            Some(s.split(':').next().unwrap().replace('-', "")),
-            s.split(':').nth(1).unwrap().to_owned(),
+            Some(kid.replace('-', "")),
+            s.trim_start_matches(kid)
+                .trim_start_matches(':')
+                .to_string(),
         )
     } else {
         (None, s.to_owned())

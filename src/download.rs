@@ -239,13 +239,16 @@ impl DownloadState {
             }
 
             if keys.len() != 1 {
-                bail!("specify decryption key using {} syntax", "--key KID:KEY")
+                bail!(
+                    "specify decryption key using {} syntax",
+                    "--key KID:(base64:)KEY".colorize("bold green")
+                )
             }
 
             if let Some(default_kid) = &default_kid {
                 pb.lock().unwrap().write(format!(
-                    "       {} {}:{}",
-                    "Keys".colorize("bold green"),
+                    "        {} {}:{}",
+                    "Key".colorize("bold green"),
                     default_kid,
                     keys.get(default_kid).unwrap()
                 ));
@@ -506,16 +509,27 @@ impl DownloadState {
         }
 
         if let Some(encryption_type) = encryption_type {
-            if encryption_type == "CENC" && self.args.key.len() != kids.len() {
-                println!(
-                    "{} CENC streams found in playlist",
-                    "Encrypted".colorize("bold yellow")
-                );
-                bail!(
-                    "use {} flag to specify CENC decryption keys for following kid(s): {}",
-                    "--key".colorize("bold green"),
-                    kids.join(", ")
-                )
+            if encryption_type == "CENC" {
+                let user_kids = self
+                    .args
+                    .key
+                    .iter()
+                    .flat_map(|x| x.0.to_owned())
+                    .collect::<Vec<String>>();
+
+                for kid in &kids {
+                    if !user_kids.contains(&kid.replace('-', "")) {
+                        println!(
+                            "{} CENC streams found in playlist",
+                            "Encrypted".colorize("bold yellow")
+                        );
+                        bail!(
+                            "use {} flag to specify CENC decryption keys for the following kid(s): {}",
+                            "--key".colorize("bold green"),
+                            kids.join(", ")
+                        )
+                    }
+                }
             }
 
             println!(
