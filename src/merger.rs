@@ -1,4 +1,4 @@
-use crate::progress::Progress;
+use crate::progress::DownloadProgress;
 use anyhow::{bail, Result};
 use std::collections::HashMap;
 use std::fs::File;
@@ -13,12 +13,12 @@ pub(super) struct BinaryMerger {
     stored_bytes: usize,
     flushed_bytes: usize,
     indexed: usize,
-    progress: Progress,
+    progress: DownloadProgress,
     json_file: std::fs::File,
 }
 
 impl BinaryMerger {
-    pub(super) fn new(size: usize, filename: &str, progress: Progress) -> Result<Self> {
+    pub(super) fn new(size: usize, filename: &str, progress: DownloadProgress) -> Result<Self> {
         let json_file = progress.file.clone();
 
         Ok(Self {
@@ -39,7 +39,7 @@ impl BinaryMerger {
             bail!("Can't resume because {} doesn't exists.", json_file)
         }
 
-        let progress: Progress = serde_json::from_reader(std::fs::File::open(&json_file)?)?;
+        let progress: DownloadProgress = serde_json::from_reader(std::fs::File::open(&json_file)?)?;
         let mut pos = progress.downloaded("video");
 
         let file = if Path::new(filename).exists() {

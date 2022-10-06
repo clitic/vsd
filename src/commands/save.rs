@@ -1,5 +1,5 @@
 use crate::download::DownloadState;
-use crate::progress::Progress;
+use crate::progress::DownloadProgress;
 use anyhow::{bail, Result};
 use clap::Args;
 use kdam::term::Colorizer;
@@ -188,7 +188,8 @@ fn key_parser(s: &str) -> Result<(Option<String>, String), String> {
         Ok((
             key.0,
             openssl::bn::BigNum::from_slice(
-                &openssl::base64::decode_block(key.1.trim_start_matches("base64:")).map_err(|e| e.to_string())?,
+                &openssl::base64::decode_block(key.1.trim_start_matches("base64:"))
+                    .map_err(|e| e.to_string())?,
             )
             .map_err(|e| e.to_string())?
             .to_hex_str()
@@ -328,6 +329,7 @@ impl Save {
         }
     }
 
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_download_state(mut self) -> Result<DownloadState> {
         let client = self.client()?;
 
@@ -372,7 +374,7 @@ impl Save {
             cenc_encrypted_video: false,
             client,
             dash: false,
-            progress: Progress::new_empty(),
+            progress: DownloadProgress::new_empty(),
         })
     }
 }
@@ -388,23 +390,14 @@ pub enum InputType {
 
 impl InputType {
     pub fn is_website(&self) -> bool {
-        match &self {
-            Self::Website => true,
-            _ => false,
-        }
+        matches!(self, Self::Website)
     }
 
     pub fn is_hls(&self) -> bool {
-        match &self {
-            Self::HlsUrl | Self::HlsLocalFile => true,
-            _ => false,
-        }
+        matches!(self, Self::HlsUrl | Self::HlsLocalFile)
     }
 
     pub fn is_dash(&self) -> bool {
-        match &self {
-            Self::DashUrl | Self::DashLocalFile => true,
-            _ => false,
-        }
+        matches!(self, Self::DashUrl | Self::DashLocalFile)
     }
 }

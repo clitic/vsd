@@ -8,6 +8,7 @@ pub fn parse(xml: &[u8]) -> Result<MPD, quick_xml::de::DeError> {
     quick_xml::de::from_reader::<_, MPD>(xml)
 }
 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Default, Deserialize)]
 pub struct MPD {
     #[serde(rename = "type")]
@@ -262,10 +263,10 @@ impl Representation {
         let mime_type = if let Some(mime_type) = adaptation_set.mime_type() {
             mime_type
         } else {
-            self.get_mime_type().unwrap_or("".to_owned())
+            self.get_mime_type().unwrap_or_else(|| "".to_owned())
         };
 
-        let codecs = self.codecs(adaptation_set).unwrap_or("".to_owned());
+        let codecs = self.codecs(adaptation_set).unwrap_or_else(|| "".to_owned());
         if codecs == "stpp" || codecs == "wvtt" {
             return m3u8_rs::AlternativeMediaType::Subtitles;
         }
@@ -290,7 +291,7 @@ impl Representation {
         let mime_type = if let Some(mime_type) = adaptation_set.mime_type() {
             mime_type
         } else {
-            self.get_mime_type().unwrap_or("".to_owned())
+            self.get_mime_type().unwrap_or_else(|| "".to_owned())
         };
 
         mime_type.split('/').nth(1).map(|x| x.to_owned())
@@ -373,7 +374,7 @@ impl Representation {
     pub(super) fn template_vars(&self) -> HashMap<String, String> {
         let mut vars = HashMap::new();
 
-        vars.insert("RepresentationID".to_owned(), self.id.clone().unwrap_or("".to_owned()));
+        vars.insert("RepresentationID".to_owned(), self.id.clone().unwrap_or_else(|| "".to_owned()));
 
         if let Some(bandwidth) = &self.bandwidth {
             vars.insert("Bandwidth".to_owned(), bandwidth.to_string());

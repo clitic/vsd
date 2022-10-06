@@ -77,15 +77,15 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Result<m3u8_rs::
     let period = &mpd
         .period
         .get(location[0])
-        .ok_or(anyhow!("requested MPD playlist not found"))?;
+        .ok_or_else(|| anyhow!("requested MPD playlist not found"))?;
     let adaptation_set = &period
         .adaptation_set
         .get(location[1])
-        .ok_or(anyhow!("requested MPD playlist not found"))?;
+        .ok_or_else(|| anyhow!("requested MPD playlist not found"))?;
     let representation = &adaptation_set
         .representation
         .get(location[2])
-        .ok_or(anyhow!("requested MPD playlist not found"))?;
+        .ok_or_else(|| anyhow!("requested MPD playlist not found"))?;
 
     // BASEURL
     let mut baseurl = mpd_url.to_owned();
@@ -110,7 +110,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Result<m3u8_rs::
     let mpd_duration = period.duration(mpd);
 
     // KEYS
-    let key = mpd_to_m3u8_key(representation, adaptation_set);
+    let key = mpd_to_m3u8_key(representation, adaptation_set, "dash");
     let unknown_tags: Vec<m3u8_rs::ExtTag> = SegmentTag::default()
         .kid(representation.default_kid(adaptation_set))
         .into();
@@ -307,16 +307,20 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Result<m3u8_rs::
 
 fn mpd_range_to_m3u8_byte_range(range: &Option<String>) -> Option<m3u8_rs::ByteRange> {
     range.as_ref().map(|range| m3u8_rs::ByteRange {
-            length: range.split('-').next().unwrap().parse::<u64>().unwrap(),
-            offset: Some(range.split('-').nth(1).unwrap().parse::<u64>().unwrap()),
-        })
+        length: range.split('-').next().unwrap().parse::<u64>().unwrap(),
+        offset: Some(range.split('-').nth(1).unwrap().parse::<u64>().unwrap()),
+    })
 }
 
 fn mpd_to_m3u8_key(
     representation: &Representation,
     adaptation_set: &AdaptationSet,
+    uri: &str,
 ) -> Option<m3u8_rs::Key> {
-    representation.encryption_type(adaptation_set).map(|key| m3u8_rs::Key {
+    representation
+        .encryption_type(adaptation_set)
+        .map(|key| m3u8_rs::Key {
+            uri: Some(uri.to_owned()),
             method: m3u8_rs::KeyMethod::Other(key),
             ..Default::default()
         })

@@ -68,25 +68,25 @@ impl From<&OtherAttributes> for PlaylistTag {
     }
 }
 
-impl Into<OtherAttributes> for PlaylistTag {
-    fn into(self) -> OtherAttributes {
+impl From<PlaylistTag> for OtherAttributes {
+    fn from(tags: PlaylistTag) -> Self {
         let mut m3u8_tags = HashMap::new();
 
-        if let Some(codecs) = &self.codecs {
+        if let Some(codecs) = &tags.codecs {
             m3u8_tags.insert(
                 "CODECS".to_owned(),
                 m3u8_rs::QuotedOrUnquoted::Quoted(codecs.to_owned()),
             );
         }
 
-        if let Some(bandwidth) = &self.bandwidth {
+        if let Some(bandwidth) = &tags.bandwidth {
             m3u8_tags.insert(
                 "BANDWIDTH".to_owned(),
                 m3u8_rs::QuotedOrUnquoted::Unquoted(bandwidth.to_string()),
             );
         }
 
-        if let Some(extension) = &self.extension {
+        if let Some(extension) = &tags.extension {
             m3u8_tags.insert(
                 "EXTENSION".to_owned(),
                 m3u8_rs::QuotedOrUnquoted::Quoted(extension.to_owned()),
@@ -106,7 +106,12 @@ impl From<&ExtTags> for PlaylistTag {
         let mut mpd_tags = HashMap::new();
 
         for (k, v) in tags.iter().filter_map(|x| {
-            x.rest.as_ref().map(|rest| (x.tag.to_owned(), m3u8_rs::QuotedOrUnquoted::Quoted(rest.to_owned())))
+            x.rest.as_ref().map(|rest| {
+                (
+                    x.tag.to_owned(),
+                    m3u8_rs::QuotedOrUnquoted::Quoted(rest.to_owned()),
+                )
+            })
         }) {
             mpd_tags.insert(k, v);
         }
@@ -119,9 +124,9 @@ impl From<&ExtTags> for PlaylistTag {
     }
 }
 
-impl Into<ExtTags> for PlaylistTag {
-    fn into(self) -> ExtTags {
-        let other_attributes: OtherAttributes = self.into();
+impl From<PlaylistTag> for ExtTags {
+    fn from(tags: PlaylistTag) -> Self {
+        let other_attributes: OtherAttributes = tags.into();
         let mut m3u8_tags = vec![];
 
         if let Some(other_attributes) = other_attributes {
@@ -190,28 +195,28 @@ impl From<&ExtTags> for SegmentTag {
     }
 }
 
-impl Into<ExtTags> for SegmentTag {
-    fn into(self) -> ExtTags {
+impl From<SegmentTag> for ExtTags {
+    fn from(tags: SegmentTag) -> Self {
         let mut m3u8_tags = vec![];
 
-        if self.init {
+        if tags.init {
             m3u8_tags.push(m3u8_rs::ExtTag {
                 tag: "DASH-INIT".to_owned(),
                 rest: None,
             });
         }
 
-        if self.single {
+        if tags.single {
             m3u8_tags.push(m3u8_rs::ExtTag {
                 tag: "DASH-SINGLE".to_owned(),
                 rest: None,
             });
         }
 
-        if self.kid.is_some() {
+        if tags.kid.is_some() {
             m3u8_tags.push(m3u8_rs::ExtTag {
                 tag: "DASH-KID".to_owned(),
-                rest: self.kid,
+                rest: tags.kid,
             });
         }
 

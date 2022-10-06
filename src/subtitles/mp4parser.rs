@@ -11,13 +11,14 @@ type HandlerResult = Result<(), String>;
 pub(super) type DataHandler = Arc<dyn Fn(Vec<u8>) -> HandlerResult>;
 pub(super) type BoxHandler = Arc<dyn Fn(ParsedBox) -> HandlerResult>;
 
-#[allow(dead_code)]
+#[allow(dead_code, clippy::upper_case_acronyms)]
 pub(super) struct TFHD {
     pub(super) track_id: u32,
     pub(super) default_sample_duration: u32,
     pub(super) default_sample_size: u32,
 }
 
+#[allow(clippy::upper_case_acronyms)]
 pub(super) struct TRUN {
     pub(super) sample_count: u32,
     pub(super) sample_data: Vec<Sample>,
@@ -181,7 +182,7 @@ impl MP4Parser {
 
             let _box = ParsedBox {
                 parser: self.clone(),
-                partial_okay: partial_okay || false,
+                partial_okay,
                 start: start as i64 + abs_start,
                 version,
                 flags,

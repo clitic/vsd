@@ -1,5 +1,5 @@
-mod progress;
+mod download;
 mod stream;
 
-pub use progress::Progress;
-pub use stream::StreamData;
+pub use download::DownloadProgress;
+pub use stream::Stream;

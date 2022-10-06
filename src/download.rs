@@ -1,7 +1,6 @@
 use crate::commands::InputType;
-use crate::decrypter::Decrypter;
 use crate::merger::BinaryMerger;
-use crate::progress::{Progress, StreamData};
+use crate::progress::{DownloadProgress, Stream};
 use crate::subtitles::MP4Subtitles;
 use crate::{commands, dash, hls, utils};
 use anyhow::{anyhow, bail, Result};
@@ -20,7 +19,7 @@ pub struct DownloadState {
     pub cenc_encrypted_video: bool,
     pub client: Arc<Client>,
     pub dash: bool,
-    pub progress: Progress,
+    pub progress: DownloadProgress,
 }
 
 impl DownloadState {
@@ -79,12 +78,8 @@ impl DownloadState {
                     .map_err(|_| anyhow!("Couldn't parse {} playlist.", self.args.input))?
                 {
                     m3u8_rs::Playlist::MediaPlaylist(_) => {
-                        self.progress.video = StreamData::new(
-                            &self.args.input,
-                            None,
-                            &self.args.tempfile(),
-                            &playlist,
-                        )?;
+                        self.progress.video =
+                            Stream::new(&self.args.input, None, &self.args.tempfile(), &playlist)?;
 
                         if !self.args.alternative && !self.args.skip {
                             self.fetch_alternative_streams(&master, None)?;
@@ -98,7 +93,7 @@ impl DownloadState {
                     bail!("Alternative streams can only be downloaded from master playlist.")
                 }
 
-                self.progress.video = StreamData::new(
+                self.progress.video = Stream::new(
                     &self.args.input,
                     None,
                     &self.args.tempfile(),
@@ -128,7 +123,7 @@ impl DownloadState {
             .unwrap()
             .write_to(&mut playlist)?;
 
-        self.progress.video = StreamData::new(
+        self.progress.video = Stream::new(
             &self.args.input,
             None,
             &self.args.tempfile(),
@@ -183,7 +178,7 @@ impl DownloadState {
                         if let Some(uri) = &alternative.uri {
                             if self.progress.audio.is_none() {
                                 let (uri, playlist, ext) = fetch_playlist(uri)?;
-                                self.progress.audio = Some(StreamData::new(
+                                self.progress.audio = Some(Stream::new(
                                     &uri,
                                     alternative.language.clone(),
                                     &self.progress.video.filename("audio", ext),
@@ -199,7 +194,7 @@ impl DownloadState {
                         if let Some(uri) = &alternative.uri {
                             if self.progress.subtitles.is_none() {
                                 let (uri, playlist, _) = fetch_playlist(uri)?;
-                                self.progress.subtitles = Some(StreamData::new(
+                                self.progress.subtitles = Some(Stream::new(
                                     &uri,
                                     alternative.language.clone(),
                                     &self.progress.video.filename("subtitles", Some("txt")),
@@ -232,29 +227,29 @@ impl DownloadState {
             let mut keys = HashMap::new();
 
             for key in &self.args.key {
-                if let Some(kid) = &default_kid {
-                    keys.insert(kid.to_owned(), key.1.to_owned());
+                if let Some(default_kid) = &default_kid {
+                    if let Some(kid) = &key.0 {
+                        if default_kid == kid {
+                            keys.insert(kid.to_owned(), key.1.to_owned());
+                        }
+                    } else {
+                        keys.insert(default_kid.to_owned(), key.1.to_owned());
+                    }
                 }
-
-                if let Some(kid) = &key.0 {
-                    keys.insert(kid.to_owned(), key.1.to_owned());
-                }
             }
 
-            if keys.is_empty() {
-                bail!("specify key using kid:key syntax")
+            if keys.len() != 1 {
+                bail!("specify decryption key using {} syntax", "--key KID:KEY")
             }
 
-            let mut message = format!(
-                "       {} KID -> KEY (in hex)",
-                "Keys".colorize("bold green")
-            );
-
-            for (kid, key) in &keys {
-                message += &format!("\n            {} -> {}", kid, key);
+            if let Some(default_kid) = &default_kid {
+                pb.lock().unwrap().write(format!(
+                    "       {} {}:{}",
+                    "Keys".colorize("bold green"),
+                    default_kid,
+                    keys.get(default_kid).unwrap()
+                ));
             }
-
-            pb.lock().unwrap().write(message);
 
             Ok((init_segment, keys))
         } else {
@@ -457,81 +452,70 @@ impl DownloadState {
         let mut kids = vec![];
 
         for (i, segments) in all_segments.iter().enumerate() {
-            let stream_type = if i == 0 {
-                "video"
-            } else if i == 0 && self.alternative_media_type.is_some() {
-                "audio/alternative"
-            } 
-            else {
-                "audio"
-            };
-
             for segment in segments {
-            let segment_tags = dash::SegmentTag::from(&segment.unknown_tags);
-            if segment_tags.single {
-                bail!("single file dash streams are not supported")
-            }
-
-            match &segment.key {
-                Some(m3u8_rs::Key {
-                    method: m3u8_rs::KeyMethod::AES128,
-                    ..
-                }) => encryption_type = Some("AES-128"),
-                Some(m3u8_rs::Key {
-                    method: m3u8_rs::KeyMethod::SampleAES,
-                    ..
-                }) => {
-                    println!(
-                        "{} SAMPLE-AES streams found in playlist",
-                        "Encrypted".colorize("bold yellow")
-                    );
-                    bail!("SAMPLE-AES encrypted playlists are not supported.")
+                let segment_tags = dash::SegmentTag::from(&segment.unknown_tags);
+                if segment_tags.single {
+                    bail!("single file dash streams are not supported")
                 }
-                Some(m3u8_rs::Key {
-                    method: m3u8_rs::KeyMethod::Other(x),
-                    ..
-                }) => {
-                    if x == "CENC" {
-                        encryption_type = Some("CENC");
 
-                        if i == 0 {
-                            self.cenc_encrypted_video = true;
-                        } else if i == 1 {
-                            self.cenc_encrypted_audio = true;
-                        }
-
-                        if let Some(kid) = &segment_tags.kid {
-                            let formatted_kid = format!("({}) {}", stream_type, kid.to_owned());
-                            if !kids.contains(&formatted_kid) {
-                                kids.push(formatted_kid);
-                            }
-                        }
-                    } else {
+                match &segment.key {
+                    Some(m3u8_rs::Key {
+                        method: m3u8_rs::KeyMethod::AES128,
+                        ..
+                    }) => encryption_type = Some("AES-128"),
+                    Some(m3u8_rs::Key {
+                        method: m3u8_rs::KeyMethod::SampleAES,
+                        ..
+                    }) => {
                         println!(
-                            "{} {} streams found in playlist",
-                            "Encrypted".colorize("bold yellow"),
-                            x
+                            "{} SAMPLE-AES streams found in playlist",
+                            "Encrypted".colorize("bold yellow")
                         );
-                        bail!("{} encrypted playlists are not supported.", x)
+                        bail!("SAMPLE-AES encrypted playlists are not supported.")
                     }
+                    Some(m3u8_rs::Key {
+                        method: m3u8_rs::KeyMethod::Other(x),
+                        ..
+                    }) => {
+                        if x == "CENC" {
+                            encryption_type = Some("CENC");
+
+                            if i == 0 {
+                                self.cenc_encrypted_video = true;
+                            } else if i == 1 {
+                                self.cenc_encrypted_audio = true;
+                            }
+
+                            if let Some(kid) = &segment_tags.kid {
+                                if !kids.contains(kid) {
+                                    kids.push(kid.to_owned());
+                                }
+                            }
+                        } else {
+                            println!(
+                                "{} {} streams found in playlist",
+                                "Encrypted".colorize("bold yellow"),
+                                x
+                            );
+                            bail!("{} encrypted playlists are not supported.", x)
+                        }
+                    }
+                    _ => (),
                 }
-                _ => (),
             }
-        }}
+        }
 
         if let Some(encryption_type) = encryption_type {
-            if encryption_type == "CENC" {
-                if self.args.key.len() != kids.len() {
-                    println!(
-                        "{} CENC streams found in playlist",
-                        "Encrypted".colorize("bold yellow")
-                    );
-                    bail!(
-                        "use {} flag to specify CENC decryption keys for following kid(s): {}",
-                        "--key".colorize("bold green"),
-                        kids.join(", ")
-                    )
-                }
+            if encryption_type == "CENC" && self.args.key.len() != kids.len() {
+                println!(
+                    "{} CENC streams found in playlist",
+                    "Encrypted".colorize("bold yellow")
+                );
+                bail!(
+                    "use {} flag to specify CENC decryption keys for following kid(s): {}",
+                    "--key".colorize("bold green"),
+                    kids.join(", ")
+                )
             }
 
             println!(
@@ -544,11 +528,7 @@ impl DownloadState {
         Ok(())
     }
 
-    fn download_subtitles(
-        &mut self,
-        subtitles: StreamData,
-        pb: &mut RichProgress,
-    ) -> Result<StreamData> {
+    fn download_subtitles(&mut self, subtitles: Stream, pb: &mut RichProgress) -> Result<Stream> {
         let mut subtitles = subtitles;
 
         let playlist = subtitles.to_playlist();
@@ -658,6 +638,7 @@ impl DownloadState {
         Ok(subtitles.to_owned())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn download_segments(
         &self,
         segments: Vec<m3u8_rs::MediaSegment>,
@@ -712,30 +693,36 @@ impl DownloadState {
                 gaurded_pb.update_to(pos);
             }
 
-            let sync_data = SyncData {
-                byte_range: segment.byte_range.clone(),
+            let thread_data = ThreadData {
+                // Request
                 client: self.client.clone(),
+
+                // Segment
+                byte_range: segment.byte_range.clone(),
+                segment_url: self.args.get_url(&segment.uri)?,
+                total_retries: self.args.retry_count,
+
+                // Decryption
                 dash_decrypt: dash_decrypt.clone(),
-                key_info: match &segment.key {
-                    Some(m3u8_rs::Key {
-                        uri: Some(link), ..
-                    }) => Some((self.args.get_url(link)?, segment.key.clone().unwrap())),
-                    Some(_) => Some(("dash".to_owned(), segment.key.clone().unwrap())),
-                    _ => None,
-                },
+                key: segment.key.clone().map(|mut x| {
+                    x.uri = x.uri.map(|y| self.args.get_url(&y).unwrap());
+                    x
+                }),
+
+                // File
+                index: i,
                 merger: merger.clone(),
+
+                // Progress Bar
                 pb: pb.clone(),
                 relative_size,
-                segment_index: i,
-                segment_url: self.args.get_url(&segment.uri)?,
                 stored_bytes,
                 timer: timer.clone(),
-                total_retries: self.args.retry_count,
             };
 
             pool.execute(move || {
-                if let Err(e) = sync_data.perform() {
-                    let _ = sync_data.pb.lock().unwrap();
+                if let Err(e) = thread_data.perform() {
+                    let _lock = thread_data.pb.lock().unwrap();
                     println!("\n{}: {}", "error".colorize("bold red"), e);
                     std::process::exit(1);
                 }
@@ -757,50 +744,51 @@ impl DownloadState {
     }
 }
 
-struct SyncData {
-    byte_range: Option<m3u8_rs::ByteRange>,
+struct ThreadData {
+    // Request
     client: Arc<Client>,
+
+    // Segment
+    byte_range: Option<m3u8_rs::ByteRange>,
+    segment_url: String,
+    total_retries: u8,
+
+    // Decryption
     dash_decrypt: Option<(Vec<u8>, HashMap<String, String>)>,
-    key_info: Option<(String, m3u8_rs::Key)>,
+    key: Option<m3u8_rs::Key>,
+
+    // File
+    index: usize,
     merger: Arc<Mutex<BinaryMerger>>,
+
+    // Progress Bar
     pb: Arc<Mutex<RichProgress>>,
     relative_size: Option<usize>,
-    segment_index: usize,
-    segment_url: String,
     stored_bytes: usize,
     timer: Arc<std::time::Instant>,
-    total_retries: u8,
 }
 
-impl SyncData {
+impl ThreadData {
     fn perform(&self) -> Result<()> {
-        let mut segment = self.download_segment()?;
+        let segment = self.download_segment()?;
+        let segment = self.decrypt(&segment)?;
 
-        if let Some(decrypter) = self.decrypter()? {
-            if let Some((init_segment, keys)) = &self.dash_decrypt {
-                let mut init_segment = init_segment.to_owned();
-                init_segment.extend_from_slice(&segment);
-                segment = decrypter.decrypt(&init_segment, Some(keys.to_owned()))?;
-            } else {
-                segment = decrypter.decrypt(&segment, None)?;
-            };
-        }
+        let mut merger = self.merger.lock().unwrap();
+        merger.write(self.index, &segment)?;
+        merger.flush()?;
 
-        let mut guarded_merger = self.merger.lock().unwrap();
-        guarded_merger.write(self.segment_index, &segment)?;
-        guarded_merger.flush()?;
-
-        self.notify(guarded_merger.stored(), guarded_merger.estimate())?;
+        self.notify(merger.stored(), merger.estimate())?;
         Ok(())
     }
 
     fn download_segment(&self) -> Result<Vec<u8>> {
         let fetch_segment = || -> Result<Vec<u8>, reqwest::Error> {
-            match self.byte_range {
-                Some(m3u8_rs::ByteRange {
-                    length: start,
-                    offset: Some(end),
-                }) => Ok(self
+            if let Some(m3u8_rs::ByteRange {
+                length: start,
+                offset: Some(end),
+            }) = &self.byte_range
+            {
+                Ok(self
                     .client
                     .get(&self.segment_url)
                     .header(
@@ -809,8 +797,9 @@ impl SyncData {
                     )
                     .send()?
                     .bytes()?
-                    .to_vec()),
-                _ => Ok(self.client.get(&self.segment_url).send()?.bytes()?.to_vec()),
+                    .to_vec())
+            } else {
+                Ok(self.client.get(&self.segment_url).send()?.bytes()?.to_vec())
             }
         };
 
@@ -818,6 +807,7 @@ impl SyncData {
         let data = loop {
             match fetch_segment() {
                 Ok(bytes) => {
+                    // Download Speed
                     let elapsed_time = self.timer.elapsed().as_secs() as usize;
                     if elapsed_time != 0 {
                         let stored = self.merger.lock().unwrap().stored() + bytes.len();
@@ -843,7 +833,7 @@ impl SyncData {
                     } else {
                         bail!(
                             "Reached maximum number of retries for segment at index {}.",
-                            self.segment_index
+                            self.index
                         )
                     }
                 }
@@ -853,45 +843,62 @@ impl SyncData {
         Ok(data)
     }
 
-    fn decrypter(&self) -> Result<Option<Decrypter>> {
-        let fetch_key = |key_url| -> Result<Vec<u8>, reqwest::Error> {
-            Ok(self.client.get(key_url).send()?.bytes()?.to_vec())
-        };
+    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>> {
+        match &self.key {
+            Some(m3u8_rs::Key {
+                iv,
+                method: m3u8_rs::KeyMethod::AES128,
+                uri: Some(uri),
+                ..
+            }) => {
+                // let fetch_key = |key_url| -> Result<Vec<u8>, reqwest::Error> {
+                //     Ok(self.client.get(key_url).send()?.bytes()?.to_vec())
+                // };
 
-        let mut retries = 0;
+                let mut retries = 0;
 
-        if let Some((key_url, key)) = &self.key_info {
-            if key_url == "dash" {
-                return Ok(Some(Decrypter::from_key(key, &[]).unwrap()));
-            }
-
-            let key_content = loop {
-                match fetch_key(key_url) {
-                    Ok(bytes) => break bytes,
-                    Err(e) => {
-                        if self.total_retries > retries {
-                            self.pb
-                                .lock()
-                                .unwrap()
-                                .write(utils::check_reqwest_error(&e, key_url)?);
-                            retries += 1;
-                            continue;
-                        } else {
-                            bail!("Reached maximum number of retries to download decryption key.")
+                let key = loop {
+                    match Ok(self.client.get(uri).send()?.bytes()?.to_vec()) {
+                        Ok(bytes) => break bytes,
+                        Err(e) => {
+                            if self.total_retries > retries {
+                                self.pb
+                                    .lock()
+                                    .unwrap()
+                                    .write(utils::check_reqwest_error(&e, uri)?);
+                                retries += 1;
+                                continue;
+                            } else {
+                                bail!(
+                                    "Reached maximum number of retries to download decryption key."
+                                )
+                            }
                         }
                     }
-                }
-            };
+                };
 
-            return Ok(Some(Decrypter::from_key(key, &key_content).unwrap()));
+                Ok(openssl::symm::decrypt(
+                    openssl::symm::Cipher::aes_128_cbc(),
+                    &key,
+                    iv.as_ref().map(|x| x.as_bytes()),
+                    data,
+                )?)
+            }
+            Some(m3u8_rs::Key {
+                method: m3u8_rs::KeyMethod::Other(method),
+                ..
+            }) if method == "CENC" => {
+                let (mut init_segment, keys) = self.dash_decrypt.clone().unwrap();
+                init_segment.extend_from_slice(data);
+                Ok(mp4decrypt::mp4decrypt(&init_segment, keys, None).map_err(|x| anyhow!(x))?)
+            }
+            _ => Ok(data.to_vec()),
         }
-
-        Ok(None)
     }
 
     fn notify(&self, stored: usize, estimate: usize) -> Result<()> {
-        let mut gaurded_pb = self.pb.lock().unwrap();
-        gaurded_pb.replace(
+        let mut pb = self.pb.lock().unwrap();
+        pb.replace(
             1,
             Column::Text(format!(
                 "[bold blue]{}",
@@ -905,7 +912,7 @@ impl SyncData {
                 ),
             )),
         );
-        gaurded_pb.update(1);
+        pb.update(1);
         Ok(())
     }
 }

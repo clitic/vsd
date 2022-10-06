@@ -4,8 +4,8 @@ use clap::{Args, ValueEnum};
 
 #[derive(Debug, Clone, ValueEnum)]
 pub enum Format {
-    SRT,
-    VTT,
+    Srt,
+    Vtt,
 }
 
 /// Extract subtitles embedded inside an mp4 file.
@@ -19,7 +19,7 @@ pub struct Extract {
     files: Vec<String>,
 
     /// Subtitles output format.
-    #[arg(short, long, value_enum, default_value_t = Format::SRT)]
+    #[arg(short, long, value_enum, default_value_t = Format::Srt)]
     format: Format,
 
     /// Set timescale manually if no init segment is present.
@@ -73,8 +73,8 @@ impl Extract {
         print!(
             "{}",
             match &self.format {
-                Format::SRT => subtitles.to_srt(),
-                Format::VTT => subtitles.to_vtt(),
+                Format::Srt => subtitles.to_srt(),
+                Format::Vtt => subtitles.to_vtt(),
             }
         );
 

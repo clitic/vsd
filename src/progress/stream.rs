@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 #[derive(Clone, Default, Serialize, Deserialize)]
-pub struct StreamData {
+pub struct Stream {
     pub url: String,
     pub language: Option<String>,
     pub file: String,
@@ -12,7 +12,7 @@ pub struct StreamData {
     pub playlist: String,
 }
 
-impl StreamData {
+impl Stream {
     pub fn new(url: &str, language: Option<String>, file: &str, playlist: &str) -> Result<Self> {
         Ok(Self {
             url: url.to_owned(),

@@ -1,6 +1,7 @@
 use super::mp4parser;
 use super::MP4Parser;
 use std::sync::{Arc, Mutex};
+use std::fmt::Write;
 
 #[derive(Clone)]
 pub(super) struct Cue {
@@ -75,7 +76,7 @@ pub struct Subtitles {
 }
 
 impl Subtitles {
-    pub(super) fn new(cues: &Vec<Cue>) -> Self {
+    pub(super) fn new(cues: &[Cue]) -> Self {
         Self {
             cues: cues
                 .iter()
@@ -118,13 +119,14 @@ impl Subtitles {
         let mut subtitles = "WEBVTT\n\n".to_owned();
 
         for cue in &self.cues {
-            subtitles.push_str(&format!(
+            let _ = write!(
+                subtitles,
                 "{} --> {} {}\n{}\n\n",
                 seconds_to_timestamp(cue.start_time, "."),
                 seconds_to_timestamp(cue.end_time, "."),
                 cue.settings,
                 cue.payload
-            ))
+            );
         }
 
         subtitles
@@ -134,13 +136,14 @@ impl Subtitles {
         let mut subtitles = String::new();
 
         for (i, cue) in self.cues.iter().enumerate() {
-            subtitles.push_str(&format!(
+            let _ = write!(
+                subtitles,
                 "{}\n{} --> {}\n{}\n\n",
                 i + 1,
                 seconds_to_timestamp(cue.start_time, ","),
                 seconds_to_timestamp(cue.end_time, ","),
                 cue.payload
-            ))
+            );
         }
 
         subtitles

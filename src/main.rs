@@ -1,6 +1,5 @@
 mod commands;
 mod dash;
-mod decrypter;
 mod download;
 mod hls;
 mod merger;

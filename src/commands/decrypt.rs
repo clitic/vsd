@@ -5,11 +5,10 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 
-#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, ValueEnum)]
 enum EncryptionMethod {
-    AES_128,
-    CENC,
+    Aes128,
+    Cenc,
 }
 
 /// Decrypt encrypted streams using keys.
@@ -63,7 +62,7 @@ pub struct Decrypt {
 impl Decrypt {
     pub fn perform(&self) -> Result<()> {
         let data = match &self.encryption {
-            EncryptionMethod::AES_128 => decrypt(
+            EncryptionMethod::Aes128 => decrypt(
                 Cipher::aes_128_cbc(),
                 &if self.key[0].ends_with('=') {
                     openssl::base64::decode_block(&self.key[0])?
@@ -73,7 +72,7 @@ impl Decrypt {
                 self.iv.as_ref().map(|x| x.as_bytes()),
                 &std::fs::read(&self.file)?,
             )?,
-            EncryptionMethod::CENC => {
+            EncryptionMethod::Cenc => {
                 let mut keys = HashMap::new();
 
                 for key in &self.key {

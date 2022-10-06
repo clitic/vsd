@@ -206,9 +206,8 @@ impl MP4Subtitles {
                         if payload_size > 8 {
                             payload = Some(reader.read_bytes((payload_size - 8) as usize));
                         }
-                    } else if payload_name == "vtte" {
-                        let _ = reader.read_bytes((payload_size - 8) as usize);
                     } else {
+                        // payload_name == "vtte"
                         let _ = reader.read_bytes((payload_size - 8) as usize);
                     }
 
