@@ -714,21 +714,23 @@ impl DownloadState {
                 client: self.client.clone(),
 
                 // Segment
-                byte_range: segment.byte_range.clone().map(|mut x| {
-                    if let Some(offset) = x.offset {
-                        if offset == 0 {
-                            x.offset = Some(x.length);
-                            x.length = previous_byterange_end;
-                        }
-                    } else {
-                        x.offset = Some(x.length);
-                        x.length = previous_byterange_end;
-                    }
+                byte_range: if let Some(byte_range) = &segment.byte_range {
+                    let offset = byte_range.offset.unwrap_or(0);
 
-                    let range = x.length + x.offset.unwrap_or(0) - 1;
-                    previous_byterange_end += range;
-                    format!("bytes={}-{}", x.length, range)
-                }),
+                    let (start, end) = if offset == 0 {
+                        (
+                            previous_byterange_end,
+                            previous_byterange_end + byte_range.length - 1,
+                        )
+                    } else {
+                        (byte_range.length, byte_range.length + offset - 1)
+                    };
+
+                    previous_byterange_end = end;
+                    Some(format!("bytes={}-{}", start, end))
+                } else {
+                    None
+                },
                 segment_url: self.args.get_url(&segment.uri)?,
                 total_retries: self.args.retry_count,
 
