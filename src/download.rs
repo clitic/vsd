@@ -715,12 +715,7 @@ impl DownloadState {
 
                 // Segment
                 byte_range: segment.byte_range.clone().map(|mut x| {
-                    if let Some(offset) = x.offset {
-                        if offset == 0 {
-                            x.offset = Some(x.length);
-                            x.length = previous_byterange_end;
-                        }
-                    } else {
+                    if x.offset.unwrap_or(0) == 0 {
                         x.offset = Some(x.length);
                         x.length = previous_byterange_end;
                     }
