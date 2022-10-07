@@ -680,6 +680,8 @@ impl DownloadState {
 
         let timer = Arc::new(std::time::Instant::now());
 
+        let mut previous_byterange_end = 0;
+
         for (i, segment) in segments.iter().enumerate() {
             if self.args.resume {
                 let merger = merger.lock().unwrap();
@@ -712,7 +714,21 @@ impl DownloadState {
                 client: self.client.clone(),
 
                 // Segment
-                byte_range: segment.byte_range.clone(),
+                byte_range: segment.byte_range.clone().map(|mut x| {
+                    if let Some(offset) = x.offset {
+                        if offset == 0 {
+                            x.offset = Some(x.length);
+                            x.length = previous_byterange_end;
+                        }
+                    } else {
+                        x.offset = Some(x.length);
+                        x.length = previous_byterange_end;
+                    }
+
+                    let range = x.length + x.offset.unwrap_or(0) - 1;
+                    previous_byterange_end += range;
+                    format!("bytes={}-{}", x.length, range)
+                }),
                 segment_url: self.args.get_url(&segment.uri)?,
                 total_retries: self.args.retry_count,
 
@@ -763,7 +779,7 @@ struct ThreadData {
     client: Arc<Client>,
 
     // Segment
-    byte_range: Option<m3u8_rs::ByteRange>,
+    byte_range: Option<String>,
     segment_url: String,
     total_retries: u8,
 
@@ -797,18 +813,11 @@ impl ThreadData {
 
     fn download_segment(&self) -> Result<Vec<u8>> {
         let fetch_segment = || -> Result<Vec<u8>, reqwest::Error> {
-            if let Some(m3u8_rs::ByteRange {
-                length: start,
-                offset: Some(end),
-            }) = &self.byte_range
-            {
+            if let Some(range) = &self.byte_range {
                 Ok(self
                     .client
                     .get(&self.segment_url)
-                    .header(
-                        header::RANGE,
-                        format!("bytes={}-{}", start, start + end - 1),
-                    )
+                    .header(header::RANGE, range)
                     .send()?
                     .bytes()?
                     .to_vec())

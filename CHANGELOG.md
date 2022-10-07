@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Subcommands instead of a single command where *save* is the main subcommand.
 - New singular progress bar for complete download progress.
 - Better variant stream selection and display order.
+- Improved support for playlists using byte range.
 
 ### Changed
 
