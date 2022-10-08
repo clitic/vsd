@@ -10,6 +10,7 @@ use reqwest::blocking::Client;
 use reqwest::header;
 use std::collections::HashMap;
 use std::io::Write;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 pub struct DownloadState {
@@ -50,8 +51,11 @@ impl DownloadState {
         }
 
         self.download()?;
-        self.progress
-            .mux(&self.args.output, &self.alternative_media_type)?;
+        self.progress.mux(
+            &self.args.output,
+            &self.args.directory,
+            &self.alternative_media_type,
+        )?;
         Ok(())
     }
 
@@ -59,12 +63,13 @@ impl DownloadState {
         match m3u8_rs::parse_playlist_res(content)
             .map_err(|_| anyhow!("Couldn't parse {} playlist.", self.args.input))?
         {
-            m3u8_rs::Playlist::MasterPlaylist(master) => {
+            m3u8_rs::Playlist::MasterPlaylist(mut master) => {
                 self.args.input = if self.args.alternative {
                     let alternative = hls::alternative(&master, self.args.raw_prompts)?;
                     self.alternative_media_type = Some(alternative.media_type);
                     self.args.get_url(&alternative.uri.unwrap())?
                 } else {
+                    hls::autoselect(&mut master, &self.args.prefer_audio_lang, &self.args.prefer_subs_lang);
                     self.args.get_url(&hls::master(
                         &master,
                         &self.args.quality,
@@ -108,7 +113,7 @@ impl DownloadState {
     fn dash_vod(&mut self, content: &[u8]) -> Result<()> {
         let mpd = dash::parse(content)?;
         let mut master = dash::to_m3u8_as_master(&mpd);
-        hls::autoselect(&mut master, None, None);
+        hls::autoselect(&mut master, &self.args.prefer_audio_lang, &self.args.prefer_subs_lang);
 
         let uri = if self.args.alternative {
             let alternative = hls::alternative(&master, self.args.raw_prompts)?;
@@ -262,6 +267,7 @@ impl DownloadState {
 
     pub fn download(&mut self) -> Result<()> {
         self.check_segments()?;
+        // TODO
         self.progress.set_progress_file();
 
         let mut pb = RichProgress::new(
@@ -288,6 +294,12 @@ impl DownloadState {
                 Column::Rate,
             ],
         );
+
+        if let Some(directory) = &self.args.directory {
+            if !Path::new(directory).exists() {
+                std::fs::create_dir_all(directory)?;
+            }
+        }
 
         if matches!(
             self.alternative_media_type,
@@ -344,7 +356,13 @@ impl DownloadState {
             "video"
         });
 
-        pb.write(format!(
+        let pb = Arc::new(Mutex::new(pb));
+        let pool = threadpool::ThreadPool::new(self.args.threads as usize);
+        let video_segments = self.progress.video.to_playlist().segments;
+
+        let tempfile = self.progress.video.path(&self.args.directory);
+
+        pb.lock().unwrap().write(format!(
             "{} {} stream to {}",
             "Downloading".colorize("bold green"),
             if self.args.alternative {
@@ -352,11 +370,8 @@ impl DownloadState {
             } else {
                 "video"
             },
-            self.progress.video.file.colorize("cyan")
+            tempfile.colorize("cyan")
         ));
-        let pb = Arc::new(Mutex::new(pb));
-        let pool = threadpool::ThreadPool::new(self.args.threads as usize);
-        let video_segments = self.progress.video.to_playlist().segments;
 
         let dash_decrypt = if self.dash && self.cenc_encrypted_video {
             Some(
@@ -378,7 +393,7 @@ impl DownloadState {
             } else {
                 video_segments
             },
-            &self.progress.video.file,
+            &tempfile,
             &pool,
             &pb,
             stored_bytes,
@@ -397,13 +412,14 @@ impl DownloadState {
         ));
 
         if let Some(audio) = &self.progress.audio {
+            let audio_segments = audio.to_playlist().segments;
+            let tempfile = audio.path(&self.args.directory);
+
             pb.lock().unwrap().write(format!(
                 "{} audio stream to {}",
                 "Downloading".colorize("bold green"),
-                audio.file.colorize("cyan")
+                tempfile.colorize("cyan")
             ));
-
-            let audio_segments = audio.to_playlist().segments;
 
             let dash_decrypt = if self.dash && self.cenc_encrypted_audio {
                 Some(
@@ -425,7 +441,7 @@ impl DownloadState {
                 } else {
                     audio_segments
                 },
-                &audio.file,
+                &tempfile,
                 &pool,
                 &pb,
                 stored_bytes,
@@ -544,7 +560,7 @@ impl DownloadState {
 
     fn download_subtitles(&mut self, subtitles: Stream, pb: &mut RichProgress) -> Result<Stream> {
         let mut subtitles = subtitles;
-
+        let tempfile = subtitles.path(&self.args.directory);
         let playlist = subtitles.to_playlist();
         let segments = playlist.segments;
         pb.pb.set_total(segments.len());
@@ -600,7 +616,7 @@ impl DownloadState {
         pb.write(format!(
             "{} subtitle stream to {}",
             "Downloading".colorize("bold green"),
-            subtitles.file.colorize("cyan")
+            tempfile.colorize("cyan")
         ));
 
         for segment in &segments[1..] {
@@ -642,7 +658,7 @@ impl DownloadState {
                 .to_vec();
         }
 
-        std::fs::File::create(&subtitles.file)?.write_all(&subtitles_data)?;
+        std::fs::File::create(&tempfile)?.write_all(&subtitles_data)?;
         subtitles.downloaded = pb.pb.get_total();
         pb.write(format!(
             " {} subtitle stream successfully",

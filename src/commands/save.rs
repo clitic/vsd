@@ -10,57 +10,27 @@ use reqwest::{Proxy, Url};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-/// Download HLS and Dash playlists.
-///
-/// Playlists which have separate audio tracks or subtitles streams, expects
-/// ffmpeg (https://www.ffmpeg.org/download.html) to be installed in system PATH.
+/// Download and save HLS and Dash playlists to disk.
 #[derive(Debug, Clone, Args)]
 pub struct Save {
-    /// URL | .m3u8 | .m3u | .mpd | .xml
+    /// http(s):// | .m3u8 | .m3u | .mpd | .xml
     #[arg(required = true)]
     pub input: String,
 
-    /// Path of final downloaded video stream.
-    /// For file extension any ffmpeg supported format could be provided.
-    /// If playlist contains alternative streams vsd will try to transmux and trancode into single file using ffmpeg.
-    #[arg(short, long)]
-    pub output: Option<String>,
-
-    /// Base url for all segments.
-    /// Usually needed for local m3u8 file.
-    #[arg(short, long)]
-    pub baseurl: Option<String>,
-
-    /// Automatic selection of some standard resolution streams with highest bandwidth stream variant from master playlist.
-    /// possible values: [144p, 240p, 360p, 480p, 720p, hd, 1080p, fhd, 2k, 1440p, qhd, 4k, 8k, highest, max, select-later]
-    #[arg(short, long, default_value = "select-later", value_name = "WIDTHxHEIGHT", value_parser = quality_parser)]
-    pub quality: Quality,
-
-    /// Maximum number of threads for parllel downloading of segments.
-    /// Number of threads should be in range 1-16 (inclusive).
-    #[arg(short, long, default_value_t = 5, value_parser = clap::value_parser!(u8).range(1..=16))]
-    pub threads: u8,
-
-    /// Maximum number of retries to download an individual segment.
-    #[arg(long, default_value_t = 15)]
-    pub retry_count: u8,
-
-    /// Raw style input prompts for old and unsupported terminals.
-    #[arg(long)]
-    pub raw_prompts: bool,
-
-    /// BUG: Resume a download session.
-    /// Download session can only be resumed if download session json file is present.
-    #[arg(short, long)]
-    pub resume: bool,
-
-    /// Download alternative streams such as audio and subtitles streams from master playlist instead of variant video streams.
+    /// Download alternative audio or subtitles stream from playlist instead all streams.
+    /// For downloading video stream only, use `--skip` flag.
     #[arg(short, long)]
     pub alternative: bool,
 
-    /// Skip downloading and muxing alternative streams.
+    /// Base url for all segments.
+    /// Usually needed for local m3u8 file.
+    #[arg(long)]
+    pub baseurl: Option<String>,
+
+    /// Change directory path for temporarily downloaded files.
+    /// By default current working directory is used.
     #[arg(short, long)]
-    pub skip: bool,
+    pub directory: Option<String>,
 
     /// Decryption keys for decrypting CENC encrypted streams.
     /// Key value should be specified in hex.
@@ -71,19 +41,74 @@ pub struct Save {
     #[arg(short, long, value_name = "<KID:(base64:)KEY>|(base64:)KEY", value_parser = key_parser)]
     pub key: Vec<(Option<String>, String)>,
 
-    // /// TODO: Record duration for live playlist in seconds.
+    /// Mux all downloaded streams to a video container (.mp4, .mkv, etc.) using ffmpeg.
+    /// Note that existing files will be overwritten.
+    #[arg(short, long, value_parser = output_parser)]
+    pub output: Option<String>,
+
+    /// Preferred language when multiple audio streams with different languages are available.
+    /// Must be in RFC 5646 format (eg. fr or en-AU).
+    /// If a preference is not specified and multiple audio streams are present,
+    /// the first one listed in the manifest will be downloaded.
+    #[arg(long)]
+    pub prefer_audio_lang: Option<String>,
+
+    /// Preferred language when multiple subtitles streams with different languages are available.
+    /// Must be in RFC 5646 format (eg. fr or en-AU).
+    /// If a preference is not specified and multiple subtitles streams are present,
+    /// the first one listed in the manifest will be downloaded.
+    #[arg(long)]
+    pub prefer_subs_lang: Option<String>,
+
+    /// Automatic selection of some standard resolution streams with highest bandwidth stream variant from playlist.
+    /// possible values: [144p, 240p, 360p, 480p, 720p, hd, 1080p, fhd, 2k, 1440p, qhd, 4k, 8k, highest, max, select-later]
+    #[arg(short, long, default_value = "select-later", value_name = "WIDTHxHEIGHT", value_parser = quality_parser)]
+    pub quality: Quality,
+
+    /// Raw style input prompts for old and unsupported terminals.
+    #[arg(long)]
+    pub raw_prompts: bool,
+
+    // /// Record duration for live playlist in seconds.
     // #[arg(long)]
     // pub record_duration: Option<f32>,
 
-    // TODO no mux flag
-    /// TODO: Directory path
+    /// BUG: Resume a download session.
+    /// Download session can only be resumed if download session json file is present.
     #[arg(long)]
-    pub directory: Option<String>,
+    pub resume: bool,
+
+    /// Maximum number of retries to download an individual segment.
+    #[arg(long, default_value_t = 15)]
+    pub retry_count: u8,
+
+    /// Skip downloading and muxing alternative streams.
+    #[arg(short, long)]
+    pub skip: bool,
+
+    /// Maximum number of threads for parllel downloading of segments.
+    /// Number of threads should be in range 1-16 (inclusive).
+    #[arg(short, long, default_value_t = 5, value_parser = clap::value_parser!(u8).range(1..=16))]
+    pub threads: u8,
+
+    /// Enable cookie store and fill it with some existing cookies.
+    /// Example `--cookies "foo=bar; Domain=yolo.local" https://yolo.local`.
+    /// This option can be used multiple times.
+    #[arg(long, number_of_values = 2, value_names = &["COOKIES", "URL"], help_heading = "Client Options")]
+    pub cookies: Vec<String>, // Vec<Vec<String>> not supported
+
+    /// Enable cookie store which allows cookies to be stored.
+    #[arg(long, help_heading = "Client Options")]
+    pub enable_cookies: bool,
 
     /// Custom headers for requests.
     /// This option can be used multiple times.
     #[arg(long, number_of_values = 2, value_names = &["KEY", "VALUE"], help_heading = "Client Options")]
     pub header: Vec<String>, // Vec<Vec<String>> not supported
+
+    /// Set http or https proxy address for requests.
+    #[arg(long, value_parser = proxy_address_parser, help_heading = "Client Options")]
+    pub proxy_address: Option<String>,
 
     /// Update and set custom user agent for requests.
     #[arg(
@@ -92,20 +117,6 @@ pub struct Save {
         help_heading = "Client Options"
     )]
     pub user_agent: String,
-
-    /// Set http or https proxy address for requests.
-    #[arg(long, value_parser = proxy_address_parser, help_heading = "Client Options")]
-    pub proxy_address: Option<String>,
-
-    /// Enable cookie store which allows cookies to be stored.
-    #[arg(long, help_heading = "Client Options")]
-    pub enable_cookies: bool,
-
-    /// Enable cookie store and fill it with some existing cookies.
-    /// Example `--cookies "foo=bar; Domain=yolo.local" https://yolo.local`.
-    /// This option can be used multiple times.
-    #[arg(long, number_of_values = 2, value_names = &["COOKIES", "URL"], help_heading = "Client Options")]
-    pub cookies: Vec<String>, // Vec<Vec<String>> not supported
 }
 
 #[derive(Debug, Clone)]
@@ -209,11 +220,43 @@ fn key_parser(s: &str) -> Result<(Option<String>, String), String> {
     }
 }
 
+fn find_ffmpeg() -> Option<String> {
+    Some(
+        std::env::var("PATH")
+            .ok()?
+            .split(if cfg!(target_os = "windows") {
+                ';'
+            } else {
+                ':'
+            })
+            .find(|s| {
+                std::path::Path::new(s)
+                    .join(if cfg!(target_os = "windows") {
+                        "ffmpeg.exe"
+                    } else {
+                        "ffmpeg"
+                    })
+                    .exists()
+            })?
+            .to_owned(),
+    )
+}
+
+fn output_parser(s: &str) -> Result<String, String> {
+    if find_ffmpeg().is_some() {
+        Ok(s.to_owned())
+    } else {
+        Err("Could'nt locate ffmpeg in PATH.\n\
+        Install ffmpeg from https://www.ffmpeg.org/download.html"
+            .to_owned())
+    }
+}
+
 fn proxy_address_parser(s: &str) -> Result<String, String> {
     if s.starts_with("http://") || s.starts_with("https://") {
         Ok(s.to_owned())
     } else {
-        Err("Proxy address should start with `http://` or `https://` only".to_string())
+        Err("Proxy address should start with `http(s)://` only".to_string())
     }
 }
 
@@ -340,12 +383,6 @@ impl Save {
     #[allow(clippy::wrong_self_convention)]
     pub fn to_download_state(mut self) -> Result<DownloadState> {
         let client = self.client()?;
-
-        if let Some(output) = &self.output {
-            if !output.ends_with(".ts") {
-                crate::utils::check_ffmpeg("the given output doesn't have .ts file extension")?
-            }
-        }
 
         if self.input_type().is_website() {
             println!(

@@ -19,8 +19,6 @@ pub(super) struct BinaryMerger {
 
 impl BinaryMerger {
     pub(super) fn new(size: usize, filename: &str, progress: DownloadProgress) -> Result<Self> {
-        let json_file = progress.file.clone();
-
         Ok(Self {
             size: size - 1,
             file: File::create(filename)?,
@@ -29,8 +27,8 @@ impl BinaryMerger {
             stored_bytes: 0,
             flushed_bytes: 0,
             indexed: 0,
+            json_file: File::create(&progress.file)?,
             progress,
-            json_file: File::create(json_file)?,
         })
     }
 

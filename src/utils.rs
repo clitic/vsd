@@ -107,41 +107,6 @@ pub(super) fn select(prompt: String, choices: &[String], raw: bool) -> Result<us
     .index)
 }
 
-fn find_ffmpeg_with_path() -> Option<String> {
-    Some(
-        std::env::var("PATH")
-            .ok()?
-            .split(if cfg!(target_os = "windows") {
-                ';'
-            } else {
-                ':'
-            })
-            .find(|s| {
-                std::path::Path::new(s)
-                    .join(if cfg!(target_os = "windows") {
-                        "ffmpeg.exe"
-                    } else {
-                        "ffmpeg"
-                    })
-                    .exists()
-            })?
-            .to_owned(),
-    )
-}
-
-pub(super) fn check_ffmpeg(text: &str) -> Result<()> {
-    if find_ffmpeg_with_path().is_none() {
-        bail!(
-            "FFMPEG couldn't be located in PATH. \
-            It is required because {}. \
-            Visit https://www.ffmpeg.org/download.html to install it.",
-            text
-        );
-    }
-
-    Ok(())
-}
-
 pub(super) fn get_columns() -> u16 {
     kdam::term::get_columns_or(10)
 }

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 pub struct Stream {
     pub url: String,
     pub language: Option<String>,
-    pub file: String,
+    file: String,
     pub downloaded: usize,
     pub total: usize,
     pub playlist: String,
@@ -31,6 +31,18 @@ impl Stream {
         m3u8_rs::parse_media_playlist_res(self.playlist.as_bytes())
             .map_err(|_| anyhow!("Couldn't parse {} as media playlist.", self.url))
             .unwrap()
+    }
+
+    pub fn path(&self, directory: &Option<String>) -> String {
+        if let Some(directory) = directory {
+            finalize_path(&Path::new(directory)
+                .join(&self.file)
+                .to_str()
+                .unwrap()
+                .to_owned())
+        } else {
+            self.file.to_owned()
+        }
     }
 
     pub fn filename(&self, suffix: &str, ext: Option<&str>) -> String {

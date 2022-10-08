@@ -65,10 +65,11 @@ impl DownloadProgress {
     pub fn mux(
         &self,
         output: &Option<String>,
+        directory: &Option<String>,
         alternative_media_type: &Option<m3u8_rs::AlternativeMediaType>,
     ) -> Result<()> {
         if let Some(output) = output {
-            let mut args = vec!["-i".to_owned(), self.video.file.clone()];
+            let mut args = vec!["-i".to_owned(), self.video.path(directory)];
 
             // args.push("-metadata".to_owned());
             // args.push(format!("title=\"{}\"", self.video.url));
@@ -85,12 +86,12 @@ impl DownloadProgress {
             if alternative_media_type.is_none() {
                 if let Some(audio) = &self.audio {
                     args.push("-i".to_owned());
-                    args.push(audio.file.clone());
+                    args.push(audio.path(directory));
                 }
 
                 if let Some(subtitles) = &self.subtitles {
                     args.push("-i".to_owned());
-                    args.push(subtitles.file.clone());
+                    args.push(subtitles.path(directory));
                 }
 
                 args.push("-c:v".to_owned());
@@ -158,14 +159,14 @@ impl DownloadProgress {
             }
 
             if let Some(audio) = &self.audio {
-                std::fs::remove_file(&audio.file)?;
+                std::fs::remove_file(&audio.path(directory))?;
             }
 
             if let Some(subtitles) = &self.subtitles {
-                std::fs::remove_file(&subtitles.file)?;
+                std::fs::remove_file(&subtitles.path(directory))?;
             }
 
-            std::fs::remove_file(&self.video.file)?;
+            std::fs::remove_file(&self.video.path(directory))?;
         }
 
         if std::path::Path::new(&self.file).exists() {

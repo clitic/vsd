@@ -2,8 +2,8 @@ use crate::dash;
 
 pub fn autoselect(
     master: &mut m3u8_rs::MasterPlaylist,
-    audio_lang: Option<String>,
-    subtitles_lang: Option<String>,
+    prefer_audio_lang: &Option<String>,
+    prefer_subs_lang: &Option<String>,
 ) {
     let mut alternative_audio = vec![];
     let mut alternative_subtitles = vec![];
@@ -34,7 +34,9 @@ pub fn autoselect(
         if let Some(language) = alternative.language.as_ref().map(|x| x.to_lowercase()) {
             match &alternative.media_type {
                 m3u8_rs::AlternativeMediaType::Audio => {
-                    if let Some(audio_language) = audio_lang.as_ref().map(|x| x.to_lowercase()) {
+                    if let Some(audio_language) =
+                        prefer_audio_lang.as_ref().map(|x| x.to_lowercase())
+                    {
                         if language == audio_language {
                             language_factor = 2;
                         } else if language.get(0..2) == audio_language.get(0..2) {
@@ -45,7 +47,7 @@ pub fn autoselect(
                 m3u8_rs::AlternativeMediaType::Subtitles
                 | m3u8_rs::AlternativeMediaType::ClosedCaptions => {
                     if let Some(subtitles_language) =
-                        subtitles_lang.as_ref().map(|x| x.to_lowercase())
+                        prefer_subs_lang.as_ref().map(|x| x.to_lowercase())
                     {
                         if language == subtitles_language {
                             language_factor = 2;
