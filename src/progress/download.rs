@@ -2,8 +2,8 @@ use super::Stream;
 use anyhow::{bail, Result};
 use kdam::term::Colorizer;
 use serde::{Deserialize, Serialize};
-use std::fs::File;
-use std::io::{Seek, SeekFrom, Write};
+// use std::fs::File;
+// use std::io::{Seek, SeekFrom, Write};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct DownloadProgress {
@@ -27,40 +27,40 @@ impl DownloadProgress {
         self.file = self.video.set_extension("vsd");
     }
 
-    pub fn update(&mut self, stream: &str, pos: usize, writer: &mut File) -> Result<()> {
-        match stream {
-            "video" => {
-                self.video.downloaded = pos;
-            }
+    // pub fn update(&mut self, stream: &str, pos: usize, writer: &mut File) -> Result<()> {
+    //     match stream {
+    //         "video" => {
+    //             self.video.downloaded = pos;
+    //         }
 
-            "audio" => {
-                if let Some(audio) = &mut self.audio {
-                    audio.downloaded = pos;
-                }
-            }
+    //         "audio" => {
+    //             if let Some(audio) = &mut self.audio {
+    //                 audio.downloaded = pos;
+    //             }
+    //         }
 
-            _ => (),
-        }
+    //         _ => (),
+    //     }
 
-        writer.seek(SeekFrom::Start(0))?;
-        writer.write_all(&bincode::serialize(self)?)?;
-        Ok(())
-    }
+    //     writer.seek(SeekFrom::Start(0))?;
+    //     writer.write_all(&bincode::serialize(self)?)?;
+    //     Ok(())
+    // }
 
-    pub fn downloaded(&self, stream: &str) -> usize {
-        match stream {
-            "video" => self.video.downloaded,
-            "audio" => {
-                if let Some(audio) = &self.audio {
-                    audio.downloaded
-                } else {
-                    0
-                }
-            }
+    // pub fn downloaded(&self, stream: &str) -> usize {
+    //     match stream {
+    //         "video" => self.video.downloaded,
+    //         "audio" => {
+    //             if let Some(audio) = &self.audio {
+    //                 audio.downloaded
+    //             } else {
+    //                 0
+    //             }
+    //         }
 
-            _ => 0,
-        }
-    }
+    //         _ => 0,
+    //     }
+    // }
 
     pub fn mux(
         &self,
@@ -96,11 +96,8 @@ impl DownloadProgress {
 
                 args.push("-c:v".to_owned());
                 args.push("copy".to_owned());
-
-                if self.audio.is_some() {
-                    args.push("-c:a".to_owned());
-                    args.push("copy".to_owned());
-                }
+                args.push("-c:a".to_owned());
+                args.push("copy".to_owned());
 
                 if self.subtitles.is_some() {
                     args.push("-scodec".to_owned());
@@ -155,7 +152,7 @@ impl DownloadProgress {
                 .wait()?;
 
             if !code.success() {
-                bail!("FFMPEG exited with code {}.", code.code().unwrap_or(1))
+                bail!("FFMPEG exited with code {}", code.code().unwrap_or(1))
             }
 
             if let Some(audio) = &self.audio {

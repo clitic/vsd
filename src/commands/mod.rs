@@ -15,9 +15,9 @@ pub use save::{Save, InputType, Quality};
 
 use clap::{Parser, Subcommand};
 
-/// Download adaptive live streams from websites, HLS and Dash playlists.
+/// Download video streams served over HTTP from websites, HLS and DASH playlists.
 ///
-/// Know more about adaptive live streams from https://howvideo.works
+/// Know more about adaptive video streams served over HTTP from https://howvideo.works
 #[derive(Debug, Clone, Parser)]
 #[command(version, author = "clitic <clitic21@gmail.com>", about)]
 pub struct Args {

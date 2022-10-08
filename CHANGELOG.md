@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2022-10-08
+
 ### Added
 
 - *DASH* support with decryption and subtitles.
@@ -14,13 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New singular progress bar for complete download progress.
 - Better variant stream selection and display order.
 - Improved support for playlists using byte range.
+- Improved *capture* and *collect* subcommands.
+  - Using response recieved url when using *capture* subcommand.
+  - Using chrome response for fetching playlists when using *collect* subcommand.
 
 ### Changed
 
 - Default command is splitted into *save*, *capture* and *collect* subcommands.
-- Improved *capture* and *collect* subcommands.
-  - Using response recieved url when using *capture* subcommand.
-  - Using chrome response for fetching playlists when using *collect* subcommand.
+- Resume support is removed for now.
 
 ### Fixed
 
@@ -40,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.0] - 2022-06-22
 
-[Unreleased]: https://github.com/clitic/vsd/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/clitic/vsd/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/clitic/vsd/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/clitic/vsd/compare/v0.1.0...v0.1.2
 [0.1.0]: https://github.com/clitic/vsd/releases/tag/v0.1.0

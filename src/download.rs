@@ -69,7 +69,11 @@ impl DownloadState {
                     self.alternative_media_type = Some(alternative.media_type);
                     self.args.get_url(&alternative.uri.unwrap())?
                 } else {
-                    hls::autoselect(&mut master, &self.args.prefer_audio_lang, &self.args.prefer_subs_lang);
+                    hls::autoselect(
+                        &mut master,
+                        &self.args.prefer_audio_lang,
+                        &self.args.prefer_subs_lang,
+                    );
                     self.args.get_url(&hls::master(
                         &master,
                         &self.args.quality,
@@ -113,7 +117,11 @@ impl DownloadState {
     fn dash_vod(&mut self, content: &[u8]) -> Result<()> {
         let mpd = dash::parse(content)?;
         let mut master = dash::to_m3u8_as_master(&mpd);
-        hls::autoselect(&mut master, &self.args.prefer_audio_lang, &self.args.prefer_subs_lang);
+        hls::autoselect(
+            &mut master,
+            &self.args.prefer_audio_lang,
+            &self.args.prefer_subs_lang,
+        );
 
         let uri = if self.args.alternative {
             let alternative = hls::alternative(&master, self.args.raw_prompts)?;
@@ -679,51 +687,46 @@ impl DownloadState {
         relative_size: Option<usize>,
         dash_decrypt: Option<(Vec<u8>, HashMap<String, String>)>,
     ) -> Result<usize> {
-        let merger = if self.args.resume {
-            Arc::new(Mutex::new(BinaryMerger::try_from_json(
-                segments.len(),
-                tempfile,
-                self.progress.file.clone(),
-            )?))
-        } else {
-            Arc::new(Mutex::new(BinaryMerger::new(
-                segments.len(),
-                tempfile,
-                self.progress.clone(),
-            )?))
-        };
-        merger.lock().unwrap().update()?;
+        let merger = Arc::new(Mutex::new(BinaryMerger::new(segments.len(), tempfile)?));
+
+        // TODO support resume
+        // Arc::new(Mutex::new(BinaryMerger::try_from_json(
+        //     segments.len(),
+        //     tempfile,
+        //     self.progress.file.clone(),
+        // )?))
+        // merger.lock().unwrap().update()?;
 
         let timer = Arc::new(std::time::Instant::now());
 
         let mut previous_byterange_end = 0;
 
         for (i, segment) in segments.iter().enumerate() {
-            if self.args.resume {
-                let merger = merger.lock().unwrap();
-                let pos = merger.position();
+            // if self.args.resume {
+            //     let merger = merger.lock().unwrap();
+            //     let pos = merger.position();
 
-                if pos != 0 && pos > i {
-                    continue;
-                }
+            //     if pos != 0 && pos > i {
+            //         continue;
+            //     }
 
-                let mut gaurded_pb = pb.lock().unwrap();
-                gaurded_pb.replace(
-                    1,
-                    Column::Text(format!(
-                        "[bold blue]{}",
-                        utils::format_download_bytes(
-                            stored_bytes + merger.stored(),
-                            if let Some(size) = relative_size {
-                                stored_bytes + size + merger.estimate()
-                            } else {
-                                stored_bytes + merger.estimate()
-                            }
-                        ),
-                    )),
-                );
-                gaurded_pb.update_to(pos);
-            }
+            //     let mut gaurded_pb = pb.lock().unwrap();
+            //     gaurded_pb.replace(
+            //         1,
+            //         Column::Text(format!(
+            //             "[bold blue]{}",
+            //             utils::format_download_bytes(
+            //                 stored_bytes + merger.stored(),
+            //                 if let Some(size) = relative_size {
+            //                     stored_bytes + size + merger.estimate()
+            //                 } else {
+            //                     stored_bytes + merger.estimate()
+            //                 }
+            //             ),
+            //         )),
+            //     );
+            //     gaurded_pb.update_to(pos);
+            // }
 
             let thread_data = ThreadData {
                 // Request

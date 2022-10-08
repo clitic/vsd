@@ -10,7 +10,7 @@ use reqwest::{Proxy, Url};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-/// Download and save HLS and Dash playlists to disk.
+/// Download and save HLS and DASH playlists to disk.
 #[derive(Debug, Clone, Args)]
 pub struct Save {
     /// http(s):// | .m3u8 | .m3u | .mpd | .xml
@@ -42,7 +42,7 @@ pub struct Save {
     pub key: Vec<(Option<String>, String)>,
 
     /// Mux all downloaded streams to a video container (.mp4, .mkv, etc.) using ffmpeg.
-    /// Note that existing files will be overwritten.
+    /// Note that existing files will be overwritten and downloaded streams will be deleted.
     #[arg(short, long, value_parser = output_parser)]
     pub output: Option<String>,
 
@@ -72,11 +72,6 @@ pub struct Save {
     // /// Record duration for live playlist in seconds.
     // #[arg(long)]
     // pub record_duration: Option<f32>,
-
-    /// BUG: Resume a download session.
-    /// Download session can only be resumed if download session json file is present.
-    #[arg(long)]
-    pub resume: bool,
 
     /// Maximum number of retries to download an individual segment.
     #[arg(long, default_value_t = 15)]
