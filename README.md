@@ -10,11 +10,8 @@
   <a href="https://crates.io/crates/vsd">
     <img src="https://img.shields.io/crates/v/vsd?style=flat-square">
   </a>
-  <a href="https://docs.rs/vsd/latest/vsd">
-    <img src="https://img.shields.io/docsrs/vsd?logo=docsdotrs&style=flat-square">
-  </a>
-  <a href="https://github.com/clitic/vsd">
-    <img src="https://img.shields.io/github/license/clitic/vsd?style=flat-square">
+  <a href="https://github.com/clitic/vsd#license">
+    <img src="https://img.shields.io/crates/l/vsd?style=flat-square">
   </a>
   <a href="https://github.com/clitic/vsd">
     <img src="https://img.shields.io/github/repo-size/clitic/vsd?logo=github&style=flat-square">
@@ -79,6 +76,10 @@ curl -L https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-x86_64
 ```
 
 ### On Termux (Android 11+)
+
+```bash
+pkg install libc++
+```
 
 ```bash
 curl -L https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-aarch64-linux-android.tar.gz | tar xz -C $PREFIX/bin
