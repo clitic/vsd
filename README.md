@@ -78,16 +78,11 @@ curl -L https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-x86_64
 ### On Termux (Android 11+)
 
 ```bash
-pkg install libc++
+pkg install libc++ ffmpeg
 ```
 
 ```bash
 curl -L https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-aarch64-linux-android.tar.gz | tar xz -C $PREFIX/bin
-```
-
-```bash
-# optional
-pkg install ffmpeg
 ```
 
 Also, see [running on android](https://github.com/clitic/vsd/blob/main/docs/running-on-android.md)
