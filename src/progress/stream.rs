@@ -35,11 +35,10 @@ impl Stream {
 
     pub fn path(&self, directory: &Option<String>) -> String {
         if let Some(directory) = directory {
-            finalize_path(&Path::new(directory)
+            finalize_path(Path::new(directory)
                 .join(&self.file)
                 .to_str()
-                .unwrap()
-                .to_owned())
+                .unwrap())
         } else {
             self.file.to_owned()
         }

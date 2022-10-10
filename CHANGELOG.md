@@ -17,12 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Better variant stream selection and display order.
 - Improved support for playlists using byte range.
 - Improved *capture* and *collect* subcommands.
-  - Using response recieved url when using *capture* subcommand.
+  - Using response received url when using *capture* subcommand.
   - Using chrome response for fetching playlists when using *collect* subcommand.
 
 ### Changed
 
-- Default command is splitted into *save*, *capture* and *collect* subcommands.
+- Default command is split into *save*, *capture* and *collect* subcommands.
 - Resume support is removed for now.
 
 ### Fixed

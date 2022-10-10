@@ -534,15 +534,14 @@ impl DownloadState {
 
         if let Some(encryption_type) = encryption_type {
             if encryption_type == "CENC" {
-                let user_kids = self
-                    .args
-                    .key
-                    .iter()
-                    .flat_map(|x| x.0.to_owned())
-                    .collect::<Vec<String>>();
-
                 for kid in &kids {
-                    if !user_kids.contains(&kid.replace('-', "")) {
+                    if !self
+                        .args
+                        .key
+                        .iter()
+                        .flat_map(|x| x.0.to_owned())
+                        .any(|x| x == kid.replace('-', ""))
+                    {
                         println!(
                             "{} CENC streams found in playlist",
                             "Encrypted".colorize("bold yellow")

@@ -42,13 +42,13 @@
 
 - [x] Capturing network requests and collecting .m3u8, .mpd and subtitles from websites and save them locally.
 - [x] Muxing streams to single video container using ffmpeg.
-- [x] Singular progress bar for complete download process like an normal file download with relatime file size estimations.
+- [x] Singular progress bar for complete download process like an normal file download with realtime file size estimations.
 - [x] Supports `AES-128` and `CENC` playlists decryption.
 - [x] Supports HLS and DASH
 - [x] Supports downloading in multiple threads.
-- [ ] GUI
+- [ ] GUI (maybe in future)
 - [ ] Supports [SAMPLE-AES](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/HLS_Sample_Encryption/Encryption/Encryption.html) playlist decryption.
-- [ ] Supports live stream download.
+- [ ] Live stream download (wip)
 
 <a href="#Help">See More</a>
 
@@ -82,7 +82,7 @@ pkg install libc++ ffmpeg
 ```
 
 ```bash
-curl -L https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-aarch64-linux-android.tar.gz | tar xz -C $PREFIX/bin
+curl -L https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-aarch64-linux-android-termux.tar.gz | tar xz -C $PREFIX/bin
 ```
 
 Also, see [running on android](https://github.com/clitic/vsd/blob/main/docs/running-on-android.md)
