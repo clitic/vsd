@@ -85,6 +85,7 @@ pkg install libc++ ffmpeg
 curl -L https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-aarch64-linux-android-termux.tar.gz | tar xz -C $PREFIX/bin
 ```
 
+You can also build vsd on lower android versions see [steps](https://github.com/clitic/vsd/blob/main/BUILD.md#android-on-termux).
 Also, see [running on android](https://github.com/clitic/vsd/blob/main/docs/running-on-android.md)
 
 ## Usage
