@@ -65,9 +65,9 @@ $ PATH=android-ndk-r22b/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH \
 ~ $ cd vsd
 ~/vsd $ OPENSSL_INCLUDE_DIR=$PREFIX/include/openssl \
           OPENSSL_LIB_DIR=$PREFIX/lib \
-		  OPENSSL_NO_VENDOR=true \
-		  AR=ar \
-		  cargo build --release
+          OPENSSL_NO_VENDOR=true \
+          AR=ar \
+          cargo build --release
 ```
 
 <!-- 
