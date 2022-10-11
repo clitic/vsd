@@ -52,7 +52,7 @@ $ PATH=android-ndk-r22b/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH \
     AARCH64_LINUX_ANDROID_OPENSSL_DIR=openssl-v3.0.5-static-aarch64-linux-android30 \
     AARCH64_LINUX_ANDROID_OPENSSL_STATIC=true \
     AARCH64_LINUX_ANDROID_OPENSSL_NO_VENDOR=true \
-	RUSTFLAGS="-C link-args=-Wl,-rpath=/data/data/com.termux/files/usr/lib -C link-args=-Wl,--enable-new-dtags" \
+    RUSTFLAGS="-C link-args=-Wl,-rpath=/data/data/com.termux/files/usr/lib -C link-args=-Wl,--enable-new-dtags" \
     cargo build --release --target aarch64-linux-android
 ```
 
@@ -64,10 +64,10 @@ $ PATH=android-ndk-r22b/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH \
 ~ $ git clone https://github.com/clitic/vsd
 ~ $ cd vsd
 ~/vsd $ OPENSSL_INCLUDE_DIR=$PREFIX/include/openssl \
-			OPENSSL_LIB_DIR=$PREFIX/lib \
-			OPENSSL_NO_VENDOR=true \
-			AR=ar \
-			cargo build --release
+          OPENSSL_LIB_DIR=$PREFIX/lib \
+		  OPENSSL_NO_VENDOR=true \
+		  AR=ar \
+		  cargo build --release
 ```
 
 <!-- 
