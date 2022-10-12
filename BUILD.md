@@ -25,7 +25,7 @@ cargo build --release
 ## Linux / MacOS
 
 ```bash
-OPENSSL_STATIC=true cargo build --release
+cargo build --release
 ```
 
 ## Android (On Linux 64-bit)
@@ -42,7 +42,7 @@ $ rm android-ndk-r22b-linux-x86_64.zip
 
 ```bash
 $ rustup target add aarch64-linux-android
-$ printf '\n[target.aarch64-linux-android]\nlinker = "aarch64-linux-android30-clang"\n' >> ~/.cargo/config.toml
+$ printf '\n[target.aarch64-linux-android]\nlinker = "aarch64-linux-android30-clang"\n' >> $HOME/.cargo/config.toml
 ```
 
 3. Now compile with target aarch64-linux-android. RUSTFLAGS can be removed if you do not want to build for termux.
@@ -60,13 +60,13 @@ $ PATH=android-ndk-r22b/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH \
 
 ```bash
 ~ $ pkg upgrade
-~ $ pkg install git rust binutils
+~ $ pkg install git rust
 ~ $ git clone https://github.com/clitic/vsd
 ~ $ cd vsd
 ~/vsd $ OPENSSL_INCLUDE_DIR=$PREFIX/include/openssl \
           OPENSSL_LIB_DIR=$PREFIX/lib \
           OPENSSL_NO_VENDOR=true \
-          AR=ar \
+          AR=llvm-ar \
           cargo build --release
 ```
 

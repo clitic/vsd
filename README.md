@@ -72,7 +72,13 @@ cargo install vsd
 ### On x86_64 Linux
 
 ```bash
-curl -L https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-x86_64-unknown-linux-musl.tar.gz | tar xz
+curl -L https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-x86_64-unknown-linux-musl.tar.gz | tar xz -C /usr/local/bin/vsd
+```
+
+### On MacOS (Monterey)
+
+```bash
+curl -L https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-x86_64-apple-darwin.tar.gz | tar xz -C /usr/local/bin/vsd
 ```
 
 ### On Termux (Android 11+)
