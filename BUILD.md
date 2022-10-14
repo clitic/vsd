@@ -71,7 +71,7 @@ $ PATH=/content/musl-cross-make-0.9.9/output/bin:$PATH \
 $ PATH=/content/musl-cross-make-0.9.9/output/bin:$PATH x86_64-linux-musl-readelf target/x86_64-unknown-linux-musl/release/vsd --dynamic
 ```
 
-## MacOS (On Linux)
+## MacOS (On Linux) [Tested On Ubuntu]
 
 1. Build [osxcross](https://github.com/tpoechtrager/osxcross) toolchain.
 
@@ -80,9 +80,9 @@ $ git clone https://github.com/tpoechtrager/osxcross
 $ wget https://github.com/joseluisq/macosx-sdks/releases/download/12.3/MacOSX12.3.sdk.tar.xz -O osxcross/tarballs/MacOSX12.3.sdk.tar.xz
 $ cd osxcross
 $ ./tools/get_dependencies.sh
+$ apt install llvm
 $ UNATTENDED=1 SDK_VERSION=12.3 ./build.sh
 $ # compiler rt support (optional)
-$ apt install llvm
 $ ENABLE_COMPILER_RT_INSTALL=1 ./build_compiler_rt.sh
 ```
 
@@ -105,6 +105,7 @@ $ printf '\n[target.x86_64-apple-darwin]\nlinker = "x86_64-apple-darwin21.4-clan
 
 ```bash
 $ PATH=/content/osxcross/target/bin:$PATH \
+    LD_LIBRARY_PATH=/content/osxcross/lib:$LD_LIBRARY_PATH \
     MACOSX_DEPLOYMENT_TARGET=12.3 \
     OSXCROSS_PKG_CONFIG_NO_MP_INC=1 \
     OSXCROSS_MP_INC=1 \
@@ -119,7 +120,7 @@ $ PATH=/content/osxcross/target/bin:$PATH \
 5. Check that binary is linking to any shared library or not.
 
 ```bash
-$ PATH=/content/osxcross/target/bin:$PATH x86_64-apple-darwin21.4-readelf target/x86_64-apple-darwin/release/vsd --needed-libs
+$ llvm-readelf-6.0 ./target/x86_64-apple-darwin/release/vsd --needed-libs
 ```
 
 ## Android (On Linux 64-bit)
