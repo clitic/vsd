@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Support for decrypting SAMPLE-AES (com.apple.streamingkeydelivery)
+
+### Fixed
+
+- Relative url build using baseurl for local `.mpd` files.
+
 ## [0.2.0] - 2022-10-08
 
 ### Added

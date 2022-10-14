@@ -56,7 +56,7 @@ pub fn to_m3u8_as_master(mpd: &MPD) -> m3u8_rs::MasterPlaylist {
     master
 }
 
-pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Result<m3u8_rs::MediaPlaylist> {
+pub fn to_m3u8_as_media(mpd: &MPD, uri: &str, baseurl: &str) -> Result<m3u8_rs::MediaPlaylist> {
     if !uri.starts_with("dash://") {
         bail!(
             "incorrect MPD uri format (expected: dash://period.{{}}.adaptation-set.{{}}.representation.{{}})"
@@ -88,7 +88,7 @@ pub fn to_m3u8_as_media(mpd: &MPD, mpd_url: &str, uri: &str) -> Result<m3u8_rs::
         .ok_or_else(|| anyhow!("requested MPD playlist not found"))?;
 
     // BASEURL
-    let mut baseurl = mpd_url.to_owned();
+    let mut baseurl = baseurl.to_owned();
 
     if let Some(mpd_baseurl) = &mpd.baseurl {
         baseurl = utils::join_url(&baseurl, mpd_baseurl)?;

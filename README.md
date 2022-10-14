@@ -69,19 +69,19 @@ If you want to build vsd from it's source then checkout [BUILD.md](https://githu
 cargo install vsd
 ```
 
-### On x86_64 Linux
+### On Linux (64-bit)
 
 ```bash
 curl -L https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-x86_64-unknown-linux-musl.tar.gz | tar xz -C /usr/local/bin/vsd
 ```
 
-### On MacOS (Monterey)
+### On MacOS (Monterey 64-bit)
 
 ```bash
 curl -L https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-x86_64-apple-darwin.tar.gz | tar xz -C /usr/local/bin/vsd
 ```
 
-### On Termux (Android 11+)
+### On Termux (Android 11+ aarch64)
 
 ```bash
 pkg install libc++ ffmpeg

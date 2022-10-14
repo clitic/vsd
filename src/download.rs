@@ -132,9 +132,24 @@ impl DownloadState {
         };
 
         let mut playlist = vec![];
-        dash::to_m3u8_as_media(&mpd, &self.args.input, &uri)
-            .unwrap()
-            .write_to(&mut playlist)?;
+        dash::to_m3u8_as_media(
+            &mpd,
+            &uri,
+            if self.args.input.starts_with("http") {
+                &self.args.input
+            } else {
+                if let Some(baseurl) = &self.args.baseurl {
+                    baseurl
+                } else {
+                    bail!(
+                        "Non HTTP input should have {} set explicitly.",
+                        "--baseurl".colorize("bold green")
+                    )
+                }
+            },
+        )
+        .unwrap()
+        .write_to(&mut playlist)?;
 
         self.progress.video = Stream::new(
             &self.args.input,
@@ -164,7 +179,7 @@ impl DownloadState {
 
             let playlist = if let Some(mpd) = &mpd {
                 let mut playlist = vec![];
-                dash::to_m3u8_as_media(mpd, &self.args.input, &uri)
+                dash::to_m3u8_as_media(mpd, &uri, &self.args.input)
                     .unwrap()
                     .write_to(&mut playlist)?;
 
@@ -492,8 +507,17 @@ impl DownloadState {
                     }) => encryption_type = Some("AES-128"),
                     Some(m3u8_rs::Key {
                         method: m3u8_rs::KeyMethod::SampleAES,
+                        keyformat,
                         ..
                     }) => {
+                        if let Some(keyformat) = keyformat {
+                            if keyformat == "com.apple.streamingkeydelivery" {
+                                encryption_type =
+                                    Some("SAMPLE-AES (com.apple.streamingkeydelivery)");
+                                continue;
+                            }
+                        }
+
                         println!(
                             "{} SAMPLE-AES streams found in playlist",
                             "Encrypted".colorize("bold yellow")
@@ -754,10 +778,27 @@ impl DownloadState {
 
                 // Decryption
                 dash_decrypt: dash_decrypt.clone(),
-                key: segment.key.clone().map(|mut x| {
-                    x.uri = x.uri.map(|y| self.args.get_url(&y).unwrap());
-                    x
-                }),
+                key: if let Some(key) = &segment.key {
+                    let mut key = key.clone();
+
+                    if let Some(uri) = &key.uri {
+                        if uri.starts_with("http") {
+                            key.uri = Some(self.args.get_url(uri)?);
+                        } else if uri.starts_with("skd://") {
+                            let uri = uri.trim_start_matches("skd://");
+
+                            if uri.contains(':') {
+                                key.uri = Some(uri.to_owned());
+                            } else {
+                                bail!("SAMPLE-AES (com.apple.streamingkeydelivery) skd://{} uri is not supported", uri)
+                            }
+                        }
+                    }
+
+                    Some(key)
+                } else {
+                    None
+                },
 
                 // File
                 index: i,
@@ -927,6 +968,20 @@ impl ThreadData {
                     data,
                 )?)
             }
+            Some(m3u8_rs::Key {
+                method: m3u8_rs::KeyMethod::SampleAES,
+                keyformat: Some(keyformat),
+                uri: Some(uri),
+                ..
+            }) if keyformat == "com.apple.streamingkeydelivery" => Ok(mp4decrypt::mp4decrypt(
+                data,
+                HashMap::from([(
+                    uri.split(':').nth(0).unwrap().replace('-', ""),
+                    uri.split(':').nth(1).unwrap().to_lowercase(),
+                )]),
+                None,
+            )
+            .map_err(|x| anyhow!(x))?),
             Some(m3u8_rs::Key {
                 method: m3u8_rs::KeyMethod::Other(method),
                 ..
