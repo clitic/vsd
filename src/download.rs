@@ -591,7 +591,6 @@ impl DownloadState {
 
     fn download_subtitles(&mut self, subtitles: Stream, pb: &mut RichProgress) -> Result<Stream> {
         let mut subtitles = subtitles;
-        let tempfile = subtitles.path(&self.args.directory);
         let playlist = subtitles.to_playlist();
         let segments = playlist.segments;
         pb.pb.set_total(segments.len());
@@ -644,6 +643,8 @@ impl DownloadState {
             }
         }
 
+        let tempfile = subtitles.path(&self.args.directory);
+        
         pb.write(format!(
             "{} subtitle stream to {}",
             "Downloading".colorize("bold green"),

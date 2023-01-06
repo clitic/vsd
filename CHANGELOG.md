@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Relative url build using baseurl for local `.mpd` files.
 - Segmentation fault when using threads more than 1.
+- Subtitles saved as `.txt` but ffmpeg command uses `.vtt`.
 
 ## [0.2.0] - 2022-10-08
 
