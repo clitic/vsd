@@ -82,22 +82,14 @@ impl Decrypt {
                     );
                 }
 
-                let fragments_info = if let Some(fragments_info) = &self.fragments_info {
+                let fragments_info_data = if let Some(fragments_info) = &self.fragments_info {
                     Some(std::fs::read(fragments_info)?)
                 } else {
                     None
                 };
 
-                mp4decrypt::mp4decrypt(
-                    &std::fs::read(&self.file)?,
-                    keys,
-                    if let Some(fragments_info) = &fragments_info {
-                        Some(fragments_info.as_slice())
-                    } else {
-                        None
-                    },
-                )
-                .map_err(|x| anyhow!(x))?
+                mp4decrypt::mp4decrypt(&std::fs::read(&self.file)?, keys, fragments_info_data)
+                    .map_err(|x| anyhow!(x))?
             }
         };
 
