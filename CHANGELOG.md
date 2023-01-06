@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Support for decrypting SAMPLE-AES (com.apple.streamingkeydelivery)
 
+### Changed
+
+- Do not use space character when saving file, instead use `vsd_*` prefix.
+
 ### Fixed
 
 - Relative url build using baseurl for local `.mpd` files.

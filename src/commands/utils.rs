@@ -49,7 +49,7 @@ pub(super) fn filepath(url: &str, ext: &str) -> String {
         let stemed_path = Path::new(&path).file_stem().unwrap().to_str().unwrap();
 
         for i in 1.. {
-            let core_file_copy = format!("{} ({}).{}", stemed_path, i, ext);
+            let core_file_copy = format!("{}_({}).{}", stemed_path, i, ext);
 
             if !Path::new(&core_file_copy).exists() {
                 return core_file_copy;

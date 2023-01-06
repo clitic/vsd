@@ -46,7 +46,7 @@ impl Stream {
 
     pub fn filename(&self, suffix: &str, ext: Option<&str>) -> String {
         finalize_path(&format!(
-            "({}) {}{}",
+            "vsd_{}_{}{}",
             suffix,
             Path::new(&self.file).file_stem().unwrap().to_str().unwrap(),
             if let Some(ext) = ext {
@@ -62,7 +62,7 @@ impl Stream {
     }
 
     pub fn set_suffix(&mut self, suffix: &str) {
-        self.file = finalize_path(&format!("({}) {}", suffix, self.file));
+        self.file = finalize_path(&format!("vsd_{}_{}", suffix, self.file));
     }
 
     pub fn set_extension(&self, ext: &str) -> String {
@@ -82,7 +82,7 @@ fn finalize_path(path: &str) -> String {
         let ext = Path::new(path).extension().unwrap().to_str().unwrap();
 
         for i in 1.. {
-            let core_file_copy = format!("{} ({}).{}", stemed_path, i, ext);
+            let core_file_copy = format!("{}_({}).{}", stemed_path, i, ext);
 
             if !Path::new(&core_file_copy).exists() {
                 return core_file_copy;
