@@ -20,13 +20,13 @@ bincode = "1"
 chrono = "0.4"
 clap = { version = "4", features = ["derive", "wrap_help"] }
 glob = "0.3"
-headless_chrome = "0.9"
+headless_chrome = "1.0.1"
 iso8601 = "0.5"
-kdam = "0.2"
+kdam = "0.3"
 m3u8-rs = "5"
 mp4decrypt = "0.2.1"
 openssl = "0.10"
-quick-xml = { version = "0.25", features = ["serialize"] }
+quick-xml = { version = "0.27", features = ["serialize"] }
 regex = "1"
 requestty = "0.5.0"
 reqwest = { version = "0.11", features = ["native-tls", "blocking", "cookies"] }

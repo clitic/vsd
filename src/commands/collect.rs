@@ -1,8 +1,7 @@
 use super::utils;
 use anyhow::{anyhow, Result};
 use clap::Args;
-use headless_chrome::protocol::network::events::ResourceType;
-use headless_chrome::protocol::network::methods::GetResponseBodyReturnObject;
+use headless_chrome::protocol::cdp::Network::{GetResponseBodyReturnObject, ResourceType};
 use headless_chrome::{Browser, LaunchOptionsBuilder};
 use kdam::term::Colorizer;
 use std::fs::File;
@@ -48,21 +47,25 @@ impl Collect {
         let tab = browser.wait_for_initial_tab().map_err(|e| anyhow!(e))?;
         let build = self.build;
 
-        tab.enable_response_handling(Box::new(move |params, get_response_body| {
-            if params._type == ResourceType::XHR || params._type == ResourceType::Fetch {
-                let url = params.response.url.split('?').next().unwrap();
+        tab.register_response_handling(
+            "vsd-collect",
+            Box::new(move |params, get_response_body| {
+                // TODO: check other types
+                if params.Type == ResourceType::Xhr || params.Type == ResourceType::Fetch {
+                    let url = params.response.url.split('?').next().unwrap();
 
-                if url.contains(".m3u")
-                    || url.contains(".mpd")
-                    || url.contains(".vtt")
-                    || url.contains(".srt")
-                {
-                    if let Ok(body) = get_response_body() {
-                        save_to_disk(url, body, build).unwrap();
+                    if url.contains(".m3u")
+                        || url.contains(".mpd")
+                        || url.contains(".vtt")
+                        || url.contains(".srt")
+                    {
+                        if let Ok(body) = get_response_body() {
+                            save_to_disk(url, body, build).unwrap();
+                        }
                     }
                 }
-            }
-        }))
+            }),
+        )
         .map_err(|e| anyhow!(e))?;
 
         tab.navigate_to(&self.url).map_err(|e| anyhow!(e))?;
@@ -80,7 +83,7 @@ impl Collect {
 }
 
 fn decode_body(body: GetResponseBodyReturnObject) -> Result<Vec<u8>> {
-    if body.base64_encoded {
+    if body.base_64_encoded {
         Ok(openssl::base64::decode_block(&body.body)?)
     } else {
         Ok(body.body.as_bytes().to_vec())

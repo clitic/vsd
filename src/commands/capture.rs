@@ -37,7 +37,7 @@ impl Capture {
 
         let tab = browser.wait_for_initial_tab().map_err(|e| anyhow!(e))?;
 
-        tab.enable_response_handling(Box::new(move |params, _| {
+        tab.register_response_handling("vsd-capture", Box::new(move |params, _| {
             let url = params.response.url.split('?').next().unwrap();
 
             if url.contains(".m3u") || url.contains(".mpd") {
