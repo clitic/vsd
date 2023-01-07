@@ -11,17 +11,17 @@ pub fn parse(xml: &[u8]) -> Result<MPD, quick_xml::de::DeError> {
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Default, Deserialize)]
 pub struct MPD {
-    #[serde(rename = "type")]
+    #[serde(rename = "@type")]
     pub _type: Option<String>,
-    #[serde(rename = "maxSegmentDuration")]
+    #[serde(rename = "@maxSegmentDuration")]
     pub max_segment_duration: Option<String>,
-    #[serde(rename = "availabilityStartTime")]
+    #[serde(rename = "@availabilityStartTime")]
     pub availability_start_time: Option<String>,
-    #[serde(rename = "timeShiftBufferDepth")]
+    #[serde(rename = "@timeShiftBufferDepth")]
     pub time_shift_buffer_depth: Option<String>,
-    #[serde(rename = "publishTime")]
+    #[serde(rename = "@publishTime")]
     pub publish_time: Option<String>,
-    #[serde(rename = "mediaPresentationDuration")]
+    #[serde(rename = "@mediaPresentationDuration")]
     pub media_presentation_duration: Option<String>,
     #[serde(rename = "BaseURL")]
     pub baseurl: Option<String>,
@@ -31,7 +31,9 @@ pub struct MPD {
 
 #[derive(Debug, Default, Deserialize)]
 pub struct Period {
+    #[serde(rename = "@id")]
     pub id: Option<String>,
+    #[serde(rename = "@duration")]
     pub duration: Option<String>,
     #[serde(rename = "BaseURL")]
     pub baseurl: Option<String>,
@@ -41,13 +43,15 @@ pub struct Period {
 
 #[derive(Debug, Default, Deserialize)]
 pub struct AdaptationSet {
-    #[serde(rename = "mimeType")]
+    #[serde(rename = "@mimeType")]
     pub mime_type: Option<String>,
-    #[serde(rename = "contentType")]
+    #[serde(rename = "@contentType")]
     pub content_type: Option<String>,
+    #[serde(rename = "@codecs")]
     pub codecs: Option<String>,
+    #[serde(rename = "@lang")]
     pub lang: Option<String>,
-    #[serde(rename = "frameRate")]
+    #[serde(rename = "@frameRate")]
     pub frame_rate: Option<String>,
     #[serde(rename = "AudioChannelConfiguration")]
     pub audio_channel_configuration: Option<AudioChannelConfiguration>,
@@ -63,23 +67,29 @@ pub struct AdaptationSet {
 
 #[derive(Debug, Default, Deserialize)]
 pub struct Representation {
+    #[serde(rename = "@id")]
     pub id: Option<String>,
-    #[serde(rename = "mimeType")]
+    #[serde(rename = "@mimeType")]
     pub mime_type: Option<String>,
-    #[serde(rename = "contentType")]
+    #[serde(rename = "@contentType")]
     pub content_type: Option<String>,
+    #[serde(rename = "@codecs")]
     pub codecs: Option<String>,
-    #[serde(rename = "frameRate")]
+    #[serde(rename = "@frameRate")]
     pub frame_rate: Option<String>,
+    #[serde(rename = "@bandwidth")]
     pub bandwidth: Option<u64>,
+    #[serde(rename = "@lang")]
     pub lang: Option<String>,
+    #[serde(rename = "@width")]
     pub width: Option<u64>,
+    #[serde(rename = "@height")]
     pub height: Option<u64>,
     #[serde(rename = "AudioChannelConfiguration")]
     pub audio_channel_configuration: Option<AudioChannelConfiguration>,
     #[serde(rename = "Role")]
     pub role: Option<Role>,
-    #[serde(rename = "BaseURL")]
+    #[serde(rename = "@BaseURL")]
     pub baseurl: Option<String>,
     #[serde(rename = "SegmentBase")]
     pub segment_base: Option<SegmentBase>,
@@ -93,11 +103,13 @@ pub struct Representation {
 
 #[derive(Debug, Default, Deserialize)]
 pub struct AudioChannelConfiguration {
+    #[serde(rename = "@value")]
     pub value: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
 pub struct Role {
+    #[serde(rename = "@value")]
     pub value: Option<String>,
 }
 
@@ -109,35 +121,43 @@ pub struct SegmentBase {
 
 #[derive(Debug, Default, Deserialize)]
 pub struct Initialization {
-    #[serde(rename = "sourceURL")]
+    #[serde(rename = "@sourceURL")]
     pub source_url: Option<String>,
+    #[serde(rename = "@range")]
     pub range: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
 pub struct SegmentList {
+    #[serde(rename = "@duration")]
     pub duration: Option<String>,
+    #[serde(rename = "@timescale")]
     pub timescale: Option<String>,
     #[serde(rename = "Initialization")]
     pub initialization: Option<Initialization>,
-    #[serde(rename = "SegmentURL", default)]
+    #[serde(rename = "@SegmentURL", default)]
     pub segment_urls: Vec<SegmentURL>,
 }
 
 #[derive(Debug, Default, Deserialize)]
 pub struct SegmentURL {
+    #[serde(rename = "@media")]
     pub media: Option<String>,
-    #[serde(rename = "mediaRange")]
+    #[serde(rename = "@mediaRange")]
     pub media_range: Option<String>,
 }
 
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct SegmentTemplate {
+    #[serde(rename = "@media")]
     pub media: Option<String>,
+    #[serde(rename = "@duration")]
     pub duration: Option<String>,
+    #[serde(rename = "@timescale")]
     pub timescale: Option<String>,
-    #[serde(rename = "startNumber")]
+    #[serde(rename = "@startNumber")]
     pub start_number: Option<usize>,
+    #[serde(rename = "@initialization")]
     pub initialization: Option<String>,
     #[serde(rename = "SegmentTimeline")]
     pub segment_timeline: Option<SegmentTimeline>,
@@ -151,14 +171,18 @@ pub struct SegmentTimeline {
 
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct S {
+    #[serde(rename = "@t")]
     pub t: Option<i64>,
+    #[serde(rename = "@d")]
     pub d: i64,
+    #[serde(rename = "@r")]
     pub r: Option<i64>,
 }
 
 #[derive(Debug, Default, Deserialize)]
 pub struct ContentProtection {
-    #[serde(rename = "cenc:default_KID")]
+    // #[serde(rename = "@cenc:default_KID")]
+    #[serde(rename = "@default_KID")]
     pub default_kid: Option<String>,
 }
 
