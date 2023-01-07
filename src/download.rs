@@ -258,7 +258,7 @@ impl DownloadState {
                 if let Some(default_kid) = &default_kid {
                     if let Some(kid) = &key.0 {
                         if default_kid == kid {
-                            keys.insert(kid.to_owned(), key.1.to_owned());
+                            keys.insert(default_kid.to_owned(), key.1.to_owned());
                         }
                     } else {
                         keys.insert(default_kid.to_owned(), key.1.to_owned());
@@ -402,7 +402,7 @@ impl DownloadState {
                     &video_segments[0],
                     dash::SegmentTag::from(&video_segments[1].unknown_tags)
                         .kid
-                        .map(|x| x.replace('-', "")),
+                        .map(|x| x.replace('-', "").to_lowercase()),
                     &pb,
                 )?,
             )
@@ -450,7 +450,7 @@ impl DownloadState {
                         &audio_segments[0],
                         dash::SegmentTag::from(&audio_segments[1].unknown_tags)
                             .kid
-                            .map(|x| x.replace('-', "")),
+                            .map(|x| x.replace('-', "").to_lowercase()),
                         &pb,
                     )?,
                 )
@@ -564,7 +564,7 @@ impl DownloadState {
                         .key
                         .iter()
                         .flat_map(|x| x.0.to_owned())
-                        .any(|x| x == kid.replace('-', ""))
+                        .any(|x| x == kid.replace('-', "").to_lowercase())
                     {
                         println!(
                             "{} CENC streams found in playlist",

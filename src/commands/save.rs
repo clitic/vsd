@@ -189,7 +189,7 @@ fn key_parser(s: &str) -> Result<(Option<String>, String), String> {
         let kid = s.split(':').next().unwrap();
 
         (
-            Some(kid.replace('-', "")),
+            Some(kid.replace('-', "").to_lowercase()),
             s.trim_start_matches(kid)
                 .trim_start_matches(':')
                 .to_string(),
