@@ -61,12 +61,12 @@ Dependencies
 
 Visit [releases](https://github.com/clitic/vsd/releases) for prebuilt binaries. Download and extract archive and copy vsd binary to any path. Now add that path to your `PATH` environment variable. Build instructions can be found [here](https://github.com/clitic/vsd/blob/main/BUILD.md).
 
-| Host                | Architecture | Download                                                                                                      | Install                                                                                 |
-|---------------------|--------------|---------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| Host                | Architecture | Download                                                                                                      | Install                                                                                |
+|---------------------|--------------|---------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
 | Android 7+ (Termux) | aarch64      | [.tar.gz](https://github.com/clitic/vsd/releases/download/v0.2.5/vsd-v0.2.5-aarch64-linux-android.tar.gz)     | [command](https://github.com/clitic/vsd/blob/main/INSTALL.md#android-7-termux-aarch64) |
-| Linux               | x86_64       | [.tar.gz](https://github.com/clitic/vsd/releases/download/v0.2.5/vsd-v0.2.5-x86_64-unknown-linux-musl.tar.gz) | [command](https://github.com/clitic/vsd/blob/main/INSTALL.md#linux-x86_64)              |
-| MacOS 12.3+         | x86_64       | [.tar.gz](https://github.com/clitic/vsd/releases/download/v0.2.5/vsd-v0.2.5-x86_64-apple-darwin.tar.gz)       | [command](https://github.com/clitic/vsd/blob/main/INSTALL.md#macos-12.3-x86_64)         |
-| Windows             | x86_64       | [.zip](https://github.com/clitic/vsd/releases/download/v0.2.5/vsd-v0.2.5-x86_64-pc-windows-msvc.zip)          |                                                                                         |
+| Linux               | x86_64       | [.tar.gz](https://github.com/clitic/vsd/releases/download/v0.2.5/vsd-v0.2.5-x86_64-unknown-linux-musl.tar.gz) | [command](https://github.com/clitic/vsd/blob/main/INSTALL.md#linux-x86_64)             |
+| MacOS 12.3+         | x86_64       | [.tar.gz](https://github.com/clitic/vsd/releases/download/v0.2.5/vsd-v0.2.5-x86_64-apple-darwin.tar.gz)       | [command](https://github.com/clitic/vsd/blob/main/INSTALL.md#macos-123-x86_64)         |
+| Windows             | x86_64       | [.zip](https://github.com/clitic/vsd/releases/download/v0.2.5/vsd-v0.2.5-x86_64-pc-windows-msvc.zip)          |                                                                                        |
 
 ## Usage
 
