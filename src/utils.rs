@@ -107,10 +107,12 @@ pub(super) fn select(prompt: String, choices: &[String], raw: bool) -> Result<us
     .index)
 }
 
+#[cfg(feature = "chrome")]
 pub(super) fn get_columns() -> u16 {
     kdam::term::get_columns_or(10)
 }
 
+// TODO: update message if #[cfg(feature = "chrome")]
 pub(super) fn scrape_website_message(url: &str) -> String {
     format!(
         "No links found on website source.\n\n\

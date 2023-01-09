@@ -7,10 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- Support for decrypting SAMPLE-AES (com.apple.streamingkeydelivery)
-
 ### Changed
 
 - Do not use space character when saving file, instead use `vsd_*` prefix.

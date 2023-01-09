@@ -32,7 +32,7 @@
   <a href="https://colab.research.google.com/github/clitic/vsd/blob/main/vsd-on-colab.ipynb">Try Without Install</a>
 </p>
 
-*vsd* is short form for video stream downloader. vsd is a command line program to download video streams served over HTTP from websites, [HLS](https://howvideo.works/#hls) and [DASH](https://howvideo.works/#dash) playlists.
+**v**ideo **s**tream **d**ownloader is a command line program to download video streams served over HTTP from websites, [HLS](https://howvideo.works/#hls) and [DASH](https://howvideo.works/#dash) playlists.
 
 <p align="center">
   <img src="https://github.com/clitic/vsd/blob/main/images/showcase.gif">
@@ -59,40 +59,14 @@ Dependencies
 - [ffmpeg](https://www.ffmpeg.org/download.html) (optional, *recommended*) only required for transmuxing and transcoding streams.
 - [chrome](https://www.google.com/chrome) / [chromium](https://www.chromium.org/getting-involved/download-chromium/) (optional) only required for `capture` and `collect` subcommands. 
 
-Visit [releases](https://github.com/clitic/vsd/releases) for prebuilt binaries. You just need to copy that binary to any path specified in your `PATH` environment variable.
+Visit [releases](https://github.com/clitic/vsd/releases) for prebuilt binaries. Download and extract archive and copy vsd binary to any path. Now add that path to your `PATH` environment variable. Build instructions can be found [here](https://github.com/clitic/vsd/blob/main/BUILD.md).
 
-If you want to build vsd from it's source then checkout [BUILD.md](https://github.com/clitic/vsd/blob/main/BUILD.md)
-
-### Through Cargo
-
-```bash
-cargo install vsd
-```
-
-### On Linux (64-bit)
-
-```bash
-curl -L https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-x86_64-unknown-linux-musl.tar.gz | tar xz -C /usr/local/bin
-```
-
-### On MacOS (Monterey 64-bit)
-
-```bash
-curl -L https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-x86_64-apple-darwin.tar.gz | tar xz -C /usr/local/bin
-```
-
-### On Termux (Android 11+ aarch64)
-
-```bash
-pkg install libc++ ffmpeg
-```
-
-```bash
-curl -L https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-aarch64-linux-android-termux.tar.gz | tar xz -C $PREFIX/bin
-```
-
-You can also build vsd on lower android versions see [steps](https://github.com/clitic/vsd/blob/main/BUILD.md#android-on-termux).
-Also, see [running on android](https://github.com/clitic/vsd/blob/main/docs/running-on-android.md)
+| Host                 | Architecture | Download                                                                                                         | Install                                                                                 |
+|----------------------|--------------|------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| Android 11+ (Termux) | aarch64      | [.tar.gz](https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-aarch64-linux-android-termux.tar.gz) | [command](https://github.com/clitic/vsd/blob/main/INSTALL.md#android-11-termux-aarch64) |
+| Linux                | x86_64       | [.tar.gz](https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-x86_64-unknown-linux-musl.tar.gz)    | [command](https://github.com/clitic/vsd/blob/main/INSTALL.md#linux-x86_64)              |
+| MacOS 12.3+          | x86_64       | [.tar.gz](https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-x86_64-apple-darwin.tar.gz)          | [command](https://github.com/clitic/vsd/blob/main/INSTALL.md#macos-12.3-x86_64)         |
+| Windows              | x86_64       | [.zip](https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-x86_64-pc-windows-msvc.zip)             |                                                                                         |
 
 ## Usage
 
@@ -209,9 +183,9 @@ Client Options:
 
 ## Alternatives
 
-Here is a list of alternatives to vsd:
+List of alternatives to vsd:
 
-1. [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE) is the best alternative to vsd.
+1. [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE) is the best alternative to vsd. It also supports live playlist which vsd doesn't but it doesn't come with features like *capture* and *collect*. Also, CENC encrypted playlist decryption is slow.
 2. [N_m3u8DL-CLI](https://github.com/nilaoda/N_m3u8DL-CLI) is good but it is not cross platform.
 3. [m3u8-downloader](https://github.com/llychao/m3u8-downloader) is also good but it has very few customizable options.
 4. [webvideo-downloader](https://github.com/jaysonlong/webvideo-downloader) opens websites using chrome and captures the m3u8 links and then downloads it. A similar functionality can achieved with vsd too by using *capture* and *collect* subcommands.

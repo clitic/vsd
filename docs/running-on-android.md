@@ -1,8 +1,9 @@
 # Running On Android
 
-1. Install [Termux](https://termux.com)
-2. Install [vsd](https://github.com/clitic/vsd#on-termux-android-11) on termux.
-3. Currrently `capture` and `collect` subcommands do not work on android. So use a third party browser like [via](https://play.google.com/store/apps/details?id=mark.via.gp) to get m3u8 links from websites.
+1. Install [termux](https://termux.com) app.
+2. Install [vsd](https://github.com/clitic/vsd/blob/main/INSTALL.md#android-11-termux-aarch64) on termux.
+3. Use a third party browser like [via](https://play.google.com/store/apps/details?id=mark.via.gp) to get `.m3u8` / `.mpd` links from websites.
+4. Now run vsd commands.
 
 ## Step 1
 

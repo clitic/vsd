@@ -1,3 +1,5 @@
+#![cfg(feature = "chrome")]
+
 use super::utils;
 use anyhow::{anyhow, Result};
 use clap::Args;

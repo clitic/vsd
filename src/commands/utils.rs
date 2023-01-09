@@ -1,3 +1,5 @@
+#![cfg(feature = "chrome")]
+
 use anyhow::{anyhow, Result};
 use kdam::term::Colorizer;
 use std::path::{Path, PathBuf};
@@ -9,6 +11,7 @@ pub(super) fn chrome_launch_message(headless: bool) {
     );
 }
 
+#[cfg(feature = "chrome")]
 pub(super) fn chrome_warning_message() {
     println!(
         "Sometimes video starts playing but links are not captured \

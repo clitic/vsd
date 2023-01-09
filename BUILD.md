@@ -11,6 +11,10 @@ All openssl static builds used by vsd are available on [google drive](https://dr
 git clone https://github.com/clitic/vsd.git
 ```
 
+## Cargo Features
+
+1. `chrome` (*default*): Enable `capture` and `collect` subcommands.
+
 ## Windows
 
 ```powershell
