@@ -18,10 +18,10 @@ curl -L https://github.com/clitic/vsd/releases/download/v0.2.5/vsd-v0.2.5-x86_64
 curl -L https://github.com/clitic/vsd/releases/download/v0.2.5/vsd-v0.2.5-x86_64-apple-darwin.tar.gz | tar xz -C /usr/local/bin
 ```
 
-## Android 11+ (Termux) (aarch64)
+## Android 7+ (Termux) (aarch64)
 
 ```bash
-curl -L https://github.com/clitic/vsd/releases/download/v0.2.5/vsd-v0.2.5-aarch64-linux-android-termux.tar.gz | tar xz -C $PREFIX/bin
+curl -L https://github.com/clitic/vsd/releases/download/v0.2.5/vsd-v0.2.5-aarch64-linux-android.tar.gz | tar xz -C $PREFIX/bin
 ```
 
 You can also build vsd lower android versions see [steps](https://github.com/clitic/vsd/blob/main/BUILD.md#android-on-termux).
