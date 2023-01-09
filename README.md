@@ -25,7 +25,7 @@
 </p>
 
 <p align="center">
-  <a href="#Installations">Installations</a>
+  <a href="#Installations">Installation</a>
   &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
   <a href="#Usage">Usage</a>
   &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
@@ -52,7 +52,7 @@
 
 <a href="#Help">See More</a>
 
-## Installations
+## Installation
   
 Dependencies
 
@@ -63,10 +63,10 @@ Visit [releases](https://github.com/clitic/vsd/releases) for prebuilt binaries. 
 
 | Host                 | Architecture | Download                                                                                                         | Install                                                                                 |
 |----------------------|--------------|------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
-| Android 11+ (Termux) | aarch64      | [.tar.gz](https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-aarch64-linux-android-termux.tar.gz) | [command](https://github.com/clitic/vsd/blob/main/INSTALL.md#android-11-termux-aarch64) |
-| Linux                | x86_64       | [.tar.gz](https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-x86_64-unknown-linux-musl.tar.gz)    | [command](https://github.com/clitic/vsd/blob/main/INSTALL.md#linux-x86_64)              |
-| MacOS 12.3+          | x86_64       | [.tar.gz](https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-x86_64-apple-darwin.tar.gz)          | [command](https://github.com/clitic/vsd/blob/main/INSTALL.md#macos-12.3-x86_64)         |
-| Windows              | x86_64       | [.zip](https://github.com/clitic/vsd/releases/download/v0.2.0/vsd-v0.2.0-x86_64-pc-windows-msvc.zip)             |                                                                                         |
+| Android 11+ (Termux) | aarch64      | [.tar.gz](https://github.com/clitic/vsd/releases/download/v0.2.5/vsd-v0.2.5-aarch64-linux-android-termux.tar.gz) | [command](https://github.com/clitic/vsd/blob/main/INSTALL.md#android-11-termux-aarch64) |
+| Linux                | x86_64       | [.tar.gz](https://github.com/clitic/vsd/releases/download/v0.2.5/vsd-v0.2.5-x86_64-unknown-linux-musl.tar.gz)    | [command](https://github.com/clitic/vsd/blob/main/INSTALL.md#linux-x86_64)              |
+| MacOS 12.3+          | x86_64       | [.tar.gz](https://github.com/clitic/vsd/releases/download/v0.2.5/vsd-v0.2.5-x86_64-apple-darwin.tar.gz)          | [command](https://github.com/clitic/vsd/blob/main/INSTALL.md#macos-123-x86_64)         |
+| Windows              | x86_64       | [.zip](https://github.com/clitic/vsd/releases/download/v0.2.5/vsd-v0.2.5-x86_64-pc-windows-msvc.zip)             |                                                                                         |
 
 ## Usage
 
@@ -185,7 +185,7 @@ Client Options:
 
 List of alternatives to vsd:
 
-1. [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE) is the best alternative to vsd. It also supports live playlist which vsd doesn't but it doesn't come with features like *capture* and *collect*. Also, CENC encrypted playlist decryption is slow.
+1. [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE) is the best alternative to vsd. It also supports live playlist which vsd doesn't. It doesn't come with features like *capture* and *collect*. Also, CENC encrypted playlist decryption is slow.
 2. [N_m3u8DL-CLI](https://github.com/nilaoda/N_m3u8DL-CLI) is good but it is not cross platform.
 3. [m3u8-downloader](https://github.com/llychao/m3u8-downloader) is also good but it has very few customizable options.
 4. [webvideo-downloader](https://github.com/jaysonlong/webvideo-downloader) opens websites using chrome and captures the m3u8 links and then downloads it. A similar functionality can achieved with vsd too by using *capture* and *collect* subcommands.

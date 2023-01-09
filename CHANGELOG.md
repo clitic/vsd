@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5]
+
 ### Changed
 
 - Do not use space character when saving file, instead use `vsd_*` prefix.
@@ -55,7 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.0] - 2022-06-22
 
-[Unreleased]: https://github.com/clitic/vsd/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/clitic/vsd/compare/v0.2.5...HEAD
+[0.2.5]: https://github.com/clitic/vsd/compare/v0.2.0...v0.2.5
 [0.2.0]: https://github.com/clitic/vsd/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/clitic/vsd/compare/v0.1.0...v0.1.2
 [0.1.0]: https://github.com/clitic/vsd/releases/tag/v0.1.0
