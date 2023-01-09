@@ -6,12 +6,15 @@ mod merge;
 mod save;
 mod utils;
 
-pub use capture::Capture;
-pub use collect::Collect;
 pub use decrypt::Decrypt;
 pub use extract::Extract;
 pub use merge::Merge;
 pub use save::{Save, InputType, Quality};
+
+#[cfg(feature = "chrome")]
+pub use capture::Capture;
+#[cfg(feature = "chrome")]
+pub use collect::Collect;
 
 use clap::{Parser, Subcommand};
 
@@ -27,7 +30,9 @@ pub struct Args {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum Commands {
+    #[cfg(feature = "chrome")]
     Capture(Capture),
+    #[cfg(feature = "chrome")]
     Collect(Collect),
     Decrypt(Decrypt),
     Extract(Extract),

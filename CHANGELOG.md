@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Do not use space character when saving file, instead use `vsd_*` prefix.
+- `capture` and `collect` subcommands are kept under optional cargo feature (`chrome`) but this feature is enabled by default.
 
 ### Fixed
 

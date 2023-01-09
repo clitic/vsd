@@ -148,7 +148,7 @@ $ PATH=/content/android-ndk-r22b/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
     AARCH64_LINUX_ANDROID_OPENSSL_NO_VENDOR=true \
     AARCH64_LINUX_ANDROID_OPENSSL_STATIC=true \
     RUSTFLAGS="-C link-args=-Wl,-rpath=/data/data/com.termux/files/usr/lib -C link-args=-Wl,--enable-new-dtags" \
-    cargo build --release --target aarch64-linux-android
+    cargo build --no-default-features --release --target aarch64-linux-android
 ```
 
 ## Android (On Termux)
@@ -162,5 +162,5 @@ $ OPENSSL_INCLUDE_DIR=$PREFIX/include/openssl \
     OPENSSL_LIB_DIR=$PREFIX/lib \
     OPENSSL_NO_VENDOR=true \
     AR=llvm-ar \
-    cargo build --release
+    cargo build --no-default-features --release
 ```
