@@ -1,14 +1,11 @@
 # Building From Source
 
 1. Build and install [openssl](https://github.com/openssl/openssl) for your target platform.
-All openssl static builds used by vsd are available on [google drive](https://drive.google.com/drive/folders/11DaFm8pWwQoGpgbEbL8DmHce9ozTjWqz).
-
-2. Install [Rust](https://www.rust-lang.org)
-
-3. Download or clone repository.
+2. Install [Rust](https://www.rust-lang.org).
+3. Download release tarball or clone repository.
 
 ```bash
-git clone https://github.com/clitic/vsd.git
+git clone https://github.com/clitic/vsd
 ```
 
 ## Cargo Features

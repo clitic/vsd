@@ -28,7 +28,9 @@ pub fn autoselect(
         }
 
         if let Some(channels) = &alternative.channels {
-            quality_factor += channels.parse::<usize>().unwrap();
+            if let Ok(channels_usize) = channels.parse::<usize>() {
+                quality_factor += channels_usize;
+            }
         }
 
         if let Some(language) = alternative.language.as_ref().map(|x| x.to_lowercase()) {

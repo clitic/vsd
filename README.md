@@ -25,7 +25,7 @@
 </p>
 
 <p align="center">
-  <a href="#Installations">Installation</a>
+  <a href="#Installation">Installation</a>
   &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
   <a href="#Usage">Usage</a>
   &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;

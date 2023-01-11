@@ -1,7 +1,7 @@
 # Running On Android
 
 1. Install [termux](https://termux.com) app.
-2. Install [vsd](https://github.com/clitic/vsd/blob/main/INSTALL.md#android-11-termux-aarch64) on termux.
+2. Install [vsd](https://github.com/clitic/vsd/blob/main/INSTALL.md#android-7-termux-aarch64) on termux.
 3. Use a third party browser like [via](https://play.google.com/store/apps/details?id=mark.via.gp) to get `.m3u8` / `.mpd` links from websites.
 4. Now run vsd commands.
 

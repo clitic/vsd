@@ -48,24 +48,27 @@ impl TT<DivAttributes> {
 
 #[derive(Debug, Deserialize)]
 pub(super) struct Body<T> {
+    #[serde(rename = "div")]
     pub(super) div: T,
 }
 
 #[derive(Debug, Deserialize)]
 pub(super) struct DivValue {
-    #[serde(default)]
+    #[serde(rename = "p", default)]
     pub(super) p: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub(super) struct DivAttributes {
-    #[serde(default)]
+    #[serde(rename = "p", default)]
     pub(super) p: Vec<Paragraph>,
 }
 
 #[derive(Debug, Deserialize)]
 pub(super) struct Paragraph {
+    #[serde(rename = "begin")]
     pub(super) begin: String,
+    #[serde(rename = "end")]
     pub(super) end: String,
     // #[serde(rename = "$value")]
     // pub(super) value: String,
@@ -74,7 +77,8 @@ pub(super) struct Paragraph {
 #[derive(Debug, Default, Clone, Deserialize)]
 // #[serde(rename = "span")]
 struct Span {
-    #[serde(rename = "tts:fontStyle")]
+    // #[serde(rename = "@tts:fontStyle")]
+    #[serde(rename = "@fontStyle")]
     font_style: Option<String>,
     #[serde(rename = "$value")]
     value: String,
