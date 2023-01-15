@@ -18,7 +18,7 @@ pub struct DownloadState {
     pub args: commands::Save,
     pub cenc_encrypted_audio: bool,
     pub cenc_encrypted_video: bool,
-    pub client: Arc<Client>,
+    pub client: Client,
     pub dash: bool,
     pub progress: DownloadProgress,
 }
@@ -851,7 +851,7 @@ impl DownloadState {
 
 struct ThreadData {
     // Request
-    client: Arc<Client>,
+    client: Client,
 
     // Segment
     byte_range: Option<String>,
@@ -877,7 +877,7 @@ struct ThreadData {
 impl ThreadData {
     fn perform(&self) -> Result<()> {
         let mut segment = self.map.clone();
-        segment.copy_from_slice(&self.download_segment()?);
+        segment.append(&mut self.download_segment()?);
         let segment = self.decrypt(&segment)?;
 
         let mut merger = self.merger.lock().unwrap();

@@ -256,7 +256,7 @@ fn proxy_address_parser(s: &str) -> Result<String, String> {
 }
 
 impl Save {
-    fn client(&self) -> Result<Arc<Client>> {
+    fn client(&self) -> Result<Client> {
         let mut client_builder = Client::builder().user_agent(&self.user_agent);
 
         if !self.header.is_empty() {
@@ -294,7 +294,7 @@ impl Save {
             client_builder = client_builder.cookie_provider(Arc::new(jar));
         }
 
-        Ok(Arc::new(client_builder.build()?))
+        Ok(client_builder.build()?)
     }
 
     pub fn get_url(&self, uri: &str) -> Result<String> {
