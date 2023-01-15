@@ -774,6 +774,17 @@ impl DownloadState {
                 } else {
                     None
                 },
+                map: if let Some(map) = &segment.map {
+                    let uri = if map.uri.starts_with("http") {
+                        map.uri.clone()
+                    } else {
+                        self.args.get_url(&map.uri)?
+                    };
+
+                    self.client.get(uri).send()?.bytes()?.to_vec()
+                } else {
+                    vec![]
+                },
                 segment_url: self.args.get_url(&segment.uri)?,
                 total_retries: self.args.retry_count,
 
@@ -783,15 +794,17 @@ impl DownloadState {
                     let mut key = key.clone();
 
                     if let Some(uri) = &key.uri {
-                        if uri.starts_with("http") {
-                            key.uri = Some(self.args.get_url(uri)?);
-                        } else if uri.starts_with("skd://") {
+                        if uri.starts_with("skd://") {
                             let uri = uri.trim_start_matches("skd://");
 
                             if uri.contains(':') {
                                 key.uri = Some(uri.to_owned());
                             } else {
                                 bail!("SAMPLE-AES (com.apple.streamingkeydelivery) skd://{} uri is not supported", uri)
+                            }
+                        } else {
+                            if !uri.starts_with("http") {
+                                key.uri = Some(self.args.get_url(uri)?);
                             }
                         }
                     }
@@ -842,6 +855,7 @@ struct ThreadData {
 
     // Segment
     byte_range: Option<String>,
+    map: Vec<u8>,
     segment_url: String,
     total_retries: u8,
 
@@ -862,7 +876,8 @@ struct ThreadData {
 
 impl ThreadData {
     fn perform(&self) -> Result<()> {
-        let segment = self.download_segment()?;
+        let mut segment = self.map.clone();
+        segment.copy_from_slice(&self.download_segment()?);
         let segment = self.decrypt(&segment)?;
 
         let mut merger = self.merger.lock().unwrap();

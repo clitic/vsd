@@ -7,7 +7,7 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 // #[serde(rename = "tt")]
 pub(super) struct TT<T> {
-    #[serde(rename = "body", default)]
+    #[serde(rename = "body")]
     pub(super) body: Body<T>,
 }
 
