@@ -7,6 +7,7 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 // #[serde(rename = "tt")]
 pub(super) struct TT<T> {
+    #[serde(rename = "body", default)]
     pub(super) body: Body<T>,
 }
 
@@ -66,9 +67,9 @@ pub(super) struct DivAttributes {
 
 #[derive(Debug, Deserialize)]
 pub(super) struct Paragraph {
-    #[serde(rename = "begin")]
+    #[serde(rename = "@begin")]
     pub(super) begin: String,
-    #[serde(rename = "end")]
+    #[serde(rename = "@end")]
     pub(super) end: String,
     // #[serde(rename = "$value")]
     // pub(super) value: String,
