@@ -6,7 +6,7 @@ use std::io::Write;
 pub(super) fn format_bytes(bytesval: usize, precision: usize) -> (String, String, String) {
     let mut val = bytesval as f32;
 
-    for unit in ["bytes", "KB", "MB", "GB", "TB"] {
+    for unit in ["bytes", "KiB", "MiB", "GiB", "TiB"] {
         if val < 1024.0 {
             return (
                 format!("{:.precision$}", val, precision = precision),
@@ -29,7 +29,7 @@ pub(super) fn format_download_bytes(downloaded: usize, total: usize) -> String {
     let downloaded = format_bytes(downloaded, 2);
     let mut total = format_bytes(total, 2);
 
-    if total.1 == "MB" {
+    if total.1 == "MiB" {
         total.0 = total.0.split('.').next().unwrap().to_owned();
     }
 

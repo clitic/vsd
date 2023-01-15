@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Use more accurate units (`KiB`, `MiB`, ..) to show download progress.
+
 ### Fixed
 
 - `src/hls/autoselect.rs:31:57` panic.
