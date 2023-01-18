@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Use more accurate units (`KiB`, `MiB`, ..) to show download progress.
+- Use more accurate units (KiB, MiB, ..) to show download progress.
 
 ### Fixed
 

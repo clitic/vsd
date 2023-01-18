@@ -1,5 +1,4 @@
-use super::mp4parser;
-use super::MP4Parser;
+use crate::mp4parser;
 use std::sync::{Arc, Mutex};
 use std::fmt::Write;
 
@@ -30,7 +29,7 @@ impl Cue {
         let id_c = id;
         let settings_c = settings.clone();
 
-        MP4Parser::default()
+        mp4parser::MP4Parser::default()
             .basic(
                 "payl",
                 mp4parser::alldata(Arc::new(move |data| {

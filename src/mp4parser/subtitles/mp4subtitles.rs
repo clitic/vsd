@@ -1,5 +1,6 @@
-use super::{mp4parser, ttml};
-use super::{Cue, MP4Parser, Reader, Subtitles};
+use super::{Cue, Subtitles, ttml};
+use crate::mp4parser;
+use crate::mp4parser::{MP4Parser, Reader};
 use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 

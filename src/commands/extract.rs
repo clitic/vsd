@@ -1,4 +1,4 @@
-use crate::subtitles::MP4Subtitles;
+use crate::mp4parser::subtitles::MP4Subtitles;
 use anyhow::{anyhow, bail, Result};
 use clap::{Args, ValueEnum};
 

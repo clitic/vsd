@@ -1,7 +1,7 @@
 use crate::commands::InputType;
 use crate::merger::BinaryMerger;
 use crate::progress::{DownloadProgress, Stream};
-use crate::subtitles::MP4Subtitles;
+use crate::mp4parser::subtitles::MP4Subtitles;
 use crate::{commands, dash, hls, utils};
 use anyhow::{anyhow, bail, Result};
 use kdam::term::Colorizer;

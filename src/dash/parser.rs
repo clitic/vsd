@@ -3,6 +3,7 @@
 use super::utils;
 use serde::Deserialize;
 use std::collections::HashMap;
+use crate::playlist;
 
 pub fn parse(xml: &[u8]) -> Result<MPD, quick_xml::de::DeError> {
     quick_xml::de::from_reader::<_, MPD>(xml)
@@ -184,6 +185,8 @@ pub struct ContentProtection {
     // #[serde(rename = "@cenc:default_KID")]
     #[serde(rename = "@default_KID")]
     pub default_kid: Option<String>,
+    #[serde(rename = "@value")]
+    pub value: Option<String>,
 }
 
 impl MPD {
@@ -241,28 +244,34 @@ impl AdaptationSet {
         None
     }
 
-    pub(super) fn channels(&self) -> Option<String> {
+    pub(super) fn channels(&self) -> Option<f32> {
         if let Some(audio_channel_configuration) = &self.audio_channel_configuration {
-            if audio_channel_configuration.value.is_some() {
-                return audio_channel_configuration.value.clone();
+            if let Some(value) = &audio_channel_configuration.value {
+                return value.parse::<f32>().ok();
             }
         }
 
         None
     }
 
-    pub(super) fn encryption_type(&self) -> Option<String> {
+    pub(super) fn encryption_type(&self) -> playlist::KeyMethod {
         for content_protection in &self.content_protection {
             if content_protection.default_kid.is_some() {
-                return Some("CENC".to_string());
+                return playlist::KeyMethod::Cenc;
+            }
+
+            if let Some(value) = &content_protection.value {
+                if value == "cenc" {
+                    return playlist::KeyMethod::Cenc;
+                }
             }
         }
 
         if !self.content_protection.is_empty() {
-            return Some("UNKNOWN".to_string());
+            return playlist::KeyMethod::Undefined;
         }
 
-        None
+        playlist::KeyMethod::None
     }
 
     pub(super) fn default_kid(&self) -> Option<String> {
@@ -283,7 +292,7 @@ impl Representation {
         } else { self.mime_type.as_ref().map(|mime_type| mime_type.to_owned()) }
     }
 
-    pub(super) fn media_type(&self, adaptation_set: &AdaptationSet) -> m3u8_rs::AlternativeMediaType {
+    pub(super) fn media_type(&self, adaptation_set: &AdaptationSet) -> playlist::MediaType {
         let mime_type = if let Some(mime_type) = adaptation_set.mime_type() {
             mime_type
         } else {
@@ -292,22 +301,22 @@ impl Representation {
 
         let codecs = self.codecs(adaptation_set).unwrap_or_else(|| "".to_owned());
         if codecs == "stpp" || codecs == "wvtt" {
-            return m3u8_rs::AlternativeMediaType::Subtitles;
+            return playlist::MediaType::Subtitles;
         }
 
         if let Some(role) = &self.role {
             if let Some(value) = &role.value {
                 if value == "subtitle" {
-                    return m3u8_rs::AlternativeMediaType::Subtitles;
+                    return playlist::MediaType::Subtitles;
                 }
             }
         }
 
         match mime_type.split('/').next().unwrap() {
-            "video" => m3u8_rs::AlternativeMediaType::Video,
-            "audio" => m3u8_rs::AlternativeMediaType::Audio,
-            "text" => m3u8_rs::AlternativeMediaType::Subtitles,
-            x => m3u8_rs::AlternativeMediaType::Other(x.to_owned()),
+            "video" => playlist::MediaType::Video,
+            "audio" => playlist::MediaType::Audio,
+            "text" => playlist::MediaType::Subtitles,
+            _ => playlist::MediaType::Undefined,
         }
     }
 
@@ -365,20 +374,26 @@ impl Representation {
         adaptation_set.frame_rate()
     }
 
-    pub(super) fn channels(&self, adaptation_set: &AdaptationSet) -> Option<String> {
+    pub(super) fn channels(&self, adaptation_set: &AdaptationSet) -> Option<f32> {
         if let Some(audio_channel_configuration) = &self.audio_channel_configuration {
-            if audio_channel_configuration.value.is_some() {
-                return audio_channel_configuration.value.clone();
+            if let Some(value) = &audio_channel_configuration.value {
+                return value.parse::<f32>().ok();
             }
         }
 
         adaptation_set.channels()
     }
 
-    pub(super) fn encryption_type(&self, adaptation_set: &AdaptationSet) -> Option<String> {
+    pub(super) fn encryption_type(&self, adaptation_set: &AdaptationSet) -> playlist::KeyMethod {
         for content_protection in &self.content_protection {
             if content_protection.default_kid.is_some() {
-                return Some("CENC".to_string());
+                return playlist::KeyMethod::Cenc;
+            }
+
+            if let Some(value) = &content_protection.value {
+                if value == "cenc" {
+                    return playlist::KeyMethod::Cenc;
+                }
             }
         }
 

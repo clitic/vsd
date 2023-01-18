@@ -8,4 +8,4 @@ use template::TemplateResolver;
 
 pub use parser::*;
 pub use tags::{PlaylistTag, SegmentTag};
-pub use to_m3u8::*;
+pub use to_m3u8::{as_master, as_media};

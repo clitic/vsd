@@ -4,8 +4,9 @@ mod download;
 mod hls;
 mod merger;
 mod progress;
-mod subtitles;
 mod utils;
+mod playlist;
+mod mp4parser;
 
 use clap::Parser;
 use commands::{Args, Commands};
