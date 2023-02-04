@@ -15,9 +15,9 @@ git clone https://github.com/clitic/vsd
 ## Windows
 
 ```powershell
-$env:x86_64_PC_WINDOWS_MSVC_OPENSSL_DIR="C:\openssl-3.0.5-VC-WIN64A-static"
-$env:x86_64_PC_WINDOWS_MSVC_NO_VENDOR=$true
-$env:x86_64_PC_WINDOWS_MSVC_OPENSSL_STATIC=$true
+$env:X86_64_PC_WINDOWS_MSVC_OPENSSL_DIR="C:\openssl-3.0.5-VC-WIN64A-static"
+$env:X86_64_PC_WINDOWS_MSVC_NO_VENDOR=$true
+$env:X86_64_PC_WINDOWS_MSVC_OPENSSL_STATIC=$true
 cargo build --release
 ```
 
@@ -60,9 +60,9 @@ $ PATH=/content/musl-cross-make-0.9.9/output/bin:$PATH \
     CC=x86_64-linux-musl-gcc \
     CXX=x86_64-linux-musl-g++ \
     AR=x86_64-linux-musl-ar \
-    x86_64_UNKNOWN_LINUX_MUSL_OPENSSL_DIR=/content/openssl-v3.0.5-static-x86_64-linux-musl \
-    x86_64_UNKNOWN_LINUX_MUSL_OPENSSL_NO_VENDOR=true \
-    x86_64_UNKNOWN_LINUX_MUSL_OPENSSL_STATIC=true \
+    X86_64_UNKNOWN_LINUX_MUSL_OPENSSL_DIR=/content/openssl-v3.0.5-static-x86_64-linux-musl \
+    X86_64_UNKNOWN_LINUX_MUSL_OPENSSL_NO_VENDOR=true \
+    X86_64_UNKNOWN_LINUX_MUSL_OPENSSL_STATIC=true \
     cargo build --release --target x86_64-unknown-linux-musl
 ```
 
@@ -113,15 +113,15 @@ $ PATH=/content/osxcross/target/bin:$PATH \
     CC=x86_64-apple-darwin21.4-clang \
     CXX=x86_64-apple-darwin21.4-clang++ \
     AR=x86_64-apple-darwin21.4-ar \
-    x86_64_APPLE_DARWIN_OPENSSL_DIR=/content/osxcross/target/macports/pkgs/opt/local/libexec/openssl3 \
-    x86_64_APPLE_DARWIN_OPENSSL_NO_VENDOR=true \
+    X86_64_APPLE_DARWIN_OPENSSL_DIR=/content/osxcross/target/macports/pkgs/opt/local/libexec/openssl3 \
+    X86_64_APPLE_DARWIN_OPENSSL_NO_VENDOR=true \
     cargo build --release --target x86_64-apple-darwin
 ```
 
 5. Check that binary is linking to any shared library or not.
 
 ```bash
-$ llvm-readelf-6.0 ./target/x86_64-apple-darwin/release/vsd --needed-libs
+$ llvm-readelf ./target/x86_64-apple-darwin/release/vsd --needed-libs
 ```
 
 ## Android (On Linux 64-bit)

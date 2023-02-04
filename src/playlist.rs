@@ -61,17 +61,17 @@ impl Segment {
         }
     }
 
-    pub(crate) fn map_url(&self, baseurl: &str) -> Result<Option<reqwest::Url>> {
-        if let Some(map) = &self.map {
-            if self.uri.starts_with("http") || self.uri.starts_with("ftp") {
-                return Ok(Some(map.uri.parse::<reqwest::Url>()?));
-            } else {
-                return Ok(Some(baseurl.parse::<reqwest::Url>()?.join(&map.uri)?));
-            }
-        }
+    // pub(crate) fn map_url(&self, baseurl: &str) -> Result<Option<reqwest::Url>> {
+    //     if let Some(map) = &self.map {
+    //         if self.uri.starts_with("http") || self.uri.starts_with("ftp") {
+    //             return Ok(Some(map.uri.parse::<reqwest::Url>()?));
+    //         } else {
+    //             return Ok(Some(baseurl.parse::<reqwest::Url>()?.join(&map.uri)?));
+    //         }
+    //     }
 
-        Ok(None)
-    }
+    //     Ok(None)
+    // }
 
     pub(crate) fn key_url(&self, baseurl: &str) -> Result<Option<reqwest::Url>> {
         if let Some(key) = &self.key {
@@ -104,34 +104,37 @@ impl Segment {
         }
     }
 
-    pub(crate) fn map_range(&self, previous_byterange_end: u64) -> Option<(String, u64)> {
-        if let Some(map) = &self.map {
-            if let Some(byte_range) = &map.byte_range {
-                let offset = byte_range.offset.unwrap_or(0);
+    // pub(crate) fn map_range(&self, previous_byterange_end: u64) -> Option<(String, u64)> {
+    //     if let Some(map) = &self.map {
+    //         if let Some(byte_range) = &map.byte_range {
+    //             let offset = byte_range.offset.unwrap_or(0);
 
-                let (start, end) = if offset == 0 {
-                    (
-                        previous_byterange_end,
-                        previous_byterange_end + byte_range.length - 1,
-                    )
-                } else {
-                    (byte_range.length, byte_range.length + offset - 1)
-                };
+    //             let (start, end) = if offset == 0 {
+    //                 (
+    //                     previous_byterange_end,
+    //                     previous_byterange_end + byte_range.length - 1,
+    //                 )
+    //             } else {
+    //                 (byte_range.length, byte_range.length + offset - 1)
+    //             };
 
-                return Some((format!("bytes={}-{}", start, end), end));
-            }
-        }
+    //             return Some((format!("bytes={}-{}", start, end), end));
+    //         }
+    //     }
 
-        None
-    }
+    //     None
+    // }
 }
 
 #[derive(Serialize)]
 pub(crate) struct MediaPlaylist {
     pub(crate) bandwidth: Option<u64>,
     pub(crate) channels: Option<f32>,
-    pub(crate) init_segment: Option<Segment>,
+    pub(crate) codecs: Option<String>,
+    pub(crate) extension: Option<String>,
+    pub(crate) frame_rate: Option<f32>,
     pub(crate) language: Option<String>,
+    pub(crate) live: bool,
     pub(crate) media_type: MediaType,
     pub(crate) playlist_type: PlaylistType,
     pub(crate) resolution: Option<(u64, u64)>,
@@ -172,17 +175,11 @@ impl MediaPlaylist {
             PlaylistType::Dash => "m4s",
         };
 
-        if let Some(init_segment) = &self.init_segment {
-            if init_segment.uri.ends_with(".mp4") {
-                ext = "m4s";
-            }
-        }
-
         if let Some(segment) = self.segments.get(0) {
-            if let Some(map) = &segment.map {
-                if map.uri.ends_with(".mp4") {
+            if let Some(init) = segment.map {
+                if init.uri.ends_with(".mp4") {
                     ext = "m4s";
-                } 
+                }
             }
 
             if segment.uri.ends_with(".mp4") {

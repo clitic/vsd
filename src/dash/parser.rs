@@ -220,24 +220,24 @@ impl AdaptationSet {
         } else { self.mime_type.as_ref().map(|mime_type| mime_type.to_owned()) }
     }
 
-    pub(super) fn frame_rate(&self) -> Option<f64> {
+    pub(super) fn frame_rate(&self) -> Option<f32> {
         if let Some(frame_rate) = &self.frame_rate {
             if frame_rate.contains('/') {
                 return Some(
                     frame_rate
                         .split('/').next()
                         .unwrap()
-                        .parse::<f64>()
+                        .parse::<f32>()
                         .unwrap()
                         / frame_rate
                             .split('/')
                             .nth(1)
                             .unwrap()
-                            .parse::<f64>()
+                            .parse::<f32>()
                             .unwrap(),
                 );
             } else {
-                return frame_rate.parse::<f64>().ok();
+                return frame_rate.parse::<f32>().ok();
             }
         }
 
@@ -350,24 +350,24 @@ impl Representation {
         }
     }
 
-    pub(super) fn frame_rate(&self, adaptation_set: &AdaptationSet) -> Option<f64> {
+    pub(super) fn frame_rate(&self, adaptation_set: &AdaptationSet) -> Option<f32> {
         if let Some(frame_rate) = &self.frame_rate {
             if frame_rate.contains('/') {
                 return Some(
                     frame_rate
                         .split('/').next()
                         .unwrap()
-                        .parse::<f64>()
+                        .parse::<f32>()
                         .unwrap()
                         / frame_rate
                             .split('/')
                             .nth(1)
                             .unwrap()
-                            .parse::<f64>()
+                            .parse::<f32>()
                             .unwrap(),
                 );
             } else {
-                return frame_rate.parse::<f64>().ok();
+                return frame_rate.parse::<f32>().ok();
             }
         }
 

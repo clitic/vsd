@@ -1,9 +1,9 @@
 // REFERENCES: https://github.com/nilaoda/N_m3u8DL-RE/blob/main/src/N_m3u8DL-RE.Parser/Extractor/DASHExtractor2.cs
 
 use super::utils;
-use super::{AdaptationSet, PlaylistTag, Representation, SegmentTag, TemplateResolver, MPD};
+use super::{DashUrl, TemplateResolver, MPD};
 use crate::playlist;
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, Result};
 
 pub fn as_master(mpd: &MPD, uri: &str) -> playlist::MasterPlaylist {
     let mut variants = vec![];
@@ -13,16 +13,14 @@ pub fn as_master(mpd: &MPD, uri: &str) -> playlist::MasterPlaylist {
             for (representation_index, representation) in
                 adaptation_set.representation.iter().enumerate()
             {
-                // TODO: Add these fields
-                // representation.codecs(adaptation_set)
-                // representation.frame_rate(adaptation_set)
-                // representation.extension(adaptation_set)
-
                 variants.push(playlist::MediaPlaylist {
                     bandwidth: representation.bandwidth,
                     channels: representation.channels(adaptation_set),
-                    init_segment: None,
+                    codecs: representation.codecs(adaptation_set),
+                    extension: representation.extension(adaptation_set),
+                    frame_rate: representation.frame_rate(adaptation_set),
                     language: representation.lang(adaptation_set),
+                    live: mpd.live(),
                     media_type: representation.media_type(adaptation_set),
                     playlist_type: playlist::PlaylistType::Dash,
                     resolution: if let (Some(width), Some(height)) =
@@ -33,10 +31,8 @@ pub fn as_master(mpd: &MPD, uri: &str) -> playlist::MasterPlaylist {
                         None
                     },
                     segments: vec![],
-                    uri: format!(
-                        "dash://period.{}.adaptation-set.{}.representation.{}",
-                        period_index, adaptation_set_index, representation_index
-                    ),
+                    uri: DashUrl::new(period_index, adaptation_set_index, representation_index)
+                        .to_string(),
                 });
             }
         }
@@ -49,36 +45,33 @@ pub fn as_master(mpd: &MPD, uri: &str) -> playlist::MasterPlaylist {
     }
 }
 
-pub fn as_media(mpd: &MPD, dash_uri: &str, baseurl: &str) -> Result<playlist::MediaPlaylist> {
-    if !dash_uri.starts_with("dash://") {
-        bail!(
-            "incorrect MPD uri format (expected: dash://period.{{}}.adaptation-set.{{}}.representation.{{}})"
-        )
-    }
+pub fn push_segments(mpd: &MPD, playlist: &mut playlist::MediaPlaylist, baseurl: &str) -> Result<()> {
+    let location = playlist.uri.parse::<DashUrl>().map_err(|x| anyhow!(x))?;
 
-    let location = dash_uri
-        .split('.')
-        .filter_map(|x| x.parse::<usize>().ok())
-        .collect::<Vec<usize>>();
-
-    if location.len() != 3 {
-        bail!(
-            "incorrect MPD uri format (expected: dash://period.{{}}.adaptation-set.{{}}.representation.{{}})"
-        )
-    }
-
-    let period = &mpd
+    let period = mpd
         .period
-        .get(location[0])
-        .ok_or_else(|| anyhow!("requested MPD playlist not found"))?;
+        .get(location.period)
+        .ok_or_else(|| anyhow!("dash period.{} could't be located", location.period))?;
+
     let adaptation_set = &period
         .adaptation_set
-        .get(location[1])
-        .ok_or_else(|| anyhow!("requested MPD playlist not found"))?;
+        .get(location.adaptation_set)
+        .ok_or_else(|| {
+            anyhow!(
+                "dash adaptation-set.{} could't be located",
+                location.adaptation_set
+            )
+        })?;
+
     let representation = &adaptation_set
         .representation
-        .get(location[2])
-        .ok_or_else(|| anyhow!("requested MPD playlist not found"))?;
+        .get(location.representation)
+        .ok_or_else(|| {
+            anyhow!(
+                "dash representation.{} could't be located",
+                location.representation
+            )
+        })?;
 
     // BASEURL
     let mut baseurl = baseurl.parse::<reqwest::Url>()?;
@@ -102,36 +95,21 @@ pub fn as_media(mpd: &MPD, dash_uri: &str, baseurl: &str) -> Result<playlist::Me
     // MPD DURATION
     let mpd_duration = period.duration(mpd);
 
-    // KEYS
-    let key = match representation.encryption_type(adaptation_set) {
-        playlist::KeyMethod::None => None,
-        x => Some(playlist::Key {
-            default_kid: representation
-                .default_kid(adaptation_set)
-                .map(|x| x.replace('-', "").to_lowercase()),
-            iv: None,
-            method: x,
-            uri: "dash://encryption-key".to_owned(),
-        }),
-    };
-
     // SEGMENTS
-    let mut init_segment = None;
-    let mut segments = vec![];
+    let mut init_map = None;
 
     if let Some(segment_base) = &representation.segment_base {
         if let Some(initialization) = &segment_base.initialization {
             if let Some(source_url) = &initialization.source_url {
-                init_segment = Some(playlist::Segment {
+                init_map = Some(playlist::Map {
                     byte_range: mpd_range_to_byte_range(&initialization.range),
                     uri: baseurl.join(source_url)?.as_str().to_owned(),
-                    ..Default::default()
                 });
             } else {
-                init_segment = Some(playlist::Segment {
-                    duration: mpd_duration,
+                init_map = Some(playlist::Map {
+                    byte_range: None,
+                    // duration: mpd_duration,
                     uri: baseurl.as_str().to_owned(),
-                    ..Default::default()
                 });
             }
         }
@@ -140,10 +118,9 @@ pub fn as_media(mpd: &MPD, dash_uri: &str, baseurl: &str) -> Result<playlist::Me
     if let Some(segment_list) = &representation.segment_list {
         if let Some(initialization) = &segment_list.initialization {
             if let Some(source_url) = &initialization.source_url {
-                init_segment = Some(playlist::Segment {
+                init_map = Some(playlist::Map {
                     byte_range: mpd_range_to_byte_range(&initialization.range),
                     uri: baseurl.join(source_url)?.as_str().to_owned(),
-                    ..Default::default()
                 });
             }
         }
@@ -151,12 +128,14 @@ pub fn as_media(mpd: &MPD, dash_uri: &str, baseurl: &str) -> Result<playlist::Me
         let duration = segment_list.segment_duration();
 
         for segment_url in &segment_list.segment_urls {
-            segments.push(playlist::Segment {
+            playlist.segments.push(playlist::Segment {
                 byte_range: mpd_range_to_byte_range(&segment_url.media_range),
                 duration,
-                key, // clone
-                map: None,
-                uri: baseurl.join(segment_url.media.as_ref().unwrap())?.as_str().to_owned(),
+                uri: baseurl
+                    .join(segment_url.media.as_ref().unwrap())?
+                    .as_str()
+                    .to_owned(),
+                ..Default::default()
             });
         }
     }
@@ -165,10 +144,9 @@ pub fn as_media(mpd: &MPD, dash_uri: &str, baseurl: &str) -> Result<playlist::Me
         let mut template_resolver = TemplateResolver::new(representation.template_vars());
 
         if let Some(initialization) = &segment_template.initialization {
-            init_segment = Some(m3u8_rs::MediaSegment {
-                uri: template_resolver.resolve(&utils::join_url(&baseurl, initialization)?),
-                unknown_tags: SegmentTag::default().init(true).build().into(),
-                ..Default::default()
+            init_map = Some(playlist::Map {
+                byte_range: None,
+                uri: template_resolver.resolve(baseurl.join(initialization)?.as_str()),
             });
 
             let mut start_number = segment_template.start_number();
@@ -185,14 +163,13 @@ pub fn as_media(mpd: &MPD, dash_uri: &str, baseurl: &str) -> Result<playlist::Me
                     template_resolver.insert("Time", current_time.to_string());
                     template_resolver.insert("Number", start_number.to_string());
 
-                    segments.push(m3u8_rs::MediaSegment {
-                        uri: template_resolver.resolve(&utils::join_url(
-                            &baseurl,
-                            segment_template.media.as_ref().unwrap(),
-                        )?),
+                    playlist.segments.push(playlist::Segment {
                         duration: s.d as f32 / timescale,
-                        key: key.clone(),
-                        unknown_tags: unknown_tags.clone(),
+                        uri: template_resolver.resolve(
+                            baseurl
+                                .join(segment_template.media.as_ref().unwrap())?
+                                .as_str(),
+                        ),
                         ..Default::default()
                     });
 
@@ -210,14 +187,13 @@ pub fn as_media(mpd: &MPD, dash_uri: &str, baseurl: &str) -> Result<playlist::Me
                         template_resolver.insert("Time", current_time.to_string());
                         template_resolver.insert("Number", start_number.to_string());
 
-                        segments.push(m3u8_rs::MediaSegment {
-                            uri: template_resolver.resolve(&utils::join_url(
-                                &baseurl,
-                                segment_template.media.as_ref().unwrap(),
-                            )?),
+                        playlist.segments.push(playlist::Segment {
                             duration: s.d as f32 / timescale,
-                            key: key.clone(),
-                            unknown_tags: unknown_tags.clone(),
+                            uri: template_resolver.resolve(
+                                baseurl
+                                    .join(segment_template.media.as_ref().unwrap())?
+                                    .as_str(),
+                            ),
                             ..Default::default()
                         });
 
@@ -255,14 +231,13 @@ pub fn as_media(mpd: &MPD, dash_uri: &str, baseurl: &str) -> Result<playlist::Me
                 for i in start_number..(start_number + total) {
                     template_resolver.insert("Number", i.to_string());
 
-                    segments.push(m3u8_rs::MediaSegment {
-                        uri: template_resolver.resolve(&utils::join_url(
-                            &baseurl,
-                            segment_template.media.as_ref().unwrap(),
-                        )?),
+                    playlist.segments.push(playlist::Segment {
                         duration: segment_duration,
-                        key: key.clone(),
-                        unknown_tags: unknown_tags.clone(),
+                        uri: template_resolver.resolve(
+                            baseurl
+                                .join(segment_template.media.as_ref().unwrap())?
+                                .as_str(),
+                        ),
                         ..Default::default()
                     });
                 }
@@ -270,35 +245,32 @@ pub fn as_media(mpd: &MPD, dash_uri: &str, baseurl: &str) -> Result<playlist::Me
         }
     }
 
-    if segments.is_empty() {
-        segments.push(m3u8_rs::MediaSegment {
-            uri: baseurl,
+    if playlist.segments.is_empty() {
+        // single
+        playlist.segments.push(playlist::Segment {
             duration: mpd_duration,
-            key,
-            unknown_tags: SegmentTag::default()
-                .kid(representation.default_kid(adaptation_set))
-                .single(true)
-                .build()
-                .into(),
+            uri: baseurl.as_str().to_owned(),
             ..Default::default()
         });
     }
 
-    if let Some(init_segment) = init_segment {
-        segments.insert(0, init_segment);
+    if let Some(first_segment) = playlist.segments.get_mut(0) {
+        first_segment.key = match representation.encryption_type(adaptation_set) {
+            playlist::KeyMethod::None => None,
+            x => Some(playlist::Key {
+                default_kid: representation
+                    .default_kid(adaptation_set)
+                    .map(|x| x.replace('-', "").to_lowercase()),
+                iv: None,
+                method: x,
+                uri: "dash://encryption-key".to_owned(),
+            }),
+        };
+
+        first_segment.map = init_map;
     }
 
-    Ok(m3u8_rs::MediaPlaylist {
-        segments,
-        end_list: true,
-        unknown_tags: PlaylistTag::default()
-            .codecs(representation.codecs(adaptation_set))
-            .bandwidth(representation.bandwidth.map(|x| x as usize))
-            .extension(representation.extension(adaptation_set))
-            .build()
-            .into(),
-        ..Default::default()
-    })
+    Ok(())
 }
 
 fn mpd_range_to_byte_range(range: &Option<String>) -> Option<playlist::ByteRange> {

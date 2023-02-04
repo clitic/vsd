@@ -1,11 +1,3 @@
-pub(super) fn join_url(url1: &str, url2: &str) -> anyhow::Result<String> {
-    Ok(url1
-        .parse::<reqwest::Url>()?
-        .join(url2)?
-        .as_str()
-        .to_owned())
-}
-
 // BUG: https://github.com/emarsden/dash-mpd-rs/blob/main/src/lib.rs#L190-L231
 pub(super) fn iso8601_duration_to_seconds(duration: &str) -> Result<f32, String> {
     match iso8601::duration(duration)? {
