@@ -1,13 +1,11 @@
 mod locator;
 mod parser;
-mod tags;
 mod template;
-mod to_playlist;
-mod utils;
+mod playlist;
 
 use locator::DashUrl;
 use template::TemplateResolver;
+use parser::{iso8601_duration_to_seconds, mpd_range_to_byte_range};
 
-pub use parser::*;
-pub use tags::{PlaylistTag, SegmentTag};
-pub use to_playlist::{as_master, push_segments};
+pub use parser::{parse, MPD};
+pub use playlist::{parse_as_master, push_segments};

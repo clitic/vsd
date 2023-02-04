@@ -1,11 +1,16 @@
-// REFERENCES: https://github.com/nilaoda/N_m3u8DL-RE/blob/main/src/N_m3u8DL-RE.Parser/Extractor/DASHExtractor2.cs
+/*
+    REFERENCES
+    ----------
 
-use super::utils;
-use super::{DashUrl, TemplateResolver, MPD};
+    1. https://github.com/nilaoda/N_m3u8DL-RE/blob/7bba10aa0d7adf7e79e0feec7327039681cb7bd4/src/N_m3u8DL-RE.Parser/Extractor/DASHExtractor2.cs
+
+*/
+
+use super::{iso8601_duration_to_seconds, mpd_range_to_byte_range, DashUrl, TemplateResolver, MPD};
 use crate::playlist;
 use anyhow::{anyhow, Result};
 
-pub fn as_master(mpd: &MPD, uri: &str) -> playlist::MasterPlaylist {
+pub fn parse_as_master(mpd: &MPD, uri: &str) -> playlist::MasterPlaylist {
     let mut variants = vec![];
 
     for (period_index, period) in mpd.period.iter().enumerate() {
@@ -45,7 +50,11 @@ pub fn as_master(mpd: &MPD, uri: &str) -> playlist::MasterPlaylist {
     }
 }
 
-pub fn push_segments(mpd: &MPD, playlist: &mut playlist::MediaPlaylist, baseurl: &str) -> Result<()> {
+pub fn push_segments(
+    mpd: &MPD,
+    playlist: &mut playlist::MediaPlaylist,
+    baseurl: &str,
+) -> Result<()> {
     let location = playlist.uri.parse::<DashUrl>().map_err(|x| anyhow!(x))?;
 
     let period = mpd
@@ -219,10 +228,9 @@ pub fn push_segments(mpd: &MPD, playlist: &mut playlist::MediaPlaylist, baseurl:
                     )
                     .unwrap();
                     let ts = now - available_time;
-                    let update_ts = utils::iso8601_duration_to_seconds(
-                        mpd.time_shift_buffer_depth.as_ref().unwrap(),
-                    )
-                    .unwrap();
+                    let update_ts =
+                        iso8601_duration_to_seconds(mpd.time_shift_buffer_depth.as_ref().unwrap())
+                            .unwrap();
                     start_number +=
                         ((ts.num_seconds() as f32 - update_ts) * timescale / duration) as usize;
                     total = (update_ts * timescale / duration) as usize;
@@ -271,11 +279,4 @@ pub fn push_segments(mpd: &MPD, playlist: &mut playlist::MediaPlaylist, baseurl:
     }
 
     Ok(())
-}
-
-fn mpd_range_to_byte_range(range: &Option<String>) -> Option<playlist::ByteRange> {
-    range.as_ref().map(|range| playlist::ByteRange {
-        length: range.split('-').next().unwrap().parse::<u64>().unwrap(),
-        offset: Some(range.split('-').nth(1).unwrap().parse::<u64>().unwrap()),
-    })
 }

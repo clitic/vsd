@@ -1,4 +1,10 @@
-// REFERENCES: https://github.com/emarsden/dash-mpd-rs/blob/main/src/fetch.rs#L349-L380
+/*
+    REFERENCES
+    ----------
+
+    1. https://github.com/emarsden/dash-mpd-rs/blob/c4927e4967a9401b8d7c7f8c137b7c70f81e7340/src/fetch.rs#L438-L469
+
+*/
 
 use regex::Regex;
 use std::collections::HashMap;

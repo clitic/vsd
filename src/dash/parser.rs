@@ -1,9 +1,14 @@
-// REFERENCES: https://github.com/emarsden/dash-mpd-rs
+/*
+    REFERENCES
+    ----------
 
-use super::utils;
+    1. https://github.com/emarsden/dash-mpd-rs/blob/c4927e4967a9401b8d7c7f8c137b7c70f81e7340/src/lib.rs
+
+*/
+
+use crate::playlist;
 use serde::Deserialize;
 use std::collections::HashMap;
-use crate::playlist;
 
 pub fn parse(xml: &[u8]) -> Result<MPD, quick_xml::de::DeError> {
     quick_xml::de::from_reader::<_, MPD>(xml)
@@ -204,9 +209,9 @@ impl MPD {
 impl Period {
     pub(super) fn duration(&self, mpd: &MPD) -> f32 {
         if let Some(duration) = &self.duration {
-            utils::iso8601_duration_to_seconds(duration).unwrap()
+            iso8601_duration_to_seconds(duration).unwrap()
         } else if let Some(duration) = &mpd.media_presentation_duration {
-            utils::iso8601_duration_to_seconds(duration).unwrap()
+            iso8601_duration_to_seconds(duration).unwrap()
         } else {
             0.0
         }
@@ -217,7 +222,11 @@ impl AdaptationSet {
     pub(super) fn mime_type(&self) -> Option<String> {
         if let Some(content_type) = &self.content_type {
             Some(content_type.to_owned())
-        } else { self.mime_type.as_ref().map(|mime_type| mime_type.to_owned()) }
+        } else {
+            self.mime_type
+                .as_ref()
+                .map(|mime_type| mime_type.to_owned())
+        }
     }
 
     pub(super) fn frame_rate(&self) -> Option<f32> {
@@ -225,7 +234,8 @@ impl AdaptationSet {
             if frame_rate.contains('/') {
                 return Some(
                     frame_rate
-                        .split('/').next()
+                        .split('/')
+                        .next()
                         .unwrap()
                         .parse::<f32>()
                         .unwrap()
@@ -289,7 +299,11 @@ impl Representation {
     fn get_mime_type(&self) -> Option<String> {
         if let Some(content_type) = &self.content_type {
             Some(content_type.to_owned())
-        } else { self.mime_type.as_ref().map(|mime_type| mime_type.to_owned()) }
+        } else {
+            self.mime_type
+                .as_ref()
+                .map(|mime_type| mime_type.to_owned())
+        }
     }
 
     pub(super) fn media_type(&self, adaptation_set: &AdaptationSet) -> playlist::MediaType {
@@ -355,7 +369,8 @@ impl Representation {
             if frame_rate.contains('/') {
                 return Some(
                     frame_rate
-                        .split('/').next()
+                        .split('/')
+                        .next()
                         .unwrap()
                         .parse::<f32>()
                         .unwrap()
@@ -413,7 +428,10 @@ impl Representation {
     pub(super) fn template_vars(&self) -> HashMap<String, String> {
         let mut vars = HashMap::new();
 
-        vars.insert("RepresentationID".to_owned(), self.id.clone().unwrap_or_else(|| "".to_owned()));
+        vars.insert(
+            "RepresentationID".to_owned(),
+            self.id.clone().unwrap_or_else(|| "".to_owned()),
+        );
 
         if let Some(bandwidth) = &self.bandwidth {
             vars.insert("Bandwidth".to_owned(), bandwidth.to_string());
@@ -424,10 +442,18 @@ impl Representation {
         vars
     }
 
-    pub(super) fn segment_template(&self, adaptation_set: &AdaptationSet) -> Option<SegmentTemplate> {
+    pub(super) fn segment_template(
+        &self,
+        adaptation_set: &AdaptationSet,
+    ) -> Option<SegmentTemplate> {
         if let Some(segment_template) = &self.segment_template {
             Some(segment_template.to_owned())
-        } else { adaptation_set.segment_template.as_ref().map(|segment_template| segment_template.to_owned()) }
+        } else {
+            adaptation_set
+                .segment_template
+                .as_ref()
+                .map(|segment_template| segment_template.to_owned())
+        }
     }
 }
 
@@ -463,4 +489,44 @@ impl SegmentTemplate {
     pub(super) fn start_number(&self) -> usize {
         self.start_number.unwrap_or(0)
     }
+}
+
+// BUG: https://github.com/emarsden/dash-mpd-rs/blob/c4927e4967a9401b8d7c7f8c137b7c70f81e7340/src/lib.rs#L195-L236
+pub(super) fn iso8601_duration_to_seconds(duration: &str) -> Result<f32, String> {
+    match iso8601::duration(duration)? {
+        iso8601::Duration::YMDHMS {
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+            millisecond,
+        } => Ok((year as f32 * 365.0 * 31.0 * 24.0 * 60.0 * 60.0)
+            + (month as f32 * 31.0 * 24.0 * 60.0 * 60.0)
+            + (day as f32 * 24.0 * 60.0 * 60.0)
+            + (hour as f32 * 60.0 * 60.0)
+            + (minute as f32 * 60.0)
+            + second as f32
+            + (millisecond as f32 * 0.001)),
+        iso8601::Duration::Weeks(w) => Ok(w as f32 * 60.0 * 60.0 * 24.0 * 7.0),
+    }
+}
+
+pub(super) fn mpd_range_to_byte_range(range: &Option<String>) -> Option<playlist::ByteRange> {
+    range.as_ref().map(|range| {
+        let splitted_range = range
+            .split('-')
+            .filter_map(|x| x.parse::<u64>().ok())
+            .collect::<Vec<u64>>();
+
+        if let (Some(length), offset) = (splitted_range.get(0), splitted_range.get(1)) {
+            playlist::ByteRange {
+                length: *length,
+                offset: offset.map(|x| *x),
+            }
+        } else {
+            panic!("could'nt convert \"{}\" range to byte range", range);
+        }
+    })
 }
