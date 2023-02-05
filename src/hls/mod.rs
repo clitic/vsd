@@ -1,7 +1,5 @@
-// mod live;
 mod parser;
-mod autoselect;
+mod playlist;
 
-// pub use live::LivePlaylist;
 pub use parser::{alternative, master};
-pub use autoselect::autoselect;
+pub use playlist::parse_as_master;

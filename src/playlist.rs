@@ -61,17 +61,17 @@ impl Segment {
         }
     }
 
-    // pub(crate) fn map_url(&self, baseurl: &str) -> Result<Option<reqwest::Url>> {
-    //     if let Some(map) = &self.map {
-    //         if self.uri.starts_with("http") || self.uri.starts_with("ftp") {
-    //             return Ok(Some(map.uri.parse::<reqwest::Url>()?));
-    //         } else {
-    //             return Ok(Some(baseurl.parse::<reqwest::Url>()?.join(&map.uri)?));
-    //         }
-    //     }
+    pub(crate) fn map_url(&self, baseurl: &str) -> Result<Option<reqwest::Url>> {
+        if let Some(map) = &self.map {
+            if self.uri.starts_with("http") || self.uri.starts_with("ftp") {
+                return Ok(Some(map.uri.parse::<reqwest::Url>()?));
+            } else {
+                return Ok(Some(baseurl.parse::<reqwest::Url>()?.join(&map.uri)?));
+            }
+        }
 
-    //     Ok(None)
-    // }
+        Ok(None)
+    }
 
     pub(crate) fn key_url(&self, baseurl: &str) -> Result<Option<reqwest::Url>> {
         if let Some(key) = &self.key {
@@ -104,26 +104,26 @@ impl Segment {
         }
     }
 
-    // pub(crate) fn map_range(&self, previous_byterange_end: u64) -> Option<(String, u64)> {
-    //     if let Some(map) = &self.map {
-    //         if let Some(byte_range) = &map.byte_range {
-    //             let offset = byte_range.offset.unwrap_or(0);
+    pub(crate) fn map_range(&self, previous_byterange_end: u64) -> Option<(String, u64)> {
+        if let Some(map) = &self.map {
+            if let Some(byte_range) = &map.byte_range {
+                let offset = byte_range.offset.unwrap_or(0);
 
-    //             let (start, end) = if offset == 0 {
-    //                 (
-    //                     previous_byterange_end,
-    //                     previous_byterange_end + byte_range.length - 1,
-    //                 )
-    //             } else {
-    //                 (byte_range.length, byte_range.length + offset - 1)
-    //             };
+                let (start, end) = if offset == 0 {
+                    (
+                        previous_byterange_end,
+                        previous_byterange_end + byte_range.length - 1,
+                    )
+                } else {
+                    (byte_range.length, byte_range.length + offset - 1)
+                };
 
-    //             return Some((format!("bytes={}-{}", start, end), end));
-    //         }
-    //     }
+                return Some((format!("bytes={}-{}", start, end), end));
+            }
+        }
 
-    //     None
-    // }
+        None
+    }
 }
 
 #[derive(Serialize)]
@@ -133,6 +133,7 @@ pub(crate) struct MediaPlaylist {
     pub(crate) codecs: Option<String>,
     pub(crate) extension: Option<String>,
     pub(crate) frame_rate: Option<f32>,
+    pub(crate) i_frame: bool,
     pub(crate) language: Option<String>,
     pub(crate) live: bool,
     pub(crate) media_type: MediaType,
@@ -144,10 +145,7 @@ pub(crate) struct MediaPlaylist {
 
 impl MediaPlaylist {
     pub(crate) fn url(&self, baseurl: &str) -> Result<reqwest::Url> {
-        // if self.uri.starts_with("dash://") {
-
-        // }
-
+        // self.uri.starts_with("dash://")
         if self.uri.starts_with("http") || self.uri.starts_with("ftp") {
             Ok(self.uri.parse::<reqwest::Url>()?)
         } else {
@@ -170,6 +168,10 @@ impl MediaPlaylist {
     }
 
     pub(crate) fn extension(&self) -> String {
+        if let Some(ext) = &self.extension {
+            return ext.to_owned();
+        }
+
         let mut ext = match &self.playlist_type {
             PlaylistType::Hls => "ts",
             PlaylistType::Dash => "m4s",
@@ -195,7 +197,7 @@ impl MediaPlaylist {
 pub(crate) struct MasterPlaylist {
     pub(crate) playlist_type: PlaylistType,
     pub(crate) uri: String,
-    pub(crate) variants: Vec<MediaPlaylist>,
+    pub(crate) streams: Vec<MediaPlaylist>,
 }
 
 impl MasterPlaylist {
@@ -219,5 +221,101 @@ impl MasterPlaylist {
             PlaylistType::Dash => true,
             _ => false,
         }
+    }
+
+    pub(crate) fn sort_streams(
+        &mut self,
+        prefer_audio_lang: Option<String>,
+        prefer_subs_lang: Option<String>,
+    ) {
+        let prefer_audio_lang = prefer_audio_lang.map(|x| x.to_lowercase());
+        let prefer_subs_lang = prefer_subs_lang.map(|x| x.to_lowercase());
+
+        let mut video_streams = self
+            .streams
+            .into_iter()
+            .filter_map(|x| {
+                if matches!(x.media_type, MediaType::Video) {
+                    let pixels = if let Some((w, h)) = &x.resolution {
+                        w * h
+                    } else {
+                        0
+                    };
+
+                    Some((x, pixels, x.bandwidth.unwrap_or(0)))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        video_streams.sort_by(|x, y| y.2.cmp(&x.2));
+        video_streams.sort_by(|x, y| y.1.cmp(&x.1));
+
+        let mut audio_streams = self
+            .streams
+            .into_iter()
+            .filter_map(|x| {
+                if matches!(x.media_type, MediaType::Audio) {
+                    let mut language_factor = 0;
+
+                    if let Some(playlist_lang) = x.language.as_ref().map(|x| x.to_lowercase()) {
+                        if let Some(prefer_lang) = prefer_audio_lang {
+                            if playlist_lang == prefer_lang {
+                                language_factor = 2;
+                            } else if playlist_lang.get(0..2) == prefer_lang.get(0..2) {
+                                language_factor = 1;
+                            }
+                        }
+                    }
+
+                    Some((
+                        x,
+                        language_factor,
+                        x.channels.unwrap_or(0.0),
+                        x.bandwidth.unwrap_or(0),
+                    ))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        audio_streams.sort_by(|x, y| y.3.cmp(&x.3));
+        audio_streams.sort_by(|x, y| y.2.total_cmp(&x.2));
+        audio_streams.sort_by(|x, y| y.1.cmp(&x.1));
+
+        let mut subtitles_streams = self
+            .streams
+            .into_iter()
+            .filter_map(|x| {
+                if matches!(x.media_type, MediaType::Subtitles) {
+                    let mut language_factor = 0;
+
+                    if let Some(playlist_lang) = x.language.as_ref().map(|x| x.to_lowercase()) {
+                        if let Some(prefer_lang) = prefer_subs_lang {
+                            if playlist_lang == prefer_lang {
+                                language_factor = 2;
+                            } else if playlist_lang.get(0..2) == prefer_lang.get(0..2) {
+                                language_factor = 1;
+                            }
+                        }
+                    }
+
+                    Some((x, language_factor))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        subtitles_streams.sort_by(|x, y| y.1.cmp(&x.1));
+
+        self.streams = video_streams
+            .into_iter()
+            .map(|x| x.0)
+            .chain(audio_streams.into_iter().map(|x| x.0))
+            .chain(subtitles_streams.into_iter().map(|x| x.0))
+            .collect::<Vec<_>>();
     }
 }

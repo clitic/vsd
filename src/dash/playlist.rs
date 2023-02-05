@@ -11,19 +11,20 @@ use crate::playlist;
 use anyhow::{anyhow, Result};
 
 pub fn parse_as_master(mpd: &MPD, uri: &str) -> playlist::MasterPlaylist {
-    let mut variants = vec![];
+    let mut streams = vec![];
 
     for (period_index, period) in mpd.period.iter().enumerate() {
         for (adaptation_set_index, adaptation_set) in period.adaptation_set.iter().enumerate() {
             for (representation_index, representation) in
                 adaptation_set.representation.iter().enumerate()
             {
-                variants.push(playlist::MediaPlaylist {
+                streams.push(playlist::MediaPlaylist {
                     bandwidth: representation.bandwidth,
                     channels: representation.channels(adaptation_set),
                     codecs: representation.codecs(adaptation_set),
                     extension: representation.extension(adaptation_set),
                     frame_rate: representation.frame_rate(adaptation_set),
+                    i_frame: false, // cannot comment here
                     language: representation.lang(adaptation_set),
                     live: mpd.live(),
                     media_type: representation.media_type(adaptation_set),
@@ -35,7 +36,7 @@ pub fn parse_as_master(mpd: &MPD, uri: &str) -> playlist::MasterPlaylist {
                     } else {
                         None
                     },
-                    segments: vec![],
+                    segments: vec![], // cannot comment here
                     uri: DashUrl::new(period_index, adaptation_set_index, representation_index)
                         .to_string(),
                 });
@@ -46,7 +47,7 @@ pub fn parse_as_master(mpd: &MPD, uri: &str) -> playlist::MasterPlaylist {
     playlist::MasterPlaylist {
         playlist_type: playlist::PlaylistType::Dash,
         uri: uri.to_owned(),
-        variants,
+        streams,
     }
 }
 
