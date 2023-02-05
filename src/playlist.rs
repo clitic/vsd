@@ -4,9 +4,9 @@ use serde::Serialize;
 #[derive(Serialize)]
 pub(crate) enum MediaType {
     Audio,
-    Video,
     Subtitles,
     Undefined,
+    Video,
 }
 
 #[derive(Serialize)]

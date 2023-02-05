@@ -27,31 +27,84 @@ pub fn parse_as_master(m3u8: &m3u8_rs::MasterPlaylist, uri: &str) -> playlist::M
     }
 
     for alternative_stream in &m3u8.alternatives {
-        let language = alternative_stream.language.or(alternative_stream.assoc_language);
-
         if let Some(uri) = alternative_stream.uri {
             match &alternative_stream.media_type {
-                m3u8_rs::AlternativeMediaType::Video => {
+                m3u8_rs::AlternativeMediaType::Video => streams.push(playlist::MediaPlaylist {
+                    bandwidth: None, // cannot comment here
+                    channels: None,
+                    codecs: None,                     // cannot comment here
+                    extension: Some("ts".to_owned()), // cannot comment here
+                    frame_rate: None,                 // cannot comment here
+                    i_frame: false,                   // cannot comment here
+                    language: None,
+                    live: false, // cannot comment here
+                    media_type: playlist::MediaType::Video,
+                    playlist_type: playlist::PlaylistType::Hls,
+                    resolution: None, // cannot comment here
+                    segments: vec![], // cannot comment here
+                    uri,
+                }),
+
+                m3u8_rs::AlternativeMediaType::Audio => streams.push(playlist::MediaPlaylist {
+                    bandwidth: None, // cannot comment here
+                    channels: alternative_stream
+                        .channels
+                        .map(|x| x.parse::<f32>().unwrap()),
+                    codecs: None,                     // cannot comment here
+                    extension: Some("ts".to_owned()), // cannot comment here
+                    frame_rate: None,
+                    i_frame: false,
+                    language: alternative_stream
+                        .language
+                        .or(alternative_stream.assoc_language),
+                    live: false, // cannot comment here
+                    media_type: playlist::MediaType::Audio,
+                    playlist_type: playlist::PlaylistType::Hls,
+                    resolution: None,
+                    segments: vec![], // cannot comment here
+                    uri,
+                }),
+
+                m3u8_rs::AlternativeMediaType::ClosedCaptions
+                | m3u8_rs::AlternativeMediaType::Subtitles => {
                     streams.push(playlist::MediaPlaylist {
-                        bandwidth: None, // cannot comment here
+                        bandwidth: None,
                         channels: None,
-                        codecs: None, // cannot comment here
-                        extension: Some("ts".to_owned()), // cannot comment here
-                        frame_rate: None, // cannot comment here
-                        i_frame: false, // cannot comment here
-                        language: None,
+                        codecs: None,                      // cannot comment here
+                        extension: Some("vtt".to_owned()), // cannot comment here
+                        frame_rate: None,
+                        i_frame: false,
+                        language: alternative_stream
+                            .language
+                            .or(alternative_stream.assoc_language),
                         live: false, // cannot comment here
-                        media_type: playlist::MediaType::Video,
+                        media_type: playlist::MediaType::Subtitles,
                         playlist_type: playlist::PlaylistType::Hls,
-                        resolution: None, // cannot comment here
+                        resolution: None,
                         segments: vec![], // cannot comment here
                         uri,
-                    });
+                    })
                 }
-                m3u8_rs::AlternativeMediaType::Audio => {}
-                m3u8_rs::AlternativeMediaType::ClosedCaptions
-                | m3u8_rs::AlternativeMediaType::Subtitles => {}
-                m3u8_rs::AlternativeMediaType::Other(_) => {}
+
+                m3u8_rs::AlternativeMediaType::Other(_) => streams.push(playlist::MediaPlaylist {
+                    bandwidth: None,
+                    channels: alternative_stream
+                        .channels
+                        .map(|x| x.parse::<f32>().unwrap()),
+                    codecs: None,     // cannot comment here
+                    extension: None,  // cannot comment here
+                    frame_rate: None, // cannot comment here
+                    i_frame: false,   // cannot comment here
+                    language: alternative_stream
+                        .language
+                        .or(alternative_stream.assoc_language),
+                    live: false, // cannot comment here
+                    media_type: playlist::MediaType::Undefined,
+                    playlist_type: playlist::PlaylistType::Hls,
+                    resolution: None, // cannot comment here
+                    segments: vec![], // cannot comment here
+                    uri,
+                }),
             }
         }
     }
