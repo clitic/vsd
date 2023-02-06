@@ -24,7 +24,7 @@ pub fn parse_as_master(mpd: &MPD, uri: &str) -> playlist::MasterPlaylist {
                     codecs: representation.codecs(adaptation_set),
                     extension: representation.extension(adaptation_set),
                     frame_rate: representation.frame_rate(adaptation_set),
-                    i_frame: false, // cannot comment here
+                    i_frame: false, // Cannot be comment here
                     language: representation.lang(adaptation_set),
                     live: mpd.live(),
                     media_type: representation.media_type(adaptation_set),
@@ -36,7 +36,7 @@ pub fn parse_as_master(mpd: &MPD, uri: &str) -> playlist::MasterPlaylist {
                     } else {
                         None
                     },
-                    segments: vec![], // cannot comment here
+                    segments: vec![], // Cannot be comment here
                     uri: DashUrl::new(period_index, adaptation_set_index, representation_index)
                         .to_string(),
                 });
@@ -271,6 +271,7 @@ pub fn push_segments(
                     .default_kid(adaptation_set)
                     .map(|x| x.replace('-', "").to_lowercase()),
                 iv: None,
+                key_format: None,
                 method: x,
                 uri: "dash://encryption-key".to_owned(),
             }),

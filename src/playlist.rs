@@ -32,13 +32,15 @@ pub(crate) enum KeyMethod {
     Aes128,
     Cenc,
     None,
-    Undefined,
+    Other(String),
+    SampleAes,
 }
 
 #[derive(Serialize)]
 pub(crate) struct Key {
     pub(crate) default_kid: Option<String>,
     pub(crate) iv: Option<String>,
+    pub(crate) key_format: Option<String>,
     pub(crate) method: KeyMethod,
     pub(crate) uri: String,
 }
@@ -46,6 +48,8 @@ pub(crate) struct Key {
 #[derive(Default, Serialize)]
 pub(crate) struct Segment {
     pub(crate) byte_range: Option<ByteRange>,
+    // TODO - Support #EXT-X-DISCOUNTINUITY tag
+    // pub(crate) discountinuity: bool,
     pub(crate) duration: f32,
     pub(crate) key: Option<Key>,
     pub(crate) map: Option<Map>,

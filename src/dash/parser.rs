@@ -278,7 +278,7 @@ impl AdaptationSet {
         }
 
         if !self.content_protection.is_empty() {
-            return playlist::KeyMethod::Undefined;
+            return playlist::KeyMethod::Other("undefined".to_owned());
         }
 
         playlist::KeyMethod::None
@@ -491,7 +491,8 @@ impl SegmentTemplate {
     }
 }
 
-// BUG: https://github.com/emarsden/dash-mpd-rs/blob/c4927e4967a9401b8d7c7f8c137b7c70f81e7340/src/lib.rs#L195-L236
+// FIXME - Type conversion bugs mainly required for live playlists.
+// https://github.com/emarsden/dash-mpd-rs/blob/c4927e4967a9401b8d7c7f8c137b7c70f81e7340/src/lib.rs#L195-L236
 pub(super) fn iso8601_duration_to_seconds(duration: &str) -> Result<f32, String> {
     match iso8601::duration(duration)? {
         iso8601::Duration::YMDHMS {
