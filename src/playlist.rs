@@ -1,6 +1,6 @@
-use anyhow::Result;
-use serde::Serialize;
 use crate::commands::Quality;
+use anyhow::{bail, Result};
+use serde::Serialize;
 
 #[derive(Serialize)]
 pub(crate) enum MediaType {
@@ -149,6 +149,96 @@ pub(crate) struct MediaPlaylist {
 }
 
 impl MediaPlaylist {
+    fn has_resolution(&self, w: u16, h: u16) -> bool {
+        if let Some((video_w, video_h)) = self.resolution {
+            w as u64 == video_w && h as u64 == video_h
+        } else {
+            false
+        }
+    }
+
+    fn display_video_stream(&self) -> String {
+        let resolution = if let Some((w, h)) = self.resolution {
+            match (w, h) {
+                (256, 144) => "144p".to_owned(),
+                (426, 240) => "240p".to_owned(),
+                (640, 360) => "360p".to_owned(),
+                (854, 480) => "480p".to_owned(),
+                (1280, 720) => "720p".to_owned(),
+                (1920, 1080) => "1080p".to_owned(),
+                (2048, 1080) => "2K".to_owned(),
+                (2560, 1440) => "1440p".to_owned(),
+                (3840, 2160) => "4K".to_owned(),
+                (7680, 4320) => "8K".to_owned(),
+                (w, h) => format!("{}x{}", w, h),
+            }
+        } else {
+            "?".to_owned()
+        };
+
+        let bandwidth = if let Some(bandwidth) = self.bandwidth {
+            crate::utils::format_bytes(bandwidth as usize, 2)
+        } else {
+            ("?".to_owned(), "?".to_owned(), "?".to_owned())
+        };
+
+        let mut extra = format!("(codecs: {}", self.codecs.unwrap_or("?".to_owned()));
+
+        if let Some(frame_rate) = self.frame_rate {
+            extra += &format!(", frame_rate: {}", frame_rate);
+        }
+
+        if self.i_frame {
+            extra += ", iframe";
+        }
+
+        if self.live {
+            extra += ", live";
+        }
+
+        extra += ")";
+
+        format!(
+            "{:9} {:>6} {}/s {}",
+            resolution, bandwidth.0, bandwidth.1, extra
+        )
+    }
+
+    fn display_audio_stream(&self) -> String {
+        let mut extra = format!("language: {}", self.language.unwrap_or("?".to_owned()));
+
+        if let Some(codecs) = self.codecs {
+            extra += &format!(", codecs: {}", codecs);
+        }
+
+        if let Some(bandwidth) = self.bandwidth {
+            extra += &format!(
+                ", bandwidth: {}/s",
+                crate::utils::format_bytes(bandwidth as usize, 2).2
+            );
+        }
+
+        if let Some(channels) = self.channels {
+            extra += &format!(", channels: {}", channels);
+        }
+
+        if self.live {
+            extra += ", live";
+        }
+
+        extra
+    }
+
+    fn display_subtitles_stream(&self) -> String {
+        let mut extra = format!("language: {}", self.language.unwrap_or("?".to_owned()));
+
+        if let Some(codecs) = self.codecs {
+            extra += &format!(", codecs: {}", codecs);
+        }
+
+        extra
+    }
+
     pub(crate) fn url(&self, baseurl: &str) -> Result<reqwest::Url> {
         // self.uri.starts_with("dash://")
         if self.uri.starts_with("http") || self.uri.starts_with("ftp") {
@@ -324,8 +414,113 @@ impl MasterPlaylist {
             .collect::<Vec<_>>();
     }
 
-    // https://docs.rs/requestty/latest/requestty/question/struct.Question.html#method.select
-    pub(crate) fn select_video_stream(&self, quality: &Quality, raw_prompts: bool) -> Result<MediaPlaylist> {
+    // pub(crate) fn select_stream(&self, quality: &Quality, raw_prompts: bool) -> Result<MediaPlaylist> {
 
+    // }
+
+    // https://docs.rs/requestty/latest/requestty/question/struct.Question.html#method.select
+    // TODO - Raw prompts
+    pub(crate) fn select_streams(&self, quality: &Quality) -> Result<()> {
+        let audio_streams = self
+            .streams
+            .iter()
+            .filter(|x| matches!(x.media_type, MediaType::Audio))
+            .collect::<Vec<_>>();
+        let subtitles_streams = self
+            .streams
+            .iter()
+            .filter(|x| matches!(x.media_type, MediaType::Subtitles))
+            .collect::<Vec<_>>();
+
+        let video_streams = self
+            .streams
+            .iter()
+            .filter(|x| matches!(x.media_type, MediaType::Video));
+
+        let default_video_stream = match quality {
+            Quality::Lowest => video_streams.last(),
+            Quality::Highest | Quality::SelectLater => video_streams.next(),
+            Quality::Resolution(w, h) => video_streams.find(|x| x.has_resolution(*w, *h)),
+            Quality::Youtube144p => video_streams.find(|x| x.has_resolution(256, 144)),
+            Quality::Youtube240p => video_streams.find(|x| x.has_resolution(426, 240)),
+            Quality::Youtube360p => video_streams.find(|x| x.has_resolution(640, 360)),
+            Quality::Youtube480p => video_streams.find(|x| x.has_resolution(854, 480)),
+            Quality::Youtube720p => video_streams.find(|x| x.has_resolution(1280, 720)),
+            Quality::Youtube1080p => video_streams.find(|x| x.has_resolution(1920, 1080)),
+            Quality::Youtube2k => video_streams.find(|x| x.has_resolution(2048, 1080)),
+            Quality::Youtube1440p => video_streams.find(|x| x.has_resolution(2560, 1440)),
+            Quality::Youtube4k => video_streams.find(|x| x.has_resolution(3840, 2160)),
+            Quality::Youtube8k => video_streams.find(|x| x.has_resolution(7680, 4320)),
+        };
+
+        if let Some(default_video_stream) = default_video_stream {
+            let mut choices = vec![];
+            choices.push(requestty::Separator(
+                "─────── Video Streams ───────".to_owned(),
+            ));
+            choices.extend(self.streams.iter().filter_map(|x| {
+                if matches!(x.media_type, MediaType::Video) {
+                    Some(requestty::Choice(x.display_video_stream()))
+                } else {
+                    None
+                }
+            }));
+            choices.push(requestty::Separator(
+                "─────── Audio Streams ───────".to_owned(),
+            ));
+            choices.extend(self.streams.iter().filter_map(|x| {
+                if matches!(x.media_type, MediaType::Audio) {
+                    Some(requestty::Choice(x.display_audio_stream()))
+                } else {
+                    None
+                }
+            }));
+            choices.push(requestty::Separator(
+                "───── Subtitles Streams ─────".to_owned(),
+            ));
+            choices.extend(self.streams.iter().filter_map(|x| {
+                if matches!(x.media_type, MediaType::Subtitles) {
+                    Some(requestty::Choice(x.display_subtitles_stream()))
+                } else {
+                    None
+                }
+            }));
+
+            let mut choices_with_default =
+                vec![(requestty::Choice((default_video_stream.display_video_stream(), true)))];
+
+            if let Some(x) = self
+                .streams
+                .iter()
+                .find(|x| matches!(x.media_type, MediaType::Audio))
+            {
+                choices_with_default.push(requestty::Choice((x.display_audio_stream(), true)));
+            }
+
+            if let Some(x) = self
+                .streams
+                .iter()
+                .find(|x| matches!(x.media_type, MediaType::Subtitles))
+            {
+                choices_with_default.push(requestty::Choice((x.display_subtitles_stream(), true)));
+            }
+
+            let question = requestty::Question::multi_select("streams")
+                .should_loop(false)
+                .message("Select streams to download")
+                .choices_with_default(choices_with_default)
+                .choices(choices)
+                // .validate(filter);
+                .build();
+
+            let answer = requestty::prompt_one(question)?;
+            println!("{:#?}", answer);
+
+            Ok(())
+        } else {
+            // TODO - Add better message
+            // Selected variant stream of quality {} ({} {}/s).
+            bail!("playlist doesn't contain {:?} quality stream", quality)
+        }
     }
 }
