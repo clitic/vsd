@@ -1,5 +1,6 @@
 use anyhow::Result;
 use serde::Serialize;
+use crate::commands::Quality;
 
 #[derive(Serialize)]
 pub(crate) enum MediaType {
@@ -321,5 +322,10 @@ impl MasterPlaylist {
             .chain(audio_streams.into_iter().map(|x| x.0))
             .chain(subtitles_streams.into_iter().map(|x| x.0))
             .collect::<Vec<_>>();
+    }
+
+    // https://docs.rs/requestty/latest/requestty/question/struct.Question.html#method.select
+    pub(crate) fn select_video_stream(&self, quality: &Quality, raw_prompts: bool) -> Result<MediaPlaylist> {
+
     }
 }
