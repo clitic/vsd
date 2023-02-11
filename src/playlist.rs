@@ -492,7 +492,7 @@ impl MasterPlaylist {
                         }
                     }),
             );
-            choices_with_default_ranges[0] = 1..choices_with_default_ranges.len();
+            choices_with_default_ranges[0] = 1..choices_with_default.len();
             choices_with_default.push(requestty::Separator(
                 "─────── Audio Streams ───────".to_owned(),
             ));
