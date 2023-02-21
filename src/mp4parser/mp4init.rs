@@ -29,13 +29,13 @@ impl MP4Init {
         let scheme = None;
 
         MP4Parser::default()
-            .basic("moov", Arc::new(mp4parser::children))
-            .basic("trak", Arc::new(mp4parser::children))
-            .basic("mdia", Arc::new(mp4parser::children))
-            .basic("minf", Arc::new(mp4parser::children))
-            .basic("stbl", Arc::new(mp4parser::children))
-            .full("stsd", Arc::new(mp4parser::sample_description))
-            .full(
+            ._box("moov", Arc::new(mp4parser::children))
+            ._box("trak", Arc::new(mp4parser::children))
+            ._box("mdia", Arc::new(mp4parser::children))
+            ._box("minf", Arc::new(mp4parser::children))
+            ._box("stbl", Arc::new(mp4parser::children))
+            .full_box("stsd", Arc::new(mp4parser::sample_description))
+            .full_box(
                 "pssh",
                 Arc::new(|mut _box| {
                     if !(_box.version == 0 || _box.version == 1) {
@@ -54,19 +54,19 @@ impl MP4Init {
                     Ok(())
                 }),
             )
-            .full(
+            .full_box(
                 "encv",
                 mp4parser::alldata(Arc::new(|data| read_box(data, &mut kid, &mut scheme))),
             )
-            .full(
+            .full_box(
                 "enca",
                 mp4parser::alldata(Arc::new(|data| read_box(data, &mut kid, &mut scheme))),
             )
-            .full(
+            .full_box(
                 "enct",
                 mp4parser::alldata(Arc::new(|data| read_box(data, &mut kid, &mut scheme))),
             )
-            .full(
+            .full_box(
                 "encs",
                 mp4parser::alldata(Arc::new(|data| read_box(data, &mut kid, &mut scheme))),
             )

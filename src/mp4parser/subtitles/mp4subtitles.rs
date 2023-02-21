@@ -1,6 +1,6 @@
 use super::{Cue, Subtitles, ttml};
 use crate::mp4parser;
-use crate::mp4parser::{MP4Parser, Reader};
+use crate::mp4parser::{MP4Parser, DataViewReader};
 use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 
@@ -22,10 +22,10 @@ impl MP4Subtitles {
         let timescale_c = timescale.clone();
 
         MP4Parser::default()
-            .basic("moov", Arc::new(mp4parser::children))
-            .basic("trak", Arc::new(mp4parser::children))
-            .basic("mdia", Arc::new(mp4parser::children))
-            .full(
+            ._box("moov", Arc::new(mp4parser::children))
+            ._box("trak", Arc::new(mp4parser::children))
+            ._box("mdia", Arc::new(mp4parser::children))
+            .full_box(
                 "mdhd",
                 Arc::new(move |mut _box| {
                     if !(_box.version == 0 || _box.version == 1) {
@@ -41,17 +41,17 @@ impl MP4Subtitles {
                     Ok(())
                 }),
             )
-            .basic("minf", Arc::new(mp4parser::children))
-            .basic("stbl", Arc::new(mp4parser::children))
-            .full("stsd", Arc::new(mp4parser::sample_description))
-            .basic(
+            ._box("minf", Arc::new(mp4parser::children))
+            ._box("stbl", Arc::new(mp4parser::children))
+            .full_box("stsd", Arc::new(mp4parser::sample_description))
+            ._box(
                 "wvtt",
                 Arc::new(move |_box| {
                     *saw_wvtt_c.lock().unwrap() = true;
                     Ok(())
                 }),
             )
-            .basic(
+            ._box(
                 "stpp",
                 Arc::new(move |_box| {
                     *saw_stpp_c.lock().unwrap() = true;
@@ -97,9 +97,9 @@ impl MP4Subtitles {
             let presentations_c = presentations.clone();
 
             MP4Parser::default()
-                .basic("moof", Arc::new(mp4parser::children))
-                .basic("traf", Arc::new(mp4parser::children))
-                .full(
+                ._box("moof", Arc::new(mp4parser::children))
+                ._box("traf", Arc::new(mp4parser::children))
+                .full_box(
                     "tfdt",
                     Arc::new(move |mut _box| {
                         if !(_box.version == 0 || _box.version == 1) {
@@ -111,7 +111,7 @@ impl MP4Subtitles {
                         Ok(())
                     }),
                 )
-                .full(
+                .full_box(
                     "tfhd",
                     Arc::new(move |mut _box| {
                         if _box.flags == 1000 {
@@ -124,7 +124,7 @@ impl MP4Subtitles {
                         Ok(())
                     }),
                 )
-                .full(
+                .full_box(
                     "trun",
                     Arc::new(move |mut _box| {
                         if _box.version == 1000 {
@@ -141,7 +141,7 @@ impl MP4Subtitles {
                         Ok(())
                     }),
                 )
-                .basic(
+                ._box(
                     "mdat",
                     mp4parser::alldata(Arc::new(move |data| {
                         let mut saw_mdat_once = saw_mdat_c.lock().unwrap();
@@ -174,7 +174,7 @@ impl MP4Subtitles {
 
             let mut current_time = base_time;
 
-            let mut reader = Reader {
+            let mut reader = DataViewReader {
                 cursor: Cursor::new(raw_payload.unwrap()),
             };
 
@@ -273,7 +273,7 @@ impl MP4Subtitles {
             let raw_payload_c = raw_payload.clone();
 
             MP4Parser::default()
-                .basic(
+                ._box(
                     "mdat",
                     mp4parser::alldata(Arc::new(move |data| {
                         // *saw_mdat_c = true;

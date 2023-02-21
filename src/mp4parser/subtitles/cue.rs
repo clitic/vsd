@@ -30,21 +30,21 @@ impl Cue {
         let settings_c = settings.clone();
 
         mp4parser::MP4Parser::default()
-            .basic(
+            ._box(
                 "payl",
                 mp4parser::alldata(Arc::new(move |data| {
                     *payload_c.lock().unwrap() = String::from_utf8(data).unwrap();
                     Ok(())
                 })),
             )
-            .basic(
+            ._box(
                 "iden",
                 mp4parser::alldata(Arc::new(move |data| {
                     *id_c.lock().unwrap() = String::from_utf8(data).unwrap();
                     Ok(())
                 })),
             )
-            .basic(
+            ._box(
                 "sttg",
                 mp4parser::alldata(Arc::new(move |data| {
                     *settings_c.lock().unwrap() = String::from_utf8(data).unwrap();
