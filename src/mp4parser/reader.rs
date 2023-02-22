@@ -6,10 +6,9 @@
 
 */
 
-use std::io::{Cursor, Read};
-use std::io::{Error, ErrorKind, Result};
+use std::io::{Cursor, Error, ErrorKind, Read, Result};
 
-#[derive(Default, Clone)]
+#[derive(Clone, Default)]
 pub(super) struct Reader {
     inner: Cursor<Vec<u8>>,
     little_endian: bool,
@@ -33,6 +32,10 @@ impl Reader {
 
     pub(super) fn get_position(&self) -> u64 {
         self.inner.position()
+    }
+
+    pub(super) fn set_position(&self, pos: u64) {
+        self.inner.set_position(pos)
     }
 
     pub(super) fn read_u16(&mut self) -> Result<u16> {
@@ -89,7 +92,10 @@ impl Reader {
         let position = self.get_position() + bytes;
 
         if position > self.get_length() {
-            return Err(Error::new(ErrorKind::OutOfMemory, "mp4reader: out of bounds"));
+            return Err(Error::new(
+                ErrorKind::OutOfMemory,
+                "mp4reader: out of bounds",
+            ));
         }
 
         self.inner.set_position(position);

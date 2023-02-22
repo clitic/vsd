@@ -12,16 +12,16 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 type HandlerResult = Result<(), String>;
-pub(super) type CallbackType = Arc<dyn Fn(ParsedBox) -> HandlerResult>;
+type CallbackType = Arc<dyn Fn(ParsedBox) -> HandlerResult>;
 
-#[derive(Default, Clone)]
-pub(super) struct MP4Parser {
+#[derive(Clone, Default)]
+pub(super) struct Mp4Parser {
     headers: HashMap<usize, BoxType>,
     box_definitions: HashMap<usize, CallbackType>,
     done: bool,
 }
 
-impl MP4Parser {
+impl Mp4Parser {
     /// Declare a box type as a Box.
     pub(super) fn _box(mut self, _type: &str, definition: CallbackType) -> Self {
         let type_code = type_from_string(_type);
@@ -180,6 +180,7 @@ impl MP4Parser {
                 version,
                 flags,
                 reader: payload_reader,
+                size: size as usize,
                 start: start + abs_start,
                 has_64_bit_size,
             };
@@ -205,7 +206,7 @@ impl MP4Parser {
 
 /// A callback that tells the Mp4 parser to treat the body of a box as a series
 /// of boxes. The number of boxes is limited by the size of the parent box.
-pub(super) fn children(_box: &mut ParsedBox) -> HandlerResult {
+pub(super) fn children(_box: ParsedBox) -> HandlerResult {
     // The "reader" starts at the payload, so we need to add the header to the
     // start position.  The header size varies.
     let header_size = _box.header_size();
@@ -336,14 +337,14 @@ enum BoxType {
     FullBox,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub(super) struct ParsedBox {
     /// The box name, a 4-character string (fourcc).
     name: String,
     /// The parser that parsed this box. The parser can be used to parse child
     /// boxes where the configuration of the current parser is needed to parsed
     /// other boxes
-    parser: MP4Parser,
+    parser: Mp4Parser,
     /// If true, allows reading partial payloads from some boxes. If the goal is a
     /// child box, we can sometimes find it without enough data to find all child
     /// boxes. This property allows the partialOkay flag from parse() to be
@@ -351,6 +352,8 @@ pub(super) struct ParsedBox {
     partial_okay: bool,
     /// The size of this box (including the header).
     start: u64, // i64
+    /// The size of this box (including the header).
+    pub(super) size: usize,
     /// The version for a full box, null for basic boxes.
     pub(super) version: Option<u32>,
     /// The flags for a full box, null for basic boxes.
@@ -361,21 +364,6 @@ pub(super) struct ParsedBox {
     /// If true, the box header had a 64-bit size field.  This affects the offsets
     /// of other fields.
     has_64_bit_size: bool,
-}
-
-impl Default for ParsedBox {
-    fn default() -> Self {
-        Self {
-            name: "".to_owned(),
-            parser: MP4Parser::default(),
-            partial_okay: false,
-            start: 0,
-            version: Some(1000),
-            flags: Some(1000),
-            reader: Reader::default(),
-            has_64_bit_size: false,
-        }
-    }
 }
 
 impl ParsedBox {

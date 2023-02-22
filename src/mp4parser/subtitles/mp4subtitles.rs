@@ -1,6 +1,6 @@
 use super::{Cue, Subtitles, ttml};
 use crate::mp4parser;
-use crate::mp4parser::{MP4Parser, DataViewReader};
+use crate::mp4parser::{Mp4Parser, DataViewReader};
 use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 
@@ -21,7 +21,7 @@ impl MP4Subtitles {
         let saw_stpp_c = saw_stpp.clone();
         let timescale_c = timescale.clone();
 
-        MP4Parser::default()
+        Mp4Parser::default()
             ._box("moov", Arc::new(mp4parser::children))
             ._box("trak", Arc::new(mp4parser::children))
             ._box("mdia", Arc::new(mp4parser::children))
@@ -96,7 +96,7 @@ impl MP4Subtitles {
             let default_duration_c = default_duration.clone();
             let presentations_c = presentations.clone();
 
-            MP4Parser::default()
+            Mp4Parser::default()
                 ._box("moof", Arc::new(mp4parser::children))
                 ._box("traf", Arc::new(mp4parser::children))
                 .full_box(
@@ -272,7 +272,7 @@ impl MP4Subtitles {
             // let saw_mdat_c = saw_mdat.clone();
             let raw_payload_c = raw_payload.clone();
 
-            MP4Parser::default()
+            Mp4Parser::default()
                 ._box(
                     "mdat",
                     mp4parser::alldata(Arc::new(move |data| {

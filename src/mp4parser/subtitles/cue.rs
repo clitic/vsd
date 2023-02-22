@@ -29,7 +29,7 @@ impl Cue {
         let id_c = id;
         let settings_c = settings.clone();
 
-        mp4parser::MP4Parser::default()
+        mp4parser::Mp4Parser::default()
             ._box(
                 "payl",
                 mp4parser::alldata(Arc::new(move |data| {
