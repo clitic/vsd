@@ -40,7 +40,7 @@ impl Mp4Parser {
 
     /// Stop parsing. Useful for extracting information from partial segments and
     /// avoiding an out-of-bounds error once you find what you are looking for.
-    fn stop(&mut self) {
+    pub(super) fn stop(&mut self) {
         self.done = true;
     }
 
@@ -161,7 +161,7 @@ impl Mp4Parser {
 
             let payload_size = end - reader.get_position();
             let payload = if payload_size > 0 {
-                reader.read_bytes(payload_size as usize).map_err(|_| {
+                reader.read_bytes_u8(payload_size as usize).map_err(|_| {
                     format!(
                         "mp4parser: cannot read box payload ({} bytes).",
                         payload_size
@@ -206,7 +206,7 @@ impl Mp4Parser {
 
 /// A callback that tells the Mp4 parser to treat the body of a box as a series
 /// of boxes. The number of boxes is limited by the size of the parent box.
-pub(super) fn children(_box: ParsedBox) -> HandlerResult {
+pub(super) fn children(mut _box: ParsedBox) -> HandlerResult {
     // The "reader" starts at the payload, so we need to add the header to the
     // start position.  The header size varies.
     let header_size = _box.header_size();
@@ -227,7 +227,7 @@ pub(super) fn children(_box: ParsedBox) -> HandlerResult {
 /// description. A sample description box has a fixed number of children. The
 /// number of children is represented by a 4 byte unsigned integer. Each child
 /// is a box.
-pub(super) fn sample_description(_box: &mut ParsedBox) -> HandlerResult {
+pub(super) fn sample_description(mut _box: ParsedBox) -> HandlerResult {
     // The "reader" starts at the payload, so we need to add the header to the
     // start position.  The header size varies.
     let header_size = _box.header_size();
@@ -256,7 +256,8 @@ pub(super) fn sample_description(_box: &mut ParsedBox) -> HandlerResult {
 /// sample entry.  A visual sample entry has some fixed-sized fields
 /// describing the video codec parameters, followed by an arbitrary number of
 /// appended children.  Each child is a box.
-pub(super) fn visual_sample_entry(_box: &mut ParsedBox) -> HandlerResult {
+#[allow(dead_code)]
+pub(super) fn visual_sample_entry(mut _box: ParsedBox) -> HandlerResult {
     // The "reader" starts at the payload, so we need to add the header to the
     // start position.  The header size varies.
     let header_size = _box.header_size();
@@ -292,11 +293,11 @@ pub(super) fn visual_sample_entry(_box: &mut ParsedBox) -> HandlerResult {
 /// Create a callback that tells the Mp4 parser to treat the body of a box as a
 /// binary blob and to parse the body's contents using the provided callback.
 pub(super) fn alldata(callback: Arc<dyn Fn(Vec<u8>) -> HandlerResult>) -> CallbackType {
-    Arc::new(|_box| {
+    Arc::new(move |mut _box| {
         let all = _box.reader.get_length() - _box.reader.get_position();
         callback(
             _box.reader
-                .read_bytes(all as usize)
+                .read_bytes_u8(all as usize)
                 .map_err(|_| format!("mp4reader: cannot read {} bytes.", all))?,
         )
     })
@@ -320,7 +321,7 @@ fn type_from_string(name: &str) -> usize {
 
 /// Convert an integer type from a box into an ascii string name.
 /// Useful for debugging.
-fn type_to_string(_type: usize) -> Result<String, std::string::FromUtf8Error> {
+pub(super) fn type_to_string(_type: usize) -> Result<String, std::string::FromUtf8Error> {
     String::from_utf8(vec![
         ((_type >> 24) & 0xff) as u8,
         ((_type >> 16) & 0xff) as u8,
@@ -337,6 +338,7 @@ enum BoxType {
     FullBox,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Default)]
 pub(super) struct ParsedBox {
     /// The box name, a 4-character string (fourcc).
@@ -344,7 +346,7 @@ pub(super) struct ParsedBox {
     /// The parser that parsed this box. The parser can be used to parse child
     /// boxes where the configuration of the current parser is needed to parsed
     /// other boxes
-    parser: Mp4Parser,
+    pub(super) parser: Mp4Parser,
     /// If true, allows reading partial payloads from some boxes. If the goal is a
     /// child box, we can sometimes find it without enough data to find all child
     /// boxes. This property allows the partialOkay flag from parse() to be

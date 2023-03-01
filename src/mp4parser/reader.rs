@@ -34,10 +34,6 @@ impl Reader {
         self.inner.position()
     }
 
-    pub(super) fn set_position(&self, pos: u64) {
-        self.inner.set_position(pos)
-    }
-
     pub(super) fn read_u16(&mut self) -> Result<u16> {
         let mut buf = [0; 2];
         self.inner.read_exact(&mut buf)?;
@@ -82,10 +78,25 @@ impl Reader {
         }
     }
 
-    pub(super) fn read_bytes(&mut self, bytes: usize) -> Result<Vec<u8>> {
+    pub(super) fn read_bytes_u8(&mut self, bytes: usize) -> Result<Vec<u8>> {
         let mut buf = vec![0; bytes];
         self.inner.read_exact(&mut buf)?;
         Ok(buf)
+    }
+
+    // https://stackoverflow.com/questions/73176253/how-to-reencode-a-utf-16-byte-array-as-utf-8
+    pub(super) fn read_bytes_u16(&mut self, bytes: usize) -> Result<Vec<u16>> {
+        Ok(self
+            .read_bytes_u8(bytes)?
+            .chunks(2)
+            .map(|x| {
+                if self.little_endian {
+                    u16::from_le_bytes(x.try_into().unwrap())
+                } else {
+                    u16::from_be_bytes(x.try_into().unwrap())
+                }
+            })
+            .collect::<Vec<_>>())
     }
 
     pub(super) fn skip(&mut self, bytes: u64) -> Result<()> {

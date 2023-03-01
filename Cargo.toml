@@ -1,6 +1,6 @@
 [package]
 name = "vsd"
-version = "0.2.8"
+version = "0.3.0"
 description = "Download video streams served over HTTP from websites, HLS and DASH playlists"
 authors = ["clitic <clitic21@gmail.com>"]
 repository = "https://github.com/clitic/vsd"
@@ -26,6 +26,7 @@ kdam = "0.3"
 m3u8-rs = "5"
 mp4decrypt = "0.3.1"
 openssl = "0.10"
+prost = "0.11"
 quick-xml = { version = "0.27", features = ["serialize"] }
 regex = "1"
 requestty = "0.5.0"
@@ -36,3 +37,6 @@ serde_json = "1"
 [features]
 default = ["chrome"]
 chrome = ["dep:headless_chrome"]
+
+[build-dependencies]
+prost-build = "0.11"
