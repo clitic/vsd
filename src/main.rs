@@ -7,6 +7,7 @@ mod progress;
 mod utils;
 mod playlist;
 mod mp4parser;
+mod cookie;
 
 use clap::Parser;
 use commands::{Args, Commands};

@@ -1,10 +1,10 @@
 use crate::download::DownloadState;
 use crate::progress::DownloadProgress;
+use crate::cookie::CookieJar;
 use anyhow::{bail, Result};
 use clap::Args;
 use kdam::term::Colorizer;
 use reqwest::blocking::Client;
-use reqwest::cookie::Jar;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::Url;
 use std::path::PathBuf;
@@ -85,7 +85,11 @@ pub struct Save {
     #[arg(long, help_heading = "Client Options", value_parser = proxy_address_parser)]
     pub proxy_address: Option<reqwest::Proxy>,
 
-    /// Fill request client with some existing cookies.
+    /// Fill request client with some existing cookies (document.cookie) value.
+    #[arg(long, help_heading = "Client Options")]
+    pub cookie: Option<String>,
+
+    /// Fill request client with some existing cookies per domain.
     /// First value for this option is set-cookie header and second value is url which was requested to send this set-cookie header.
     /// Example `--set-cookie "foo=bar; Domain=yolo.local" https://yolo.local`.
     /// This option can be used multiple times.
@@ -231,8 +235,10 @@ fn output_parser(s: &str) -> Result<String, String> {
     if find_ffmpeg().is_some() {
         Ok(s.to_owned())
     } else {
-        Err("could'nt locate ffmpeg binary in PATH (https://www.ffmpeg.org/download.html)"
-            .to_owned())
+        Err(
+            "could'nt locate ffmpeg binary in PATH (https://www.ffmpeg.org/download.html)"
+                .to_owned(),
+        )
     }
 }
 
@@ -269,17 +275,15 @@ impl Save {
             client_builder = client_builder.proxy(*proxy);
         }
 
+        let cookie_jar = CookieJar::new(self.cookie);
+
         if !self.set_cookie.is_empty() {
-            let jar = Jar::default();
-
             for i in (0..self.set_cookie.len()).step_by(2) {
-                jar.add_cookie_str(&self.set_cookie[i], &self.set_cookie[i + 1].parse::<Url>()?);
+                cookie_jar.add_cookie_str(&self.set_cookie[i], &self.set_cookie[i + 1].parse::<Url>()?);
             }
-
-            client_builder = client_builder.cookie_provider(Arc::new(jar));
         }
 
-        Ok(client_builder.build()?)
+        Ok(client_builder.cookie_provider(Arc::new(cookie_jar)).build()?)
     }
 
     pub fn get_url(&self, uri: &str) -> Result<String> {
