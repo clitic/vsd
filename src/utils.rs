@@ -82,7 +82,10 @@ pub(super) fn select(prompt: String, choices: &[String], raw: bool) -> Result<us
                     .trim_start_matches(&format!("{})", choice.index + 1))
                     .trim();
 
-                if choice.text.contains("AUDIO") || choice.text.contains("SUBTITLES") || choice.text.contains("http") {
+                if choice.text.contains("AUDIO")
+                    || choice.text.contains("SUBTITLES")
+                    || choice.text.contains("http")
+                {
                     write!(backend, "{}", text.colorize("cyan"))
                 } else {
                     let resolution = text.split('.').next().unwrap().split(' ').next().unwrap();
@@ -165,31 +168,77 @@ pub(super) fn check_reqwest_error(error: &reqwest::Error, url: &str) -> Result<S
     }
 }
 
-pub(super) fn duration(duration: &str) -> Result<f32> {
-    let duration = duration.replace('s', "").replace(',', ".");
-    let is_frame = duration.split(':').count() >= 4;
-    let mut duration = duration.split(':').rev();
-    let mut total_seconds = 0.0;
+// pub(super) fn duration(duration: &str) -> Result<f32> {
+//     let duration = duration.replace('s', "").replace(',', ".");
+//     let is_frame = duration.split(':').count() >= 4;
+//     let mut duration = duration.split(':').rev();
+//     let mut total_seconds = 0.0;
 
-    if is_frame {
-        if let Some(seconds) = duration.next() {
-            total_seconds += seconds.parse::<f32>()? / 1000.0;
+//     if is_frame {
+//         if let Some(seconds) = duration.next() {
+//             total_seconds += seconds.parse::<f32>()? / 1000.0;
+//         }
+//     }
+
+//     if let Some(seconds) = duration.next() {
+//         total_seconds += seconds.parse::<f32>()?;
+//     }
+
+//     if let Some(minutes) = duration.next() {
+//         total_seconds += minutes.parse::<f32>()? * 60.0;
+//     }
+
+//     if let Some(hours) = duration.next() {
+//         total_seconds += hours.parse::<f32>()? * 3600.0;
+//     }
+
+//     Ok(total_seconds)
+// }
+
+pub(super) fn pathbuf_from_url(url: &str) -> std::path::PathBuf {
+    let output = url.split('?').next().unwrap().split('/').last().unwrap();
+
+    if output.ends_with(".m3u") || output.ends_with(".m3u8") {
+        if output.ends_with(".ts.m3u8") {
+            std::path::PathBuf::from(output.trim_end_matches(".m3u8").to_owned())
+        } else {
+            let mut path = std::path::PathBuf::from(&output);
+            path.set_extension("ts");
+            path
         }
+    } else if output.ends_with(".mpd") || output.ends_with(".xml") {
+        let mut path = std::path::PathBuf::from(&output);
+        path.set_extension("m4s");
+        path
+    } else {
+        let mut path = std::path::PathBuf::from(
+            output
+                .replace('<', "-")
+                .replace('>', "-")
+                .replace(':', "-")
+                .replace('\"', "-")
+                .replace('/', "-")
+                .replace('\\', "-")
+                .replace('|', "-")
+                .replace('?', "-"),
+        );
+        path.set_extension("mp4");
+        path
     }
+}
 
-    if let Some(seconds) = duration.next() {
-        total_seconds += seconds.parse::<f32>()?;
+// if !self.input.starts_with("http") {
+//     bail!(
+//         "Non HTTP input should have {} set explicitly.",
+//         "--baseurl".colorize("bold green")
+//     )
+// }
+pub(super) fn build_absolute_url(baseurl: &str, uri: &str) -> Result<reqwest::Url> {
+    if uri.starts_with("http") {
+        Ok(reqwest::Url::parse(uri)?)
+    } else {
+        Ok(reqwest::Url::parse(baseurl)?.join(uri)?)
     }
-
-    if let Some(minutes) = duration.next() {
-        total_seconds += minutes.parse::<f32>()? * 60.0;
-    }
-
-    if let Some(hours) = duration.next() {
-        total_seconds += hours.parse::<f32>()? * 3600.0;
-    }
-
-    Ok(total_seconds)
 }
 
 // use reqwest::header::HeaderValue;

@@ -22,7 +22,7 @@ fn run() -> anyhow::Result<()> {
         Commands::Decrypt(args) => args.perform()?,
         Commands::Extract(args) => args.perform()?,
         Commands::Merge(args) => args.perform()?,
-        Commands::Save(args) => args.to_download_state()?.perform()?,
+        Commands::Save(args) => args.perform()?,
     }
 
     Ok(())

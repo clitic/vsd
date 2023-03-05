@@ -1,13 +1,8 @@
-use crate::download::DownloadState;
-use crate::progress::DownloadProgress;
-use crate::cookie::CookieJar;
-use anyhow::{bail, Result};
+use anyhow::Result;
 use clap::Args;
 use kdam::term::Colorizer;
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-use reqwest::Url;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 /// Download and save HLS and DASH playlists to disk.
@@ -35,10 +30,9 @@ pub struct Save {
     #[arg(short, long, value_name = "<KID:(base64:)KEY>|(base64:)KEY", value_parser = key_parser)]
     pub key: Vec<(Option<String>, String)>,
 
-    /// Download only one stream from playlist instead of downloading multiple streams at once.
-    #[arg(long)]
-    pub one_stream: bool,
-
+    // /// Download only one stream from playlist instead of downloading multiple streams at once.
+    // #[arg(long)]
+    // pub one_stream: bool,
     /// Mux all downloaded streams to a video container (.mp4, .mkv, etc.) using ffmpeg.
     /// Note that existing files will be overwritten and downloaded streams will be deleted.
     #[arg(short, long, value_parser = output_parser)]
@@ -149,22 +143,8 @@ fn quality_parser(s: &str) -> Result<Quality, String> {
         _ => Err(format!(
             "\npossible values: [{}]\nFor custom resolution use {}",
             [
-                "lowest",
-                "144p",
-                "240p",
-                "360p",
-                "480p",
-                "720p",
-                "hd",
-                "1080p",
-                "fhd",
-                "2k",
-                "1440p",
-                "qhd",
-                "4k",
-                "8k",
-                "highest",
-                "max"
+                "lowest", "144p", "240p", "360p", "480p", "720p", "hd", "1080p", "fhd", "2k",
+                "1440p", "qhd", "4k", "8k", "highest", "max"
             ]
             .iter()
             .map(|x| x.colorize("green"))
@@ -250,7 +230,7 @@ fn proxy_address_parser(s: &str) -> Result<reqwest::Proxy, String> {
 }
 
 impl Save {
-    fn client(&self) -> Result<Client> {
+    pub fn perform(self) -> Result<()> {
         let mut client_builder = Client::builder()
             .user_agent(&self.user_agent)
             .cookie_store(true);
@@ -272,158 +252,63 @@ impl Save {
             client_builder = client_builder.proxy(*proxy);
         }
 
-        let cookie_jar = CookieJar::new(self.cookie);
+        let cookie_jar = crate::cookie::CookieJar::new(self.cookie);
 
         if !self.set_cookie.is_empty() {
             for i in (0..self.set_cookie.len()).step_by(2) {
-                cookie_jar.add_cookie_str(&self.set_cookie[i], &self.set_cookie[i + 1].parse::<Url>()?);
+                cookie_jar.add_cookie_str(
+                    &self.set_cookie[i],
+                    &self.set_cookie[i + 1].parse::<reqwest::Url>()?,
+                );
             }
         }
 
-        Ok(client_builder.cookie_provider(Arc::new(cookie_jar)).build()?)
-    }
+        let client = client_builder
+            .cookie_provider(Arc::new(cookie_jar))
+            .build()?;
 
-    pub fn get_url(&self, uri: &str) -> Result<String> {
-        if uri.starts_with("http") {
-            Ok(uri.to_owned())
-        } else if let Some(baseurl) = &self.baseurl {
-            Ok(Url::parse(baseurl)?.join(uri)?.to_string())
-        } else {
-            if !self.input.starts_with("http") {
-                bail!(
-                    "Non HTTP input should have {} set explicitly.",
-                    "--baseurl".colorize("bold green")
-                )
-            }
+        // if self.input_type().is_website() {
+        //     println!(
+        //         "{} website for HLS and DASH stream links.",
+        //         "Scraping".colorize("bold green"),
+        //     );
+        //     let links = crate::utils::find_hls_dash_links(&client.get(&self.input).send()?.text()?);
 
-            Ok(Url::parse(&self.input)?.join(uri)?.to_string())
-        }
-    }
+        //     match links.len() {
+        //         0 => bail!(crate::utils::scrape_website_message(&self.input)),
+        //         1 => {
+        //             self.input = links[0].clone();
+        //             println!("{} {}", "Found".colorize("bold green"), &links[0]);
+        //         }
+        //         _ => {
+        //             let mut elinks = vec![];
+        //             for (i, link) in links.iter().enumerate() {
+        //                 elinks.push(format!("{:2}) {}", i + 1, link));
+        //             }
+        //             let index = crate::utils::select(
+        //                 "Select one link:".to_string(),
+        //                 &elinks,
+        //                 self.raw_prompts,
+        //             )?;
+        //             self.input = links[index].clone();
+        //         }
+        //     }
+        // }
 
-    pub fn tempfile(&self) -> String {
-        let output = self
-            .input
-            .split('?')
-            .next()
-            .unwrap()
-            .split('/')
-            .last()
-            .unwrap();
-
-        let output = if output.ends_with(".m3u") || output.ends_with(".m3u8") {
-            if output.ends_with(".ts.m3u8") {
-                output.trim_end_matches(".m3u8").to_owned()
-            } else {
-                let mut path = PathBuf::from(&output);
-                path.set_extension("ts");
-                path.to_str().unwrap().to_owned()
-            }
-        } else if output.ends_with(".mpd") || output.ends_with(".xml") {
-            let mut path = PathBuf::from(&output);
-            path.set_extension("m4s");
-            path.to_str().unwrap().to_owned()
-        } else {
-            let mut path = PathBuf::from(
-                output
-                    .replace('<', "-")
-                    .replace('>', "-")
-                    .replace(':', "-")
-                    .replace('\"', "-")
-                    .replace('/', "-")
-                    .replace('\\', "-")
-                    .replace('|', "-")
-                    .replace('?', "-"),
-            );
-            path.set_extension("mp4");
-            path.to_str().unwrap().to_owned()
-        };
-
-        output
-    }
-
-    pub fn input_type(&self) -> InputType {
-        let url = self.input.split('?').next().unwrap();
-
-        if url.starts_with("http") {
-            if url.ends_with(".m3u") || url.ends_with(".m3u8") || url.ends_with("ts.m3u8") {
-                InputType::HlsUrl
-            } else if url.ends_with(".mpd") || url.ends_with(".xml") {
-                InputType::DashUrl
-            } else {
-                InputType::Website
-            }
-        } else if url.ends_with(".m3u") || url.ends_with(".m3u8") || url.ends_with("ts.m3u8") {
-            InputType::HlsLocalFile
-        } else if url.ends_with(".mpd") || url.ends_with(".xml") {
-            InputType::DashLocalFile
-        } else {
-            InputType::LocalFile
-        }
-    }
-
-    #[allow(clippy::wrong_self_convention)]
-    pub fn to_download_state(mut self) -> Result<DownloadState> {
-        let client = self.client()?;
-
-        if self.input_type().is_website() {
-            println!(
-                "{} website for HLS and DASH stream links.",
-                "Scraping".colorize("bold green"),
-            );
-            let links = crate::utils::find_hls_dash_links(&client.get(&self.input).send()?.text()?);
-
-            match links.len() {
-                0 => bail!(crate::utils::scrape_website_message(&self.input)),
-                1 => {
-                    self.input = links[0].clone();
-                    println!("{} {}", "Found".colorize("bold green"), &links[0]);
-                }
-                _ => {
-                    let mut elinks = vec![];
-                    for (i, link) in links.iter().enumerate() {
-                        elinks.push(format!("{:2}) {}", i + 1, link));
-                    }
-                    let index = crate::utils::select(
-                        "Select one link:".to_string(),
-                        &elinks,
-                        self.raw_prompts,
-                    )?;
-                    self.input = links[index].clone();
-                }
-            }
-        }
-
-        Ok(DownloadState {
-            alternative_media_type: None,
-            args: self,
-            cenc_encrypted_audio: false,
-            cenc_encrypted_video: false,
+        crate::download::State {
+            baseurl: self.baseurl,
             client,
-            dash: false,
-            progress: DownloadProgress::new_empty(),
-        })
-    }
-}
+            progress: crate::progress::Progress {
+                audio: None,
+                directory: self.directory,
+                output: self.output,
+                subtitles: None,
+                video: crate::progress::Stream::default(),
+            },
+            redirected_url: reqwest::Url::parse("https://example.net").unwrap(),
+        }
+        .perform()?;
 
-pub enum InputType {
-    HlsUrl,
-    DashUrl,
-    Website,
-    HlsLocalFile,
-    DashLocalFile,
-    LocalFile,
-}
-
-impl InputType {
-    pub fn is_website(&self) -> bool {
-        matches!(self, Self::Website)
-    }
-
-    pub fn is_hls(&self) -> bool {
-        matches!(self, Self::HlsUrl | Self::HlsLocalFile)
-    }
-
-    pub fn is_dash(&self) -> bool {
-        matches!(self, Self::DashUrl | Self::DashLocalFile)
+        Ok(())
     }
 }

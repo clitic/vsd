@@ -1,67 +1,92 @@
-use crate::commands::InputType;
 use crate::merger::BinaryMerger;
-use crate::progress::{DownloadProgress, Stream};
-use crate::mp4parser::subtitles::MP4Subtitles;
-use crate::{commands, dash, hls, utils};
+use crate::playlist::PlaylistType;
+use crate::progress::Stream;
+use crate::{dash, hls, utils};
 use anyhow::{anyhow, bail, Result};
 use kdam::term::Colorizer;
 use kdam::{tqdm, BarExt, Column, RichProgress};
-use reqwest::blocking::Client;
 use reqwest::header;
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-pub struct DownloadState {
-    pub alternative_media_type: Option<m3u8_rs::AlternativeMediaType>,
-    pub args: commands::Save,
-    pub cenc_encrypted_audio: bool,
-    pub cenc_encrypted_video: bool,
-    pub client: Client,
-    pub dash: bool,
-    pub progress: DownloadProgress,
+pub struct State {
+    pub baseurl: Option<String>,
+    pub client: reqwest::blocking::Client,
+    pub progress: crate::progress::Progress,
+    pub redirected_url: reqwest::Url,
 }
 
-impl DownloadState {
-    pub fn perform(&mut self) -> Result<()> {
-        let input_type = self.args.input_type();
+impl State {
+    pub fn perform(&mut self, input: &str) -> Result<()> {
+        let playlist_type = None;
+        let path = std::path::Path::new(input);
 
-        let content = match input_type {
-            InputType::HlsUrl | InputType::DashUrl => {
-                self.client.get(&self.args.input).send()?.bytes()?.to_vec()
+        let playlist = if path.exists() {
+            if let Some(ext) = path.extension() {
+                let ext = ext.to_string_lossy();
+                if ext == "mpd" {
+                    playlist_type = Some(PlaylistType::Dash);
+                } else if ext == "m3u" || ext == "m3u8" {
+                    playlist_type = Some(PlaylistType::Hls);
+                }
             }
-            InputType::HlsLocalFile | InputType::DashLocalFile => {
-                std::fs::read_to_string(&self.args.input)?
-                    .as_bytes()
-                    .to_vec()
+
+            if playlist_type.is_none() {
+                std::fs::read(path)?
+            } else {
+                let text = std::fs::read_to_string(path)?;
+                if text.contains("<MPD") {
+                    playlist_type = Some(PlaylistType::Dash);
+                } else if text.contains("#EXTM3U") {
+                    playlist_type = Some(PlaylistType::Hls);
+                }
+                text.as_bytes().to_vec()
             }
-            InputType::LocalFile | InputType::Website => {
-                bail!("Unsupported input file {}.", self.args.input)
+        } else {
+            let response = self.client.get(input).send()?;
+            self.redirected_url = *response.url();
+
+            if let Some(content_type) = response.headers().get(reqwest::header::CONTENT_TYPE) {
+                match content_type.as_bytes() {
+                    b"application/dash+xml" | b"video/vnd.mpeg.dash.mpd" => {
+                        playlist_type = Some(PlaylistType::Dash)
+                    }
+                    b"application/x-mpegurl" | b"application/vnd.apple.mpegurl" => {
+                        playlist_type = Some(PlaylistType::Hls)
+                    }
+                    _ => (),
+                }
             }
+
+            if playlist_type.is_none() {
+                let text = response.text()?;
+                if text.contains("<MPD") {
+                    playlist_type = Some(PlaylistType::Dash);
+                } else if text.contains("#EXTM3U") {
+                    playlist_type = Some(PlaylistType::Hls);
+                }
+            }
+
+            response.bytes()?.to_vec()
         };
 
-        if input_type.is_hls() {
-            self.hls_vod(&content)?;
-        } else if input_type.is_dash() {
-            self.dash = true;
-            self.dash_vod(&content)?;
-        } else {
-            bail!("Only HLS and DASH streams are supported.")
+        match playlist_type {
+            Some(PlaylistType::Dash) => self.dash_vod(&playlist)?,
+            Some(PlaylistType::Hls) => self.hls_vod(&playlist)?,
+            _ => bail!("only DASH (.mpd) and HLS (.m3u8) playlists are supported."),
         }
 
         self.download()?;
-        self.progress.mux(
-            &self.args.output,
-            &self.args.directory,
-            &self.alternative_media_type,
-        )?;
+        self.progress.mux()?;
         Ok(())
     }
 
-    fn hls_vod(&mut self, content: &[u8]) -> Result<()> {
-        match m3u8_rs::parse_playlist_res(content)
-            .map_err(|_| anyhow!("Couldn't parse {} playlist.", self.args.input))?
+    fn hls_vod(&mut self, playlist: &[u8]) -> Result<()> {
+        // crate::hls::parse_as_master(m3u8, uri)
+        match m3u8_rs::parse_playlist_res(playlist)
+            .map_err(|_| anyhow!("couldn't parse {} as HLS playlist.", self.redirected_url))?
         {
             m3u8_rs::Playlist::MasterPlaylist(mut master) => {
                 self.args.input = if self.args.alternative {
@@ -106,7 +131,7 @@ impl DownloadState {
                     &self.args.input,
                     None,
                     &self.args.tempfile(),
-                    std::str::from_utf8(content)?,
+                    std::str::from_utf8(playlist)?,
                 )?;
             }
         }
@@ -644,7 +669,7 @@ impl DownloadState {
         }
 
         let tempfile = subtitles.path(&self.args.directory);
-        
+
         pb.write(format!(
             "{} subtitle stream to {}",
             "Downloading".colorize("bold green"),

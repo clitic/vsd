@@ -9,7 +9,7 @@ mod utils;
 pub use decrypt::Decrypt;
 pub use extract::Extract;
 pub use merge::Merge;
-pub use save::{Save, InputType, Quality};
+pub use save::{Save, Quality};
 
 #[cfg(feature = "chrome")]
 pub use capture::Capture;
