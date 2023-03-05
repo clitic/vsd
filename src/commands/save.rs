@@ -72,8 +72,8 @@ pub struct Save {
     pub prefer_subs_lang: Option<String>,
 
     /// Automatic selection of some standard resolution streams with highest bandwidth stream variant from playlist.
-    /// possible values: [lowest, min, 144p, 240p, 360p, 480p, 720p, hd, 1080p, fhd, 2k, 1440p, qhd, 4k, 8k, highest, max, select-later]
-    #[arg(short, long, help_heading = "Automation Options", default_value = "select-later", value_name = "WIDTHxHEIGHT", value_parser = quality_parser)]
+    /// possible values: [lowest, min, 144p, 240p, 360p, 480p, 720p, hd, 1080p, fhd, 2k, 1440p, qhd, 4k, 8k, highest, max]
+    #[arg(short, long, help_heading = "Automation Options", default_value = "highest", value_name = "WIDTHxHEIGHT", value_parser = quality_parser)]
     pub quality: Quality,
 
     /// Custom headers for requests.
@@ -110,7 +110,6 @@ pub enum Quality {
     Lowest,
     Highest,
     Resolution(u16, u16),
-    SelectLater,
     Youtube144p,
     Youtube240p,
     Youtube360p,
@@ -137,7 +136,6 @@ fn quality_parser(s: &str) -> Result<Quality, String> {
         "4k" => Quality::Youtube4k,
         "8k" => Quality::Youtube8k,
         "highest" | "max" => Quality::Highest,
-        "select-later" => Quality::SelectLater,
         x if x.contains('x') => {
             if let (Some(w), Some(h)) = (x.split('x').next(), x.split('x').nth(1)) {
                 Quality::Resolution(
@@ -166,8 +164,7 @@ fn quality_parser(s: &str) -> Result<Quality, String> {
                 "4k",
                 "8k",
                 "highest",
-                "max",
-                "select-later"
+                "max"
             ]
             .iter()
             .map(|x| x.colorize("green"))

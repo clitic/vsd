@@ -426,7 +426,7 @@ impl MasterPlaylist {
     // https://docs.rs/requestty/latest/requestty/question/struct.Question.html#method.select
     // TODO - Raw prompts
     /// Call this function after calling sort_streams
-    pub(crate) fn select_streams(&self, quality: &Quality) -> Result<()> {
+    pub(crate) fn select_streams(&self, quality: &Quality) -> Result<Vec<MediaPlaylist>> {
         let video_streams = self
             .streams
             .iter()
@@ -435,7 +435,7 @@ impl MasterPlaylist {
 
         let default_video_stream_index = match quality {
             Quality::Lowest => video_streams.size_hint().1,
-            Quality::Highest | Quality::SelectLater => Some(0),
+            Quality::Highest => Some(0),
             Quality::Resolution(w, h) => video_streams
                 .find(|x| x.1.has_resolution(*w, *h))
                 .map(|y| y.0),
@@ -522,14 +522,71 @@ impl MasterPlaylist {
                 .should_loop(false)
                 .message("Select streams to download")
                 .choices_with_default(choices_with_default)
-                // .validate(filter);
+                .validate(|choices, _| {
+                    let video_choices = choices[choices_with_default_ranges[0]]
+                        .iter()
+                        .filter(|x| **x)
+                        .count();
+                    let audio_choices = choices[choices_with_default_ranges[1]]
+                        .iter()
+                        .filter(|x| **x)
+                        .count();
+                    let subtitles_choices = choices[choices_with_default_ranges[2]]
+                        .iter()
+                        .filter(|x| **x)
+                        .count();
+
+                    if video_choices == 0 {
+                        return Err("Atleast one video stream should be selected.".to_owned());
+                    } else if video_choices > 1 {
+                        return Err("Multiple video streams cannot be selected.".to_owned());
+                    }
+
+                    if audio_choices > 1 {
+                        return Err("Multiple audio streams cannot be selected.".to_owned());
+                    }
+
+                    if subtitles_choices > 1 {
+                        return Err("Multiple subtitles streams cannot be selected.".to_owned());
+                    }
+
+                    Ok(())
+                })
                 .build();
 
             let answer = requestty::prompt_one(question)?;
-            println!("{:#?}", answer);
-            // answer.as_list_items().unwrap().iter().map(|x| x.index)
 
-            Ok(())
+            let video_streams = self
+                .streams
+                .into_iter()
+                .filter(|x| x.media_type == MediaType::Video)
+                .collect::<Vec<MediaPlaylist>>();
+            let audio_streams = self
+                .streams
+                .into_iter()
+                .filter(|x| x.media_type == MediaType::Audio)
+                .collect::<Vec<MediaPlaylist>>();
+            let subtitles_streams = self
+                .streams
+                .into_iter()
+                .filter(|x| x.media_type == MediaType::Subtitles)
+                .collect::<Vec<MediaPlaylist>>();
+
+            Ok(answer
+                .as_list_items()
+                .unwrap()
+                .iter()
+                .map(|x| {
+                    if choices_with_default_ranges[0].contains(&x.index) {
+                        video_streams[x.index + 1]
+                    } else if choices_with_default_ranges[1].contains(&x.index) {
+                        video_streams[x.index + 2]
+                    } else {
+                        // choices_with_default_ranges[2].contains(&x.index)
+                        video_streams[x.index + 3]
+                    }
+                })
+                .collect())
         } else {
             // TODO - Add better message
             // Selected variant stream of quality {} ({} {}/s).
