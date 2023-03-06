@@ -1,13 +1,13 @@
 use crate::playlist;
 
-pub fn parse_as_master(m3u8: &m3u8_rs::MasterPlaylist, uri: &str) -> playlist::MasterPlaylist {
+pub(crate) fn parse_as_master(m3u8: &m3u8_rs::MasterPlaylist, uri: &str) -> playlist::MasterPlaylist {
     let mut streams = vec![];
 
-    for video_stream in m3u8.variants {
+    for video_stream in &m3u8.variants {
         streams.push(playlist::MediaPlaylist {
             bandwidth: Some(video_stream.bandwidth),
             channels: None,
-            codecs: video_stream.codecs,
+            codecs: video_stream.codecs.to_owned(),
             extension: Some("ts".to_owned()), // Cannot be comment here
             frame_rate: video_stream.frame_rate.map(|x| x as f32),
             i_frame: video_stream.is_i_frame,
@@ -22,12 +22,12 @@ pub fn parse_as_master(m3u8: &m3u8_rs::MasterPlaylist, uri: &str) -> playlist::M
                 None
             },
             segments: vec![], // Cannot be comment here
-            uri: video_stream.uri,
+            uri: video_stream.uri.to_owned(),
         });
     }
 
-    for alternative_stream in m3u8.alternatives {
-        if let Some(uri) = alternative_stream.uri {
+    for alternative_stream in &m3u8.alternatives {
+        if let Some(uri) = &alternative_stream.uri {
             match alternative_stream.media_type {
                 m3u8_rs::AlternativeMediaType::Video => streams.push(playlist::MediaPlaylist {
                     bandwidth: None, // Cannot be comment here
@@ -42,13 +42,14 @@ pub fn parse_as_master(m3u8: &m3u8_rs::MasterPlaylist, uri: &str) -> playlist::M
                     playlist_type: playlist::PlaylistType::Hls,
                     resolution: None, // Cannot be comment here
                     segments: vec![], // Cannot be comment here
-                    uri,
+                    uri: uri.to_owned(),
                 }),
 
                 m3u8_rs::AlternativeMediaType::Audio => streams.push(playlist::MediaPlaylist {
                     bandwidth: None, // Cannot be comment here
                     channels: alternative_stream
                         .channels
+                        .as_ref()
                         .map(|x| x.parse::<f32>().unwrap()),
                     codecs: None,                     // Cannot be comment here
                     extension: Some("ts".to_owned()), // Cannot be comment here
@@ -56,13 +57,14 @@ pub fn parse_as_master(m3u8: &m3u8_rs::MasterPlaylist, uri: &str) -> playlist::M
                     i_frame: false,
                     language: alternative_stream
                         .language
-                        .or(alternative_stream.assoc_language),
+                        .to_owned()
+                        .or(alternative_stream.assoc_language.to_owned()),
                     live: false, // Cannot be comment here
                     media_type: playlist::MediaType::Audio,
                     playlist_type: playlist::PlaylistType::Hls,
                     resolution: None,
                     segments: vec![], // Cannot be comment here
-                    uri,
+                    uri: uri.to_owned(),
                 }),
 
                 m3u8_rs::AlternativeMediaType::ClosedCaptions
@@ -76,13 +78,14 @@ pub fn parse_as_master(m3u8: &m3u8_rs::MasterPlaylist, uri: &str) -> playlist::M
                         i_frame: false,
                         language: alternative_stream
                             .language
-                            .or(alternative_stream.assoc_language),
+                            .to_owned()
+                            .or(alternative_stream.assoc_language.to_owned()),
                         live: false, // Cannot be comment here
                         media_type: playlist::MediaType::Subtitles,
                         playlist_type: playlist::PlaylistType::Hls,
                         resolution: None,
                         segments: vec![], // Cannot be comment here
-                        uri,
+                        uri: uri.to_owned(),
                     })
                 }
 
@@ -90,6 +93,7 @@ pub fn parse_as_master(m3u8: &m3u8_rs::MasterPlaylist, uri: &str) -> playlist::M
                     bandwidth: None,
                     channels: alternative_stream
                         .channels
+                        .as_ref()
                         .map(|x| x.parse::<f32>().unwrap()),
                     codecs: None,     // Cannot be comment here
                     extension: None,  // Cannot be comment here
@@ -97,13 +101,14 @@ pub fn parse_as_master(m3u8: &m3u8_rs::MasterPlaylist, uri: &str) -> playlist::M
                     i_frame: false,   // Cannot be comment here
                     language: alternative_stream
                         .language
-                        .or(alternative_stream.assoc_language),
+                        .to_owned()
+                        .or(alternative_stream.assoc_language.to_owned()),
                     live: false, // Cannot be comment here
                     media_type: playlist::MediaType::Undefined,
                     playlist_type: playlist::PlaylistType::Hls,
                     resolution: None, // Cannot be comment here
                     segments: vec![], // Cannot be comment here
-                    uri,
+                    uri: uri.to_owned(),
                 }),
             }
         }
@@ -116,13 +121,13 @@ pub fn parse_as_master(m3u8: &m3u8_rs::MasterPlaylist, uri: &str) -> playlist::M
     }
 }
 
-pub fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playlist::MediaPlaylist) {
+pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playlist::MediaPlaylist) {
     playlist.i_frame = m3u8.i_frames_only;
     playlist.live = !m3u8.end_list;
 
-    for segment in m3u8.segments {
+    for segment in &m3u8.segments {
         playlist.segments.push(playlist::Segment {
-            byte_range: segment.byte_range.map(|x| playlist::ByteRange {
+            byte_range: segment.byte_range.as_ref().map(|x| playlist::ByteRange {
                 length: x.length,
                 offset: x.offset,
             }),
@@ -133,7 +138,7 @@ pub fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playlist::Med
                 method,
                 uri: Some(uri),
                 ..
-            }) = segment.key
+            }) = &segment.key
             {
                 let method = match method {
                     m3u8_rs::KeyMethod::AES128 => playlist::KeyMethod::Aes128,
@@ -144,32 +149,32 @@ pub fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playlist::Med
                     m3u8_rs::KeyMethod::Other(x) if x.to_lowercase().contains("cenc") => {
                         playlist::KeyMethod::Cenc
                     }
-                    m3u8_rs::KeyMethod::Other(x) => playlist::KeyMethod::Other(x),
+                    m3u8_rs::KeyMethod::Other(x) => playlist::KeyMethod::Other(x.to_owned()),
                 };
 
                 Some(playlist::Key {
                     default_kid: None,
-                    iv,
-                    key_format: keyformat,
+                    iv: iv.to_owned(),
+                    key_format: keyformat.to_owned(),
                     method,
-                    uri,
+                    uri: uri.to_owned(),
                 })
             } else {
                 None
             },
-            map: segment.map.map(|x| playlist::Map {
-                uri: x.uri,
-                byte_range: x.byte_range.map(|y| playlist::ByteRange {
+            map: segment.map.as_ref().map(|x| playlist::Map {
+                uri: x.uri.to_owned(),
+                byte_range: x.byte_range.as_ref().map(|y| playlist::ByteRange {
                     length: y.length,
                     offset: y.offset,
                 }),
             }),
-            uri: segment.uri,
+            uri: segment.uri.to_owned(),
         });
     }
 
     if let Some(segment) = playlist.segments.get(0) {
-        if let Some(init) = segment.map {
+        if let Some(init) = &segment.map {
             if init.uri.split('?').next().unwrap().ends_with(".mp4") {
                 playlist.extension = Some("m4s".to_owned());
             }

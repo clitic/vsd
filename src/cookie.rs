@@ -23,9 +23,9 @@ impl CookieJar {
 impl CookieStore for CookieJar {
     fn cookies(&self, url: &Url) -> Option<HeaderValue> {
         if let Some(cookie) = &self.cookie {
-            self.inner
-                .cookies(url)
-                .map(|x| HeaderValue::from_static(&format!("{}; {}", cookie, x.to_str().unwrap())))
+            self.inner.cookies(url).map(|x| {
+                HeaderValue::from_str(&format!("{}; {}", cookie, x.to_str().unwrap())).unwrap()
+            })
         } else {
             self.inner.cookies(url)
         }

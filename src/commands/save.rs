@@ -249,7 +249,7 @@ impl Save {
         }
 
         if let Some(proxy) = &self.proxy_address {
-            client_builder = client_builder.proxy(*proxy);
+            client_builder = client_builder.proxy(proxy.to_owned());
         }
 
         let cookie_jar = crate::cookie::CookieJar::new(self.cookie);
@@ -296,7 +296,7 @@ impl Save {
         // }
 
         crate::download::State {
-            baseurl: self.baseurl,
+            baseurl: self.baseurl.map(|x| x.parse().unwrap()), // TODO - Find better way to do this.
             client,
             progress: crate::progress::Progress {
                 audio: None,
@@ -307,7 +307,7 @@ impl Save {
             },
             redirected_url: reqwest::Url::parse("https://example.net").unwrap(),
         }
-        .perform()?;
+        .perform(&self.input, self.prefer_audio_lang, self.prefer_subs_lang, self.quality)?;
 
         Ok(())
     }

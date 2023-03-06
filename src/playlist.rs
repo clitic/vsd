@@ -2,17 +2,19 @@ use crate::commands::Quality;
 use anyhow::{bail, Result};
 use serde::Serialize;
 
-#[derive(PartialEq, Serialize)]
+#[derive(Default, PartialEq, Serialize)]
 pub(crate) enum MediaType {
     Audio,
     Subtitles,
+    #[default]
     Undefined,
     Video,
 }
 
-#[derive(Serialize)]
+#[derive(Default, Serialize)]
 pub(crate) enum PlaylistType {
     Dash,
+    #[default]
     Hls,
 }
 
@@ -131,7 +133,7 @@ impl Segment {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Default, Serialize)]
 pub(crate) struct MediaPlaylist {
     pub(crate) bandwidth: Option<u64>,
     pub(crate) channels: Option<f32>,
@@ -182,7 +184,10 @@ impl MediaPlaylist {
             ("?".to_owned(), "?".to_owned(), "?".to_owned())
         };
 
-        let mut extra = format!("(codecs: {}", self.codecs.unwrap_or("?".to_owned()));
+        let mut extra = format!(
+            "(codecs: {}",
+            self.codecs.as_ref().unwrap_or(&"?".to_owned())
+        );
 
         if let Some(frame_rate) = self.frame_rate {
             extra += &format!(", frame_rate: {}", frame_rate);
@@ -205,9 +210,12 @@ impl MediaPlaylist {
     }
 
     fn display_audio_stream(&self) -> String {
-        let mut extra = format!("language: {}", self.language.unwrap_or("?".to_owned()));
+        let mut extra = format!(
+            "language: {}",
+            self.language.as_ref().unwrap_or(&"?".to_owned())
+        );
 
-        if let Some(codecs) = self.codecs {
+        if let Some(codecs) = &self.codecs {
             extra += &format!(", codecs: {}", codecs);
         }
 
@@ -230,9 +238,12 @@ impl MediaPlaylist {
     }
 
     fn display_subtitles_stream(&self) -> String {
-        let mut extra = format!("language: {}", self.language.unwrap_or("?".to_owned()));
+        let mut extra = format!(
+            "language: {}",
+            self.language.as_ref().unwrap_or(&"?".to_owned())
+        );
 
-        if let Some(codecs) = self.codecs {
+        if let Some(codecs) = &self.codecs {
             extra += &format!(", codecs: {}", codecs);
         }
 
@@ -273,7 +284,7 @@ impl MediaPlaylist {
         };
 
         if let Some(segment) = self.segments.get(0) {
-            if let Some(init) = segment.map {
+            if let Some(init) = &segment.map {
                 if init.uri.ends_with(".mp4") {
                     ext = "m4s";
                 }
@@ -319,91 +330,75 @@ impl MasterPlaylist {
     }
 
     pub(crate) fn sort_streams(
-        &mut self,
+        mut self,
         prefer_audio_lang: Option<String>,
         prefer_subs_lang: Option<String>,
-    ) {
+    ) -> Self {
         let prefer_audio_lang = prefer_audio_lang.map(|x| x.to_lowercase());
         let prefer_subs_lang = prefer_subs_lang.map(|x| x.to_lowercase());
 
-        let mut video_streams = self
-            .streams
-            .into_iter()
-            .filter_map(|x| {
-                if x.media_type == MediaType::Video {
-                    let pixels = if let Some((w, h)) = &x.resolution {
+        let mut video_streams = vec![];
+        let mut audio_streams = vec![];
+        let mut subtitles_streams = vec![];
+        let mut undefined_streams = vec![];
+
+        for stream in self.streams {
+            match stream.media_type {
+                MediaType::Audio => {
+                    let mut language_factor = 0;
+
+                    if let Some(playlist_lang) = &stream.language.as_ref().map(|x| x.to_lowercase())
+                    {
+                        if let Some(prefer_lang) = &prefer_audio_lang {
+                            if playlist_lang == prefer_lang {
+                                language_factor = 2;
+                            } else if playlist_lang.get(0..2) == prefer_lang.get(0..2) {
+                                language_factor = 1;
+                            }
+                        }
+                    }
+
+                    let channels = stream.channels.unwrap_or(0.0);
+                    let bandwidth = stream.bandwidth.unwrap_or(0);
+
+                    audio_streams.push((stream, language_factor, channels, bandwidth));
+                }
+                MediaType::Subtitles => {
+                    let mut language_factor = 0;
+
+                    if let Some(playlist_lang) = &stream.language.as_ref().map(|x| x.to_lowercase())
+                    {
+                        if let Some(prefer_lang) = &prefer_subs_lang {
+                            if playlist_lang == prefer_lang {
+                                language_factor = 2;
+                            } else if playlist_lang.get(0..2) == prefer_lang.get(0..2) {
+                                language_factor = 1;
+                            }
+                        }
+                    }
+
+                    subtitles_streams.push((stream, language_factor));
+                }
+                MediaType::Undefined => undefined_streams.push(stream),
+                MediaType::Video => {
+                    let pixels = if let Some((w, h)) = &stream.resolution {
                         w * h
                     } else {
                         0
                     };
 
-                    Some((x, pixels, x.bandwidth.unwrap_or(0)))
-                } else {
-                    None
+                    let bandwidth = stream.bandwidth.unwrap_or(0);
+
+                    video_streams.push((stream, pixels, bandwidth));
                 }
-            })
-            .collect::<Vec<_>>();
+            }
+        }
 
         video_streams.sort_by(|x, y| y.2.cmp(&x.2));
         video_streams.sort_by(|x, y| y.1.cmp(&x.1));
-
-        let mut audio_streams = self
-            .streams
-            .into_iter()
-            .filter_map(|x| {
-                if x.media_type == MediaType::Audio {
-                    let mut language_factor = 0;
-
-                    if let Some(playlist_lang) = x.language.as_ref().map(|x| x.to_lowercase()) {
-                        if let Some(prefer_lang) = prefer_audio_lang {
-                            if playlist_lang == prefer_lang {
-                                language_factor = 2;
-                            } else if playlist_lang.get(0..2) == prefer_lang.get(0..2) {
-                                language_factor = 1;
-                            }
-                        }
-                    }
-
-                    Some((
-                        x,
-                        language_factor,
-                        x.channels.unwrap_or(0.0),
-                        x.bandwidth.unwrap_or(0),
-                    ))
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-
         audio_streams.sort_by(|x, y| y.3.cmp(&x.3));
         audio_streams.sort_by(|x, y| y.2.total_cmp(&x.2));
         audio_streams.sort_by(|x, y| y.1.cmp(&x.1));
-
-        let mut subtitles_streams = self
-            .streams
-            .into_iter()
-            .filter_map(|x| {
-                if x.media_type == MediaType::Subtitles {
-                    let mut language_factor = 0;
-
-                    if let Some(playlist_lang) = x.language.as_ref().map(|x| x.to_lowercase()) {
-                        if let Some(prefer_lang) = prefer_subs_lang {
-                            if playlist_lang == prefer_lang {
-                                language_factor = 2;
-                            } else if playlist_lang.get(0..2) == prefer_lang.get(0..2) {
-                                language_factor = 1;
-                            }
-                        }
-                    }
-
-                    Some((x, language_factor))
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-
         subtitles_streams.sort_by(|x, y| y.1.cmp(&x.1));
 
         self.streams = video_streams
@@ -411,12 +406,10 @@ impl MasterPlaylist {
             .map(|x| x.0)
             .chain(audio_streams.into_iter().map(|x| x.0))
             .chain(subtitles_streams.into_iter().map(|x| x.0))
-            .chain(
-                self.streams
-                    .into_iter()
-                    .filter(|x| x.media_type == MediaType::Undefined),
-            )
+            .chain(undefined_streams.into_iter())
             .collect::<Vec<_>>();
+
+        self
     }
 
     // pub(crate) fn select_stream(&self, quality: &Quality, raw_prompts: bool) -> Result<MediaPlaylist> {
@@ -426,14 +419,14 @@ impl MasterPlaylist {
     // https://docs.rs/requestty/latest/requestty/question/struct.Question.html#method.select
     // TODO - Raw prompts
     /// Call this function after calling sort_streams
-    pub(crate) fn select_streams(&self, quality: &Quality) -> Result<Vec<MediaPlaylist>> {
-        let video_streams = self
+    pub(crate) fn select_streams(self, quality: Quality) -> Result<Vec<MediaPlaylist>> {
+        let mut video_streams = self
             .streams
             .iter()
             .filter(|x| x.media_type == MediaType::Video)
             .enumerate();
 
-        let default_video_stream_index = match quality {
+        let default_video_stream_index = match &quality {
             Quality::Lowest => video_streams.size_hint().1,
             Quality::Highest => Some(0),
             Quality::Resolution(w, h) => video_streams
@@ -523,15 +516,15 @@ impl MasterPlaylist {
                 .message("Select streams to download")
                 .choices_with_default(choices_with_default)
                 .validate(|choices, _| {
-                    let video_choices = choices[choices_with_default_ranges[0]]
+                    let video_choices = choices[choices_with_default_ranges[0].clone()]
                         .iter()
                         .filter(|x| **x)
                         .count();
-                    let audio_choices = choices[choices_with_default_ranges[1]]
+                    let audio_choices = choices[choices_with_default_ranges[1].clone()]
                         .iter()
                         .filter(|x| **x)
                         .count();
-                    let subtitles_choices = choices[choices_with_default_ranges[2]]
+                    let subtitles_choices = choices[choices_with_default_ranges[2].clone()]
                         .iter()
                         .filter(|x| **x)
                         .count();
@@ -556,37 +549,45 @@ impl MasterPlaylist {
 
             let answer = requestty::prompt_one(question)?;
 
-            let video_streams = self
-                .streams
-                .into_iter()
-                .filter(|x| x.media_type == MediaType::Video)
-                .collect::<Vec<MediaPlaylist>>();
-            let audio_streams = self
-                .streams
-                .into_iter()
-                .filter(|x| x.media_type == MediaType::Audio)
-                .collect::<Vec<MediaPlaylist>>();
-            let subtitles_streams = self
-                .streams
-                .into_iter()
-                .filter(|x| x.media_type == MediaType::Subtitles)
-                .collect::<Vec<MediaPlaylist>>();
+            let mut video_streams = vec![];
+            let mut audio_streams = vec![];
+            let mut subtitles_streams = vec![];
 
-            Ok(answer
-                .as_list_items()
-                .unwrap()
-                .iter()
-                .map(|x| {
-                    if choices_with_default_ranges[0].contains(&x.index) {
-                        video_streams[x.index + 1]
-                    } else if choices_with_default_ranges[1].contains(&x.index) {
-                        video_streams[x.index + 2]
-                    } else {
-                        // choices_with_default_ranges[2].contains(&x.index)
-                        video_streams[x.index + 3]
-                    }
-                })
-                .collect())
+            for stream in self.streams {
+                match stream.media_type {
+                    MediaType::Audio => audio_streams.push(stream),
+                    MediaType::Subtitles => subtitles_streams.push(stream),
+                    MediaType::Undefined => (),
+                    MediaType::Video => video_streams.push(stream),
+                }
+            }
+
+            let mut selected_streams = vec![];
+            let mut video_streams_offset = 0;
+            let mut audio_streams_offset = 0;
+            let mut subtitles_streams_offset = 0;
+
+            for selected_item in answer.as_list_items().unwrap() {
+                if choices_with_default_ranges[0].contains(&selected_item.index) {
+                    selected_streams.push(
+                        video_streams.remove((selected_item.index + 1) - video_streams_offset),
+                    );
+                    video_streams_offset += 1;
+                } else if choices_with_default_ranges[1].contains(&selected_item.index) {
+                    selected_streams.push(
+                        audio_streams.remove((selected_item.index + 2) - audio_streams_offset),
+                    );
+                    audio_streams_offset += 1;
+                } else if choices_with_default_ranges[2].contains(&selected_item.index) {
+                    selected_streams.push(
+                        subtitles_streams
+                            .remove((selected_item.index + 3) - subtitles_streams_offset),
+                    );
+                    subtitles_streams_offset += 1;
+                }
+            }
+
+            Ok(selected_streams)
         } else {
             // TODO - Add better message
             // Selected variant stream of quality {} ({} {}/s).

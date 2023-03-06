@@ -34,7 +34,7 @@ pub struct Extract {
 
 impl Extract {
     pub fn perform(&self) -> Result<()> {
-        let mut data = std::fs::read(self.input)?;
+        let data = std::fs::read(&self.input)?;
         let vtt = Mp4VttParser::parse_init(&data);
         let ttml = Mp4TtmlParser::parse_init(&data);
 

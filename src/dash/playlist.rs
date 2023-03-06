@@ -10,7 +10,7 @@ use super::{iso8601_duration_to_seconds, mpd_range_to_byte_range, DashUrl, Templ
 use crate::playlist;
 use anyhow::{anyhow, Result};
 
-pub fn parse_as_master(mpd: &MPD, uri: &str) -> playlist::MasterPlaylist {
+pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> playlist::MasterPlaylist {
     let mut streams = vec![];
 
     for (period_index, period) in mpd.period.iter().enumerate() {
@@ -51,7 +51,7 @@ pub fn parse_as_master(mpd: &MPD, uri: &str) -> playlist::MasterPlaylist {
     }
 }
 
-pub fn push_segments(
+pub(crate) fn push_segments(
     mpd: &MPD,
     playlist: &mut playlist::MediaPlaylist,
     baseurl: &str,
