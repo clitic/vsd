@@ -1,5 +1,6 @@
 use crate::commands::Quality;
 use anyhow::{bail, Result};
+use requestty::prompt::style::Stylize;
 use serde::Serialize;
 
 #[derive(Default, PartialEq, Serialize)]
@@ -204,7 +205,7 @@ impl MediaPlaylist {
         extra += ")";
 
         format!(
-            "{:9} {:>6} {}/s {}",
+            "{:9} {:>7} {}/s {}",
             resolution, bandwidth.0, bandwidth.1, extra
         )
     }
@@ -419,7 +420,7 @@ impl MasterPlaylist {
     // https://docs.rs/requestty/latest/requestty/question/struct.Question.html#method.select
     // TODO - Raw prompts
     /// Call this function after calling sort_streams
-    pub(crate) fn select_streams(self, quality: Quality) -> Result<Vec<MediaPlaylist>> {
+    pub(crate) fn select_streams(mut self, quality: Quality) -> Result<Vec<MediaPlaylist>> {
         let mut video_streams = self
             .streams
             .iter()
@@ -494,10 +495,10 @@ impl MasterPlaylist {
                     .iter()
                     .filter(|x| x.media_type == MediaType::Audio)
                     .enumerate()
-                    .map(|(i, x)| requestty::Choice((x.display_video_stream(), i == 0))),
+                    .map(|(i, x)| requestty::Choice((x.display_audio_stream(), i == 0))),
             );
             choices_with_default_ranges[1] =
-                (choices_with_default_ranges[1].end + 1)..choices_with_default.len();
+                (choices_with_default_ranges[0].end + 1)..choices_with_default.len();
             choices_with_default.push(requestty::Separator(
                 "───── Subtitles Streams ─────".to_owned(),
             ));
@@ -506,10 +507,12 @@ impl MasterPlaylist {
                     .iter()
                     .filter(|x| x.media_type == MediaType::Subtitles)
                     .enumerate()
-                    .map(|(i, x)| requestty::Choice((x.display_video_stream(), i == 0))),
+                    .map(|(i, x)| requestty::Choice((x.display_subtitles_stream(), i == 0))),
             );
             choices_with_default_ranges[2] =
-                (choices_with_default_ranges[2].end + 1)..choices_with_default.len();
+                (choices_with_default_ranges[1].end + 1)..choices_with_default.len();
+
+            // println!("{:?}", choices_with_default_ranges);
 
             let question = requestty::Question::multi_select("streams")
                 .should_loop(false)
@@ -545,45 +548,33 @@ impl MasterPlaylist {
 
                     Ok(())
                 })
+                .transform(|choices, _, backend| {
+                    backend.write_styled(
+                        &choices
+                            .iter()
+                            .map(|x| x.text.split_whitespace().collect::<Vec<_>>().join(" "))
+                            .collect::<Vec<_>>()
+                            .join(" & ")
+                            .cyan(),
+                    )
+                })
                 .build();
 
             let answer = requestty::prompt_one(question)?;
 
-            let mut video_streams = vec![];
-            let mut audio_streams = vec![];
-            let mut subtitles_streams = vec![];
-
-            for stream in self.streams {
-                match stream.media_type {
-                    MediaType::Audio => audio_streams.push(stream),
-                    MediaType::Subtitles => subtitles_streams.push(stream),
-                    MediaType::Undefined => (),
-                    MediaType::Video => video_streams.push(stream),
-                }
-            }
-
             let mut selected_streams = vec![];
-            let mut video_streams_offset = 0;
-            let mut audio_streams_offset = 0;
-            let mut subtitles_streams_offset = 0;
+            let mut offset = 0;
 
             for selected_item in answer.as_list_items().unwrap() {
                 if choices_with_default_ranges[0].contains(&selected_item.index) {
-                    selected_streams.push(
-                        video_streams.remove((selected_item.index + 1) - video_streams_offset),
-                    );
-                    video_streams_offset += 1;
+                    selected_streams.push(self.streams.remove((selected_item.index - 1) - offset));
+                    offset += 1;
                 } else if choices_with_default_ranges[1].contains(&selected_item.index) {
-                    selected_streams.push(
-                        audio_streams.remove((selected_item.index + 2) - audio_streams_offset),
-                    );
-                    audio_streams_offset += 1;
+                    selected_streams.push(self.streams.remove((selected_item.index - 2) - offset));
+                    offset += 1;
                 } else if choices_with_default_ranges[2].contains(&selected_item.index) {
-                    selected_streams.push(
-                        subtitles_streams
-                            .remove((selected_item.index + 3) - subtitles_streams_offset),
-                    );
-                    subtitles_streams_offset += 1;
+                    selected_streams.push(self.streams.remove((selected_item.index - 3) - offset));
+                    offset += 1;
                 }
             }
 

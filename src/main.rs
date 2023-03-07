@@ -1,13 +1,15 @@
+#![allow(unused)]
+
 mod commands;
+mod cookie;
 mod dash;
 mod download;
 mod hls;
 mod merger;
+mod mp4parser;
+mod playlist;
 mod progress;
 mod utils;
-mod playlist;
-mod mp4parser;
-mod cookie;
 
 use clap::Parser;
 use commands::{Args, Commands};
@@ -29,6 +31,11 @@ fn run() -> anyhow::Result<()> {
 }
 
 fn main() {
+    let mut symbols = requestty::symbols::UNICODE;
+    symbols.completed = '•';
+    symbols.cross = 'x';
+    requestty::symbols::set(symbols);
+
     if let Err(e) = run() {
         eprintln!("{}: {}", "error".colorize("bold red"), e);
         std::process::exit(1);
