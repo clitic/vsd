@@ -160,7 +160,7 @@ impl MediaPlaylist {
         }
     }
 
-    fn display_video_stream(&self) -> String {
+    pub fn display_video_stream(&self) -> String {
         let resolution = if let Some((w, h)) = self.resolution {
             match (w, h) {
                 (256, 144) => "144p".to_owned(),
@@ -210,7 +210,7 @@ impl MediaPlaylist {
         )
     }
 
-    fn display_audio_stream(&self) -> String {
+    pub fn display_audio_stream(&self) -> String {
         let mut extra = format!(
             "language: {}",
             self.language.as_ref().unwrap_or(&"?".to_owned())
@@ -238,7 +238,7 @@ impl MediaPlaylist {
         extra
     }
 
-    fn display_subtitles_stream(&self) -> String {
+    pub fn display_subtitle_stream(&self) -> String {
         let mut extra = format!(
             "language: {}",
             self.language.as_ref().unwrap_or(&"?".to_owned())
@@ -340,7 +340,7 @@ impl MasterPlaylist {
 
         let mut video_streams = vec![];
         let mut audio_streams = vec![];
-        let mut subtitles_streams = vec![];
+        let mut subtitle_streams = vec![];
         let mut undefined_streams = vec![];
 
         for stream in self.streams {
@@ -378,7 +378,7 @@ impl MasterPlaylist {
                         }
                     }
 
-                    subtitles_streams.push((stream, language_factor));
+                    subtitle_streams.push((stream, language_factor));
                 }
                 MediaType::Undefined => undefined_streams.push(stream),
                 MediaType::Video => {
@@ -400,13 +400,13 @@ impl MasterPlaylist {
         audio_streams.sort_by(|x, y| y.3.cmp(&x.3));
         audio_streams.sort_by(|x, y| y.2.total_cmp(&x.2));
         audio_streams.sort_by(|x, y| y.1.cmp(&x.1));
-        subtitles_streams.sort_by(|x, y| y.1.cmp(&x.1));
+        subtitle_streams.sort_by(|x, y| y.1.cmp(&x.1));
 
         self.streams = video_streams
             .into_iter()
             .map(|x| x.0)
             .chain(audio_streams.into_iter().map(|x| x.0))
-            .chain(subtitles_streams.into_iter().map(|x| x.0))
+            .chain(subtitle_streams.into_iter().map(|x| x.0))
             .chain(undefined_streams.into_iter())
             .collect::<Vec<_>>();
 
@@ -417,10 +417,16 @@ impl MasterPlaylist {
 
     // }
 
-    // https://docs.rs/requestty/latest/requestty/question/struct.Question.html#method.select
     // TODO - Raw prompts
     /// Call this function after calling sort_streams
-    pub(crate) fn select_streams(mut self, quality: Quality) -> Result<Vec<MediaPlaylist>> {
+    pub(crate) fn select_streams(
+        mut self,
+        quality: Quality,
+    ) -> Result<(
+        Option<MediaPlaylist>,
+        Vec<MediaPlaylist>,
+        Vec<MediaPlaylist>,
+    )> {
         let mut video_streams = self
             .streams
             .iter()
@@ -466,48 +472,50 @@ impl MasterPlaylist {
         };
 
         if let Some(default_video_stream_index) = default_video_stream_index {
+            let mut video_streams = vec![];
+            let mut audio_streams = vec![];
+            let mut subtitle_streams = vec![];
+            let mut undefined_streams = vec![];
+
+            for stream in self.streams {
+                match stream.media_type {
+                    MediaType::Audio => audio_streams.push(stream),
+                    MediaType::Subtitles => subtitle_streams.push(stream),
+                    MediaType::Undefined => undefined_streams.push(stream),
+                    MediaType::Video => video_streams.push(stream),
+                }
+            }
+
             let mut choices_with_default = vec![];
-            let mut choices_with_default_ranges: [std::ops::Range<usize>; 3] =
-                [(0..0), (0..0), (0..0)];
+            let mut choices_with_default_ranges: [std::ops::Range<usize>; 4] =
+                [(0..0), (0..0), (0..0), (0..0)];
 
             choices_with_default.push(requestty::Separator(
-                "─────── Video Streams ───────".to_owned(),
+                "─────── Video Streams ────────".to_owned(),
             ));
-            choices_with_default.extend(
-                self.streams
-                    .iter()
-                    .filter(|x| x.media_type == MediaType::Video)
-                    .enumerate()
-                    .map(|(i, x)| {
-                        if i == default_video_stream_index {
-                            requestty::Choice((x.display_video_stream(), true))
-                        } else {
-                            requestty::Choice((x.display_video_stream(), false))
-                        }
-                    }),
-            );
+            choices_with_default.extend(video_streams.iter().enumerate().map(|(i, x)| {
+                requestty::Choice((x.display_video_stream(), i == default_video_stream_index))
+            }));
             choices_with_default_ranges[0] = 1..choices_with_default.len();
             choices_with_default.push(requestty::Separator(
-                "─────── Audio Streams ───────".to_owned(),
+                "─────── Audio Streams ────────".to_owned(),
             ));
             choices_with_default.extend(
-                self.streams
+                audio_streams
                     .iter()
-                    .filter(|x| x.media_type == MediaType::Audio)
                     .enumerate()
                     .map(|(i, x)| requestty::Choice((x.display_audio_stream(), i == 0))),
             );
             choices_with_default_ranges[1] =
                 (choices_with_default_ranges[0].end + 1)..choices_with_default.len();
             choices_with_default.push(requestty::Separator(
-                "───── Subtitles Streams ─────".to_owned(),
+                "────── Subtitle Streams ──────".to_owned(),
             ));
             choices_with_default.extend(
-                self.streams
+                subtitle_streams
                     .iter()
-                    .filter(|x| x.media_type == MediaType::Subtitles)
                     .enumerate()
-                    .map(|(i, x)| requestty::Choice((x.display_subtitles_stream(), i == 0))),
+                    .map(|(i, x)| requestty::Choice((x.display_subtitle_stream(), i == 0))),
             );
             choices_with_default_ranges[2] =
                 (choices_with_default_ranges[1].end + 1)..choices_with_default.len();
@@ -519,34 +527,16 @@ impl MasterPlaylist {
                 .message("Select streams to download")
                 .choices_with_default(choices_with_default)
                 .validate(|choices, _| {
-                    let video_choices = choices[choices_with_default_ranges[0].clone()]
+                    if choices[choices_with_default_ranges[0].clone()]
                         .iter()
                         .filter(|x| **x)
-                        .count();
-                    let audio_choices = choices[choices_with_default_ranges[1].clone()]
-                        .iter()
-                        .filter(|x| **x)
-                        .count();
-                    let subtitles_choices = choices[choices_with_default_ranges[2].clone()]
-                        .iter()
-                        .filter(|x| **x)
-                        .count();
-
-                    if video_choices == 0 {
-                        return Err("Atleast one video stream should be selected.".to_owned());
-                    } else if video_choices > 1 {
-                        return Err("Multiple video streams cannot be selected.".to_owned());
+                        .count()
+                        > 1
+                    {
+                        Err("Multiple video streams cannot be selected.".to_owned())
+                    } else {
+                        Ok(())
                     }
-
-                    if audio_choices > 1 {
-                        return Err("Multiple audio streams cannot be selected.".to_owned());
-                    }
-
-                    if subtitles_choices > 1 {
-                        return Err("Multiple subtitles streams cannot be selected.".to_owned());
-                    }
-
-                    Ok(())
                 })
                 .transform(|choices, _, backend| {
                     backend.write_styled(
@@ -562,23 +552,32 @@ impl MasterPlaylist {
 
             let answer = requestty::prompt_one(question)?;
 
-            let mut selected_streams = vec![];
-            let mut offset = 0;
+            let mut selected_video_stream = None;
+            let mut selected_audio_streams = vec![];
+            let mut selected_subtitle_streams = vec![];
+            let mut audio_streams_offset = video_streams.len() + 2; // 5 + 2 = 7
+            let mut subtitle_streams_offset = audio_streams_offset + audio_streams.len() + 1; // 7 + 2 + 1 = 10
 
             for selected_item in answer.as_list_items().unwrap() {
                 if choices_with_default_ranges[0].contains(&selected_item.index) {
-                    selected_streams.push(self.streams.remove((selected_item.index - 1) - offset));
-                    offset += 1;
+                    selected_video_stream = Some(video_streams.remove(selected_item.index - 1));
                 } else if choices_with_default_ranges[1].contains(&selected_item.index) {
-                    selected_streams.push(self.streams.remove((selected_item.index - 2) - offset));
-                    offset += 1;
+                    selected_audio_streams
+                        .push(audio_streams.remove(selected_item.index - audio_streams_offset));
+                    audio_streams_offset += 1;
                 } else if choices_with_default_ranges[2].contains(&selected_item.index) {
-                    selected_streams.push(self.streams.remove((selected_item.index - 3) - offset));
-                    offset += 1;
+                    selected_subtitle_streams.push(
+                        subtitle_streams.remove(selected_item.index - subtitle_streams_offset),
+                    );
+                    subtitle_streams_offset += 1;
                 }
             }
 
-            Ok(selected_streams)
+            Ok((
+                selected_video_stream,
+                selected_audio_streams,
+                selected_subtitle_streams,
+            ))
         } else {
             // TODO - Add better message
             // Selected variant stream of quality {} ({} {}/s).

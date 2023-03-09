@@ -79,7 +79,7 @@ impl State {
             }
         };
 
-        let playlists = match playlist_type {
+        let (video_stream, audio_streams, subtitle_streams) = match playlist_type {
             Some(PlaylistType::Dash) => {
                 let mpd = crate::dash::parse(&playlist)?;
                 let master_playlist =
@@ -97,12 +97,24 @@ impl State {
                 Ok(m3u8_rs::Playlist::MediaPlaylist(m3u8)) => {
                     let mut media_playlist = crate::playlist::MediaPlaylist::default();
                     crate::hls::push_segments(&m3u8, &mut media_playlist);
-                    vec![media_playlist]
+                    (Some(media_playlist), vec![], vec![])
                 }
                 Err(_) => bail!("couldn't parse {} as HLS playlist.", self.redirected_url),
             },
             _ => bail!("only DASH (.mpd) and HLS (.m3u8) playlists are supported."),
         };
+
+        if let Some(video_stream) = video_stream {
+            println!("{}", video_stream.display_video_stream());
+        }
+
+        for audio_stream in audio_streams {
+            println!("{}", audio_stream.display_audio_stream());
+        }
+
+        for subtitle_stream in subtitle_streams {
+            println!("{}", subtitle_stream.display_subtitle_stream());
+        }
 
         // self.download()?;
         // self.progress.mux()?;
