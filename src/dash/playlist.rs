@@ -84,7 +84,7 @@ pub(crate) fn push_segments(
         })?;
 
     // BASEURL
-    let mut baseurl = baseurl.parse::<reqwest::Url>()?;
+    let mut baseurl = baseurl.parse::<reqwest::Url>().unwrap();
 
     if let Some(mpd_baseurl) = &mpd.baseurl {
         baseurl = baseurl.join(mpd_baseurl)?;

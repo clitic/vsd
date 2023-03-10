@@ -251,12 +251,12 @@ impl MediaPlaylist {
         extra
     }
 
-    pub(crate) fn url(&self, baseurl: &str) -> Result<reqwest::Url> {
+    pub(crate) fn url(&self, baseurl: &reqwest::Url) -> Result<reqwest::Url> {
         // self.uri.starts_with("dash://")
         if self.uri.starts_with("http") || self.uri.starts_with("ftp") {
             Ok(self.uri.parse::<reqwest::Url>()?)
         } else {
-            Ok(baseurl.parse::<reqwest::Url>()?.join(&self.uri)?)
+            Ok(baseurl.join(&self.uri)?)
         }
     }
 

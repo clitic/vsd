@@ -296,7 +296,6 @@ impl Save {
         // }
 
         crate::download::State {
-            baseurl: self.baseurl.map(|x| x.parse().unwrap()), // TODO - Find better way to do this.
             client,
             progress: crate::progress::Progress {
                 audio: None,
@@ -305,9 +304,8 @@ impl Save {
                 subtitles: None,
                 video: crate::progress::Stream::default(),
             },
-            redirected_url: reqwest::Url::parse("https://example.net").unwrap(),
         }
-        .perform(&self.input, self.prefer_audio_lang, self.prefer_subs_lang, self.quality)?;
+        .perform(&self.input, self.prefer_audio_lang, self.prefer_subs_lang, self.quality, self.baseurl.map(|x| x.parse().unwrap()))?;
 
         Ok(())
     }

@@ -12,10 +12,8 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 pub struct State {
-    pub baseurl: Option<reqwest::Url>,
     pub client: reqwest::blocking::Client,
     pub progress: crate::progress::Progress,
-    pub redirected_url: reqwest::Url,
 }
 
 impl State {
@@ -25,7 +23,10 @@ impl State {
         prefer_audio_lang: Option<String>,
         prefer_subs_lang: Option<String>,
         quality: crate::commands::Quality,
+        baseurl: Option<reqwest::Url>,
     ) -> Result<()> {
+        let mut redirected_url = reqwest::Url::parse("https://example.com").unwrap();
+
         let mut playlist_type = None;
         let path = std::path::Path::new(input);
 
@@ -52,7 +53,7 @@ impl State {
             }
         } else {
             let response = self.client.get(input).send()?;
-            self.redirected_url = response.url().to_owned();
+            redirected_url = response.url().to_owned();
 
             if let Some(content_type) = response.headers().get(reqwest::header::CONTENT_TYPE) {
                 match content_type.as_bytes() {
@@ -81,25 +82,59 @@ impl State {
 
         let (video_stream, audio_streams, subtitle_streams) = match playlist_type {
             Some(PlaylistType::Dash) => {
-                let mpd = crate::dash::parse(&playlist)?;
-                let master_playlist =
-                    crate::dash::parse_as_master(&mpd, self.redirected_url.as_str())
-                        .sort_streams(prefer_audio_lang, prefer_subs_lang);
-                master_playlist.select_streams(quality)?
+                let mpd = crate::dash::parse(&playlist)?; // TODO - Add better message for error
+                let (video_stream, mut audio_streams, mut subtitle_streams) =
+                    crate::dash::parse_as_master(&mpd, redirected_url.as_str())
+                        .sort_streams(prefer_audio_lang, prefer_subs_lang)
+                        .select_streams(quality)?;
+                let mut video_stream = vec![video_stream];
+
+                for stream in video_stream
+                    .iter_mut()
+                    .flatten()
+                    .chain(audio_streams.iter_mut())
+                    .chain(subtitle_streams.iter_mut())
+                {
+                    crate::dash::push_segments(
+                        &mpd,
+                        stream,
+                        baseurl.as_ref().unwrap_or(&redirected_url).as_str(),
+                    );
+                }
+
+                (video_stream.remove(0), audio_streams, subtitle_streams)
             }
             Some(PlaylistType::Hls) => match m3u8_rs::parse_playlist_res(&playlist) {
                 Ok(m3u8_rs::Playlist::MasterPlaylist(m3u8)) => {
-                    let master_playlist =
-                        crate::hls::parse_as_master(&m3u8, self.redirected_url.as_str())
-                            .sort_streams(prefer_audio_lang, prefer_subs_lang);
-                    master_playlist.select_streams(quality)?
+                    let (video_stream, mut audio_streams, mut subtitle_streams) =
+                        crate::hls::parse_as_master(&m3u8, redirected_url.as_str())
+                            .sort_streams(prefer_audio_lang, prefer_subs_lang)
+                            .select_streams(quality)?;
+                    let mut video_stream = vec![video_stream];
+
+                    for stream in video_stream
+                        .iter_mut()
+                        .flatten()
+                        .chain(audio_streams.iter_mut())
+                        .chain(subtitle_streams.iter_mut())
+                    {
+                        let response = self
+                            .client
+                            .get(stream.url(baseurl.as_ref().unwrap_or(&redirected_url))?)
+                            .send()?;
+                        let media_playlist =
+                            m3u8_rs::parse_media_playlist_res(&response.bytes()?).unwrap(); // TODO - Add better message for error
+                        crate::hls::push_segments(&media_playlist, stream);
+                    }
+
+                    (video_stream.remove(0), audio_streams, subtitle_streams)
                 }
                 Ok(m3u8_rs::Playlist::MediaPlaylist(m3u8)) => {
                     let mut media_playlist = crate::playlist::MediaPlaylist::default();
                     crate::hls::push_segments(&m3u8, &mut media_playlist);
                     (Some(media_playlist), vec![], vec![])
                 }
-                Err(_) => bail!("couldn't parse {} as HLS playlist.", self.redirected_url),
+                Err(_) => bail!("couldn't parse {} as HLS playlist.", redirected_url),
             },
             _ => bail!("only DASH (.mpd) and HLS (.m3u8) playlists are supported."),
         };
