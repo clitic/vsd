@@ -45,6 +45,21 @@ pub enum KeyIdSystemType {
     WideVine,
 }
 
+impl std::fmt::Display for KeyIdSystemType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                KeyIdSystemType::Comman => "comman",
+                KeyIdSystemType::Other(x) => x,
+                KeyIdSystemType::PlayReady => "playready",
+                KeyIdSystemType::WideVine => "widevine",
+            }
+        )
+    }
+}
+
 /// Parse a PSSH box and extract the system IDs.
 pub struct Pssh {
     pub key_ids: Vec<KeyId>,

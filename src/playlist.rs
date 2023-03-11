@@ -160,7 +160,7 @@ impl MediaPlaylist {
         }
     }
 
-    pub fn display_video_stream(&self) -> String {
+    fn display_video_stream(&self) -> String {
         let resolution = if let Some((w, h)) = self.resolution {
             match (w, h) {
                 (256, 144) => "144p".to_owned(),
@@ -210,7 +210,7 @@ impl MediaPlaylist {
         )
     }
 
-    pub fn display_audio_stream(&self) -> String {
+    fn display_audio_stream(&self) -> String {
         let mut extra = format!(
             "language: {}",
             self.language.as_ref().unwrap_or(&"?".to_owned())
@@ -238,7 +238,7 @@ impl MediaPlaylist {
         extra
     }
 
-    pub fn display_subtitle_stream(&self) -> String {
+    fn display_subtitle_stream(&self) -> String {
         let mut extra = format!(
             "language: {}",
             self.language.as_ref().unwrap_or(&"?".to_owned())
@@ -423,7 +423,6 @@ impl MasterPlaylist {
         mut self,
         quality: Quality,
     ) -> Result<(
-        Option<MediaPlaylist>,
         Vec<MediaPlaylist>,
         Vec<MediaPlaylist>,
     )> {
@@ -552,17 +551,17 @@ impl MasterPlaylist {
 
             let answer = requestty::prompt_one(question)?;
 
-            let mut selected_video_stream = None;
-            let mut selected_audio_streams = vec![];
+            let mut selected_streams = vec![];
             let mut selected_subtitle_streams = vec![];
-            let mut audio_streams_offset = video_streams.len() + 2; // 5 + 2 = 7
-            let mut subtitle_streams_offset = audio_streams_offset + audio_streams.len() + 1; // 7 + 2 + 1 = 10
+            let video_streams_offset = 1;
+            let mut audio_streams_offset = video_streams_offset + video_streams.len() + 1;
+            let mut subtitle_streams_offset = audio_streams_offset + audio_streams.len() + 1;
 
             for selected_item in answer.as_list_items().unwrap() {
                 if choices_with_default_ranges[0].contains(&selected_item.index) {
-                    selected_video_stream = Some(video_streams.remove(selected_item.index - 1));
+                    selected_streams.push(video_streams.remove(selected_item.index - video_streams_offset));
                 } else if choices_with_default_ranges[1].contains(&selected_item.index) {
-                    selected_audio_streams
+                    selected_streams
                         .push(audio_streams.remove(selected_item.index - audio_streams_offset));
                     audio_streams_offset += 1;
                 } else if choices_with_default_ranges[2].contains(&selected_item.index) {
@@ -574,8 +573,7 @@ impl MasterPlaylist {
             }
 
             Ok((
-                selected_video_stream,
-                selected_audio_streams,
+                selected_streams,
                 selected_subtitle_streams,
             ))
         } else {

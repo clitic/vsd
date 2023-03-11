@@ -80,19 +80,16 @@ impl State {
             }
         };
 
-        let (video_stream, audio_streams, subtitle_streams) = match playlist_type {
+        let (video_audio_streams, subtitle_streams) = match playlist_type {
             Some(PlaylistType::Dash) => {
                 let mpd = crate::dash::parse(&playlist)?; // TODO - Add better message for error
-                let (video_stream, mut audio_streams, mut subtitle_streams) =
+                let (mut video_audio_streams, mut subtitle_streams) =
                     crate::dash::parse_as_master(&mpd, redirected_url.as_str())
                         .sort_streams(prefer_audio_lang, prefer_subs_lang)
                         .select_streams(quality)?;
-                let mut video_stream = vec![video_stream];
 
-                for stream in video_stream
+                for stream in video_audio_streams
                     .iter_mut()
-                    .flatten()
-                    .chain(audio_streams.iter_mut())
                     .chain(subtitle_streams.iter_mut())
                 {
                     crate::dash::push_segments(
@@ -102,53 +99,86 @@ impl State {
                     );
                 }
 
-                (video_stream.remove(0), audio_streams, subtitle_streams)
+                (video_audio_streams, subtitle_streams)
             }
             Some(PlaylistType::Hls) => match m3u8_rs::parse_playlist_res(&playlist) {
                 Ok(m3u8_rs::Playlist::MasterPlaylist(m3u8)) => {
-                    let (video_stream, mut audio_streams, mut subtitle_streams) =
+                    let (mut video_audio_streams, mut subtitle_streams) =
                         crate::hls::parse_as_master(&m3u8, redirected_url.as_str())
                             .sort_streams(prefer_audio_lang, prefer_subs_lang)
                             .select_streams(quality)?;
-                    let mut video_stream = vec![video_stream];
 
-                    for stream in video_stream
+                    for stream in video_audio_streams
                         .iter_mut()
-                        .flatten()
-                        .chain(audio_streams.iter_mut())
                         .chain(subtitle_streams.iter_mut())
                     {
-                        let response = self
-                            .client
-                            .get(stream.url(baseurl.as_ref().unwrap_or(&redirected_url))?)
-                            .send()?;
+                        stream.uri = stream
+                            .url(baseurl.as_ref().unwrap_or(&redirected_url))?
+                            .as_str()
+                            .to_owned();
+                        let response = self.client.get(&stream.uri).send()?;
                         let media_playlist =
                             m3u8_rs::parse_media_playlist_res(&response.bytes()?).unwrap(); // TODO - Add better message for error
                         crate::hls::push_segments(&media_playlist, stream);
                     }
 
-                    (video_stream.remove(0), audio_streams, subtitle_streams)
+                    (video_audio_streams, subtitle_streams)
                 }
                 Ok(m3u8_rs::Playlist::MediaPlaylist(m3u8)) => {
                     let mut media_playlist = crate::playlist::MediaPlaylist::default();
+                    media_playlist.uri = redirected_url.as_str().to_owned();
                     crate::hls::push_segments(&m3u8, &mut media_playlist);
-                    (Some(media_playlist), vec![], vec![])
+                    (vec![media_playlist], vec![])
                 }
                 Err(_) => bail!("couldn't parse {} as HLS playlist.", redirected_url),
             },
             _ => bail!("only DASH (.mpd) and HLS (.m3u8) playlists are supported."),
         };
 
-        if let Some(video_stream) = video_stream {
-            println!("{}", video_stream.display_video_stream());
-        }
+        let mut kids = vec![];
 
-        for audio_stream in audio_streams {
-            println!("{}", audio_stream.display_audio_stream());
-        }
+        for stream in &video_audio_streams {
+            if let Some(segment) = stream.segments.get(0) {
+                if let Some(key) = &segment.key {
+                    if let Some(default_kid) = &key.default_kid {
+                        println!(
+                            "      {} {} (default)",
+                            "KeyId".colorize("bold green"),
+                            default_kid
+                        );
+                        kids.push(default_kid.to_owned());
+                    }
+                }
 
-        for subtitle_stream in subtitle_streams {
-            println!("{}", subtitle_stream.display_subtitle_stream());
+                if segment.map.is_some() {
+                    let mut request = self.client.get(
+                        segment
+                            .map_url(
+                                baseurl
+                                    .as_ref()
+                                    .unwrap_or(&stream.uri.parse::<reqwest::Url>()?)
+                                    .as_str(),
+                            )?
+                            .unwrap(),
+                    );
+
+                    if let Some((range, _)) = segment.map_range(0) {
+                        request = request.header(reqwest::header::RANGE, &range);
+                    }
+
+                    let response = request.send()?;
+                    let pssh = crate::mp4parser::Pssh::new(&response.bytes()?).unwrap(); // TODO - Add better message for error
+
+                    for key_id in pssh.key_ids {
+                        println!(
+                            "      {} {} ({})",
+                            "KeyId".colorize("bold green"),
+                            key_id.uuid(),
+                            key_id.system_type
+                        );
+                    }
+                }
+            }
         }
 
         // self.download()?;
@@ -397,112 +427,112 @@ impl State {
     //         Ok(())
     //     }
 
-    //     fn check_segments(&mut self) -> Result<()> {
-    //         let mut all_segments = vec![self.progress.video.to_playlist().segments];
-    //         self.args.get_url(&all_segments[0][0].uri)?;
+    // fn check_segments(&mut self) -> Result<()> {
+    //     let mut all_segments = vec![self.progress.video.to_playlist().segments];
+    //     self.args.get_url(&all_segments[0][0].uri)?;
 
-    //         if let Some(audio) = &self.progress.audio {
-    //             all_segments.push(audio.to_playlist().segments);
-    //         }
+    //     if let Some(audio) = &self.progress.audio {
+    //         all_segments.push(audio.to_playlist().segments);
+    //     }
 
-    //         let mut encryption_type = None;
-    //         let mut kids = vec![];
+    //     let mut encryption_type = None;
+    //     let mut kids = vec![];
 
-    //         for (i, segments) in all_segments.iter().enumerate() {
-    //             for segment in segments {
-    //                 let segment_tags = dash::SegmentTag::from(&segment.unknown_tags);
-    //                 if segment_tags.single {
-    //                     bail!("single file dash streams are not supported")
+    //     for (i, segments) in all_segments.iter().enumerate() {
+    //         for segment in segments {
+    //             let segment_tags = dash::SegmentTag::from(&segment.unknown_tags);
+    //             if segment_tags.single {
+    //                 bail!("single file dash streams are not supported")
+    //             }
+
+    //             match &segment.key {
+    //                 Some(m3u8_rs::Key {
+    //                     method: m3u8_rs::KeyMethod::AES128,
+    //                     ..
+    //                 }) => encryption_type = Some("AES-128"),
+    //                 Some(m3u8_rs::Key {
+    //                     method: m3u8_rs::KeyMethod::SampleAES,
+    //                     keyformat,
+    //                     ..
+    //                 }) => {
+    //                     if let Some(keyformat) = keyformat {
+    //                         if keyformat == "com.apple.streamingkeydelivery" {
+    //                             encryption_type =
+    //                                 Some("SAMPLE-AES (com.apple.streamingkeydelivery)");
+    //                             continue;
+    //                         }
+    //                     }
+
+    //                     println!(
+    //                         "{} SAMPLE-AES streams found in playlist",
+    //                         "Encrypted".colorize("bold yellow")
+    //                     );
+    //                     bail!("SAMPLE-AES encrypted playlists are not supported.")
     //                 }
+    //                 Some(m3u8_rs::Key {
+    //                     method: m3u8_rs::KeyMethod::Other(x),
+    //                     ..
+    //                 }) => {
+    //                     if x == "CENC" {
+    //                         encryption_type = Some("CENC");
 
-    //                 match &segment.key {
-    //                     Some(m3u8_rs::Key {
-    //                         method: m3u8_rs::KeyMethod::AES128,
-    //                         ..
-    //                     }) => encryption_type = Some("AES-128"),
-    //                     Some(m3u8_rs::Key {
-    //                         method: m3u8_rs::KeyMethod::SampleAES,
-    //                         keyformat,
-    //                         ..
-    //                     }) => {
-    //                         if let Some(keyformat) = keyformat {
-    //                             if keyformat == "com.apple.streamingkeydelivery" {
-    //                                 encryption_type =
-    //                                     Some("SAMPLE-AES (com.apple.streamingkeydelivery)");
-    //                                 continue;
-    //                             }
+    //                         if i == 0 {
+    //                             self.cenc_encrypted_video = true;
+    //                         } else if i == 1 {
+    //                             self.cenc_encrypted_audio = true;
     //                         }
 
+    //                         if let Some(kid) = &segment_tags.kid {
+    //                             if !kids.contains(kid) {
+    //                                 kids.push(kid.to_owned());
+    //                             }
+    //                         }
+    //                     } else {
     //                         println!(
-    //                             "{} SAMPLE-AES streams found in playlist",
-    //                             "Encrypted".colorize("bold yellow")
+    //                             "{} {} streams found in playlist",
+    //                             "Encrypted".colorize("bold yellow"),
+    //                             x
     //                         );
-    //                         bail!("SAMPLE-AES encrypted playlists are not supported.")
+    //                         bail!("{} encrypted playlists are not supported.", x)
     //                     }
-    //                     Some(m3u8_rs::Key {
-    //                         method: m3u8_rs::KeyMethod::Other(x),
-    //                         ..
-    //                     }) => {
-    //                         if x == "CENC" {
-    //                             encryption_type = Some("CENC");
-
-    //                             if i == 0 {
-    //                                 self.cenc_encrypted_video = true;
-    //                             } else if i == 1 {
-    //                                 self.cenc_encrypted_audio = true;
-    //                             }
-
-    //                             if let Some(kid) = &segment_tags.kid {
-    //                                 if !kids.contains(kid) {
-    //                                     kids.push(kid.to_owned());
-    //                                 }
-    //                             }
-    //                         } else {
-    //                             println!(
-    //                                 "{} {} streams found in playlist",
-    //                                 "Encrypted".colorize("bold yellow"),
-    //                                 x
-    //                             );
-    //                             bail!("{} encrypted playlists are not supported.", x)
-    //                         }
-    //                     }
-    //                     _ => (),
     //                 }
+    //                 _ => (),
     //             }
     //         }
+    //     }
 
-    //         if let Some(encryption_type) = encryption_type {
-    //             if encryption_type == "CENC" {
-    //                 for kid in &kids {
-    //                     if !self
-    //                         .args
-    //                         .key
-    //                         .iter()
-    //                         .flat_map(|x| x.0.to_owned())
-    //                         .any(|x| x == kid.replace('-', "").to_lowercase())
-    //                     {
-    //                         println!(
-    //                             "{} CENC streams found in playlist",
-    //                             "Encrypted".colorize("bold yellow")
-    //                         );
-    //                         bail!(
+    //     if let Some(encryption_type) = encryption_type {
+    //         if encryption_type == "CENC" {
+    //             for kid in &kids {
+    //                 if !self
+    //                     .args
+    //                     .key
+    //                     .iter()
+    //                     .flat_map(|x| x.0.to_owned())
+    //                     .any(|x| x == kid.replace('-', "").to_lowercase())
+    //                 {
+    //                     println!(
+    //                         "{} CENC streams found in playlist",
+    //                         "Encrypted".colorize("bold yellow")
+    //                     );
+    //                     bail!(
     //                             "use {} flag to specify CENC decryption keys for the following kid(s): {}",
     //                             "--key".colorize("bold green"),
     //                             kids.join(", ")
     //                         )
-    //                     }
     //                 }
     //             }
-
-    //             println!(
-    //                 "  {} {} streams found in playlist",
-    //                 "Encrypted".colorize("bold yellow"),
-    //                 encryption_type
-    //             );
     //         }
 
-    //         Ok(())
+    //         println!(
+    //             "  {} {} streams found in playlist",
+    //             "Encrypted".colorize("bold yellow"),
+    //             encryption_type
+    //         );
     //     }
+
+    //     Ok(())
+    // }
 
     //     fn download_subtitles(&mut self, subtitles: Stream, pb: &mut RichProgress) -> Result<Stream> {
     //         let mut subtitles = subtitles;

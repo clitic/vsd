@@ -269,7 +269,7 @@ pub(crate) fn push_segments(
             x => Some(playlist::Key {
                 default_kid: representation
                     .default_kid(adaptation_set)
-                    .map(|x| x.replace('-', "").to_lowercase()),
+                    .map(|x| x.to_lowercase()),
                 iv: None,
                 key_format: None,
                 method: x,
