@@ -1,5 +1,5 @@
 use crate::merger::BinaryMerger;
-use crate::playlist::PlaylistType;
+use crate::playlist::{KeyMethod, PlaylistType};
 use crate::progress::Stream;
 use crate::{dash, hls, utils};
 use anyhow::{anyhow, bail, Result};
@@ -24,6 +24,7 @@ impl State {
         prefer_subs_lang: Option<String>,
         quality: crate::commands::Quality,
         baseurl: Option<reqwest::Url>,
+        key: Vec<(Option<String>, String)>,
     ) -> Result<()> {
         let mut redirected_url = reqwest::Url::parse("https://example.com").unwrap();
 
@@ -135,21 +136,31 @@ impl State {
             _ => bail!("only DASH (.mpd) and HLS (.m3u8) playlists are supported."),
         };
 
-        let mut kids = vec![];
+        let mut default_kids = std::collections::HashSet::new();
+        let mut kids = std::collections::HashSet::new();
 
         for stream in &video_audio_streams {
             if let Some(segment) = stream.segments.get(0) {
                 if let Some(key) = &segment.key {
+                    match &key.method {
+                        KeyMethod::Other(x) => bail!("{} decryption is not supported.", x),
+                        KeyMethod::SampleAes => {
+                            if stream.is_hls() {
+                                bail!("sample-aes (HLS) decryption is not supported.");
+                            }
+                        }
+                        _ => (),
+                    }
+
                     if let Some(default_kid) = &key.default_kid {
-                        println!(
-                            "      {} {} (default)",
-                            "KeyId".colorize("bold green"),
-                            default_kid
-                        );
-                        kids.push(default_kid.to_owned());
+                        default_kids.insert(default_kid.replace('-', ""));
                     }
                 }
+            }
+        }
 
+        for stream in &video_audio_streams {
+            if let Some(segment) = stream.segments.get(0) {
                 if segment.map.is_some() {
                     let mut request = self.client.get(
                         segment
@@ -170,19 +181,38 @@ impl State {
                     let pssh = crate::mp4parser::Pssh::new(&response.bytes()?).unwrap(); // TODO - Add better message for error
 
                     for key_id in pssh.key_ids {
-                        println!(
-                            "      {} {} ({})",
-                            "KeyId".colorize("bold green"),
-                            key_id.uuid(),
-                            key_id.system_type
-                        );
+                        if !kids.contains(&key_id.value) {
+                            kids.insert(key_id.value.clone());
+                            println!(
+                                "      {} {} {} ({})",
+                                "KeyId".colorize("bold green"),
+                                if default_kids.contains(&key_id.value) {
+                                    "*"
+                                } else {
+                                    " "
+                                },
+                                key_id.uuid(),
+                                key_id.system_type,
+                            );
+                        }
                     }
                 }
             }
         }
 
-        // self.download()?;
-        // self.progress.mux()?;
+        for default_kid in &default_kids {
+            if !key
+                .iter()
+                .flat_map(|x| x.0.as_ref())
+                .any(|x| x == default_kid)
+            {
+                bail!(
+                    "use {} flag to specify CENC decryption keys for * (star) prefixed key ids.",
+                    "--key".colorize("bold green")
+                );
+            }
+        }
+
         Ok(())
     }
 
@@ -426,113 +456,6 @@ impl State {
     //         println!();
     //         Ok(())
     //     }
-
-    // fn check_segments(&mut self) -> Result<()> {
-    //     let mut all_segments = vec![self.progress.video.to_playlist().segments];
-    //     self.args.get_url(&all_segments[0][0].uri)?;
-
-    //     if let Some(audio) = &self.progress.audio {
-    //         all_segments.push(audio.to_playlist().segments);
-    //     }
-
-    //     let mut encryption_type = None;
-    //     let mut kids = vec![];
-
-    //     for (i, segments) in all_segments.iter().enumerate() {
-    //         for segment in segments {
-    //             let segment_tags = dash::SegmentTag::from(&segment.unknown_tags);
-    //             if segment_tags.single {
-    //                 bail!("single file dash streams are not supported")
-    //             }
-
-    //             match &segment.key {
-    //                 Some(m3u8_rs::Key {
-    //                     method: m3u8_rs::KeyMethod::AES128,
-    //                     ..
-    //                 }) => encryption_type = Some("AES-128"),
-    //                 Some(m3u8_rs::Key {
-    //                     method: m3u8_rs::KeyMethod::SampleAES,
-    //                     keyformat,
-    //                     ..
-    //                 }) => {
-    //                     if let Some(keyformat) = keyformat {
-    //                         if keyformat == "com.apple.streamingkeydelivery" {
-    //                             encryption_type =
-    //                                 Some("SAMPLE-AES (com.apple.streamingkeydelivery)");
-    //                             continue;
-    //                         }
-    //                     }
-
-    //                     println!(
-    //                         "{} SAMPLE-AES streams found in playlist",
-    //                         "Encrypted".colorize("bold yellow")
-    //                     );
-    //                     bail!("SAMPLE-AES encrypted playlists are not supported.")
-    //                 }
-    //                 Some(m3u8_rs::Key {
-    //                     method: m3u8_rs::KeyMethod::Other(x),
-    //                     ..
-    //                 }) => {
-    //                     if x == "CENC" {
-    //                         encryption_type = Some("CENC");
-
-    //                         if i == 0 {
-    //                             self.cenc_encrypted_video = true;
-    //                         } else if i == 1 {
-    //                             self.cenc_encrypted_audio = true;
-    //                         }
-
-    //                         if let Some(kid) = &segment_tags.kid {
-    //                             if !kids.contains(kid) {
-    //                                 kids.push(kid.to_owned());
-    //                             }
-    //                         }
-    //                     } else {
-    //                         println!(
-    //                             "{} {} streams found in playlist",
-    //                             "Encrypted".colorize("bold yellow"),
-    //                             x
-    //                         );
-    //                         bail!("{} encrypted playlists are not supported.", x)
-    //                     }
-    //                 }
-    //                 _ => (),
-    //             }
-    //         }
-    //     }
-
-    //     if let Some(encryption_type) = encryption_type {
-    //         if encryption_type == "CENC" {
-    //             for kid in &kids {
-    //                 if !self
-    //                     .args
-    //                     .key
-    //                     .iter()
-    //                     .flat_map(|x| x.0.to_owned())
-    //                     .any(|x| x == kid.replace('-', "").to_lowercase())
-    //                 {
-    //                     println!(
-    //                         "{} CENC streams found in playlist",
-    //                         "Encrypted".colorize("bold yellow")
-    //                     );
-    //                     bail!(
-    //                             "use {} flag to specify CENC decryption keys for the following kid(s): {}",
-    //                             "--key".colorize("bold green"),
-    //                             kids.join(", ")
-    //                         )
-    //                 }
-    //             }
-    //         }
-
-    //         println!(
-    //             "  {} {} streams found in playlist",
-    //             "Encrypted".colorize("bold yellow"),
-    //             encryption_type
-    //         );
-    //     }
-
-    //     Ok(())
-    // }
 
     //     fn download_subtitles(&mut self, subtitles: Stream, pb: &mut RichProgress) -> Result<Stream> {
     //         let mut subtitles = subtitles;

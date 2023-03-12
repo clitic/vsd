@@ -305,7 +305,14 @@ impl Save {
                 video: crate::progress::Stream::default(),
             },
         }
-        .perform(&self.input, self.prefer_audio_lang, self.prefer_subs_lang, self.quality, self.baseurl.map(|x| x.parse().unwrap()))?;
+        .perform(
+            &self.input,
+            self.prefer_audio_lang,
+            self.prefer_subs_lang,
+            self.quality,
+            self.baseurl.map(|x| x.parse().unwrap()),
+            self.key,
+        )?;
 
         Ok(())
     }
