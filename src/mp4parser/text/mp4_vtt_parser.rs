@@ -6,8 +6,6 @@
 
 */
 
-// application/mp4; codecs="wvtt"
-
 use super::Cue;
 use crate::mp4parser;
 use crate::mp4parser::boxes::ParsedTRUNSample;

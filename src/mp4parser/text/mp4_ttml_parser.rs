@@ -6,11 +6,6 @@
 
 */
 
-// application/mp4; codecs="stpp"
-// application/mp4; codecs="stpp.ttml"
-// application/mp4; codecs="stpp.ttml.im1t"
-// application/mp4; codecs="stpp.TTML.im1t"
-
 use super::ttml_text_parser;
 use super::Cue;
 use crate::mp4parser;

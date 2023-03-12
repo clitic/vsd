@@ -95,7 +95,7 @@ pub struct Representation {
     pub audio_channel_configuration: Option<AudioChannelConfiguration>,
     #[serde(rename = "Role")]
     pub role: Option<Role>,
-    #[serde(rename = "@BaseURL")]
+    #[serde(rename = "BaseURL")]
     pub baseurl: Option<String>,
     #[serde(rename = "SegmentBase")]
     pub segment_base: Option<SegmentBase>,

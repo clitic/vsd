@@ -19,16 +19,7 @@ pub struct Save {
     /// Change directory path for temporarily downloaded files.
     /// By default current working directory is used.
     #[arg(short, long)]
-    pub directory: Option<String>,
-
-    /// Decryption keys for decrypting CENC encrypted streams.
-    /// Key value should be specified in hex.
-    /// Use `base64:` prefix if key is in base64 format.
-    /// Streams encrypted with a single key can use `--key base64:MhbcGzyxPfkOsp3FS8qPyA==` like key format.
-    /// Streams encrypted with multiple keys can use `--key eb676abbcb345e96bbcf616630f1a3da:100b6c20940f779a4589152b57d2dacb like key format.
-    /// This option can be used multiple times.
-    #[arg(short, long, value_name = "<KID:(base64:)KEY>|(base64:)KEY", value_parser = key_parser)]
-    pub key: Vec<(Option<String>, String)>,
+    pub directory: Option<std::path::PathBuf>,
 
     // /// Download only one stream from playlist instead of downloading multiple streams at once.
     // #[arg(long)]
@@ -88,6 +79,19 @@ pub struct Save {
         default_value = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.64 Safari/537.36"
     )]
     pub user_agent: String,
+
+    /// Use all supplied keys for decrypting instead of using default kid only.
+    #[arg(long, help_heading = "Decrypt Options")]
+    pub all_keys: bool,
+
+    /// Decryption keys for decrypting CENC encrypted streams.
+    /// Key value should be specified in hex.
+    /// Use `base64:` prefix if key is in base64 format.
+    /// Streams encrypted with a single key can use `--key base64:MhbcGzyxPfkOsp3FS8qPyA==` like key format.
+    /// Streams encrypted with multiple keys can use `--key eb676abbcb345e96bbcf616630f1a3da:100b6c20940f779a4589152b57d2dacb like key format.
+    /// This option can be used multiple times.
+    #[arg(short, long, help_heading = "Decrypt Options", value_name = "<KID:(base64:)KEY>|(base64:)KEY", value_parser = key_parser)]
+    pub key: Vec<(Option<String>, String)>,
 
     /// Maximum number of retries to download an individual segment.
     #[arg(long, help_heading = "Download Options", default_value_t = 15)]
@@ -296,8 +300,10 @@ impl Save {
         // }
 
         crate::downloader::download(
+            self.all_keys,
             self.baseurl,
             client,
+            self.directory,
             &self.input,
             self.key,
             self.prefer_audio_lang,
