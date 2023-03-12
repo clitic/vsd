@@ -3,7 +3,7 @@
 mod commands;
 mod cookie;
 mod dash;
-mod download;
+mod downloader;
 mod hls;
 mod merger;
 mod mp4parser;

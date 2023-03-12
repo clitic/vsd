@@ -14,7 +14,7 @@ pub struct Save {
 
     /// Base url for building segment url. Usually needed for local file.
     #[arg(long)]
-    pub baseurl: Option<String>,
+    pub baseurl: Option<reqwest::Url>,
 
     /// Change directory path for temporarily downloaded files.
     /// By default current working directory is used.
@@ -42,15 +42,6 @@ pub struct Save {
     #[arg(long)]
     pub raw_prompts: bool,
 
-    /// Maximum number of retries to download an individual segment.
-    #[arg(long, help_heading = "Downloading Options", default_value_t = 15)]
-    pub retry_count: u8,
-
-    /// Maximum number of threads for parllel downloading of segments.
-    /// Number of threads should be in range 1-16 (inclusive).
-    #[arg(short, long, help_heading = "Downloading Options", default_value_t = 5, value_parser = clap::value_parser!(u8).range(1..=16))]
-    pub threads: u8,
-
     /// Preferred language when multiple audio streams with different languages are available.
     /// Must be in RFC 5646 format (eg. fr or en-AU).
     /// If a preference is not specified and multiple audio streams are present,
@@ -70,6 +61,10 @@ pub struct Save {
     #[arg(short, long, help_heading = "Automation Options", default_value = "highest", value_name = "WIDTHxHEIGHT", value_parser = quality_parser)]
     pub quality: Quality,
 
+    /// Fill request client with some existing cookies (document.cookie) value.
+    #[arg(long, help_heading = "Client Options")]
+    pub cookie: Option<String>,
+
     /// Custom headers for requests.
     /// This option can be used multiple times.
     #[arg(long, help_heading = "Client Options", number_of_values = 2, value_names = &["KEY", "VALUE"])]
@@ -78,10 +73,6 @@ pub struct Save {
     /// Set HTTP(s) proxy for requests.
     #[arg(long, help_heading = "Client Options", value_parser = proxy_address_parser)]
     pub proxy_address: Option<reqwest::Proxy>,
-
-    /// Fill request client with some existing cookies (document.cookie) value.
-    #[arg(long, help_heading = "Client Options")]
-    pub cookie: Option<String>,
 
     /// Fill request client with some existing cookies per domain.
     /// First value for this option is set-cookie header and second value is url which was requested to send this set-cookie header.
@@ -97,6 +88,15 @@ pub struct Save {
         default_value = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.64 Safari/537.36"
     )]
     pub user_agent: String,
+
+    /// Maximum number of retries to download an individual segment.
+    #[arg(long, help_heading = "Download Options", default_value_t = 15)]
+    pub retry_count: u8,
+
+    /// Maximum number of threads for parllel downloading of segments.
+    /// Number of threads should be in range 1-16 (inclusive).
+    #[arg(short, long, help_heading = "Download Options", default_value_t = 5, value_parser = clap::value_parser!(u8).range(1..=16))]
+    pub threads: u8,
 }
 
 #[derive(Debug, Clone)]
@@ -160,7 +160,7 @@ fn key_parser(s: &str) -> Result<(Option<String>, String), String> {
         let kid = s.split(':').next().unwrap();
 
         (
-            Some(kid.replace('-', "").to_lowercase()),
+            Some(kid.to_lowercase().replace('-', "")),
             s.trim_start_matches(kid)
                 .trim_start_matches(':')
                 .to_string(),
@@ -295,23 +295,14 @@ impl Save {
         //     }
         // }
 
-        crate::download::State {
+        crate::downloader::download(
+            self.baseurl,
             client,
-            progress: crate::progress::Progress {
-                audio: None,
-                directory: self.directory,
-                output: self.output,
-                subtitles: None,
-                video: crate::progress::Stream::default(),
-            },
-        }
-        .perform(
             &self.input,
+            self.key,
             self.prefer_audio_lang,
             self.prefer_subs_lang,
             self.quality,
-            self.baseurl.map(|x| x.parse().unwrap()),
-            self.key,
         )?;
 
         Ok(())
