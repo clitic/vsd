@@ -239,7 +239,7 @@ impl MediaPlaylist {
         extra
     }
 
-    fn display_subtitle_stream(&self) -> String {
+    pub(crate) fn display_subtitle_stream(&self) -> String {
         let mut extra = format!(
             "language: {}",
             self.language.as_ref().unwrap_or(&"?".to_owned())
