@@ -1,6 +1,7 @@
 use crate::commands::Quality;
 use anyhow::{bail, Result};
 use requestty::prompt::style::Stylize;
+use reqwest::Url;
 use serde::Serialize;
 
 #[derive(Default, PartialEq, Serialize)]
@@ -61,32 +62,32 @@ pub(crate) struct Segment {
 }
 
 impl Segment {
-    pub(crate) fn seg_url(&self, baseurl: &reqwest::Url) -> Result<reqwest::Url> {
+    pub(crate) fn seg_url(&self, baseurl: &Url) -> Result<Url> {
         if self.uri.starts_with("http") || self.uri.starts_with("ftp") {
-            Ok(self.uri.parse::<reqwest::Url>()?)
+            Ok(self.uri.parse::<Url>()?)
         } else {
             Ok(baseurl.join(&self.uri)?)
         }
     }
 
-    pub(crate) fn map_url(&self, baseurl: &str) -> Result<Option<reqwest::Url>> {
+    pub(crate) fn map_url(&self, baseurl: &Url) -> Result<Option<Url>> {
         if let Some(map) = &self.map {
             if self.uri.starts_with("http") || self.uri.starts_with("ftp") {
-                return Ok(Some(map.uri.parse::<reqwest::Url>()?));
+                return Ok(Some(map.uri.parse::<Url>()?));
             } else {
-                return Ok(Some(baseurl.parse::<reqwest::Url>()?.join(&map.uri)?));
+                return Ok(Some(baseurl.join(&map.uri)?));
             }
         }
 
         Ok(None)
     }
 
-    pub(crate) fn key_url(&self, baseurl: &str) -> Result<Option<reqwest::Url>> {
+    pub(crate) fn key_url(&self, baseurl: &Url) -> Result<Option<Url>> {
         if let Some(key) = &self.key {
             if self.uri.starts_with("http") || self.uri.starts_with("ftp") {
-                return Ok(Some(key.uri.parse::<reqwest::Url>()?));
+                return Ok(Some(key.uri.parse::<Url>()?));
             } else {
-                return Ok(Some(baseurl.parse::<reqwest::Url>()?.join(&key.uri)?));
+                return Ok(Some(baseurl.join(&key.uri)?));
             }
         }
 
@@ -251,10 +252,10 @@ impl MediaPlaylist {
         extra
     }
 
-    pub(crate) fn url(&self, baseurl: &reqwest::Url) -> Result<reqwest::Url> {
+    pub(crate) fn url(&self, baseurl: &Url) -> Result<Url> {
         // self.uri.starts_with("dash://")
         if self.uri.starts_with("http") || self.uri.starts_with("ftp") {
-            Ok(self.uri.parse::<reqwest::Url>()?)
+            Ok(self.uri.parse::<Url>()?)
         } else {
             Ok(baseurl.join(&self.uri)?)
         }
@@ -308,11 +309,11 @@ pub(crate) struct MasterPlaylist {
 }
 
 impl MasterPlaylist {
-    pub(crate) fn url(&self, baseurl: &str) -> Result<reqwest::Url> {
+    pub(crate) fn url(&self, baseurl: &str) -> Result<Url> {
         if self.uri.starts_with("http") || self.uri.starts_with("ftp") {
-            Ok(self.uri.parse::<reqwest::Url>()?)
+            Ok(self.uri.parse::<Url>()?)
         } else {
-            Ok(baseurl.parse::<reqwest::Url>()?.join(&self.uri)?)
+            Ok(baseurl.parse::<Url>()?.join(&self.uri)?)
         }
     }
 
@@ -422,10 +423,7 @@ impl MasterPlaylist {
     pub(crate) fn select_streams(
         mut self,
         quality: Quality,
-    ) -> Result<(
-        Vec<MediaPlaylist>,
-        Vec<MediaPlaylist>,
-    )> {
+    ) -> Result<(Vec<MediaPlaylist>, Vec<MediaPlaylist>)> {
         let mut video_streams = self
             .streams
             .iter()
@@ -559,7 +557,8 @@ impl MasterPlaylist {
 
             for selected_item in answer.as_list_items().unwrap() {
                 if choices_with_default_ranges[0].contains(&selected_item.index) {
-                    selected_streams.push(video_streams.remove(selected_item.index - video_streams_offset));
+                    selected_streams
+                        .push(video_streams.remove(selected_item.index - video_streams_offset));
                 } else if choices_with_default_ranges[1].contains(&selected_item.index) {
                     selected_streams
                         .push(audio_streams.remove(selected_item.index - audio_streams_offset));
@@ -572,10 +571,7 @@ impl MasterPlaylist {
                 }
             }
 
-            Ok((
-                selected_streams,
-                selected_subtitle_streams,
-            ))
+            Ok((selected_streams, selected_subtitle_streams))
         } else {
             // TODO - Add better message
             // Selected variant stream of quality {} ({} {}/s).
