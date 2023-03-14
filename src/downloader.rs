@@ -1,6 +1,6 @@
 use crate::{
     merger::BinaryMerger,
-    playlist::{KeyMethod, PlaylistType,  MediaType},
+    playlist::{KeyMethod, MediaType, PlaylistType},
     utils,
 };
 use anyhow::{anyhow, bail, Result};
@@ -41,6 +41,7 @@ pub(crate) fn download(
     prefer_audio_lang: Option<String>,
     prefer_subs_lang: Option<String>,
     quality: crate::commands::Quality,
+    threads: u8,
 ) -> Result<()> {
     let mut playlist_url = "https://example.com".parse::<Url>().unwrap();
 
@@ -262,14 +263,6 @@ pub(crate) fn download(
     let mut pb = RichProgress::new(
         tqdm!(unit = " SEG".to_owned(), dynamic_ncols = true),
         vec![
-            Column::Spinner(
-                "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-                    .chars()
-                    .map(|x| x.to_string())
-                    .collect::<Vec<String>>(),
-                80.0,
-                1.0,
-            ),
             Column::text("[bold blue]?"),
             Column::Bar,
             Column::Percentage(0),
@@ -410,7 +403,7 @@ pub(crate) fn download(
             }
 
             pb.replace(
-                1,
+                0,
                 Column::Text(format!(
                     "[bold blue]{}",
                     utils::format_bytes(subtitles_data.len(), 2).2
@@ -470,10 +463,119 @@ pub(crate) fn download(
             " {} subtitle stream successfully",
             "Downloaded".colorize("bold green"),
         ));
-        println!();
+        println!(); // TODO - See Later
         pb.reset(Some(0));
     }
 
+    // -----------------------------------------------------------------------------------------
+    // Prepare Progress Bar
+    // -----------------------------------------------------------------------------------------
+
+    let mut overall_segments = 0;
+    let mut relative_size = 0;
+    let mut stored_bytes = 0;
+
+    for stream in &video_audio_streams {
+        let total_segments = stream.segments.len();
+
+        if let Some(segment) = stream.segments.get(0) {
+            let request = client.head(
+                segment.seg_url(
+                    baseurl
+                        .as_ref()
+                        .unwrap_or(&stream.uri.parse::<Url>().unwrap()),
+                )?,
+            );
+            let response = request.send()?;
+            relative_size += total_segments * (response.content_length().unwrap_or(0) as usize);
+        }
+
+        overall_segments += total_segments;
+    }
+
+    pb.replace(2, Column::Percentage(2));
+    pb.columns
+        .extend_from_slice(&[Column::text("•"), Column::text("[yellow]?")]);
+    pb.pb.reset(Some(overall_segments));
+    let pb = Arc::new(Mutex::new(pb));
+
+    // -----------------------------------------------------------------------------------------
+    // Separate Video & Audio Streams
+    // -----------------------------------------------------------------------------------------
+
+    let mut video_stream = None;
+    let mut audio_streams = vec![];
+
+    for stream in video_audio_streams {
+        match &stream.media_type {
+            MediaType::Audio => audio_streams.push(stream),
+            MediaType::Video => video_stream = Some(stream),
+            _ => (),
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Prepare Thread Pool
+    // -----------------------------------------------------------------------------------------
+    
+    // TODO - Create a custom thread pool module.
+    let pool = threadpool::ThreadPool::new(threads as usize);
+
+    // -----------------------------------------------------------------------------------------
+    // Download Video Stream
+    // -----------------------------------------------------------------------------------------
+
+    if let Some(stream) = video_stream {
+        let temp_file = stream
+            .file_path(&directory, &stream.extension())
+            .to_string_lossy()
+            .to_string();
+        temp_files.push(Stream {
+            file_path: temp_file.clone(),
+            language: stream.language.clone(),
+            media_type: stream.media_type.clone(),
+        });
+        pb.lock().unwrap().write(format!(
+            "{} video stream to {}",
+            "Downloading".colorize("bold green"),
+            temp_file.colorize("cyan")
+        ));
+
+        // let dash_decrypt = if self.dash && self.cenc_encrypted_video {
+        //     Some(
+        //         self.dash_decrypt(
+        //             &video_segments[0],
+        //             dash::SegmentTag::from(&video_segments[1].unknown_tags)
+        //                 .kid
+        //                 .map(|x| x.replace('-', "").to_lowercase()),
+        //             &pb,
+        //         )?,
+        //     )
+        // } else {
+        //     None
+        // };
+
+        // stored_bytes = self.download_segments(
+        //     if dash_decrypt.is_some() {
+        //         video_segments[1..].to_vec()
+        //     } else {
+        //         video_segments
+        //     },
+        //     &tempfile,
+        //     &pool,
+        //     &pb,
+        //     stored_bytes,
+        //     relative_size,
+        //     dash_decrypt,
+        // )?;
+
+        pb.lock().unwrap().write(format!(
+            " {} video stream successfully",
+            "Downloaded".colorize("bold green")
+        ));
+    }
+
+    println!();
     Ok(())
 }
 
@@ -526,165 +628,6 @@ pub(crate) fn download(
 //     }
 // }
 
-//     fn download(&mut self) -> Result<()> {
-//         if matches!(
-//             self.alternative_media_type,
-//             Some(m3u8_rs::AlternativeMediaType::Subtitles)
-//                 | Some(m3u8_rs::AlternativeMediaType::ClosedCaptions)
-//         ) {
-//             self.progress.video =
-//                 self.download_subtitles(self.progress.video.to_owned(), &mut pb)?;
-//             return Ok(());
-//         }
-
-//         if let Some(subtitles) = &self.progress.subtitles {
-//             self.progress.subtitles = Some(self.download_subtitles(subtitles.to_owned(), &mut pb)?);
-//         }
-
-//         let mut segment_factor = 0;
-
-//         if self.dash && self.cenc_encrypted_video {
-//             segment_factor += 1;
-//         }
-
-//         if self.dash && self.cenc_encrypted_audio {
-//             segment_factor += 1;
-//         }
-
-//         pb.pb.reset(Some(
-//             self.progress.video.total + self.progress.audio.clone().map(|x| x.total).unwrap_or(0)
-//                 - segment_factor,
-//         ));
-//         pb.replace(3, Column::Percentage(2));
-//         pb.columns
-//             .extend_from_slice(&[Column::text("•"), Column::text("[yellow]?")]);
-
-//         let mut stored_bytes = 0;
-//         let relative_size = if let Some(audio) = &self.progress.audio {
-//             let segments = audio.to_playlist().segments;
-
-//             Some(
-//                 (segments.len() - if self.cenc_encrypted_audio { 1 } else { 0 })
-//                     * self
-//                         .client
-//                         .get(&self.args.get_url(&segments[1].uri)?)
-//                         .send()?
-//                         .content_length()
-//                         .unwrap_or(0) as usize,
-//             )
-//         } else {
-//             None
-//         };
-
-//         self.progress.video.set_suffix(if self.args.alternative {
-//             "audio-alternative"
-//         } else {
-//             "video"
-//         });
-
-//         let pb = Arc::new(Mutex::new(pb));
-//         let pool = threadpool::ThreadPool::new(self.args.threads as usize);
-//         let video_segments = self.progress.video.to_playlist().segments;
-
-//         let tempfile = self.progress.video.path(&self.args.directory);
-
-//         pb.lock().unwrap().write(format!(
-//             "{} {} stream to {}",
-//             "Downloading".colorize("bold green"),
-//             if self.args.alternative {
-//                 "audio/alternative"
-//             } else {
-//                 "video"
-//             },
-//             tempfile.colorize("cyan")
-//         ));
-
-//         let dash_decrypt = if self.dash && self.cenc_encrypted_video {
-//             Some(
-//                 self.dash_decrypt(
-//                     &video_segments[0],
-//                     dash::SegmentTag::from(&video_segments[1].unknown_tags)
-//                         .kid
-//                         .map(|x| x.replace('-', "").to_lowercase()),
-//                     &pb,
-//                 )?,
-//             )
-//         } else {
-//             None
-//         };
-
-//         stored_bytes = self.download_segments(
-//             if dash_decrypt.is_some() {
-//                 video_segments[1..].to_vec()
-//             } else {
-//                 video_segments
-//             },
-//             &tempfile,
-//             &pool,
-//             &pb,
-//             stored_bytes,
-//             relative_size,
-//             dash_decrypt,
-//         )?;
-
-//         pb.lock().unwrap().write(format!(
-//             " {} {} stream successfully",
-//             "Downloaded".colorize("bold green"),
-//             if self.args.alternative {
-//                 "audio/alternative"
-//             } else {
-//                 "video"
-//             }
-//         ));
-
-//         if let Some(audio) = &self.progress.audio {
-//             let audio_segments = audio.to_playlist().segments;
-//             let tempfile = audio.path(&self.args.directory);
-
-//             pb.lock().unwrap().write(format!(
-//                 "{} audio stream to {}",
-//                 "Downloading".colorize("bold green"),
-//                 tempfile.colorize("cyan")
-//             ));
-
-//             let dash_decrypt = if self.dash && self.cenc_encrypted_audio {
-//                 Some(
-//                     self.dash_decrypt(
-//                         &audio_segments[0],
-//                         dash::SegmentTag::from(&audio_segments[1].unknown_tags)
-//                             .kid
-//                             .map(|x| x.replace('-', "").to_lowercase()),
-//                         &pb,
-//                     )?,
-//                 )
-//             } else {
-//                 None
-//             };
-
-//             let _ = self.download_segments(
-//                 if dash_decrypt.is_some() {
-//                     audio_segments[1..].to_vec()
-//                 } else {
-//                     audio_segments
-//                 },
-//                 &tempfile,
-//                 &pool,
-//                 &pb,
-//                 stored_bytes,
-//                 None,
-//                 dash_decrypt,
-//             )?;
-
-//             pb.lock().unwrap().write(format!(
-//                 " {} audio stream successfully",
-//                 "Downloaded".colorize("bold green"),
-//             ));
-//         }
-
-//         println!();
-//         Ok(())
-//     }
-
 //     #[allow(clippy::too_many_arguments)]
 //     fn download_segments(
 //         &self,
@@ -721,7 +664,7 @@ pub(crate) fn download(
 
 //             //     let mut gaurded_pb = pb.lock().unwrap();
 //             //     gaurded_pb.replace(
-//             //         1,
+//             //         0,
 //             //         Column::Text(format!(
 //             //             "[bold blue]{}",
 //             //             utils::format_download_bytes(
@@ -998,7 +941,7 @@ pub(crate) fn download(
 //     fn notify(&self, stored: usize, estimate: usize) -> Result<()> {
 //         let mut pb = self.pb.lock().unwrap();
 //         pb.replace(
-//             1,
+//             0,
 //             Column::Text(format!(
 //                 "[bold blue]{}",
 //                 utils::format_download_bytes(

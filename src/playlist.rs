@@ -356,6 +356,25 @@ impl MediaPlaylist {
 
         path
     }
+
+    pub(crate) fn is_encrypted(&self) -> bool {
+        match &self.playlist_type {
+            PlaylistType::Dash => {
+                if let Some(segment) = self.segments.get(0) {
+                    return segment.key.is_some();
+                }
+            }
+            PlaylistType::Hls => {
+                for segment in &self.segments {
+                    if segment.key.is_some() {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        false
+    }
 }
 
 #[derive(Serialize)]
