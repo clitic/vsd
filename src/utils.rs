@@ -195,52 +195,6 @@ pub(super) fn check_reqwest_error(error: &reqwest::Error, url: &str) -> Result<S
 //     Ok(total_seconds)
 // }
 
-pub(super) fn pathbuf_from_url(url: &str) -> std::path::PathBuf {
-    let output = url.split('?').next().unwrap().split('/').last().unwrap();
-
-    if output.ends_with(".m3u") || output.ends_with(".m3u8") {
-        if output.ends_with(".ts.m3u8") {
-            std::path::PathBuf::from(output.trim_end_matches(".m3u8").to_owned())
-        } else {
-            let mut path = std::path::PathBuf::from(&output);
-            path.set_extension("ts");
-            path
-        }
-    } else if output.ends_with(".mpd") || output.ends_with(".xml") {
-        let mut path = std::path::PathBuf::from(&output);
-        path.set_extension("m4s");
-        path
-    } else {
-        let mut path = std::path::PathBuf::from(
-            output
-                .replace('<', "-")
-                .replace('>', "-")
-                .replace(':', "-")
-                .replace('\"', "-")
-                .replace('/', "-")
-                .replace('\\', "-")
-                .replace('|', "-")
-                .replace('?', "-"),
-        );
-        path.set_extension("mp4");
-        path
-    }
-}
-
-// if !self.input.starts_with("http") {
-//     bail!(
-//         "Non HTTP input should have {} set explicitly.",
-//         "--baseurl".colorize("bold green")
-//     )
-// }
-pub(super) fn build_absolute_url(baseurl: &str, uri: &str) -> Result<reqwest::Url> {
-    if uri.starts_with("http") {
-        Ok(reqwest::Url::parse(uri)?)
-    } else {
-        Ok(reqwest::Url::parse(baseurl)?.join(uri)?)
-    }
-}
-
 // use reqwest::header::HeaderValue;
 // use reqwest::header;
 

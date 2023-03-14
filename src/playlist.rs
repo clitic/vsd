@@ -1,10 +1,12 @@
+use std::path::PathBuf;
+
 use crate::commands::Quality;
 use anyhow::{bail, Result};
 use requestty::prompt::style::Stylize;
 use reqwest::Url;
 use serde::Serialize;
 
-#[derive(Default, PartialEq, Serialize)]
+#[derive(Clone, Default, PartialEq, Serialize)]
 pub(crate) enum MediaType {
     Audio,
     Subtitles,
@@ -298,6 +300,61 @@ impl MediaPlaylist {
         }
 
         ext.to_owned()
+    }
+
+    pub(crate) fn file_path(&self, directory: &Option<PathBuf>, ext: &str) -> PathBuf {
+        let filename = PathBuf::from(
+            self.uri
+                .split('?')
+                .next()
+                .unwrap()
+                .split('/')
+                .last()
+                .unwrap_or("undefined")
+                .chars()
+                .map(|x| match x {
+                    '<' | '>' | ':' | '\"' | '\\' | '|' | '?' => '_',
+                    _ => x,
+                })
+                .collect::<String>(),
+        )
+        .with_extension("");
+
+        let suffix = match &self.media_type {
+            MediaType::Audio => "audio",
+            MediaType::Subtitles => "subtitles",
+            MediaType::Undefined => "undefined",
+            MediaType::Video => "video",
+        };
+
+        let mut path = PathBuf::from(format!(
+            "vsd_{}_{}.{}",
+            suffix,
+            filename.to_string_lossy(),
+            ext
+        ));
+
+        if let Some(directory) = directory {
+            path = directory.join(path);
+        }
+
+        if path.exists() {
+            for i in 1.. {
+                path.set_file_name(format!(
+                    "vsd_{}_{}_({}).{}",
+                    suffix,
+                    filename.to_string_lossy(),
+                    i,
+                    ext
+                ));
+
+                if !path.exists() {
+                    return path;
+                }
+            }
+        }
+
+        path
     }
 }
 

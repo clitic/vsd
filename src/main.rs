@@ -8,7 +8,6 @@ mod hls;
 mod merger;
 mod mp4parser;
 mod playlist;
-mod progress;
 mod utils;
 
 use clap::Parser;

@@ -1,7 +1,6 @@
 use crate::{
     merger::BinaryMerger,
-    playlist::{KeyMethod, MediaPlaylist, PlaylistType, Segment},
-    progress::Stream,
+    playlist::{KeyMethod, PlaylistType,  MediaType},
     utils,
 };
 use anyhow::{anyhow, bail, Result};
@@ -14,7 +13,7 @@ use std::{
     collections::{HashMap, HashSet},
     fs::File,
     io::Write,
-    path::Path,
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
 
@@ -26,11 +25,17 @@ enum SubtitleType {
     VttText,
 }
 
+struct Stream {
+    file_path: String,
+    language: Option<String>,
+    media_type: MediaType,
+}
+
 pub(crate) fn download(
     all_keys: bool,
     baseurl: Option<Url>,
     client: reqwest::blocking::Client,
-    directory: Option<std::path::PathBuf>,
+    directory: Option<PathBuf>,
     input: &str,
     key: Vec<(Option<String>, String)>,
     prefer_audio_lang: Option<String>,
@@ -129,7 +134,7 @@ pub(crate) fn download(
                     &mpd,
                     stream,
                     baseurl.as_ref().unwrap_or(&playlist_url).as_str(),
-                );
+                )?;
                 stream.uri = playlist_url.as_str().to_owned();
             }
 
@@ -170,7 +175,7 @@ pub(crate) fn download(
     };
 
     // -----------------------------------------------------------------------------------------
-    // Parse Key Ids & Return Error Related To Decryption
+    // Parse Key Ids
     // -----------------------------------------------------------------------------------------
 
     let mut default_kids = HashSet::new();
@@ -280,7 +285,7 @@ pub(crate) fn download(
     );
 
     // -----------------------------------------------------------------------------------------
-    // Create Temporary Directory
+    // Prepare Directory & Store Streams Metadata
     // -----------------------------------------------------------------------------------------
 
     if let Some(directory) = &directory {
@@ -288,6 +293,8 @@ pub(crate) fn download(
             std::fs::create_dir_all(directory)?;
         }
     }
+
+    let mut temp_files = vec![];
 
     // -----------------------------------------------------------------------------------------
     // Download Subtitle Streams
@@ -312,37 +319,36 @@ pub(crate) fn download(
 
         pb.pb.set_total(length);
 
-        let mut extension = stream.extension();
+        let mut ext = stream.extension();
         let mut codec = None;
 
         if let Some(codecs) = &stream.codecs {
             match codecs.as_str() {
                 "vtt" => {
-                    extension = "vtt".to_owned();
+                    ext = "vtt".to_owned();
                     codec = Some(SubtitleType::VttText);
                 }
                 "wvtt" => {
-                    extension = "vtt".to_owned();
+                    ext = "vtt".to_owned();
                     codec = Some(SubtitleType::Mp4Vtt);
                 }
                 "stpp" | "stpp.ttml" | "stpp.ttml.im1t" | "stpp.TTML.im1t" => {
-                    extension = "srt".to_owned();
+                    ext = "srt".to_owned();
                     codec = Some(SubtitleType::Mp4Ttml);
                 }
                 _ => (),
             }
         }
 
-        let mut total_bytes = 0;
-        let mut subtitles_data = vec![];
-        let mut previous_byterange_end = 0;
-        let mut tempfile = String::new();
-
         let seg_baseurl = baseurl
             .clone()
             .unwrap_or(stream.uri.parse::<Url>().unwrap());
 
+        let mut temp_file = String::new();
+        let mut previous_byterange_end = 0;
+
         let mut first_run = true;
+        let mut subtitles_data = vec![];
 
         for segment in &stream.segments {
             if segment.map.is_some() {
@@ -354,7 +360,6 @@ pub(crate) fn download(
 
                 let response = request.send()?;
                 let bytes = response.bytes()?;
-                total_bytes += bytes.len();
                 subtitles_data.extend_from_slice(&bytes);
             }
 
@@ -367,33 +372,40 @@ pub(crate) fn download(
 
             let response = request.send()?;
             let bytes = response.bytes()?;
-            total_bytes += bytes.len();
             subtitles_data.extend_from_slice(&bytes);
 
             if first_run {
                 first_run = false;
 
                 if subtitles_data.starts_with(b"WEBVTT") {
-                    extension = "vtt".to_owned();
+                    ext = "vtt".to_owned();
                     codec = Some(SubtitleType::VttText);
                 } else if subtitles_data.starts_with(b"1") {
-                    extension = "srt".to_owned();
+                    ext = "srt".to_owned();
                     codec = Some(SubtitleType::SrtText);
                 } else if subtitles_data.starts_with(b"<?xml") || subtitles_data.starts_with(b"<tt")
                 {
+                    // TODO - Match using Representation node @mimeType (DASH)
                     // application/ttml+xml
-                    extension = "srt".to_owned();
+                    ext = "srt".to_owned();
                     codec = Some(SubtitleType::TtmlText);
                 } else if codec.is_none() {
                     bail!("cannot determine subtitle codec.");
                 }
 
-                // tempfile = subtitles.path(&self.args.directory);
-                tempfile = "1.vtt".to_owned();
+                temp_file = stream
+                    .file_path(&directory, &ext)
+                    .to_string_lossy()
+                    .to_string();
+                temp_files.push(Stream {
+                    file_path: temp_file.clone(),
+                    language: stream.language.clone(),
+                    media_type: stream.media_type.clone(),
+                });
                 pb.write(format!(
                     "{} subtitle stream to {}",
                     "Downloading".colorize("bold green"),
-                    tempfile.colorize("cyan")
+                    temp_file.colorize("cyan")
                 ));
             }
 
@@ -401,7 +413,7 @@ pub(crate) fn download(
                 1,
                 Column::Text(format!(
                     "[bold blue]{}",
-                    utils::format_bytes(total_bytes, 2).2
+                    utils::format_bytes(subtitles_data.len(), 2).2
                 )),
             );
             pb.update(1);
@@ -420,7 +432,7 @@ pub(crate) fn download(
                     .parse_media(&subtitles_data, None)
                     .map_err(|x| anyhow!(x))?;
                 let subtitles = crate::mp4parser::Subtitles::new(cues);
-                File::create(&tempfile)?.write_all(subtitles.to_vtt().as_bytes())?;
+                File::create(&temp_file)?.write_all(subtitles.to_vtt().as_bytes())?;
             }
             Some(SubtitleType::Mp4Ttml) => {
                 pb.write(format!(
@@ -432,7 +444,7 @@ pub(crate) fn download(
                     .map_err(|x| anyhow!(x))?;
                 let cues = ttml.parse_media(&subtitles_data).map_err(|x| anyhow!(x))?;
                 let subtitles = crate::mp4parser::Subtitles::new(cues);
-                File::create(&tempfile)?.write_all(subtitles.to_srt().as_bytes())?;
+                File::create(&temp_file)?.write_all(subtitles.to_srt().as_bytes())?;
             }
             Some(SubtitleType::TtmlText) => {
                 pb.write(format!(
@@ -449,11 +461,9 @@ pub(crate) fn download(
                         xml
                     )
                 })?;
-                let cues = ttml.to_cues();
-                let subtitles = crate::mp4parser::Subtitles::new(cues);
-                File::create(&tempfile)?.write_all(subtitles.to_srt().as_bytes())?;
+                File::create(&temp_file)?.write_all(ttml.to_srt().as_bytes())?;
             }
-            _ => File::create(&tempfile)?.write_all(&subtitles_data)?,
+            _ => File::create(&temp_file)?.write_all(&subtitles_data)?,
         };
 
         pb.write(format!(
@@ -1038,3 +1048,119 @@ pub(crate) fn download(
 
 // //     Ok(())
 // // }
+
+// use super::Stream;
+// use anyhow::{bail, Result};
+// use kdam::term::Colorizer;
+// use serde::{Deserialize, Serialize};
+
+// #[derive(Clone, Serialize, Deserialize)]
+// pub struct Progress {
+//     pub audio: Option<Stream>,
+//     pub directory: Option<String>,
+//     pub output: Option<String>,
+//     pub subtitles: Option<Stream>,
+//     pub video: Stream,
+// }
+
+// impl Progress {
+//     pub fn mux(&self) -> Result<()> {
+//         if let Some(output) = &self.output {
+//             let mut args = vec!["-i".to_owned(), self.video.path(&self.directory)];
+
+//             // args.push("-metadata".to_owned());
+//             // args.push(format!("title=\"{}\"", self.video.url));
+
+//             // if let StreamData {
+//             //     language: Some(language),
+//             //     ..
+//             // } = &self.video
+//             // {
+//             //     args.push("-metadata".to_owned());
+//             //     args.push(format!("language={}", language));
+//             // }
+
+//             if let Some(audio) = &self.audio {
+//                 args.push("-i".to_owned());
+//                 args.push(audio.path(&self.directory));
+//             }
+
+//             if let Some(subtitles) = &self.subtitles {
+//                 args.push("-i".to_owned());
+//                 args.push(subtitles.path(&self.directory));
+//             }
+
+//             args.push("-c:v".to_owned());
+//             args.push("copy".to_owned());
+//             args.push("-c:a".to_owned());
+//             args.push("copy".to_owned());
+
+//             if self.subtitles.is_some() {
+//                 args.push("-scodec".to_owned());
+
+//                 if output.ends_with(".mp4") {
+//                     args.push("mov_text".to_owned());
+//                 } else {
+//                     args.push("srt".to_owned());
+//                 }
+//             }
+
+//             // args.push("-metadata".to_owned());
+//             // args.push(format!("title=\"{}\"", self.video.url));
+
+//             if let Some(Stream {
+//                 language: Some(language),
+//                 ..
+//             }) = &self.audio
+//             {
+//                 args.push("-metadata:s:a:0".to_owned());
+//                 args.push(format!("language={}", language));
+//             }
+
+//             if let Some(Stream {
+//                 language: Some(language),
+//                 ..
+//             }) = &self.subtitles
+//             {
+//                 args.push("-metadata:s:s:0".to_owned());
+//                 args.push(format!("language={}", language));
+//                 args.push("-disposition:s:0".to_owned());
+//                 args.push("default".to_owned());
+//             }
+
+//             args.push(output.to_owned());
+
+//             println!(
+//                 "Executing {} {}",
+//                 "ffmpeg".colorize("cyan"),
+//                 args.join(" ").colorize("cyan")
+//             );
+
+//             if std::path::Path::new(output).exists() {
+//                 std::fs::remove_file(output)?;
+//             }
+
+//             let code = std::process::Command::new("ffmpeg")
+//                 .args(args)
+//                 .stderr(std::process::Stdio::null())
+//                 .spawn()?
+//                 .wait()?;
+
+//             if !code.success() {
+//                 bail!("FFMPEG exited with code {}", code.code().unwrap_or(1))
+//             }
+
+//             if let Some(audio) = &self.audio {
+//                 std::fs::remove_file(&audio.path(&self.directory))?;
+//             }
+
+//             if let Some(subtitles) = &self.subtitles {
+//                 std::fs::remove_file(&subtitles.path(&self.directory))?;
+//             }
+
+//             std::fs::remove_file(&self.video.path(&self.directory))?;
+//         }
+
+//         Ok(())
+//     }
+// }
