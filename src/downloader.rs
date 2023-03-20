@@ -37,7 +37,7 @@ pub(crate) fn download(
     client: reqwest::blocking::Client,
     directory: Option<PathBuf>,
     input: &str,
-    key: Vec<(Option<String>, String)>,
+    keys: Vec<(Option<String>, String)>,
     prefer_audio_lang: Option<String>,
     prefer_subs_lang: Option<String>,
     quality: crate::commands::Quality,
@@ -244,7 +244,7 @@ pub(crate) fn download(
     }
 
     for default_kid in &default_kids {
-        if !key
+        if !keys
             .iter()
             .flat_map(|x| x.0.as_ref())
             .any(|x| x == default_kid)
@@ -471,32 +471,12 @@ pub(crate) fn download(
     // Prepare Progress Bar
     // -----------------------------------------------------------------------------------------
 
-    let mut overall_segments = 0;
-    let mut relative_size = 0;
-    let mut stored_bytes = 0;
-
-    for stream in &video_audio_streams {
-        let total_segments = stream.segments.len();
-
-        if let Some(segment) = stream.segments.get(0) {
-            let request = client.head(
-                segment.seg_url(
-                    baseurl
-                        .as_ref()
-                        .unwrap_or(&stream.uri.parse::<Url>().unwrap()),
-                )?,
-            );
-            let response = request.send()?;
-            relative_size += total_segments * (response.content_length().unwrap_or(0) as usize);
-        }
-
-        overall_segments += total_segments;
-    }
-
     pb.replace(2, Column::Percentage(2));
     pb.columns
         .extend_from_slice(&[Column::text("•"), Column::text("[yellow]?")]);
-    pb.pb.reset(Some(overall_segments));
+    pb.pb.reset(Some(
+        video_audio_streams.iter().map(|x| x.segments.len()).sum(),
+    ));
     let pb = Arc::new(Mutex::new(pb));
 
     // -----------------------------------------------------------------------------------------
@@ -515,9 +495,38 @@ pub(crate) fn download(
     }
 
     // -----------------------------------------------------------------------------------------
+    // Estimation
+    // -----------------------------------------------------------------------------------------
+
+    let mut downloaded_bytes = 0;
+    let mut relative_size = vec![];
+
+    for (i, stream) in audio_streams.iter().enumerate() {
+        if let Some(segment) = stream.segments.get(0) {
+            let mut request = client.head(
+                segment.seg_url(
+                    baseurl
+                        .as_ref()
+                        .unwrap_or(&stream.uri.parse::<Url>().unwrap()),
+                )?,
+            );
+
+            if let Some((range, _)) = segment.map_range(0) {
+                request = request.header(RANGE, range);
+            }
+
+            let response = request.send()?;
+            relative_size.insert(
+                i,
+                stream.segments.len() * (response.content_length().unwrap_or(0) as usize),
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------
     // Prepare Thread Pool
     // -----------------------------------------------------------------------------------------
-    
+
     // TODO - Create a custom thread pool module.
     let pool = threadpool::ThreadPool::new(threads as usize);
 
@@ -525,7 +534,7 @@ pub(crate) fn download(
     // Download Video Stream
     // -----------------------------------------------------------------------------------------
 
-    if let Some(stream) = video_stream {
+    if let Some(mut stream) = video_stream {
         let temp_file = stream
             .file_path(&directory, &stream.extension())
             .to_string_lossy()
@@ -541,19 +550,72 @@ pub(crate) fn download(
             temp_file.colorize("cyan")
         ));
 
-        // let dash_decrypt = if self.dash && self.cenc_encrypted_video {
-        //     Some(
-        //         self.dash_decrypt(
-        //             &video_segments[0],
-        //             dash::SegmentTag::from(&video_segments[1].unknown_tags)
-        //                 .kid
-        //                 .map(|x| x.replace('-', "").to_lowercase()),
-        //             &pb,
-        //         )?,
-        //     )
-        // } else {
-        //     None
-        // };
+        let dash_decrypt = if stream.is_dash() && stream.is_encrypted() {
+            if let Some(segment) = stream.segments.get_mut(0) {
+                if segment.map.is_some() {
+                    let mut request = client.head(
+                        segment
+                            .map_url(
+                                baseurl
+                                    .as_ref()
+                                    .unwrap_or(&stream.uri.parse::<Url>().unwrap()),
+                            )?
+                            .unwrap(),
+                    );
+
+                    if let Some((range, _)) = segment.map_range(0) {
+                        request = request.header(RANGE, range);
+                    }
+
+                    let response = request.send()?;
+                    let bytes = response.bytes()?.to_vec();
+
+                    segment.map = None;
+
+                    let mut decryption_keys = HashMap::new();
+
+                    if all_keys {
+                        for key in &keys {
+                            if let Some(kid) = &key.0 {
+                                decryption_keys.insert(kid.to_owned(), key.1.to_owned());
+                            }
+                        }
+                    } else {
+                        let default_kid = stream.default_kid();
+
+                        for key in &keys {
+                            if let Some(default_kid) = &default_kid {
+                                if let Some(kid) = &key.0 {
+                                    if default_kid == kid {
+                                        decryption_keys.insert(kid.to_owned(), key.1.to_owned());
+                                    }
+                                } else {
+                                    decryption_keys
+                                        .insert(default_kid.to_owned(), key.1.to_owned());
+                                }
+                            }
+                        }
+                    }
+
+                    for key in &decryption_keys {
+                        pb.lock().unwrap().write(format!(
+                            "        {} {}:{}",
+                            "Key".colorize("bold green"),
+                            key.0,
+                            key.1
+                        ));
+                    }
+
+                    Some((bytes, decryption_keys))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
 
         // stored_bytes = self.download_segments(
         //     if dash_decrypt.is_some() {
@@ -578,55 +640,6 @@ pub(crate) fn download(
     println!();
     Ok(())
 }
-
-// fn dash_decrypt(
-//     &self,
-//     segment: &m3u8_rs::MediaSegment,
-//     default_kid: Option<String>,
-//     pb: &Arc<Mutex<RichProgress>>,
-// ) -> Result<(Vec<u8>, HashMap<String, String>)> {
-//     if dash::SegmentTag::from(&segment.unknown_tags).init {
-//         let init_segment = self
-//             .client
-//             .get(self.args.get_url(&segment.uri)?)
-//             .send()?
-//             .bytes()?
-//             .to_vec();
-//         let mut keys = HashMap::new();
-
-//         for key in &self.args.key {
-//             if let Some(default_kid) = &default_kid {
-//                 if let Some(kid) = &key.0 {
-//                     if default_kid == kid {
-//                         keys.insert(default_kid.to_owned(), key.1.to_owned());
-//                     }
-//                 } else {
-//                     keys.insert(default_kid.to_owned(), key.1.to_owned());
-//                 }
-//             }
-//         }
-
-//         if keys.len() != 1 {
-//             bail!(
-//                 "specify decryption key using {} syntax",
-//                 "--key KID:(base64:)KEY".colorize("bold green")
-//             )
-//         }
-
-//         if let Some(default_kid) = &default_kid {
-//             pb.lock().unwrap().write(format!(
-//                 "        {} {}:{}",
-//                 "Key".colorize("bold green"),
-//                 default_kid,
-//                 keys.get(default_kid).unwrap()
-//             ));
-//         }
-
-//         Ok((init_segment, keys))
-//     } else {
-//         bail!("stream is CENC encrypted without a init segment?")
-//     }
-// }
 
 //     #[allow(clippy::too_many_arguments)]
 //     fn download_segments(

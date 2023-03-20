@@ -375,6 +375,20 @@ impl MediaPlaylist {
 
         false
     }
+
+    pub(crate) fn default_kid(&self) -> Option<String> {
+        if let Some(segment) = self.segments.get(0) {
+            if let Some(Key {
+                default_kid: Some(x),
+                ..
+            }) = &segment.key
+            {
+                return Some(x.replace('-', "").to_lowercase());
+            }
+        }
+        
+        None
+    }
 }
 
 #[derive(Serialize)]
