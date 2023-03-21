@@ -142,31 +142,7 @@ pub(super) fn scrape_website_message(url: &str) -> String {
     )
 }
 
-pub(super) fn check_reqwest_error(error: &reqwest::Error, url: &str) -> Result<String> {
-    let request = "Request".colorize("bold yellow");
 
-    if error.is_timeout() {
-        return Ok(format!("    {} {} (timeout)", request, url));
-    } else if error.is_connect() {
-        return Ok(format!("    {} {} (connection error)", request, url));
-    }
-
-    if let Some(status) = error.status() {
-        match status {
-            StatusCode::REQUEST_TIMEOUT => Ok(format!("    {} {} (timeout)", request, url)),
-            StatusCode::TOO_MANY_REQUESTS => {
-                Ok(format!("    {} {} (too many requests)", request, url))
-            }
-            StatusCode::SERVICE_UNAVAILABLE => {
-                Ok(format!("    {} {} (service unavailable)", request, url))
-            }
-            StatusCode::GATEWAY_TIMEOUT => Ok(format!("    {} {} (gateway timeout)", request, url)),
-            _ => bail!("download failed {} (HTTP {})", url, status),
-        }
-    } else {
-        bail!("download failed {}", url)
-    }
-}
 
 // pub(super) fn duration(duration: &str) -> Result<f32> {
 //     let duration = duration.replace('s', "").replace(',', ".");

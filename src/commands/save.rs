@@ -309,6 +309,7 @@ impl Save {
             self.prefer_audio_lang,
             self.prefer_subs_lang,
             self.quality,
+            self.retry_count,
             self.threads,
         )?;
 

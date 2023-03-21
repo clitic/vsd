@@ -34,7 +34,7 @@ pub(crate) struct Map {
     pub(crate) byte_range: Option<ByteRange>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub(crate) enum KeyMethod {
     Aes128,
     Cenc,
