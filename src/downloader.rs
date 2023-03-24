@@ -34,10 +34,55 @@ struct Stream {
 }
 
 #[derive(Clone)]
-struct Key {
+struct Keys {
     bytes: Vec<u8>,
     iv: Option<String>,
     method: KeyMethod,
+}
+
+impl Keys {
+    fn from_hex_keys(keys: HashMap<String, String>) -> Self {
+        let mut bytes = String::new();
+
+        for (kid, key) in keys {
+            bytes += &(kid + ":" + &key + ";");
+        }
+
+        Self {
+            bytes: bytes.get(..(bytes.len() - 1)).unwrap().as_bytes().to_vec(),
+            iv: None,
+            method: KeyMethod::Cenc,
+        }
+    }
+
+    fn as_hex_keys(&self) -> HashMap<String, String> {
+        String::from_utf8(self.bytes.clone())
+            .unwrap()
+            .split(';')
+            .map(|x| {
+                let kid_key = x.split(':').collect::<Vec<_>>();
+                (
+                    kid_key.get(0).unwrap().to_string(),
+                    kid_key.get(1).unwrap().to_string(),
+                )
+            })
+            .collect()
+    }
+
+    fn decrypt(&self, data: Vec<u8>) -> Result<Vec<u8>> {
+        Ok(match self.method {
+            KeyMethod::Aes128 => openssl::symm::decrypt(
+                openssl::symm::Cipher::aes_128_cbc(),
+                &self.bytes,
+                self.iv.as_ref().map(|x| x.as_bytes()),
+                &data,
+            )?,
+            KeyMethod::Cenc | KeyMethod::SampleAes => {
+                mp4decrypt::mp4decrypt(&data, self.as_hex_keys(), None).map_err(|x| anyhow!(x))?
+            }
+            _ => data,
+        })
+    }
 }
 
 pub(crate) fn download(
@@ -47,6 +92,8 @@ pub(crate) fn download(
     directory: Option<PathBuf>,
     input: &str,
     keys: Vec<(Option<String>, String)>,
+    no_decrypt: bool,
+    output: Option<String>,
     prefer_audio_lang: Option<String>,
     prefer_subs_lang: Option<String>,
     quality: crate::commands::Quality,
@@ -195,10 +242,11 @@ pub(crate) fn download(
         if let Some(segment) = stream.segments.get(0) {
             if let Some(key) = &segment.key {
                 match &key.method {
-                    KeyMethod::Other(x) => bail!("{} decryption is not supported.", x),
+                    KeyMethod::Other(x) => bail!("{} decryption is not supported. Use {} flag to download encrypted streams.", x, "--no-decrypt".colorize("bold green")),
                     KeyMethod::SampleAes => {
                         if stream.is_hls() {
-                            bail!("sample-aes (HLS) decryption is not supported.");
+                            // TODO - Only if "keyformat=identity" 
+                            bail!("sample-aes (HLS) decryption is not supported. Use {} flag to download encrypted streams.", "--no-decrypt".colorize("bold green"));
                         }
                     }
                     _ => (),
@@ -258,9 +306,10 @@ pub(crate) fn download(
             .iter()
             .flat_map(|x| x.0.as_ref())
             .any(|x| x == default_kid)
+            && !no_decrypt
         {
             bail!(
-                "use {} flag to specify CENC content decryption keys for atleast * (star) prefixed key ids.",
+                "use {} flag to specify CENC content decryption keys for at least * (star) prefixed key ids.",
                 "--key".colorize("bold green")
             );
         }
@@ -295,6 +344,13 @@ pub(crate) fn download(
         if !directory.exists() {
             std::fs::create_dir_all(directory)?;
         }
+    }
+
+    if output.is_some() && no_decrypt {
+        println!(
+            "    {} --output is ignored when --no-decrypt is used",
+            "Warning".colorize("bold yellow")
+        );
     }
 
     let mut temp_files = vec![];
@@ -560,73 +616,6 @@ pub(crate) fn download(
             temp_file.colorize("cyan")
         ));
 
-        let dash_decrypt = if stream.is_dash() && stream.is_encrypted() {
-            if let Some(segment) = stream.segments.get_mut(0) {
-                if segment.map.is_some() {
-                    let mut request = client.get(
-                        segment
-                            .map_url(
-                                baseurl
-                                    .as_ref()
-                                    .unwrap_or(&stream.uri.parse::<Url>().unwrap()),
-                            )?
-                            .unwrap(),
-                    );
-
-                    if let Some((range, _)) = segment.map_range(0) {
-                        request = request.header(RANGE, range);
-                    }
-
-                    let response = request.send()?;
-                    let bytes = response.bytes()?.to_vec();
-
-                    segment.map = None;
-
-                    let mut decryption_keys = HashMap::new();
-
-                    if all_keys {
-                        for key in &keys {
-                            if let Some(kid) = &key.0 {
-                                decryption_keys.insert(kid.to_owned(), key.1.to_owned());
-                            }
-                        }
-                    } else {
-                        let default_kid = stream.default_kid();
-
-                        for key in &keys {
-                            if let Some(default_kid) = &default_kid {
-                                if let Some(kid) = &key.0 {
-                                    if default_kid == kid {
-                                        decryption_keys.insert(kid.to_owned(), key.1.to_owned());
-                                    }
-                                } else {
-                                    decryption_keys
-                                        .insert(default_kid.to_owned(), key.1.to_owned());
-                                }
-                            }
-                        }
-                    }
-
-                    for key in &decryption_keys {
-                        pb.lock().unwrap().write(format!(
-                            "        {} {}:{}",
-                            "Key".colorize("bold green"),
-                            key.0,
-                            key.1
-                        ));
-                    }
-
-                    Some((bytes, decryption_keys))
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
         let merger = Arc::new(Mutex::new(Merger::new(stream.segments.len(), &temp_file)?));
 
         // TODO - Add resume support
@@ -638,6 +627,7 @@ pub(crate) fn download(
         // merger.lock().unwrap().update()?;
 
         let timer = Arc::new(Instant::now());
+        let mut previous_map = None;
         let mut previous_key = None;
         let mut previous_byterange_end = 0;
 
@@ -668,27 +658,98 @@ pub(crate) fn download(
             //     gaurded_pb.update_to(pos);
             // }
 
-            if let Some(key) = &segment.key {
-                // TODO - Handle keyformat correctly
-                previous_key = Some(Key {
-                    bytes: if key.key_format.is_none() {
-                        let request = client.get(
-                            segment
-                                .key_url(
-                                    baseurl
-                                        .as_ref()
-                                        .unwrap_or(&stream.uri.parse::<Url>().unwrap()),
-                                )?
-                                .unwrap(),
-                        );
-                        let response = request.send()?;
-                        response.bytes()?.to_vec()
-                    } else {
-                        vec![]
-                    },
-                    iv: key.iv.clone(),
-                    method: key.method.clone(),
-                });
+            if segment.map.is_some() {
+                let mut request = client.get(
+                    segment
+                        .map_url(
+                            baseurl
+                                .as_ref()
+                                .unwrap_or(&stream.uri.parse::<Url>().unwrap()),
+                        )?
+                        .unwrap(),
+                );
+
+                if let Some((range, _)) = segment.map_range(0) {
+                    request = request.header(RANGE, range);
+                }
+
+                let response = request.send()?;
+                let bytes = response.bytes()?;
+                previous_map = Some(bytes.to_vec())
+            }
+
+            if !no_decrypt {
+                if let Some(key) = &segment.key {
+                    match key.method {
+                        KeyMethod::Aes128 => {
+                            // TODO - Handle keyformat correctly
+                            previous_key = Some(Keys {
+                                bytes: if key.key_format.is_none() {
+                                    let request =
+                                        client.get(
+                                            segment
+                                                .key_url(baseurl.as_ref().unwrap_or(
+                                                    &stream.uri.parse::<Url>().unwrap(),
+                                                ))?
+                                                .unwrap(),
+                                        );
+                                    let response = request.send()?;
+                                    response.bytes()?.to_vec()
+                                } else {
+                                    vec![]
+                                },
+                                iv: key.iv.clone(),
+                                method: key.method.clone(),
+                            });
+                        }
+                        KeyMethod::Cenc | KeyMethod::SampleAes => {
+                            let mut decryption_keys = HashMap::new();
+
+                            if all_keys {
+                                for key in &keys {
+                                    if let Some(kid) = &key.0 {
+                                        decryption_keys.insert(kid.to_owned(), key.1.to_owned());
+                                    }
+                                }
+                            } else {
+                                let default_kid = stream.default_kid();
+
+                                for key in &keys {
+                                    if let Some(default_kid) = &default_kid {
+                                        if let Some(kid) = &key.0 {
+                                            if default_kid == kid {
+                                                decryption_keys
+                                                    .insert(kid.to_owned(), key.1.to_owned());
+                                            }
+                                        } else {
+                                            decryption_keys
+                                                .insert(default_kid.to_owned(), key.1.to_owned());
+                                        }
+                                    }
+                                }
+                            }
+
+                            if decryption_keys.len() == 0 {
+                                bail!(
+                                "cannot determine keys to use, bypass this error using {} flag.",
+                                "--all-keys".colorize("bold green")
+                            );
+                            }
+
+                            for key in &decryption_keys {
+                                pb.lock().unwrap().write(format!(
+                                    "        {} {}:{}",
+                                    "Key".colorize("bold green"),
+                                    key.0,
+                                    key.1
+                                ));
+                            }
+
+                            previous_key = Some(Keys::from_hex_keys(decryption_keys));
+                        }
+                        _ => previous_key = None,
+                    }
+                }
             }
 
             let mut request = client.get(
@@ -705,31 +766,10 @@ pub(crate) fn download(
             }
 
             let thread_data = ThreadData {
-                dash_decrypt: dash_decrypt.clone(),
                 downloaded_bytes,
                 index: i,
-                key: previous_key.clone(),
-                map: if segment.map.is_some() {
-                    let mut request = client.get(
-                        segment
-                            .map_url(
-                                baseurl
-                                    .as_ref()
-                                    .unwrap_or(&stream.uri.parse::<Url>().unwrap()),
-                            )?
-                            .unwrap(),
-                    );
-
-                    if let Some((range, _)) = segment.map_range(0) {
-                        request = request.header(RANGE, range);
-                    }
-
-                    let response = request.send()?;
-                    let bytes = response.bytes()?;
-                    bytes.to_vec()
-                } else {
-                    vec![]
-                },
+                keys: previous_key.clone(),
+                map: previous_map.clone(),
                 merger: merger.clone(),
                 pb: pb.clone(),
                 relative_size: Some(relative_size.iter().sum()),
@@ -737,6 +777,10 @@ pub(crate) fn download(
                 timer: timer.clone(),
                 total_retries: retry_count,
             };
+
+            if no_decrypt {
+                previous_map = None;
+            }
 
             pool.execute(move || {
                 if let Err(e) = thread_data.perform() {
@@ -767,28 +811,31 @@ pub(crate) fn download(
     }
 
     println!();
+    // TODO - ignore --outuput with --no-decrypt
     Ok(())
 }
 
 struct ThreadData {
-    dash_decrypt: Option<(Vec<u8>, HashMap<String, String>)>,
     downloaded_bytes: usize,
     index: usize,
-    key: Option<Key>,
-    map: Vec<u8>,
+    keys: Option<Keys>,
+    map: Option<Vec<u8>>,
     merger: Arc<Mutex<Merger>>,
     pb: Arc<Mutex<RichProgress>>,
     relative_size: Option<usize>,
     request: RequestBuilder,
-    timer: Arc<std::time::Instant>,
+    timer: Arc<Instant>,
     total_retries: u8,
 }
 
 impl ThreadData {
     fn perform(&self) -> Result<()> {
-        let mut segment = self.map.clone();
+        let mut segment = self.map.clone().unwrap_or(vec![]);
         segment.append(&mut self.download_segment()?);
-        let segment = self.decrypt(segment)?;
+
+        if let Some(keys) = &self.keys {
+            segment = keys.decrypt(segment)?;
+        }
 
         let mut merger = self.merger.lock().unwrap();
         merger.write(self.index, &segment)?;
@@ -799,8 +846,9 @@ impl ThreadData {
     }
 
     fn download_segment(&self) -> Result<Vec<u8>> {
-        let fetch_segment =
-            || -> Result<Vec<u8>, reqwest::Error> { Ok(self.request.try_clone().unwrap().send()?.bytes()?.to_vec()) };
+        let fetch_segment = || -> Result<Vec<u8>, reqwest::Error> {
+            Ok(self.request.try_clone().unwrap().send()?.bytes()?.to_vec())
+        };
 
         let mut retries = 0;
         let data = loop {
@@ -837,26 +885,6 @@ impl ThreadData {
         };
 
         Ok(data)
-    }
-
-    fn decrypt(&self, data: Vec<u8>) -> Result<Vec<u8>> {
-        Ok(match &self.key {
-            Some(Key { bytes, iv, method }) => match method {
-                KeyMethod::Aes128 => openssl::symm::decrypt(
-                    openssl::symm::Cipher::aes_128_cbc(),
-                    &bytes,
-                    iv.as_ref().map(|x| x.as_bytes()),
-                    &data,
-                )?,
-                KeyMethod::Cenc | KeyMethod::SampleAes => {
-                    let (mut init_segment, keys) = self.dash_decrypt.clone().unwrap();
-                    init_segment.extend_from_slice(&data);
-                    mp4decrypt::mp4decrypt(&init_segment, keys, None).map_err(|x| anyhow!(x))?
-                }
-                _ => data,
-            },
-            None => data,
-        })
     }
 
     fn notify(&self, stored: usize, estimate: usize) -> Result<()> {

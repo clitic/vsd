@@ -21,9 +21,6 @@ pub struct Save {
     #[arg(short, long)]
     pub directory: Option<std::path::PathBuf>,
 
-    // /// Download only one stream from playlist instead of downloading multiple streams at once.
-    // #[arg(long)]
-    // pub one_stream: bool,
     /// Mux all downloaded streams to a video container (.mp4, .mkv, etc.) using ffmpeg.
     /// Note that existing files will be overwritten and downloaded streams will be deleted.
     #[arg(short, long, value_parser = output_parser)]
@@ -92,6 +89,10 @@ pub struct Save {
     /// This option can be used multiple times.
     #[arg(short, long, help_heading = "Decrypt Options", value_name = "<KID:(base64:)KEY>|(base64:)KEY", value_parser = key_parser)]
     pub key: Vec<(Option<String>, String)>,
+
+    /// Download encrypted streams without decrypting them.
+    #[arg(long, help_heading = "Decrypt Options")]
+    pub no_decrypt: bool,
 
     /// Maximum number of retries to download an individual segment.
     #[arg(long, help_heading = "Download Options", default_value_t = 15)]
@@ -306,6 +307,8 @@ impl Save {
             self.directory,
             &self.input,
             self.key,
+            self.no_decrypt,
+            self.output,
             self.prefer_audio_lang,
             self.prefer_subs_lang,
             self.quality,
