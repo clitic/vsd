@@ -1,4 +1,5 @@
 use crate::{
+    commands::Quality,
     merger::Merger,
     playlist::{KeyMethod, MediaType, PlaylistType},
     utils,
@@ -96,7 +97,8 @@ pub(crate) fn download(
     output: Option<String>,
     prefer_audio_lang: Option<String>,
     prefer_subs_lang: Option<String>,
-    quality: crate::commands::Quality,
+    quality: Quality,
+    raw_prompts: bool,
     retry_count: u8,
     threads: u8,
 ) -> Result<()> {
@@ -107,7 +109,7 @@ pub(crate) fn download(
     // -----------------------------------------------------------------------------------------
 
     let mut playlist_type = None;
-    let path = std::path::Path::new(input);
+    let path = PathBuf::from(input);
 
     let playlist = if path.exists() {
         if baseurl.is_none() {
@@ -182,7 +184,7 @@ pub(crate) fn download(
             let (mut video_audio_streams, mut subtitle_streams) =
                 crate::dash::parse_as_master(&mpd, playlist_url.as_str())
                     .sort_streams(prefer_audio_lang, prefer_subs_lang)
-                    .select_streams(quality)?;
+                    .select_streams(quality, raw_prompts)?;
 
             for stream in video_audio_streams
                 .iter_mut()
@@ -203,7 +205,7 @@ pub(crate) fn download(
                 let (mut video_audio_streams, mut subtitle_streams) =
                     crate::hls::parse_as_master(&m3u8, playlist_url.as_str())
                         .sort_streams(prefer_audio_lang, prefer_subs_lang)
-                        .select_streams(quality)?;
+                        .select_streams(quality, raw_prompts)?;
 
                 for stream in video_audio_streams
                     .iter_mut()
@@ -241,15 +243,17 @@ pub(crate) fn download(
     for stream in &video_audio_streams {
         if let Some(segment) = stream.segments.get(0) {
             if let Some(key) = &segment.key {
-                match &key.method {
-                    KeyMethod::Other(x) => bail!("{} decryption is not supported. Use {} flag to download encrypted streams.", x, "--no-decrypt".colorize("bold green")),
-                    KeyMethod::SampleAes => {
-                        if stream.is_hls() {
-                            // TODO - Only if "keyformat=identity" 
-                            bail!("sample-aes (HLS) decryption is not supported. Use {} flag to download encrypted streams.", "--no-decrypt".colorize("bold green"));
+                if !no_decrypt {
+                    match &key.method {
+                        KeyMethod::Other(x) => bail!("{} decryption is not supported. Use {} flag to download encrypted streams.", x, "--no-decrypt".colorize("bold green")),
+                        KeyMethod::SampleAes => {
+                            if stream.is_hls() {
+                                // TODO - Only if "keyformat=identity" 
+                                bail!("sample-aes (HLS) decryption is not supported. Use {} flag to download encrypted streams.", "--no-decrypt".colorize("bold green"));
+                            }
                         }
+                        _ => (),
                     }
-                    _ => (),
                 }
 
                 if let Some(default_kid) = &key.default_kid {
@@ -600,7 +604,7 @@ pub(crate) fn download(
     // Download Video Stream
     // -----------------------------------------------------------------------------------------
 
-    if let Some(mut stream) = video_stream {
+    if let Some(stream) = video_stream {
         let temp_file = stream
             .file_path(&directory, &stream.extension())
             .to_string_lossy()
@@ -778,7 +782,7 @@ pub(crate) fn download(
                 total_retries: retry_count,
             };
 
-            if no_decrypt {
+            if previous_key.is_none() {
                 previous_map = None;
             }
 

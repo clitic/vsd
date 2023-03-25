@@ -270,12 +270,12 @@ impl MediaPlaylist {
         }
     }
 
-    pub(crate) fn is_dash(&self) -> bool {
-        match &self.playlist_type {
-            PlaylistType::Dash => true,
-            _ => false,
-        }
-    }
+    // pub(crate) fn is_dash(&self) -> bool {
+    //     match &self.playlist_type {
+    //         PlaylistType::Dash => true,
+    //         _ => false,
+    //     }
+    // }
 
     pub(crate) fn extension(&self) -> String {
         if let Some(ext) = &self.extension {
@@ -357,24 +357,24 @@ impl MediaPlaylist {
         path
     }
 
-    pub(crate) fn is_encrypted(&self) -> bool {
-        match &self.playlist_type {
-            PlaylistType::Dash => {
-                if let Some(segment) = self.segments.get(0) {
-                    return segment.key.is_some();
-                }
-            }
-            PlaylistType::Hls => {
-                for segment in &self.segments {
-                    if segment.key.is_some() {
-                        return true;
-                    }
-                }
-            }
-        }
+    // pub(crate) fn is_encrypted(&self) -> bool {
+    //     match &self.playlist_type {
+    //         PlaylistType::Dash => {
+    //             if let Some(segment) = self.segments.get(0) {
+    //                 return segment.key.is_some();
+    //             }
+    //         }
+    //         PlaylistType::Hls => {
+    //             for segment in &self.segments {
+    //                 if segment.key.is_some() {
+    //                     return true;
+    //                 }
+    //             }
+    //         }
+    //     }
 
-        false
-    }
+    //     false
+    // }
 
     pub(crate) fn default_kid(&self) -> Option<String> {
         if let Some(segment) = self.segments.get(0) {
@@ -386,7 +386,7 @@ impl MediaPlaylist {
                 return Some(x.replace('-', "").to_lowercase());
             }
         }
-        
+
         None
     }
 }
@@ -399,27 +399,27 @@ pub(crate) struct MasterPlaylist {
 }
 
 impl MasterPlaylist {
-    pub(crate) fn url(&self, baseurl: &str) -> Result<Url> {
-        if self.uri.starts_with("http") || self.uri.starts_with("ftp") {
-            Ok(self.uri.parse::<Url>()?)
-        } else {
-            Ok(baseurl.parse::<Url>()?.join(&self.uri)?)
-        }
-    }
+    // pub(crate) fn url(&self, baseurl: &str) -> Result<Url> {
+    //     if self.uri.starts_with("http") || self.uri.starts_with("ftp") {
+    //         Ok(self.uri.parse::<Url>()?)
+    //     } else {
+    //         Ok(baseurl.parse::<Url>()?.join(&self.uri)?)
+    //     }
+    // }
 
-    pub(crate) fn is_hls(&self) -> bool {
-        match self.playlist_type {
-            PlaylistType::Hls => true,
-            _ => false,
-        }
-    }
+    // pub(crate) fn is_hls(&self) -> bool {
+    //     match self.playlist_type {
+    //         PlaylistType::Hls => true,
+    //         _ => false,
+    //     }
+    // }
 
-    pub(crate) fn is_dash(&self) -> bool {
-        match self.playlist_type {
-            PlaylistType::Dash => true,
-            _ => false,
-        }
-    }
+    // pub(crate) fn is_dash(&self) -> bool {
+    //     match self.playlist_type {
+    //         PlaylistType::Dash => true,
+    //         _ => false,
+    //     }
+    // }
 
     pub(crate) fn sort_streams(
         mut self,
@@ -504,15 +504,22 @@ impl MasterPlaylist {
         self
     }
 
-    // pub(crate) fn select_stream(&self, quality: &Quality, raw_prompts: bool) -> Result<MediaPlaylist> {
+    // println!("{}", prompt);
 
+    // for choice in choices {
+    //     println!("{}", choice);
     // }
 
-    // TODO - Raw prompts
-    /// Call this function after calling sort_streams
+    // print!("{} (1, 2, etc.): ", prompt.trim_end_matches(':'));
+    // std::io::stdout().flush()?;
+    // let mut input = String::new();
+    // std::io::stdin().read_line(&mut input)?;
+    // return Ok(input.trim().parse::<usize>()? - 1);
+
     pub(crate) fn select_streams(
-        mut self,
+        self,
         quality: Quality,
+        raw_prompts: bool,
     ) -> Result<(Vec<MediaPlaylist>, Vec<MediaPlaylist>)> {
         let mut video_streams = self
             .streams

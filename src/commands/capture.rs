@@ -45,7 +45,7 @@ impl Capture {
             if url.contains(".m3u") || url.contains(".mpd") {
                 println!(
                     "{}\n{}",
-                    "-".repeat(crate::utils::get_columns() as usize)
+                    "-".repeat(kdam::term::get_columns_or(10) as usize)
                         .colorize("#FFA500"),
                     url
                 );

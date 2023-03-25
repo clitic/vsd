@@ -21,6 +21,10 @@ pub struct Save {
     #[arg(short, long)]
     pub directory: Option<std::path::PathBuf>,
 
+    // /// Raw style input prompts for old and unsupported terminals.
+    // #[arg(long)]
+    // pub multiple_progress_bar: bool,
+
     /// Mux all downloaded streams to a video container (.mp4, .mkv, etc.) using ffmpeg.
     /// Note that existing files will be overwritten and downloaded streams will be deleted.
     #[arg(short, long, value_parser = output_parser)]
@@ -312,6 +316,7 @@ impl Save {
             self.prefer_audio_lang,
             self.prefer_subs_lang,
             self.quality,
+            self.raw_prompts,
             self.retry_count,
             self.threads,
         )?;
