@@ -1,10 +1,10 @@
-use std::path::PathBuf;
-
 use crate::commands::Quality;
 use anyhow::{bail, Result};
+use kdam::term::Colorizer;
 use requestty::prompt::style::Stylize;
 use reqwest::Url;
 use serde::Serialize;
+use std::{io::Write, path::PathBuf};
 
 #[derive(Clone, Default, PartialEq, Serialize)]
 pub(crate) enum MediaType {
@@ -504,21 +504,10 @@ impl MasterPlaylist {
         self
     }
 
-    // println!("{}", prompt);
-
-    // for choice in choices {
-    //     println!("{}", choice);
-    // }
-
-    // print!("{} (1, 2, etc.): ", prompt.trim_end_matches(':'));
-    // std::io::stdout().flush()?;
-    // let mut input = String::new();
-    // std::io::stdin().read_line(&mut input)?;
-    // return Ok(input.trim().parse::<usize>()? - 1);
-
     pub(crate) fn select_streams(
         self,
         quality: Quality,
+        skip_prompts: bool,
         raw_prompts: bool,
     ) -> Result<(Vec<MediaPlaylist>, Vec<MediaPlaylist>)> {
         let mut video_streams = self
@@ -600,8 +589,15 @@ impl MasterPlaylist {
                     .enumerate()
                     .map(|(i, x)| requestty::Choice((x.display_audio_stream(), i == 0))),
             );
-            choices_with_default_ranges[1] =
-                (choices_with_default_ranges[0].end + 1)..choices_with_default.len();
+
+            if skip_prompts || raw_prompts {
+                choices_with_default_ranges[1] =
+                    choices_with_default_ranges[0].end..(choices_with_default.len() - 1);
+            } else {
+                choices_with_default_ranges[1] =
+                    (choices_with_default_ranges[0].end + 1)..choices_with_default.len();
+            }
+
             choices_with_default.push(requestty::Separator(
                 "────── Subtitle Streams ──────".to_owned(),
             ));
@@ -611,64 +607,174 @@ impl MasterPlaylist {
                     .enumerate()
                     .map(|(i, x)| requestty::Choice((x.display_subtitle_stream(), i == 0))),
             );
-            choices_with_default_ranges[2] =
-                (choices_with_default_ranges[1].end + 1)..choices_with_default.len();
+
+            if skip_prompts || raw_prompts {
+                choices_with_default_ranges[2] =
+                    choices_with_default_ranges[1].end..(choices_with_default.len() - 2);
+            } else {
+                choices_with_default_ranges[2] =
+                    (choices_with_default_ranges[1].end + 1)..choices_with_default.len();
+            }
 
             // println!("{:?}", choices_with_default_ranges);
 
-            let question = requestty::Question::multi_select("streams")
-                .should_loop(false)
-                .message("Select streams to download")
-                .choices_with_default(choices_with_default)
-                .validate(|choices, _| {
-                    if choices[choices_with_default_ranges[0].clone()]
-                        .iter()
-                        .filter(|x| **x)
-                        .count()
-                        > 1
-                    {
-                        Err("Multiple video streams cannot be selected.".to_owned())
+            if skip_prompts || raw_prompts {
+                println!("Select streams to download:");
+                let mut selected_choices_index = vec![];
+                let mut index = 1;
+
+                for choice in choices_with_default {
+                    if let requestty::Separator(seperator) = choice {
+                        println!("{}", seperator.replace('─', "-"));
                     } else {
-                        Ok(())
+                        let (message, selected) = choice.unwrap_choice();
+
+                        if selected {
+                            selected_choices_index.push(index);
+                        }
+
+                        println!(
+                            "{:2}) [{}] {}",
+                            index,
+                            if selected { 'x' } else { ' ' },
+                            message
+                        );
+                        index += 1;
                     }
-                })
-                .transform(|choices, _, backend| {
-                    backend.write_styled(
-                        &choices
-                            .iter()
-                            .map(|x| x.text.split_whitespace().collect::<Vec<_>>().join(" "))
-                            .collect::<Vec<_>>()
-                            .join(" & ")
-                            .cyan(),
-                    )
-                })
-                .build();
-
-            let answer = requestty::prompt_one(question)?;
-
-            let mut selected_streams = vec![];
-            let mut selected_subtitle_streams = vec![];
-            let video_streams_offset = 1;
-            let mut audio_streams_offset = video_streams_offset + video_streams.len() + 1;
-            let mut subtitle_streams_offset = audio_streams_offset + audio_streams.len() + 1;
-
-            for selected_item in answer.as_list_items().unwrap() {
-                if choices_with_default_ranges[0].contains(&selected_item.index) {
-                    selected_streams
-                        .push(video_streams.remove(selected_item.index - video_streams_offset));
-                } else if choices_with_default_ranges[1].contains(&selected_item.index) {
-                    selected_streams
-                        .push(audio_streams.remove(selected_item.index - audio_streams_offset));
-                    audio_streams_offset += 1;
-                } else if choices_with_default_ranges[2].contains(&selected_item.index) {
-                    selected_subtitle_streams.push(
-                        subtitle_streams.remove(selected_item.index - subtitle_streams_offset),
-                    );
-                    subtitle_streams_offset += 1;
                 }
-            }
 
-            Ok((selected_streams, selected_subtitle_streams))
+                println!("------------------------------");
+
+                if raw_prompts && !skip_prompts {
+                    print!(
+                        "Press enter to proceed with defaults.\n\
+                        Or select streams to download (1, 2, etc.): "
+                    );
+                    std::io::stdout().flush()?;
+                    let mut input = String::new();
+                    std::io::stdin().read_line(&mut input)?;
+
+                    println!("------------------------------");
+
+                    let input = input.trim();
+
+                    if input != "" {
+                        selected_choices_index = input
+                            .split(',')
+                            .filter_map(|x| x.trim().parse::<usize>().ok())
+                            .collect::<Vec<usize>>();
+                    }
+                }
+
+                let mut selected_streams = vec![];
+                let mut selected_subtitle_streams = vec![];
+                let mut video_streams_offset = 1;
+                let mut audio_streams_offset = video_streams_offset + video_streams.len();
+                let mut subtitle_streams_offset = audio_streams_offset + audio_streams.len();
+
+                for i in selected_choices_index {
+                    if choices_with_default_ranges[0].contains(&i) {
+                        if video_streams_offset > 1 {
+                            bail!("multiple video streams cannot be selected.");
+                        }
+
+                        let stream = video_streams.remove(i - video_streams_offset);
+                        println!(
+                            "   {} {}",
+                            "Selected".colorize("bold green"),
+                            stream
+                                .display_video_stream()
+                                .split_whitespace()
+                                .collect::<Vec<_>>()
+                                .join(" ")
+                        );
+                        selected_streams.push(stream);
+                        video_streams_offset += 1;
+                    } else if choices_with_default_ranges[1].contains(&i) {
+                        let stream = audio_streams.remove(i - audio_streams_offset);
+                        println!(
+                            "   {} {}",
+                            "Selected".colorize("bold green"),
+                            stream
+                                .display_audio_stream()
+                                .split_whitespace()
+                                .collect::<Vec<_>>()
+                                .join(" ")
+                        );
+                        selected_streams.push(stream);
+                        audio_streams_offset += 1;
+                    } else if choices_with_default_ranges[2].contains(&i) {
+                        let stream = subtitle_streams.remove(i - subtitle_streams_offset);
+                        println!(
+                            "   {} {}",
+                            "Selected".colorize("bold green"),
+                            stream
+                                .display_subtitle_stream()
+                                .split_whitespace()
+                                .collect::<Vec<_>>()
+                                .join(" ")
+                        );
+                        selected_subtitle_streams.push(stream);
+                        subtitle_streams_offset += 1;
+                    }
+                }
+
+                Ok((selected_streams, selected_subtitle_streams))
+            } else {
+                let question = requestty::Question::multi_select("streams")
+                    .should_loop(false)
+                    .message("Select streams to download")
+                    .choices_with_default(choices_with_default)
+                    .validate(|choices, _| {
+                        if choices[choices_with_default_ranges[0].clone()]
+                            .iter()
+                            .filter(|x| **x)
+                            .count()
+                            > 1
+                        {
+                            Err("Multiple video streams cannot be selected.".to_owned())
+                        } else {
+                            Ok(())
+                        }
+                    })
+                    .transform(|choices, _, backend| {
+                        backend.write_styled(
+                            &choices
+                                .iter()
+                                .map(|x| x.text.split_whitespace().collect::<Vec<_>>().join(" "))
+                                .collect::<Vec<_>>()
+                                .join(" & ")
+                                .cyan(),
+                        )
+                    })
+                    .build();
+
+                let answer = requestty::prompt_one(question)?;
+
+                let mut selected_streams = vec![];
+                let mut selected_subtitle_streams = vec![];
+                let video_streams_offset = 1;
+                let mut audio_streams_offset = video_streams_offset + video_streams.len() + 1;
+                let mut subtitle_streams_offset = audio_streams_offset + audio_streams.len() + 1;
+
+                for selected_item in answer.as_list_items().unwrap() {
+                    if choices_with_default_ranges[0].contains(&selected_item.index) {
+                        selected_streams
+                            .push(video_streams.remove(selected_item.index - video_streams_offset));
+                    } else if choices_with_default_ranges[1].contains(&selected_item.index) {
+                        selected_streams
+                            .push(audio_streams.remove(selected_item.index - audio_streams_offset));
+                        audio_streams_offset += 1;
+                    } else if choices_with_default_ranges[2].contains(&selected_item.index) {
+                        selected_subtitle_streams.push(
+                            subtitle_streams.remove(selected_item.index - subtitle_streams_offset),
+                        );
+                        subtitle_streams_offset += 1;
+                    }
+                }
+
+                Ok((selected_streams, selected_subtitle_streams))
+            }
         } else {
             // TODO - Add better message
             // Selected variant stream of quality {} ({} {}/s).

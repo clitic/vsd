@@ -98,6 +98,7 @@ pub(crate) fn download(
     prefer_audio_lang: Option<String>,
     prefer_subs_lang: Option<String>,
     quality: Quality,
+    skip_prompts: bool,
     raw_prompts: bool,
     retry_count: u8,
     threads: u8,
@@ -184,7 +185,7 @@ pub(crate) fn download(
             let (mut video_audio_streams, mut subtitle_streams) =
                 crate::dash::parse_as_master(&mpd, playlist_url.as_str())
                     .sort_streams(prefer_audio_lang, prefer_subs_lang)
-                    .select_streams(quality, raw_prompts)?;
+                    .select_streams(quality, skip_prompts, raw_prompts)?;
 
             for stream in video_audio_streams
                 .iter_mut()
@@ -205,7 +206,7 @@ pub(crate) fn download(
                 let (mut video_audio_streams, mut subtitle_streams) =
                     crate::hls::parse_as_master(&m3u8, playlist_url.as_str())
                         .sort_streams(prefer_audio_lang, prefer_subs_lang)
-                        .select_streams(quality, raw_prompts)?;
+                        .select_streams(quality, skip_prompts, raw_prompts)?;
 
                 for stream in video_audio_streams
                     .iter_mut()

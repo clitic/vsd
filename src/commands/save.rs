@@ -24,7 +24,6 @@ pub struct Save {
     // /// Raw style input prompts for old and unsupported terminals.
     // #[arg(long)]
     // pub multiple_progress_bar: bool,
-
     /// Mux all downloaded streams to a video container (.mp4, .mkv, etc.) using ffmpeg.
     /// Note that existing files will be overwritten and downloaded streams will be deleted.
     #[arg(short, long, value_parser = output_parser)]
@@ -52,6 +51,10 @@ pub struct Save {
     /// possible values: [lowest, min, 144p, 240p, 360p, 480p, 720p, hd, 1080p, fhd, 2k, 1440p, qhd, 4k, 8k, highest, max]
     #[arg(short, long, help_heading = "Automation Options", default_value = "highest", value_name = "WIDTHxHEIGHT", value_parser = quality_parser)]
     pub quality: Quality,
+
+    /// Skip user input prompts and proceed with defaults.
+    #[arg(long, help_heading = "Automation Options")]
+    pub skip_prompts: bool,
 
     /// Fill request client with some existing cookies (document.cookie) value.
     #[arg(long, help_heading = "Client Options")]
@@ -316,6 +319,7 @@ impl Save {
             self.prefer_audio_lang,
             self.prefer_subs_lang,
             self.quality,
+            self.skip_prompts,
             self.raw_prompts,
             self.retry_count,
             self.threads,
