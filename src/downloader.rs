@@ -12,7 +12,7 @@ use reqwest::{
     StatusCode, Url,
 };
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     fs::File,
     io::Write,
     path::PathBuf,
@@ -366,17 +366,18 @@ pub(crate) fn download(
 
     for stream in subtitle_streams {
         pb.write(format!(
-            " {} subtitle stream {}",
+            " {} {} stream {}",
             "Processing".colorize("bold green"),
-            stream.display_subtitle_stream().colorize("cyan"),
+            stream.media_type,
+            stream.display_stream().colorize("cyan"),
         ));
 
         let length = stream.segments.len();
 
         if length == 0 {
             pb.write(format!(
-                "    {} skipping subtitle stream (no segments)",
-                "Warning".colorize("bold yellow")
+                "    {} skipping stream (no segments)",
+                "Warning".colorize("bold yellow"),
             ));
             continue;
         }
@@ -467,7 +468,7 @@ pub(crate) fn download(
                     media_type: stream.media_type.clone(),
                 });
                 pb.write(format!(
-                    "{} subtitle stream to {}",
+                    "{} stream to {}",
                     "Downloading".colorize("bold green"),
                     temp_file.colorize("cyan")
                 ));
@@ -531,7 +532,7 @@ pub(crate) fn download(
         };
 
         pb.write(format!(
-            " {} subtitle stream successfully",
+            " {} stream successfully",
             "Downloaded".colorize("bold green"),
         ));
         println!(); // TODO - See Later
@@ -551,28 +552,13 @@ pub(crate) fn download(
     let pb = Arc::new(Mutex::new(pb));
 
     // -----------------------------------------------------------------------------------------
-    // Separate Video & Audio Streams
-    // -----------------------------------------------------------------------------------------
-
-    let mut video_stream = None;
-    let mut audio_streams = vec![];
-
-    for stream in video_audio_streams {
-        match &stream.media_type {
-            MediaType::Audio => audio_streams.push(stream),
-            MediaType::Video => video_stream = Some(stream),
-            _ => (),
-        }
-    }
-
-    // -----------------------------------------------------------------------------------------
     // Estimation
     // -----------------------------------------------------------------------------------------
 
     let mut downloaded_bytes = 0;
-    let mut relative_size = vec![];
+    let mut relative_sizes = VecDeque::new();
 
-    for (i, stream) in audio_streams.iter().enumerate() {
+    for stream in &video_audio_streams {
         if let Some(segment) = stream.segments.get(0) {
             let mut request = client.head(
                 segment.seg_url(
@@ -587,25 +573,37 @@ pub(crate) fn download(
             }
 
             let response = request.send()?;
-            relative_size.insert(
-                i,
+            relative_sizes.push_back(
                 stream.segments.len() * (response.content_length().unwrap_or(0) as usize),
             );
         }
     }
 
     // -----------------------------------------------------------------------------------------
-    // Prepare Thread Pool
+    // Download Video & Audio Streams
     // -----------------------------------------------------------------------------------------
 
     // TODO - Create a custom thread pool module.
     let pool = threadpool::ThreadPool::new(threads as usize);
 
-    // -----------------------------------------------------------------------------------------
-    // Download Video Stream
-    // -----------------------------------------------------------------------------------------
+    for stream in video_audio_streams {
+        pb.lock().unwrap().write(format!(
+            " {} {} stream {}",
+            "Processing".colorize("bold green"),
+            stream.media_type,
+            stream.display_stream().colorize("cyan"),
+        ));
 
-    if let Some(stream) = video_stream {
+        let length = stream.segments.len();
+
+        if length == 0 {
+            pb.lock().unwrap().write(format!(
+                "    {} skipping stream (no segments)",
+                "Warning".colorize("bold yellow"),
+            ));
+            continue;
+        }
+
         let temp_file = stream
             .file_path(&directory, &stream.extension())
             .to_string_lossy()
@@ -616,53 +614,22 @@ pub(crate) fn download(
             media_type: stream.media_type.clone(),
         });
         pb.lock().unwrap().write(format!(
-            "{} video stream to {}",
+            "{} stream to {}",
             "Downloading".colorize("bold green"),
-            temp_file.colorize("cyan")
+            temp_file.colorize("cyan"),
         ));
 
-        let merger = Arc::new(Mutex::new(Merger::new(stream.segments.len(), &temp_file)?));
-
         // TODO - Add resume support
-        // Arc::new(Mutex::new(BinaryMerger::try_from_json(
-        //     segments.len(),
-        //     tempfile,
-        //     self.progress.file.clone(),
-        // )?))
-        // merger.lock().unwrap().update()?;
-
+        let merger = Arc::new(Mutex::new(Merger::new(stream.segments.len(), &temp_file)?));
         let timer = Arc::new(Instant::now());
+
+        let _ = relative_sizes.pop_front();
+        let relative_size = relative_sizes.iter().sum();
         let mut previous_map = None;
         let mut previous_key = None;
         let mut previous_byterange_end = 0;
 
         for (i, segment) in stream.segments.iter().enumerate() {
-            // if resume {
-            //     let merger = merger.lock().unwrap();
-            //     let pos = merger.position();
-
-            //     if pos != 0 && pos > i {
-            //         continue;
-            //     }
-
-            //     let mut gaurded_pb = pb.lock().unwrap();
-            //     gaurded_pb.replace(
-            //         0,
-            //         Column::Text(format!(
-            //             "[bold blue]{}",
-            //             utils::format_download_bytes(
-            //                 stored_bytes + merger.stored(),
-            //                 if let Some(size) = relative_size {
-            //                     stored_bytes + size + merger.estimate()
-            //                 } else {
-            //                     stored_bytes + merger.estimate()
-            //                 }
-            //             ),
-            //         )),
-            //     );
-            //     gaurded_pb.update_to(pos);
-            // }
-
             if segment.map.is_some() {
                 let mut request = client.get(
                     segment
@@ -685,9 +652,9 @@ pub(crate) fn download(
 
             if !no_decrypt {
                 if let Some(key) = &segment.key {
+                    // TODO - Handle keyformat correctly
                     match key.method {
                         KeyMethod::Aes128 => {
-                            // TODO - Handle keyformat correctly
                             previous_key = Some(Keys {
                                 bytes: if key.key_format.is_none() {
                                     let request =
@@ -736,9 +703,9 @@ pub(crate) fn download(
 
                             if decryption_keys.len() == 0 {
                                 bail!(
-                                "cannot determine keys to use, bypass this error using {} flag.",
-                                "--all-keys".colorize("bold green")
-                            );
+                                    "cannot determine keys to use, bypass this error using {} flag.",
+                                    "--all-keys".colorize("bold green")
+                                );
                             }
 
                             for key in &decryption_keys {
@@ -777,7 +744,7 @@ pub(crate) fn download(
                 map: previous_map.clone(),
                 merger: merger.clone(),
                 pb: pb.clone(),
-                relative_size: Some(relative_size.iter().sum()),
+                relative_size,
                 request,
                 timer: timer.clone(),
                 total_retries: retry_count,
@@ -802,21 +769,126 @@ pub(crate) fn download(
 
         if !merger.buffered() {
             bail!(
-                "File {} not downloaded successfully.",
-                temp_file.colorize("bold red")
+                "failed to download {} stream to {}",
+                stream.display_stream().colorize("cyan"),
+                temp_file
             );
         }
 
         downloaded_bytes += merger.stored();
 
         pb.lock().unwrap().write(format!(
-            " {} video stream successfully",
-            "Downloaded".colorize("bold green")
+            " {} stream successfully",
+            "Downloaded".colorize("bold green"),
         ));
     }
 
-    println!();
+    eprintln!();
+
+    // -----------------------------------------------------------------------------------------
+    // Mux Downloaded Streams
+    // -----------------------------------------------------------------------------------------
+
     // TODO - ignore --outuput with --no-decrypt
+
+    //         if let Some(output) = &self.output {
+    //             let mut args = vec!["-i".to_owned(), self.video.path(&self.directory)];
+
+    //             // args.push("-metadata".to_owned());
+    //             // args.push(format!("title=\"{}\"", self.video.url));
+
+    //             // if let StreamData {
+    //             //     language: Some(language),
+    //             //     ..
+    //             // } = &self.video
+    //             // {
+    //             //     args.push("-metadata".to_owned());
+    //             //     args.push(format!("language={}", language));
+    //             // }
+
+    //             if let Some(audio) = &self.audio {
+    //                 args.push("-i".to_owned());
+    //                 args.push(audio.path(&self.directory));
+    //             }
+
+    //             if let Some(subtitles) = &self.subtitles {
+    //                 args.push("-i".to_owned());
+    //                 args.push(subtitles.path(&self.directory));
+    //             }
+
+    //             args.push("-c:v".to_owned());
+    //             args.push("copy".to_owned());
+    //             args.push("-c:a".to_owned());
+    //             args.push("copy".to_owned());
+
+    //             if self.subtitles.is_some() {
+    //                 args.push("-scodec".to_owned());
+
+    //                 if output.ends_with(".mp4") {
+    //                     args.push("mov_text".to_owned());
+    //                 } else {
+    //                     args.push("srt".to_owned());
+    //                 }
+    //             }
+
+    //             // args.push("-metadata".to_owned());
+    //             // args.push(format!("title=\"{}\"", self.video.url));
+
+    //             if let Some(Stream {
+    //                 language: Some(language),
+    //                 ..
+    //             }) = &self.audio
+    //             {
+    //                 args.push("-metadata:s:a:0".to_owned());
+    //                 args.push(format!("language={}", language));
+    //             }
+
+    //             if let Some(Stream {
+    //                 language: Some(language),
+    //                 ..
+    //             }) = &self.subtitles
+    //             {
+    //                 args.push("-metadata:s:s:0".to_owned());
+    //                 args.push(format!("language={}", language));
+    //                 args.push("-disposition:s:0".to_owned());
+    //                 args.push("default".to_owned());
+    //             }
+
+    //             args.push(output.to_owned());
+
+    //             println!(
+    //                 "Executing {} {}",
+    //                 "ffmpeg".colorize("cyan"),
+    //                 args.join(" ").colorize("cyan")
+    //             );
+
+    //             if std::path::Path::new(output).exists() {
+    //                 std::fs::remove_file(output)?;
+    //             }
+
+    //             let code = std::process::Command::new("ffmpeg")
+    //                 .args(args)
+    //                 .stderr(std::process::Stdio::null())
+    //                 .spawn()?
+    //                 .wait()?;
+
+    //             if !code.success() {
+    //                 bail!("FFMPEG exited with code {}", code.code().unwrap_or(1))
+    //             }
+
+    //             if let Some(audio) = &self.audio {
+    //                 std::fs::remove_file(&audio.path(&self.directory))?;
+    //             }
+
+    //             if let Some(subtitles) = &self.subtitles {
+    //                 std::fs::remove_file(&subtitles.path(&self.directory))?;
+    //             }
+
+    //             std::fs::remove_file(&self.video.path(&self.directory))?;
+    //         }
+
+    //         Ok(())
+
     Ok(())
 }
 
@@ -827,7 +899,7 @@ struct ThreadData {
     map: Option<Vec<u8>>,
     merger: Arc<Mutex<Merger>>,
     pb: Arc<Mutex<RichProgress>>,
-    relative_size: Option<usize>,
+    relative_size: usize,
     request: RequestBuilder,
     timer: Arc<Instant>,
     total_retries: u8,
@@ -864,7 +936,7 @@ impl ThreadData {
                     if elapsed_time != 0 {
                         let stored = self.merger.lock().unwrap().stored() + bytes.len();
                         self.pb.lock().unwrap().replace(
-                            13,
+                            12,
                             Column::Text(format!(
                                 "[yellow]{}/s",
                                 utils::format_bytes(stored / elapsed_time, 2).2
@@ -900,11 +972,7 @@ impl ThreadData {
                 "[bold blue]{}",
                 utils::format_download_bytes(
                     self.downloaded_bytes + stored,
-                    if let Some(size) = self.relative_size {
-                        self.downloaded_bytes + size + estimate
-                    } else {
-                        self.downloaded_bytes + estimate
-                    }
+                    self.downloaded_bytes + estimate + self.relative_size,
                 ),
             )),
         );
@@ -939,119 +1007,3 @@ fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
         bail!("download failed {}", url)
     }
 }
-
-// use super::Stream;
-// use anyhow::{bail, Result};
-// use kdam::term::Colorizer;
-// use serde::{Deserialize, Serialize};
-
-// #[derive(Clone, Serialize, Deserialize)]
-// pub struct Progress {
-//     pub audio: Option<Stream>,
-//     pub directory: Option<String>,
-//     pub output: Option<String>,
-//     pub subtitles: Option<Stream>,
-//     pub video: Stream,
-// }
-
-// impl Progress {
-//     pub fn mux(&self) -> Result<()> {
-//         if let Some(output) = &self.output {
-//             let mut args = vec!["-i".to_owned(), self.video.path(&self.directory)];
-
-//             // args.push("-metadata".to_owned());
-//             // args.push(format!("title=\"{}\"", self.video.url));
-
-//             // if let StreamData {
-//             //     language: Some(language),
-//             //     ..
-//             // } = &self.video
-//             // {
-//             //     args.push("-metadata".to_owned());
-//             //     args.push(format!("language={}", language));
-//             // }
-
-//             if let Some(audio) = &self.audio {
-//                 args.push("-i".to_owned());
-//                 args.push(audio.path(&self.directory));
-//             }
-
-//             if let Some(subtitles) = &self.subtitles {
-//                 args.push("-i".to_owned());
-//                 args.push(subtitles.path(&self.directory));
-//             }
-
-//             args.push("-c:v".to_owned());
-//             args.push("copy".to_owned());
-//             args.push("-c:a".to_owned());
-//             args.push("copy".to_owned());
-
-//             if self.subtitles.is_some() {
-//                 args.push("-scodec".to_owned());
-
-//                 if output.ends_with(".mp4") {
-//                     args.push("mov_text".to_owned());
-//                 } else {
-//                     args.push("srt".to_owned());
-//                 }
-//             }
-
-//             // args.push("-metadata".to_owned());
-//             // args.push(format!("title=\"{}\"", self.video.url));
-
-//             if let Some(Stream {
-//                 language: Some(language),
-//                 ..
-//             }) = &self.audio
-//             {
-//                 args.push("-metadata:s:a:0".to_owned());
-//                 args.push(format!("language={}", language));
-//             }
-
-//             if let Some(Stream {
-//                 language: Some(language),
-//                 ..
-//             }) = &self.subtitles
-//             {
-//                 args.push("-metadata:s:s:0".to_owned());
-//                 args.push(format!("language={}", language));
-//                 args.push("-disposition:s:0".to_owned());
-//                 args.push("default".to_owned());
-//             }
-
-//             args.push(output.to_owned());
-
-//             println!(
-//                 "Executing {} {}",
-//                 "ffmpeg".colorize("cyan"),
-//                 args.join(" ").colorize("cyan")
-//             );
-
-//             if std::path::Path::new(output).exists() {
-//                 std::fs::remove_file(output)?;
-//             }
-
-//             let code = std::process::Command::new("ffmpeg")
-//                 .args(args)
-//                 .stderr(std::process::Stdio::null())
-//                 .spawn()?
-//                 .wait()?;
-
-//             if !code.success() {
-//                 bail!("FFMPEG exited with code {}", code.code().unwrap_or(1))
-//             }
-
-//             if let Some(audio) = &self.audio {
-//                 std::fs::remove_file(&audio.path(&self.directory))?;
-//             }
-
-//             if let Some(subtitles) = &self.subtitles {
-//                 std::fs::remove_file(&subtitles.path(&self.directory))?;
-//             }
-
-//             std::fs::remove_file(&self.video.path(&self.directory))?;
-//         }
-
-//         Ok(())
-//     }
-// }

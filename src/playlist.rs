@@ -4,7 +4,7 @@ use kdam::term::Colorizer;
 use requestty::prompt::style::Stylize;
 use reqwest::Url;
 use serde::Serialize;
-use std::{io::Write, path::PathBuf};
+use std::{fmt::Display, io::Write, path::PathBuf};
 
 #[derive(Clone, Default, PartialEq, Serialize)]
 pub(crate) enum MediaType {
@@ -13,6 +13,21 @@ pub(crate) enum MediaType {
     #[default]
     Undefined,
     Video,
+}
+
+impl Display for MediaType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Audio => "audio",
+                Self::Subtitles => "subtitles",
+                Self::Undefined => "undefined",
+                Self::Video => "video",
+            }
+        )
+    }
 }
 
 #[derive(Default, Serialize)]
@@ -254,6 +269,18 @@ impl MediaPlaylist {
         extra
     }
 
+    pub(crate) fn display_stream(&self) -> String {
+        match self.media_type {
+            MediaType::Audio => self.display_audio_stream(),
+            MediaType::Subtitles => self.display_subtitle_stream(),
+            MediaType::Undefined => "".to_owned(),
+            MediaType::Video => self.display_video_stream(),
+        }
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+    }
+
     pub(crate) fn url(&self, baseurl: &Url) -> Result<Url> {
         // self.uri.starts_with("dash://")
         if self.uri.starts_with("http") || self.uri.starts_with("ftp") {
@@ -290,7 +317,7 @@ impl MediaPlaylist {
         if let Some(segment) = self.segments.get(0) {
             if let Some(init) = &segment.map {
                 if init.uri.ends_with(".mp4") {
-                    ext = "m4s";
+                    ext = "mp4";
                 }
             }
 
@@ -682,11 +709,7 @@ impl MasterPlaylist {
                         println!(
                             "   {} {}",
                             "Selected".colorize("bold green"),
-                            stream
-                                .display_video_stream()
-                                .split_whitespace()
-                                .collect::<Vec<_>>()
-                                .join(" ")
+                            stream.display_stream()
                         );
                         selected_streams.push(stream);
                         video_streams_offset += 1;
@@ -695,11 +718,7 @@ impl MasterPlaylist {
                         println!(
                             "   {} {}",
                             "Selected".colorize("bold green"),
-                            stream
-                                .display_audio_stream()
-                                .split_whitespace()
-                                .collect::<Vec<_>>()
-                                .join(" ")
+                            stream.display_stream()
                         );
                         selected_streams.push(stream);
                         audio_streams_offset += 1;
@@ -708,11 +727,7 @@ impl MasterPlaylist {
                         println!(
                             "   {} {}",
                             "Selected".colorize("bold green"),
-                            stream
-                                .display_subtitle_stream()
-                                .split_whitespace()
-                                .collect::<Vec<_>>()
-                                .join(" ")
+                            stream.display_stream()
                         );
                         selected_subtitle_streams.push(stream);
                         subtitle_streams_offset += 1;
