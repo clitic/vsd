@@ -15,7 +15,8 @@ use std::{
     collections::{HashMap, HashSet, VecDeque},
     fs::File,
     io::Write,
-    path::PathBuf,
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
     sync::{Arc, Mutex},
     time::Instant,
 };
@@ -110,7 +111,7 @@ pub(crate) fn download(
     // -----------------------------------------------------------------------------------------
 
     let mut playlist_type = None;
-    let path = PathBuf::from(input);
+    let path = Path::new(input);
 
     let playlist = if path.exists() {
         if baseurl.is_none() {
@@ -351,11 +352,40 @@ pub(crate) fn download(
         }
     }
 
-    if output.is_some() && no_decrypt {
-        println!(
-            "    {} --output is ignored when --no-decrypt is used",
-            "Warning".colorize("bold yellow")
-        );
+    if output.is_some() {
+        let video_streams_count = video_audio_streams
+            .iter()
+            .filter(|x| x.media_type == MediaType::Video)
+            .count();
+        let audio_streams_count = video_audio_streams
+            .iter()
+            .filter(|x| x.media_type == MediaType::Audio)
+            .count();
+
+        if video_streams_count > 1 {
+            println!(
+                "    {} --output is ignored when multiple video streams are selected",
+                "Warning".colorize("bold yellow")
+            );
+        }
+
+        if video_streams_count == 0
+            && (audio_streams_count > 1
+                || subtitle_streams.len() > 1
+                || (audio_streams_count != 0 && subtitle_streams.len() != 0))
+        {
+            println!(
+                "    {} --output is ignored when no video streams is selected but multiple audio/subtitle streams are selected",
+                "Warning".colorize("bold yellow")
+            );
+        }
+
+        if no_decrypt {
+            println!(
+                "    {} --output is ignored when --no-decrypt is used",
+                "Warning".colorize("bold yellow")
+            );
+        }
     }
 
     let mut temp_files = vec![];
@@ -789,105 +819,147 @@ pub(crate) fn download(
     // Mux Downloaded Streams
     // -----------------------------------------------------------------------------------------
 
-    // TODO - ignore --outuput with --no-decrypt
+    let video_temp_files = temp_files
+        .iter()
+        .filter(|x| x.media_type == MediaType::Video)
+        .collect::<Vec<_>>();
+    let video_streams_count = video_temp_files.len();
+    let audio_streams_count = temp_files
+        .iter()
+        .filter(|x| x.media_type == MediaType::Audio)
+        .count();
+    let subtitle_streams_count = temp_files
+        .iter()
+        .filter(|x| x.media_type == MediaType::Subtitles)
+        .count();
 
-    //         if let Some(output) = &self.output {
-    //             let mut args = vec!["-i".to_owned(), self.video.path(&self.directory)];
+    if !no_decrypt
+        && (video_streams_count == 1 || audio_streams_count == 1 || subtitle_streams_count == 1)
+    {
+        if let Some(output) = &output {
+            let all_temp_files = temp_files
+                .iter()
+                .filter(|x| x.media_type == MediaType::Video)
+                .chain(
+                    temp_files
+                        .iter()
+                        .filter(|x| x.media_type == MediaType::Audio),
+                )
+                .chain(
+                    temp_files
+                        .iter()
+                        .filter(|x| x.media_type == MediaType::Subtitles),
+                )
+                .collect::<Vec<_>>();
 
-    //             // args.push("-metadata".to_owned());
-    //             // args.push(format!("title=\"{}\"", self.video.url));
+            let mut args = vec![];
 
-    //             // if let StreamData {
-    //             //     language: Some(language),
-    //             //     ..
-    //             // } = &self.video
-    //             // {
-    //             //     args.push("-metadata".to_owned());
-    //             //     args.push(format!("language={}", language));
-    //             // }
+            for temp_file in &all_temp_files {
+                args.extend_from_slice(&["-i".to_owned(), temp_file.file_path.clone()]);
+            }
 
-    //             if let Some(audio) = &self.audio {
-    //                 args.push("-i".to_owned());
-    //                 args.push(audio.path(&self.directory));
-    //             }
+            if args.len() == 2 && (video_streams_count == 1 || audio_streams_count == 1) {
+                args.extend_from_slice(&["-c".to_owned(), "copy".to_owned()]);
+            } else if args.len() > 2 {
+                args.extend_from_slice(&["-c".to_owned(), "copy".to_owned()]);
+                // args.extend_from_slice(&[
+                //     "-c:v".to_owned(),
+                //     "copy".to_owned(),
+                //     "-c:a".to_owned(),
+                //     "copy".to_owned(),
+                // ]);
 
-    //             if let Some(subtitles) = &self.subtitles {
-    //                 args.push("-i".to_owned());
-    //                 args.push(subtitles.path(&self.directory));
-    //             }
+                if subtitle_streams_count > 0 && output.ends_with(".mp4") {
+                    args.extend_from_slice(&["-c:s".to_owned(), "mov_text".to_owned()]);
+                }
 
-    //             args.push("-c:v".to_owned());
-    //             args.push("copy".to_owned());
-    //             args.push("-c:a".to_owned());
-    //             args.push("copy".to_owned());
+                for i in 0..all_temp_files.len() {
+                    args.extend_from_slice(&["-map".to_owned(), i.to_string()]);
+                }
 
-    //             if self.subtitles.is_some() {
-    //                 args.push("-scodec".to_owned());
+                let mut audio_index = 0;
+                let mut subtitle_index = 0;
 
-    //                 if output.ends_with(".mp4") {
-    //                     args.push("mov_text".to_owned());
-    //                 } else {
-    //                     args.push("srt".to_owned());
-    //                 }
-    //             }
+                for temp_file in &all_temp_files {
+                    match temp_file.media_type {
+                        MediaType::Audio => {
+                            if let Some(language) = &temp_file.language {
+                                args.extend_from_slice(&[
+                                    format!("-metadata:s:a:{}", audio_index),
+                                    format!("language={}", language),
+                                ]);
+                            }
 
-    //             // args.push("-metadata".to_owned());
-    //             // args.push(format!("title=\"{}\"", self.video.url));
+                            audio_index += 1;
+                        }
+                        MediaType::Subtitles => {
+                            if let Some(language) = &temp_file.language {
+                                args.extend_from_slice(&[
+                                    format!("-metadata:s:s:{}", subtitle_index),
+                                    format!("language={}", language),
+                                ]);
+                            }
 
-    //             if let Some(Stream {
-    //                 language: Some(language),
-    //                 ..
-    //             }) = &self.audio
-    //             {
-    //                 args.push("-metadata:s:a:0".to_owned());
-    //                 args.push(format!("language={}", language));
-    //             }
+                            subtitle_index += 1;
+                        }
+                        _ => (),
+                    }
+                }
 
-    //             if let Some(Stream {
-    //                 language: Some(language),
-    //                 ..
-    //             }) = &self.subtitles
-    //             {
-    //                 args.push("-metadata:s:s:0".to_owned());
-    //                 args.push(format!("language={}", language));
-    //                 args.push("-disposition:s:0".to_owned());
-    //                 args.push("default".to_owned());
-    //             }
+                if subtitle_streams_count > 1 {
+                    args.extend_from_slice(&["-disposition:s:0".to_owned(), "default".to_owned()]);
+                }
+            }
 
-    //             args.push(output.to_owned());
+            args.push(output.to_owned());
 
-    //             println!(
-    //                 "Executing {} {}",
-    //                 "ffmpeg".colorize("cyan"),
-    //                 args.join(" ").colorize("cyan")
-    //             );
+            println!(
+                "  {} ffmpeg {}",
+                "Executing".colorize("bold cyan"),
+                args.join(" ")
+            );
 
-    //             if std::path::Path::new(output).exists() {
-    //                 std::fs::remove_file(output)?;
-    //             }
+            if Path::new(output).exists() {
+                println!(
+                    "   {} {}",
+                    "Deleting".colorize("bold red"),
+                    output
+                );
+                std::fs::remove_file(output)?;
+            }
 
-    //             let code = std::process::Command::new("ffmpeg")
-    //                 .args(args)
-    //                 .stderr(std::process::Stdio::null())
-    //                 .spawn()?
-    //                 .wait()?;
+            let code = Command::new("ffmpeg")
+                .args(args)
+                .stderr(Stdio::null())
+                .spawn()?
+                .wait()?;
 
-    //             if !code.success() {
-    //                 bail!("FFMPEG exited with code {}", code.code().unwrap_or(1))
-    //             }
+            if !code.success() {
+                bail!("ffmpeg exited with code {}", code.code().unwrap_or(1))
+            }
 
-    //             if let Some(audio) = &self.audio {
-    //                 std::fs::remove_file(&audio.path(&self.directory))?;
-    //             }
+            for temp_file in &all_temp_files {
+                println!(
+                    "   {} {}",
+                    "Deleting".colorize("bold red"),
+                    temp_file.file_path
+                );
+                std::fs::remove_file(&temp_file.file_path)?;
+            }
 
-    //             if let Some(subtitles) = &self.subtitles {
-    //                 std::fs::remove_file(&subtitles.path(&self.directory))?;
-    //             }
+            if let Some(directory) = &directory {
+                if std::fs::read_dir(directory)?.next().is_none() {
+                    println!(
+                        "   {} {}",
+                        "Deleting".colorize("bold red"),
+                        directory.to_string_lossy()
+                    );
+                    std::fs::remove_dir(directory)?;
+                }
+            }
 
-    //             std::fs::remove_file(&self.video.path(&self.directory))?;
-    //         }
-
-    //         Ok(())
+        }
+    }
 
     Ok(())
 }

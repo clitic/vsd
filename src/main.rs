@@ -1,5 +1,3 @@
-// #![allow(unused)]
-
 mod commands;
 mod cookie;
 mod dash;

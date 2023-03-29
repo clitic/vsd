@@ -701,10 +701,6 @@ impl MasterPlaylist {
 
                 for i in selected_choices_index {
                     if choices_with_default_ranges[0].contains(&i) {
-                        if video_streams_offset > 1 {
-                            bail!("multiple video streams cannot be selected.");
-                        }
-
                         let stream = video_streams.remove(i - video_streams_offset);
                         println!(
                             "   {} {}",
@@ -740,25 +736,13 @@ impl MasterPlaylist {
                     .should_loop(false)
                     .message("Select streams to download")
                     .choices_with_default(choices_with_default)
-                    .validate(|choices, _| {
-                        if choices[choices_with_default_ranges[0].clone()]
-                            .iter()
-                            .filter(|x| **x)
-                            .count()
-                            > 1
-                        {
-                            Err("Multiple video streams cannot be selected.".to_owned())
-                        } else {
-                            Ok(())
-                        }
-                    })
                     .transform(|choices, _, backend| {
                         backend.write_styled(
                             &choices
                                 .iter()
                                 .map(|x| x.text.split_whitespace().collect::<Vec<_>>().join(" "))
                                 .collect::<Vec<_>>()
-                                .join(" & ")
+                                .join(" | ")
                                 .cyan(),
                         )
                     })
@@ -768,7 +752,7 @@ impl MasterPlaylist {
 
                 let mut selected_streams = vec![];
                 let mut selected_subtitle_streams = vec![];
-                let video_streams_offset = 1;
+                let mut video_streams_offset = 1;
                 let mut audio_streams_offset = video_streams_offset + video_streams.len() + 1;
                 let mut subtitle_streams_offset = audio_streams_offset + audio_streams.len() + 1;
 
@@ -776,6 +760,7 @@ impl MasterPlaylist {
                     if choices_with_default_ranges[0].contains(&selected_item.index) {
                         selected_streams
                             .push(video_streams.remove(selected_item.index - video_streams_offset));
+                        video_streams_offset += 1;
                     } else if choices_with_default_ranges[1].contains(&selected_item.index) {
                         selected_streams
                             .push(audio_streams.remove(selected_item.index - audio_streams_offset));
