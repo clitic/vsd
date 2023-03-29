@@ -1,6 +1,12 @@
-// REFERENCES: https://github.com/emarsden/dash-mpd-rs
+/*
+    REFERENCES
+    ----------
 
-use super::utils;
+    1. https://github.com/emarsden/dash-mpd-rs/blob/c4927e4967a9401b8d7c7f8c137b7c70f81e7340/src/lib.rs
+
+*/
+
+use crate::playlist;
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -89,7 +95,7 @@ pub struct Representation {
     pub audio_channel_configuration: Option<AudioChannelConfiguration>,
     #[serde(rename = "Role")]
     pub role: Option<Role>,
-    #[serde(rename = "@BaseURL")]
+    #[serde(rename = "BaseURL")]
     pub baseurl: Option<String>,
     #[serde(rename = "SegmentBase")]
     pub segment_base: Option<SegmentBase>,
@@ -184,6 +190,8 @@ pub struct ContentProtection {
     // #[serde(rename = "@cenc:default_KID")]
     #[serde(rename = "@default_KID")]
     pub default_kid: Option<String>,
+    #[serde(rename = "@value")]
+    pub value: Option<String>,
 }
 
 impl MPD {
@@ -201,9 +209,9 @@ impl MPD {
 impl Period {
     pub(super) fn duration(&self, mpd: &MPD) -> f32 {
         if let Some(duration) = &self.duration {
-            utils::iso8601_duration_to_seconds(duration).unwrap()
+            iso8601_duration_to_seconds(duration).unwrap()
         } else if let Some(duration) = &mpd.media_presentation_duration {
-            utils::iso8601_duration_to_seconds(duration).unwrap()
+            iso8601_duration_to_seconds(duration).unwrap()
         } else {
             0.0
         }
@@ -214,55 +222,66 @@ impl AdaptationSet {
     pub(super) fn mime_type(&self) -> Option<String> {
         if let Some(content_type) = &self.content_type {
             Some(content_type.to_owned())
-        } else { self.mime_type.as_ref().map(|mime_type| mime_type.to_owned()) }
+        } else {
+            self.mime_type
+                .as_ref()
+                .map(|mime_type| mime_type.to_owned())
+        }
     }
 
-    pub(super) fn frame_rate(&self) -> Option<f64> {
+    pub(super) fn frame_rate(&self) -> Option<f32> {
         if let Some(frame_rate) = &self.frame_rate {
             if frame_rate.contains('/') {
                 return Some(
                     frame_rate
-                        .split('/').next()
+                        .split('/')
+                        .next()
                         .unwrap()
-                        .parse::<f64>()
+                        .parse::<f32>()
                         .unwrap()
                         / frame_rate
                             .split('/')
                             .nth(1)
                             .unwrap()
-                            .parse::<f64>()
+                            .parse::<f32>()
                             .unwrap(),
                 );
             } else {
-                return frame_rate.parse::<f64>().ok();
+                return frame_rate.parse::<f32>().ok();
             }
         }
 
         None
     }
 
-    pub(super) fn channels(&self) -> Option<String> {
+    pub(super) fn channels(&self) -> Option<f32> {
         if let Some(audio_channel_configuration) = &self.audio_channel_configuration {
-            if audio_channel_configuration.value.is_some() {
-                return audio_channel_configuration.value.clone();
+            if let Some(value) = &audio_channel_configuration.value {
+                return value.parse::<f32>().ok();
             }
         }
 
         None
     }
 
-    pub(super) fn encryption_type(&self) -> Option<String> {
+    pub(super) fn encryption_type(&self) -> playlist::KeyMethod {
         for content_protection in &self.content_protection {
             if content_protection.default_kid.is_some() {
-                return Some("CENC".to_string());
+                return playlist::KeyMethod::Cenc;
+            }
+
+            if let Some(value) = &content_protection.value {
+                if value == "cenc" {
+                    return playlist::KeyMethod::Cenc;
+                }
             }
         }
 
         if !self.content_protection.is_empty() {
-            return Some("UNKNOWN".to_string());
+            return playlist::KeyMethod::Other("undefined".to_owned());
         }
 
-        None
+        playlist::KeyMethod::None
     }
 
     pub(super) fn default_kid(&self) -> Option<String> {
@@ -280,10 +299,14 @@ impl Representation {
     fn get_mime_type(&self) -> Option<String> {
         if let Some(content_type) = &self.content_type {
             Some(content_type.to_owned())
-        } else { self.mime_type.as_ref().map(|mime_type| mime_type.to_owned()) }
+        } else {
+            self.mime_type
+                .as_ref()
+                .map(|mime_type| mime_type.to_owned())
+        }
     }
 
-    pub(super) fn media_type(&self, adaptation_set: &AdaptationSet) -> m3u8_rs::AlternativeMediaType {
+    pub(super) fn media_type(&self, adaptation_set: &AdaptationSet) -> playlist::MediaType {
         let mime_type = if let Some(mime_type) = adaptation_set.mime_type() {
             mime_type
         } else {
@@ -292,22 +315,22 @@ impl Representation {
 
         let codecs = self.codecs(adaptation_set).unwrap_or_else(|| "".to_owned());
         if codecs == "stpp" || codecs == "wvtt" {
-            return m3u8_rs::AlternativeMediaType::Subtitles;
+            return playlist::MediaType::Subtitles;
         }
 
         if let Some(role) = &self.role {
             if let Some(value) = &role.value {
                 if value == "subtitle" {
-                    return m3u8_rs::AlternativeMediaType::Subtitles;
+                    return playlist::MediaType::Subtitles;
                 }
             }
         }
 
         match mime_type.split('/').next().unwrap() {
-            "video" => m3u8_rs::AlternativeMediaType::Video,
-            "audio" => m3u8_rs::AlternativeMediaType::Audio,
-            "text" => m3u8_rs::AlternativeMediaType::Subtitles,
-            x => m3u8_rs::AlternativeMediaType::Other(x.to_owned()),
+            "video" => playlist::MediaType::Video,
+            "audio" => playlist::MediaType::Audio,
+            "text" => playlist::MediaType::Subtitles,
+            _ => playlist::MediaType::Undefined,
         }
     }
 
@@ -341,44 +364,51 @@ impl Representation {
         }
     }
 
-    pub(super) fn frame_rate(&self, adaptation_set: &AdaptationSet) -> Option<f64> {
+    pub(super) fn frame_rate(&self, adaptation_set: &AdaptationSet) -> Option<f32> {
         if let Some(frame_rate) = &self.frame_rate {
             if frame_rate.contains('/') {
                 return Some(
                     frame_rate
-                        .split('/').next()
+                        .split('/')
+                        .next()
                         .unwrap()
-                        .parse::<f64>()
+                        .parse::<f32>()
                         .unwrap()
                         / frame_rate
                             .split('/')
                             .nth(1)
                             .unwrap()
-                            .parse::<f64>()
+                            .parse::<f32>()
                             .unwrap(),
                 );
             } else {
-                return frame_rate.parse::<f64>().ok();
+                return frame_rate.parse::<f32>().ok();
             }
         }
 
         adaptation_set.frame_rate()
     }
 
-    pub(super) fn channels(&self, adaptation_set: &AdaptationSet) -> Option<String> {
+    pub(super) fn channels(&self, adaptation_set: &AdaptationSet) -> Option<f32> {
         if let Some(audio_channel_configuration) = &self.audio_channel_configuration {
-            if audio_channel_configuration.value.is_some() {
-                return audio_channel_configuration.value.clone();
+            if let Some(value) = &audio_channel_configuration.value {
+                return value.parse::<f32>().ok();
             }
         }
 
         adaptation_set.channels()
     }
 
-    pub(super) fn encryption_type(&self, adaptation_set: &AdaptationSet) -> Option<String> {
+    pub(super) fn encryption_type(&self, adaptation_set: &AdaptationSet) -> playlist::KeyMethod {
         for content_protection in &self.content_protection {
             if content_protection.default_kid.is_some() {
-                return Some("CENC".to_string());
+                return playlist::KeyMethod::Cenc;
+            }
+
+            if let Some(value) = &content_protection.value {
+                if value == "cenc" {
+                    return playlist::KeyMethod::Cenc;
+                }
             }
         }
 
@@ -398,7 +428,10 @@ impl Representation {
     pub(super) fn template_vars(&self) -> HashMap<String, String> {
         let mut vars = HashMap::new();
 
-        vars.insert("RepresentationID".to_owned(), self.id.clone().unwrap_or_else(|| "".to_owned()));
+        vars.insert(
+            "RepresentationID".to_owned(),
+            self.id.clone().unwrap_or_else(|| "".to_owned()),
+        );
 
         if let Some(bandwidth) = &self.bandwidth {
             vars.insert("Bandwidth".to_owned(), bandwidth.to_string());
@@ -409,10 +442,18 @@ impl Representation {
         vars
     }
 
-    pub(super) fn segment_template(&self, adaptation_set: &AdaptationSet) -> Option<SegmentTemplate> {
+    pub(super) fn segment_template(
+        &self,
+        adaptation_set: &AdaptationSet,
+    ) -> Option<SegmentTemplate> {
         if let Some(segment_template) = &self.segment_template {
             Some(segment_template.to_owned())
-        } else { adaptation_set.segment_template.as_ref().map(|segment_template| segment_template.to_owned()) }
+        } else {
+            adaptation_set
+                .segment_template
+                .as_ref()
+                .map(|segment_template| segment_template.to_owned())
+        }
     }
 }
 
@@ -448,4 +489,45 @@ impl SegmentTemplate {
     pub(super) fn start_number(&self) -> usize {
         self.start_number.unwrap_or(0)
     }
+}
+
+// FIXME - Type conversion bugs mainly required for live playlists.
+// https://github.com/emarsden/dash-mpd-rs/blob/c4927e4967a9401b8d7c7f8c137b7c70f81e7340/src/lib.rs#L195-L236
+pub(super) fn iso8601_duration_to_seconds(duration: &str) -> Result<f32, String> {
+    match iso8601::duration(duration)? {
+        iso8601::Duration::YMDHMS {
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+            millisecond,
+        } => Ok((year as f32 * 365.0 * 31.0 * 24.0 * 60.0 * 60.0)
+            + (month as f32 * 31.0 * 24.0 * 60.0 * 60.0)
+            + (day as f32 * 24.0 * 60.0 * 60.0)
+            + (hour as f32 * 60.0 * 60.0)
+            + (minute as f32 * 60.0)
+            + second as f32
+            + (millisecond as f32 * 0.001)),
+        iso8601::Duration::Weeks(w) => Ok(w as f32 * 60.0 * 60.0 * 24.0 * 7.0),
+    }
+}
+
+pub(super) fn mpd_range_to_byte_range(range: &Option<String>) -> Option<playlist::ByteRange> {
+    range.as_ref().map(|range| {
+        let splitted_range = range
+            .split('-')
+            .filter_map(|x| x.parse::<u64>().ok())
+            .collect::<Vec<u64>>();
+
+        if let (Some(length), offset) = (splitted_range.get(0), splitted_range.get(1)) {
+            playlist::ByteRange {
+                length: *length,
+                offset: offset.map(|x| *x),
+            }
+        } else {
+            panic!("could'nt convert \"{}\" range to byte range", range);
+        }
+    })
 }

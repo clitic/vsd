@@ -1,7 +1,3 @@
-// mod live;
-mod parser;
-mod autoselect;
+mod playlist;
 
-// pub use live::LivePlaylist;
-pub use parser::{alternative, master};
-pub use autoselect::autoselect;
+pub(crate) use playlist::{parse_as_master, push_segments};

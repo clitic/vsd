@@ -1,4 +1,4 @@
-use crate::subtitles::MP4Subtitles;
+use crate::mp4parser::{Mp4TtmlParser, Mp4VttParser, Subtitles};
 use anyhow::{anyhow, bail, Result};
 use clap::{Args, ValueEnum};
 
@@ -13,19 +13,20 @@ pub enum Format {
 /// This is based on the https://github.com/xhlove/dash-subtitle-extractor
 #[derive(Debug, Clone, Args)]
 pub struct Extract {
+    // TODO - Write docs
     /// List of subtitles segment files where first file is init.mp4 and following files are *.m4s (segments).
     /// A single mp4 file can also be provided.
     #[arg(required = true)]
-    files: Vec<String>,
+    input: String,
 
     /// Subtitles output format.
     #[arg(short, long, value_enum, default_value_t = Format::Srt)]
     format: Format,
 
-    /// Set timescale manually if no init segment is present.
-    /// If timescale is set to anything then webvtt codec is used.
-    #[arg(short, long)]
-    timescale: Option<u32>,
+    // /// Set timescale manually if no init segment is present.
+    // /// If timescale is set to anything then webvtt codec is used.
+    // #[arg(short, long)]
+    // timescale: Option<u32>,
     //   -segment-time SEGMENT_TIME, --segment-time SEGMENT_TIME
     //                         single segment duration, usually needed for ttml
     //                         content, calculation method: d / timescale
@@ -33,42 +34,21 @@ pub struct Extract {
 
 impl Extract {
     pub fn perform(&self) -> Result<()> {
-        let mut files = vec![];
+        let data = std::fs::read(&self.input)?;
+        let vtt = Mp4VttParser::parse_init(&data);
+        let ttml = Mp4TtmlParser::parse_init(&data);
 
-        for pattern in &self.files {
-            for file in glob::glob(pattern)? {
-                files.push(file?);
-            }
-        }
+        let cues;
 
-        if files.is_empty() {
-            bail!("at least one file is required to extract subtitles")
-        }
-
-        let subtitles = if files.len() == 1 {
-            let split_data =
-                mp4decrypt::mp4split(&std::fs::read(&files[0])?).map_err(|x| anyhow!(x))?;
-
-            let mut subtitles =
-                MP4Subtitles::new(&split_data[0], self.timescale).map_err(|x| anyhow!(x))?;
-
-            for data in &split_data[1..] {
-                subtitles.add_cue(data).map_err(|x| anyhow!(x))?;
-            }
-
-            subtitles.to_subtitles()
+        if let Ok(vtt) = vtt {
+            cues = vtt.parse_media(&data, None).map_err(|x| anyhow!(x))?;
+        } else if let Ok(ttml) = ttml {
+            cues = ttml.parse_media(&data).map_err(|x| anyhow!(x))?;
         } else {
-            let mut subtitles = MP4Subtitles::new(&std::fs::read(&files[0])?, self.timescale)
-                .map_err(|x| anyhow!(x))?;
+            bail!("mp4parser.text: cannot determine subtitles codec because WVTT/STPP box is not found.");
+        }
 
-            for file in &files[1..] {
-                subtitles
-                    .add_cue(&std::fs::read(file)?)
-                    .map_err(|x| anyhow!(x))?;
-            }
-
-            subtitles.to_subtitles()
-        };
+        let subtitles = Subtitles::new(cues);
 
         print!(
             "{}",

@@ -1,22 +1,20 @@
 // use crate::progress::DownloadProgress;
 use anyhow::Result;
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::Write;
+use std::{collections::HashMap, fs::File, io::Write};
 
-pub(super) struct BinaryMerger {
+pub(super) struct Merger {
     size: usize,
-    file: std::fs::File,
+    file: File,
     pos: usize,
     buffers: HashMap<usize, Vec<u8>>,
     stored_bytes: usize,
     flushed_bytes: usize,
     indexed: usize,
     // progress: DownloadProgress,
-    // json_file: std::fs::File,
+    // json_file: File,
 }
 
-impl BinaryMerger {
+impl Merger {
     // pub(super) fn new(size: usize, filename: &str, progress: DownloadProgress) -> Result<Self> {
     pub(super) fn new(size: usize, filename: &str) -> Result<Self> {
         Ok(Self {
