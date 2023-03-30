@@ -1,13 +1,14 @@
 #![cfg(feature = "chrome")]
 
 use super::utils;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use clap::Args;
-use headless_chrome::protocol::cdp::Network::{GetResponseBodyReturnObject, ResourceType};
-use headless_chrome::{Browser, LaunchOptionsBuilder};
+use headless_chrome::{
+    protocol::cdp::Network::{GetResponseBodyReturnObject, ResourceType},
+    Browser, LaunchOptionsBuilder,
+};
 use kdam::term::Colorizer;
-use std::fs::File;
-use std::io::Write;
+use std::{fs::File, io::Write};
 
 /// Collect playlists and subtitles from a website and save them locally.
 #[derive(Debug, Clone, Args)]
@@ -41,12 +42,10 @@ impl Collect {
         let browser = Browser::new(
             LaunchOptionsBuilder::default()
                 .headless(self.headless)
-                .build()
-                .map_err(|e| anyhow!(e))?,
-        )
-        .map_err(|e| anyhow!(e))?;
+                .build()?,
+        )?;
 
-        let tab = browser.new_tab().map_err(|e| anyhow!(e))?;
+        let tab = browser.new_tab()?;
         let build = self.build;
 
         tab.register_response_handling(
@@ -67,10 +66,9 @@ impl Collect {
                     }
                 }
             }),
-        )
-        .map_err(|e| anyhow!(e))?;
+        )?;
 
-        tab.navigate_to(&self.url).map_err(|e| anyhow!(e))?;
+        tab.navigate_to(&self.url)?;
 
         println!(
             "Using {} method for collection which might {} as expected.",

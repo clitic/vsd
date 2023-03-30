@@ -1,7 +1,7 @@
 #![cfg(feature = "chrome")]
 
 use super::utils;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use clap::Args;
 use headless_chrome::{Browser, LaunchOptionsBuilder};
 use kdam::term::Colorizer;
@@ -32,28 +32,28 @@ impl Capture {
         let browser = Browser::new(
             LaunchOptionsBuilder::default()
                 .headless(self.headless)
-                .build()
-                .map_err(|e| anyhow!(e))?,
-        )
-        .map_err(|e| anyhow!(e))?;
+                .build()?,
+        )?;
 
-        let tab = browser.new_tab().map_err(|e| anyhow!(e))?;
+        let tab = browser.new_tab()?;
 
-        tab.register_response_handling("vsd-capture", Box::new(move |params, _| {
-            let url = params.response.url.split('?').next().unwrap();
+        tab.register_response_handling(
+            "vsd-capture",
+            Box::new(move |params, _| {
+                let url = params.response.url.split('?').next().unwrap();
 
-            if url.contains(".m3u") || url.contains(".mpd") {
-                println!(
-                    "{}\n{}",
-                    "-".repeat(kdam::term::get_columns_or(10) as usize)
-                        .colorize("#FFA500"),
-                    url
-                );
-            }
-        }))
-        .map_err(|e| anyhow!(e))?;
+                if url.contains(".m3u") || url.contains(".mpd") {
+                    println!(
+                        "{}\n{}",
+                        "-".repeat(kdam::term::get_columns_or(10) as usize)
+                            .colorize("#FFA500"),
+                        url
+                    );
+                }
+            }),
+        )?;
 
-        tab.navigate_to(&self.url).map_err(|e| anyhow!(e))?;
+        tab.navigate_to(&self.url)?;
         utils::chrome_warning_message();
         std::thread::sleep(std::time::Duration::from_secs(60 * 3));
         Ok(())
