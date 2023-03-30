@@ -46,7 +46,7 @@ impl Collect {
         )
         .map_err(|e| anyhow!(e))?;
 
-        let tab = browser.wait_for_initial_tab().map_err(|e| anyhow!(e))?;
+        let tab = browser.new_tab().map_err(|e| anyhow!(e))?;
         let build = self.build;
 
         tab.register_response_handling(

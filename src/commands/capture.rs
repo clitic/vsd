@@ -37,7 +37,7 @@ impl Capture {
         )
         .map_err(|e| anyhow!(e))?;
 
-        let tab = browser.wait_for_initial_tab().map_err(|e| anyhow!(e))?;
+        let tab = browser.new_tab().map_err(|e| anyhow!(e))?;
 
         tab.register_response_handling("vsd-capture", Box::new(move |params, _| {
             let url = params.response.url.split('?').next().unwrap();
