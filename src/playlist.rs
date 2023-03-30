@@ -544,7 +544,7 @@ impl MasterPlaylist {
             .enumerate();
 
         let default_video_stream_index = match &quality {
-            Quality::Lowest => video_streams.size_hint().1,
+            Quality::Lowest => Some(video_streams.count() - 1),
             Quality::Highest => Some(0),
             Quality::Resolution(w, h) => video_streams
                 .find(|x| x.1.has_resolution(*w, *h))
