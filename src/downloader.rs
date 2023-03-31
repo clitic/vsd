@@ -603,9 +603,29 @@ pub(crate) fn download(
             }
 
             let response = request.send()?;
-            relative_sizes.push_back(
-                stream.segments.len() * (response.content_length().unwrap_or(0) as usize),
-            );
+            let content_length = response.content_length().unwrap_or(0);
+
+            if content_length != 0 {
+                relative_sizes.push_back(stream.segments.len() * (content_length as usize));
+            } else {
+                request = client.get(
+                    segment.seg_url(
+                        baseurl
+                            .as_ref()
+                            .unwrap_or(&stream.uri.parse::<Url>().unwrap()),
+                    )?,
+                );
+
+                if let Some((range, _)) = segment.map_range(0) {
+                    request = request.header(RANGE, range);
+                }
+
+                let response = request.send()?;
+
+                relative_sizes.push_back(
+                    stream.segments.len() * (response.content_length().unwrap_or(0) as usize),
+                );
+            }
         }
     }
 
@@ -916,15 +936,18 @@ pub(crate) fn download(
             println!(
                 "  {} ffmpeg {}",
                 "Executing".colorize("bold cyan"),
-                args.join(" ")
+                args.iter()
+                    .map(|x| if x.contains(' ') {
+                        format!("\"{}\"", x)
+                    } else {
+                        x.to_owned()
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ")
             );
 
             if Path::new(output).exists() {
-                println!(
-                    "   {} {}",
-                    "Deleting".colorize("bold red"),
-                    output
-                );
+                println!("   {} {}", "Deleting".colorize("bold red"), output);
                 std::fs::remove_file(output)?;
             }
 
@@ -957,7 +980,6 @@ pub(crate) fn download(
                     std::fs::remove_dir(directory)?;
                 }
             }
-
         }
     }
 
