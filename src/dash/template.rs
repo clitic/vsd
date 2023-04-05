@@ -2,14 +2,14 @@
     REFERENCES
     ----------
 
-    1. https://github.com/emarsden/dash-mpd-rs/blob/c4927e4967a9401b8d7c7f8c137b7c70f81e7340/src/fetch.rs#L438-L469
+    1. https://github.com/emarsden/dash-mpd-rs/blob/6ebdfb4759adbda8233b5b3520804e23ff86e7de/src/fetch.rs#L435-L466
 
 */
 
 use regex::Regex;
 use std::collections::HashMap;
 
-pub(super) struct TemplateResolver {
+pub(super) struct Template {
     re_representation_id: Regex,
     re_number: Regex,
     re_time: Regex,
@@ -17,7 +17,7 @@ pub(super) struct TemplateResolver {
     vars: HashMap<String, String>,
 }
 
-impl TemplateResolver {
+impl Template {
     pub(super) fn new(vars: HashMap<String, String>) -> Self {
         Self {
             re_representation_id: Regex::new("\\$RepresentationID%0([\\d])d\\$").unwrap(),

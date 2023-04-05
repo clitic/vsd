@@ -42,7 +42,7 @@ impl FromStr for DashUrl {
             .replace("period", "")
             .replace("adaptation-set", "")
             .replace("representation", "")
-            .split('.')
+            .split_terminator('.')
             .filter_map(|x| x.parse::<usize>().ok())
             .collect::<Vec<usize>>();
 

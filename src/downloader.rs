@@ -130,7 +130,7 @@ pub(crate) fn download(
             }
         }
 
-        if playlist_type.is_none() {
+        if playlist_type.is_some() {
             std::fs::read(path)?
         } else {
             let text = std::fs::read_to_string(path)?;
@@ -176,11 +176,12 @@ pub(crate) fn download(
 
     let (video_audio_streams, subtitle_streams) = match playlist_type {
         Some(PlaylistType::Dash) => {
-            let mpd = crate::dash::parse(&playlist).map_err(|x| {
+            let playlist = String::from_utf8(playlist).unwrap(); // TODO - Return error
+            let mpd = dash_mpd::parse(&playlist).map_err(|x| {
                 anyhow!(
                     "couldn't parse xml string as mpd content (failed with {}).\n\n{}",
                     x,
-                    String::from_utf8(playlist).unwrap()
+                    playlist
                 )
             })?;
             let (mut video_audio_streams, mut subtitle_streams) =
@@ -673,6 +674,7 @@ pub(crate) fn download(
         let merger = Arc::new(Mutex::new(Merger::new(stream.segments.len(), &temp_file)?));
         let timer = Arc::new(Instant::now());
 
+        // TODO - Print this value
         let _ = relative_sizes.pop_front();
         let relative_size = relative_sizes.iter().sum();
         let mut previous_map = None;

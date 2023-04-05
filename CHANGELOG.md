@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Support for multi period DASH mainfests.
 - `#EXT-X-MAP` support.
 - Autoselect `lowest` quality option.
 - Better support for cookies.
