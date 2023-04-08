@@ -693,8 +693,9 @@ pub(crate) fn download(
                         .unwrap(),
                 );
 
-                if let Some((range, _)) = segment.map_range(0) {
+                if let Some((range, end)) = segment.map_range(previous_byterange_end) {
                     request = request.header(RANGE, range);
+                    previous_byterange_end = end;
                 }
 
                 let response = request.send()?;

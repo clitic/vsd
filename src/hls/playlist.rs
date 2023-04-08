@@ -146,6 +146,9 @@ pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playli
                     m3u8_rs::KeyMethod::SampleAES => playlist::KeyMethod::SampleAes,
                     // TODO - Match this with other queries and different key formats.
                     // Also check hls playlist examples where uri is not present but cenc is used.
+                    //
+                    // SAMPLE-AES-CTR | SAMPLE-AES-CENC - cenc | cbc1 (pattern-based)
+                    // SAMPLE-AES - cbcs (pattern-based) | cbc1
                     m3u8_rs::KeyMethod::Other(x) if x.to_lowercase().contains("cenc") => {
                         playlist::KeyMethod::Cenc
                     }

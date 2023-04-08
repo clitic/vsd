@@ -3,6 +3,7 @@
     ----------
 
     1. https://github.com/emarsden/dash-mpd-rs/blob/6ebdfb4759adbda8233b5b3520804e23ff86e7de/src/fetch.rs
+    2. https://github.com/streamlink/streamlink/blob/781ef1fc92f215d0f3ec9a272fbe9f2cac122f08/src/streamlink/stream/dash_manifest.py
     2. https://github.com/nilaoda/N_m3u8DL-RE/blob/7bba10aa0d7adf7e79e0feec7327039681cb7bd4/src/N_m3u8DL-RE.Parser/Extractor/DASHExtractor2.cs
 
 */
@@ -26,6 +27,7 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
             for (representation_index, representation) in
                 adaptation_set.representations.iter().enumerate()
             {
+                // https://dashif.org/codecs/introduction
                 let codecs = if representation.codecs.is_some() {
                     representation.codecs.clone()
                 } else if adaptation_set.codecs.is_some() {
@@ -424,6 +426,9 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                         // node, download that first, respecting the byte range if it is specified.
                         // Otherwise, download the full content specified by the BaseURL for this
                         // segment (ignoring any indexRange attributes).
+                        //
+                        // https://github.com/shaka-project/shaka-player/blob/main/lib/dash/segment_base.js
+                        // https://github.com/shaka-project/shaka-player/blob/main/lib/media/mp4_segment_index_parser.js
 
                         if let Some(initialization) = &segment_base.initialization {
                             let byte_range = parse_range(&initialization.range);
@@ -461,7 +466,8 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                             if default_kid.is_none() && content_protection.default_KID.is_some() {
                                 default_kid = content_protection.default_KID.clone();
                             }
-
+                            
+                            // content_protection.value = "cenc" | "cbcs"
                             if encryption_type == KeyMethod::None
                                 && content_protection.value.is_some()
                             {
@@ -645,7 +651,7 @@ fn parse_range(range: &Option<String>) -> Option<ByteRange> {
         if let (Some(length), offset) = (splitted_range.get(0), splitted_range.get(1)) {
             ByteRange {
                 length: *length,
-                offset: offset.map(|x| *x),
+                offset: offset.map(|x| (*x - *length) + 1),
             }
         } else {
             panic!("could'nt convert \"{}\" range to byte range", range);
