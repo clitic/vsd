@@ -79,7 +79,7 @@ impl Keys {
                 self.iv.as_ref().map(|x| x.as_bytes()),
                 &data,
             )?,
-            KeyMethod::Cenc | KeyMethod::SampleAes => {
+            KeyMethod::Cenc => {
                 mp4decrypt::mp4decrypt(&data, self.as_hex_keys(), None).map_err(|x| anyhow!(x))?
             }
             _ => data,
@@ -689,23 +689,26 @@ pub(crate) fn download(
 
             if !no_decrypt {
                 if let Some(key) = &segment.key {
-                    // TODO - Handle keyformat correctly
                     match key.method {
                         KeyMethod::Aes128 => {
-                            previous_key = Some(Keys {
-                                bytes: if key.key_format.is_none() {
-                                    let url = stream_base_url.join(&key.uri)?;
-                                    let request = client.get(url);
-                                    let response = request.send()?;
-                                    response.bytes()?.to_vec()
-                                } else {
-                                    vec![]
-                                },
-                                iv: key.iv.clone(),
-                                method: key.method.clone(),
-                            });
+                            if let Some(uri) = &key.uri {
+                                previous_key = Some(Keys {
+                                    bytes: if key.key_format.is_none() {
+                                        let url = stream_base_url.join(uri)?;
+                                        let request = client.get(url);
+                                        let response = request.send()?;
+                                        response.bytes()?.to_vec()
+                                    } else {
+                                        vec![]
+                                    },
+                                    iv: key.iv.clone(),
+                                    method: key.method.clone(),
+                                });
+                            } else {
+                                bail!("uri cannot be none when key method is AES-128");
+                            }
                         }
-                        KeyMethod::Cenc | KeyMethod::SampleAes => {
+                        KeyMethod::Cenc => {
                             let mut decryption_keys = HashMap::new();
 
                             if all_keys {

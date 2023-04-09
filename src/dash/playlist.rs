@@ -61,7 +61,7 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
                         };
                     }
                 }
-                
+
                 // if let Some(role) = &representation.role {
                 //     if let Some(value) = &role.value {
                 //         if value == "subtitle" {
@@ -493,7 +493,7 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                                 iv: None,
                                 key_format: None,
                                 method: x,
-                                uri: "dash://encryption-key".to_owned(),
+                                uri: None,
                             }),
                         };
 

@@ -172,31 +172,38 @@ pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playli
                 iv,
                 keyformat,
                 method,
-                uri: Some(uri),
+                uri,
                 ..
             }) = &segment.key
             {
-                let method = match method {
+                let mut method = match method {
                     m3u8_rs::KeyMethod::AES128 => playlist::KeyMethod::Aes128,
                     m3u8_rs::KeyMethod::None => playlist::KeyMethod::None, // This should never match according to hls specifications.
                     m3u8_rs::KeyMethod::SampleAES => playlist::KeyMethod::SampleAes,
-                    // TODO - Match this with other queries and different key formats.
-                    // Also check hls playlist examples where uri is not present but cenc is used.
-                    //
-                    // SAMPLE-AES-CTR | SAMPLE-AES-CENC - cenc | cbc1 (pattern-based)
-                    // SAMPLE-AES - cbcs (pattern-based) | cbc1
-                    m3u8_rs::KeyMethod::Other(x) if x.to_lowercase().contains("cenc") => {
+                    m3u8_rs::KeyMethod::Other(x)
+                        if x == "SAMPLE-AES-CTR" || x == "SAMPLE-AES-CENC" =>
+                    {
+                        // cenc | cbc1 (pattern-based)
                         playlist::KeyMethod::Cenc
                     }
                     m3u8_rs::KeyMethod::Other(x) => playlist::KeyMethod::Other(x.to_owned()),
                 };
+
+                if let Some(keyformat) = keyformat {
+                    method = match keyformat.as_str() {
+                        "urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"
+                        | "com.microsoft.playready"
+                        | "com.apple.streamingkeydelivery" => playlist::KeyMethod::Cenc, // cbcs (pattern-based) | cbc1
+                        _ => method,
+                    };
+                }
 
                 Some(playlist::Key {
                     default_kid: None,
                     iv: iv.to_owned(),
                     key_format: keyformat.to_owned(),
                     method,
-                    uri: uri.to_owned(),
+                    uri: uri.clone(),
                 })
             } else {
                 None
