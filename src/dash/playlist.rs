@@ -10,7 +10,7 @@
 
 use super::{DashUrl, Template};
 use crate::playlist::{
-    ByteRange, Key, KeyMethod, Map, MasterPlaylist, MediaPlaylist, MediaType, PlaylistType, Segment,
+    Key, KeyMethod, Map, MasterPlaylist, MediaPlaylist, MediaType, PlaylistType, Range, Segment,
 };
 use anyhow::{anyhow, bail, Result};
 use dash_mpd::MPD;
@@ -28,25 +28,17 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
                 adaptation_set.representations.iter().enumerate()
             {
                 // https://dashif.org/codecs/introduction
-                let codecs = if representation.codecs.is_some() {
-                    representation.codecs.clone()
-                } else if adaptation_set.codecs.is_some() {
-                    adaptation_set.codecs.clone()
-                } else {
-                    None
-                };
+                let codecs = representation
+                    .codecs
+                    .clone()
+                    .or(adaptation_set.codecs.clone());
 
-                let mime_type = if representation.mimeType.is_some() {
-                    representation.mimeType.clone()
-                } else if representation.contentType.is_some() {
-                    representation.contentType.clone()
-                } else if adaptation_set.mimeType.is_some() {
-                    adaptation_set.mimeType.clone()
-                } else if adaptation_set.contentType.is_some() {
-                    adaptation_set.contentType.clone()
-                } else {
-                    None
-                };
+                let mime_type = representation
+                    .mimeType
+                    .clone()
+                    .or(adaptation_set.mimeType.clone())
+                    .or(representation.contentType.clone())
+                    .or(adaptation_set.contentType.clone());
 
                 let mut media_type = if let Some(mime_type) = &mime_type {
                     match mime_type.as_str() {
@@ -60,14 +52,16 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
                     MediaType::Undefined
                 };
 
-                if let Some(codecs) = &codecs {
-                    media_type = match codecs.as_str() {
-                        "wvtt" | "stpp" => MediaType::Subtitles,
-                        x if x.starts_with("stpp.") => MediaType::Subtitles,
-                        _ => media_type,
-                    };
+                if media_type == MediaType::Undefined {
+                    if let Some(codecs) = &codecs {
+                        media_type = match codecs.as_str() {
+                            "wvtt" | "stpp" => MediaType::Subtitles,
+                            x if x.starts_with("stpp.") => MediaType::Subtitles,
+                            _ => media_type,
+                        };
+                    }
                 }
-
+                
                 // if let Some(role) = &representation.role {
                 //     if let Some(value) = &role.value {
                 //         if value == "subtitle" {
@@ -218,12 +212,12 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
 
                             if let Some(source_url) = &initialization.sourceURL {
                                 init_map = Some(Map {
-                                    byte_range,
+                                    range: byte_range,
                                     uri: base_url.join(&template.resolve(source_url))?.to_string(),
                                 });
                             } else {
                                 init_map = Some(Map {
-                                    byte_range,
+                                    range: byte_range,
                                     uri: base_url.to_string(),
                                 });
                             }
@@ -235,13 +229,13 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
 
                             if let Some(media) = &segment_url.media {
                                 playlist.segments.push(Segment {
-                                    byte_range,
+                                    range: byte_range,
                                     uri: base_url.join(media)?.to_string(),
                                     ..Default::default()
                                 });
                             } else if !adaptation_set.BaseURL.is_empty() {
                                 playlist.segments.push(Segment {
-                                    byte_range,
+                                    range: byte_range,
                                     uri: base_url.to_string(),
                                     ..Default::default()
                                 });
@@ -256,12 +250,12 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
 
                             if let Some(source_url) = &initialization.sourceURL {
                                 init_map = Some(Map {
-                                    byte_range,
+                                    range: byte_range,
                                     uri: base_url.join(&template.resolve(source_url))?.to_string(),
                                 });
                             } else {
                                 init_map = Some(Map {
-                                    byte_range,
+                                    range: byte_range,
                                     uri: base_url.to_string(),
                                 });
                             }
@@ -273,13 +267,13 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
 
                             if let Some(media) = &segment_url.media {
                                 playlist.segments.push(Segment {
-                                    byte_range,
+                                    range: byte_range,
                                     uri: base_url.join(media)?.to_string(),
                                     ..Default::default()
                                 });
                             } else if !representation.BaseURL.is_empty() {
                                 playlist.segments.push(Segment {
-                                    byte_range,
+                                    range: byte_range,
                                     uri: base_url.to_string(),
                                     ..Default::default()
                                 });
@@ -296,7 +290,7 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
 
                         if let Some(initialization) = &segment_template.initialization {
                             init_map = Some(Map {
-                                byte_range: None,
+                                range: None,
                                 uri: base_url
                                     .join(&template.resolve(initialization))?
                                     .to_string(),
@@ -435,7 +429,7 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
 
                             if let Some(source_url) = &initialization.sourceURL {
                                 init_map = Some(Map {
-                                    byte_range,
+                                    range: byte_range,
                                     uri: base_url.join(&template.resolve(source_url))?.to_string(),
                                 });
                             }
@@ -466,7 +460,7 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                             if default_kid.is_none() && content_protection.default_KID.is_some() {
                                 default_kid = content_protection.default_KID.clone();
                             }
-                            
+
                             // content_protection.value = "cenc" | "cbcs"
                             if encryption_type == KeyMethod::None
                                 && content_protection.value.is_some()
@@ -641,17 +635,17 @@ fn parse_frame_rate(frame_rate: &Option<String>) -> Option<f32> {
         .flatten()
 }
 
-fn parse_range(range: &Option<String>) -> Option<ByteRange> {
+fn parse_range(range: &Option<String>) -> Option<Range> {
     range.as_ref().map(|range| {
         let splitted_range = range
             .split_terminator('-')
             .filter_map(|x| x.parse::<u64>().ok())
             .collect::<Vec<u64>>();
 
-        if let (Some(length), offset) = (splitted_range.get(0), splitted_range.get(1)) {
-            ByteRange {
-                length: *length,
-                offset: offset.map(|x| (*x - *length) + 1),
+        if let (Some(length), Some(end)) = (splitted_range.get(0), splitted_range.get(1)) {
+            Range {
+                start: *length,
+                end: *end,
             }
         } else {
             panic!("could'nt convert \"{}\" range to byte range", range);

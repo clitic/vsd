@@ -65,7 +65,7 @@ pub struct Save {
     #[arg(long, help_heading = "Client Options", number_of_values = 2, value_names = &["KEY", "VALUE"])]
     pub header: Vec<String>, // Vec<Vec<String>> not supported
 
-    /// Set HTTP(s) proxy for requests.
+    /// Set HTTP(s) / socks proxy for requests.
     #[arg(long, help_heading = "Client Options", value_parser = proxy_address_parser)]
     pub proxy_address: Option<reqwest::Proxy>,
 
@@ -232,13 +232,7 @@ fn output_parser(s: &str) -> Result<String, String> {
 }
 
 fn proxy_address_parser(s: &str) -> Result<reqwest::Proxy, String> {
-    if s.starts_with("http://") {
-        Ok(reqwest::Proxy::http(s).map_err(|_| "couldn't parse http proxy")?)
-    } else if s.starts_with("https://") {
-        Ok(reqwest::Proxy::https(s).map_err(|_| "couldn't parse htts proxy")?)
-    } else {
-        Err("Proxy address should start with `http(s)://` only".to_owned())
-    }
+    reqwest::Proxy::all(s).map_err(|x| x.to_string())
 }
 
 impl Save {

@@ -1,6 +1,9 @@
 use crate::playlist;
 
-pub(crate) fn parse_as_master(m3u8: &m3u8_rs::MasterPlaylist, uri: &str) -> playlist::MasterPlaylist {
+pub(crate) fn parse_as_master(
+    m3u8: &m3u8_rs::MasterPlaylist,
+    uri: &str,
+) -> playlist::MasterPlaylist {
     let mut streams = vec![];
 
     for video_stream in &m3u8.variants {
@@ -125,12 +128,45 @@ pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playli
     playlist.i_frame = m3u8.i_frames_only;
     playlist.live = !m3u8.end_list;
 
+    let mut previous_byterange_end = 0;
+
     for segment in &m3u8.segments {
-        playlist.segments.push(playlist::Segment {
-            byte_range: segment.byte_range.as_ref().map(|x| playlist::ByteRange {
-                length: x.length,
-                offset: x.offset,
+        let map = segment.map.as_ref().map(|x| playlist::Map {
+            uri: x.uri.to_owned(),
+            range: x.byte_range.as_ref().map(|x| {
+                let offset = x.offset.unwrap_or(0);
+
+                let (start, end) = if offset == 0 {
+                    (
+                        previous_byterange_end,
+                        (previous_byterange_end + x.length) - 1,
+                    )
+                } else {
+                    (x.length, (x.length + offset) - 1)
+                };
+
+                previous_byterange_end = end;
+                playlist::Range { start, end }
             }),
+        });
+
+        let range = segment.byte_range.as_ref().map(|x| {
+            let offset = x.offset.unwrap_or(0);
+
+            let (start, end) = if offset == 0 {
+                (
+                    previous_byterange_end,
+                    (previous_byterange_end + x.length) - 1,
+                )
+            } else {
+                (x.length, (x.length + offset) - 1)
+            };
+
+            previous_byterange_end = end;
+            playlist::Range { start, end }
+        });
+
+        playlist.segments.push(playlist::Segment {
             duration: segment.duration,
             key: if let Some(m3u8_rs::Key {
                 iv,
@@ -165,13 +201,8 @@ pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playli
             } else {
                 None
             },
-            map: segment.map.as_ref().map(|x| playlist::Map {
-                uri: x.uri.to_owned(),
-                byte_range: x.byte_range.as_ref().map(|y| playlist::ByteRange {
-                    length: y.length,
-                    offset: y.offset,
-                }),
-            }),
+            map,
+            range,
             uri: segment.uri.to_owned(),
         });
     }

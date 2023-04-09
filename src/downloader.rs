@@ -89,7 +89,7 @@ impl Keys {
 
 pub(crate) fn download(
     all_keys: bool,
-    baseurl: Option<Url>,
+    base_url: Option<Url>,
     client: Client,
     directory: Option<PathBuf>,
     input: &str,
@@ -114,7 +114,7 @@ pub(crate) fn download(
     let path = Path::new(input);
 
     let playlist = if path.exists() {
-        if baseurl.is_none() {
+        if base_url.is_none() {
             println!(
                 "    {} base url is not set",
                 "Warning".colorize("bold yellow")
@@ -196,7 +196,7 @@ pub(crate) fn download(
                 crate::dash::push_segments(
                     &mpd,
                     stream,
-                    baseurl.as_ref().unwrap_or(&playlist_url).as_str(),
+                    base_url.as_ref().unwrap_or(&playlist_url).as_str(),
                 )?;
                 stream.uri = playlist_url.as_str().to_owned();
             }
@@ -215,7 +215,7 @@ pub(crate) fn download(
                     .chain(subtitle_streams.iter_mut())
                 {
                     stream.uri = stream
-                        .url(baseurl.as_ref().unwrap_or(&playlist_url))?
+                        .url(base_url.as_ref().unwrap_or(&playlist_url))?
                         .as_str()
                         .to_owned();
                     let response = client.get(&stream.uri).send()?;
@@ -269,20 +269,17 @@ pub(crate) fn download(
     let mut kids = HashSet::new();
 
     for stream in &video_audio_streams {
-        if let Some(segment) = stream.segments.get(0) {
-            if segment.map.is_some() {
-                let mut request = client.get(
-                    segment
-                        .map_url(
-                            baseurl
-                                .as_ref()
-                                .unwrap_or(&stream.uri.parse::<Url>().unwrap()),
-                        )?
-                        .unwrap(),
-                );
+        let stream_base_url = base_url
+            .clone()
+            .unwrap_or(stream.uri.parse::<Url>().unwrap());
 
-                if let Some((range, _)) = segment.map_range(0) {
-                    request = request.header(RANGE, range);
+        if let Some(segment) = stream.segments.get(0) {
+            if let Some(map) = &segment.map {
+                let url = stream_base_url.join(&map.uri)?;
+                let mut request = client.get(url);
+
+                if let Some(range) = &map.range {
+                    request = request.header(RANGE, range.as_header_value());
                 }
 
                 let response = request.send()?;
@@ -435,23 +432,22 @@ pub(crate) fn download(
                 _ => (),
             }
         }
-
-        let seg_baseurl = baseurl
-            .clone()
-            .unwrap_or(stream.uri.parse::<Url>().unwrap());
-
         let mut temp_file = String::new();
-        let mut previous_byterange_end = 0;
 
         let mut first_run = true;
         let mut subtitles_data = vec![];
 
-        for segment in &stream.segments {
-            if segment.map.is_some() {
-                let mut request = client.get(segment.map_url(&seg_baseurl)?.unwrap());
+        let stream_base_url = base_url
+            .clone()
+            .unwrap_or(stream.uri.parse::<Url>().unwrap());
 
-                if let Some((range, _)) = segment.map_range(0) {
-                    request = request.header(RANGE, range);
+        for segment in &stream.segments {
+            if let Some(map) = &segment.map {
+                let url = stream_base_url.join(&map.uri)?;
+                let mut request = client.get(url);
+
+                if let Some(range) = &map.range {
+                    request = request.header(RANGE, range.as_header_value());
                 }
 
                 let response = request.send()?;
@@ -459,11 +455,11 @@ pub(crate) fn download(
                 subtitles_data.extend_from_slice(&bytes);
             }
 
-            let mut request = client.get(segment.seg_url(&seg_baseurl)?);
+            let url = stream_base_url.join(&segment.uri)?;
+            let mut request = client.get(url);
 
-            if let Some((range, previous)) = segment.seg_range(previous_byterange_end) {
-                previous_byterange_end = previous;
-                request = request.header(RANGE, range);
+            if let Some(range) = &segment.range {
+                request = request.header(RANGE, range.as_header_value());
             }
 
             let response = request.send()?;
@@ -590,17 +586,16 @@ pub(crate) fn download(
     let mut relative_sizes = VecDeque::new();
 
     for stream in &video_audio_streams {
-        if let Some(segment) = stream.segments.get(0) {
-            let mut request = client.head(
-                segment.seg_url(
-                    baseurl
-                        .as_ref()
-                        .unwrap_or(&stream.uri.parse::<Url>().unwrap()),
-                )?,
-            );
+        let stream_base_url = base_url
+            .clone()
+            .unwrap_or(stream.uri.parse::<Url>().unwrap());
 
-            if let Some((range, _)) = segment.map_range(0) {
-                request = request.header(RANGE, range);
+        if let Some(segment) = stream.segments.get(0) {
+            let url = stream_base_url.join(&segment.uri)?;
+            let mut request = client.head(url.clone());
+
+            if let Some(range) = &segment.range {
+                request = request.header(RANGE, range.as_header_value());
             }
 
             let response = request.send()?;
@@ -609,16 +604,10 @@ pub(crate) fn download(
             if content_length != 0 {
                 relative_sizes.push_back(stream.segments.len() * (content_length as usize));
             } else {
-                request = client.get(
-                    segment.seg_url(
-                        baseurl
-                            .as_ref()
-                            .unwrap_or(&stream.uri.parse::<Url>().unwrap()),
-                    )?,
-                );
+                let mut request = client.get(url);
 
-                if let Some((range, _)) = segment.map_range(0) {
-                    request = request.header(RANGE, range);
+                if let Some(range) = &segment.range {
+                    request = request.header(RANGE, range.as_header_value());
                 }
 
                 let response = request.send()?;
@@ -679,23 +668,18 @@ pub(crate) fn download(
         let relative_size = relative_sizes.iter().sum();
         let mut previous_map = None;
         let mut previous_key = None;
-        let mut previous_byterange_end = 0;
+
+        let stream_base_url = base_url
+            .clone()
+            .unwrap_or(stream.uri.parse::<Url>().unwrap());
 
         for (i, segment) in stream.segments.iter().enumerate() {
-            if segment.map.is_some() {
-                let mut request = client.get(
-                    segment
-                        .map_url(
-                            baseurl
-                                .as_ref()
-                                .unwrap_or(&stream.uri.parse::<Url>().unwrap()),
-                        )?
-                        .unwrap(),
-                );
+            if let Some(map) = &segment.map {
+                let url = stream_base_url.join(&map.uri)?;
+                let mut request = client.get(url);
 
-                if let Some((range, end)) = segment.map_range(previous_byterange_end) {
-                    request = request.header(RANGE, range);
-                    previous_byterange_end = end;
+                if let Some(range) = &map.range {
+                    request = request.header(RANGE, range.as_header_value());
                 }
 
                 let response = request.send()?;
@@ -710,14 +694,8 @@ pub(crate) fn download(
                         KeyMethod::Aes128 => {
                             previous_key = Some(Keys {
                                 bytes: if key.key_format.is_none() {
-                                    let request =
-                                        client.get(
-                                            segment
-                                                .key_url(baseurl.as_ref().unwrap_or(
-                                                    &stream.uri.parse::<Url>().unwrap(),
-                                                ))?
-                                                .unwrap(),
-                                        );
+                                    let url = stream_base_url.join(&key.uri)?;
+                                    let request = client.get(url);
                                     let response = request.send()?;
                                     response.bytes()?.to_vec()
                                 } else {
@@ -777,17 +755,11 @@ pub(crate) fn download(
                 }
             }
 
-            let mut request = client.get(
-                segment.seg_url(
-                    baseurl
-                        .as_ref()
-                        .unwrap_or(&stream.uri.parse::<Url>().unwrap()),
-                )?,
-            );
+            let url = stream_base_url.join(&segment.uri)?;
+            let mut request = client.get(url);
 
-            if let Some((range, end)) = segment.map_range(previous_byterange_end) {
-                request = request.header(RANGE, range);
-                previous_byterange_end = end;
+            if let Some(range) = &segment.range {
+                request = request.header(RANGE, range.as_header_value());
             }
 
             let thread_data = ThreadData {

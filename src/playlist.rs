@@ -2,7 +2,7 @@ use crate::commands::Quality;
 use anyhow::{bail, Result};
 use kdam::term::Colorizer;
 use requestty::prompt::style::Stylize;
-use reqwest::Url;
+use reqwest::{Url, header::HeaderValue};
 use serde::Serialize;
 use std::{fmt::Display, io::Write, path::PathBuf};
 
@@ -38,15 +38,21 @@ pub(crate) enum PlaylistType {
 }
 
 #[derive(Serialize)]
-pub(crate) struct ByteRange {
-    pub(crate) length: u64,
-    pub(crate) offset: Option<u64>,
+pub(crate) struct Range {
+    pub(crate) start: u64,
+    pub(crate) end: u64,
+}
+
+impl Range {
+    pub(crate) fn as_header_value(&self) -> HeaderValue {
+        HeaderValue::from_str(&format!("bytes={}-{}", self.start, self.end)).unwrap()
+    }
 }
 
 #[derive(Serialize)]
 pub(crate) struct Map {
     pub(crate) uri: String,
-    pub(crate) byte_range: Option<ByteRange>,
+    pub(crate) range: Option<Range>,
 }
 
 #[derive(Clone, Serialize, PartialEq)]
@@ -69,87 +75,11 @@ pub(crate) struct Key {
 
 #[derive(Default, Serialize)]
 pub(crate) struct Segment {
-    pub(crate) byte_range: Option<ByteRange>,
-    // TODO - Support #EXT-X-DISCOUNTINUITY tag
-    // pub(crate) discountinuity: bool,
-    pub(crate) duration: f32,
+    pub(crate) range: Option<Range>,
+    pub(crate) duration: f32, // TODO - Change to f64
     pub(crate) key: Option<Key>,
     pub(crate) map: Option<Map>,
     pub(crate) uri: String,
-}
-
-impl Segment {
-    pub(crate) fn seg_url(&self, baseurl: &Url) -> Result<Url> {
-        if self.uri.starts_with("http") || self.uri.starts_with("ftp") {
-            Ok(self.uri.parse::<Url>()?)
-        } else {
-            Ok(baseurl.join(&self.uri)?)
-        }
-    }
-
-    pub(crate) fn map_url(&self, baseurl: &Url) -> Result<Option<Url>> {
-        if let Some(map) = &self.map {
-            if self.uri.starts_with("http") || self.uri.starts_with("ftp") {
-                return Ok(Some(map.uri.parse::<Url>()?));
-            } else {
-                return Ok(Some(baseurl.join(&map.uri)?));
-            }
-        }
-
-        Ok(None)
-    }
-
-    pub(crate) fn key_url(&self, baseurl: &Url) -> Result<Option<Url>> {
-        if let Some(key) = &self.key {
-            if self.uri.starts_with("http") || self.uri.starts_with("ftp") {
-                return Ok(Some(key.uri.parse::<Url>()?));
-            } else {
-                return Ok(Some(baseurl.join(&key.uri)?));
-            }
-        }
-
-        Ok(None)
-    }
-
-    pub(crate) fn seg_range(&self, previous_byterange_end: u64) -> Option<(String, u64)> {
-        if let Some(byte_range) = &self.byte_range {
-            let offset = byte_range.offset.unwrap_or(0);
-
-            let (start, end) = if offset == 0 {
-                (
-                    previous_byterange_end,
-                    previous_byterange_end + byte_range.length - 1,
-                )
-            } else {
-                (byte_range.length, byte_range.length + offset - 1)
-            };
-
-            Some((format!("bytes={}-{}", start, end), end))
-        } else {
-            None
-        }
-    }
-
-    pub(crate) fn map_range(&self, previous_byterange_end: u64) -> Option<(String, u64)> {
-        if let Some(map) = &self.map {
-            if let Some(byte_range) = &map.byte_range {
-                let offset = byte_range.offset.unwrap_or(0);
-
-                let (start, end) = if offset == 0 {
-                    (
-                        previous_byterange_end,
-                        previous_byterange_end + byte_range.length - 1,
-                    )
-                } else {
-                    (byte_range.length, byte_range.length + offset - 1)
-                };
-
-                return Some((format!("bytes={}-{}", start, end), end));
-            }
-        }
-
-        None
-    }
 }
 
 #[derive(Default, Serialize)]
