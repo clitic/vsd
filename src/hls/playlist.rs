@@ -192,16 +192,16 @@ pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playli
                 if let Some(keyformat) = keyformat {
                     method = match keyformat.as_str() {
                         "urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"
-                        | "com.microsoft.playready"
-                        | "com.apple.streamingkeydelivery" => playlist::KeyMethod::Cenc, // cbcs (pattern-based) | cbc1
+                        | "com.apple.streamingkeydelivery"
+                        | "com.microsoft.playready" => playlist::KeyMethod::Cenc, // cbcs (pattern-based) | cbc1
                         _ => method,
                     };
                 }
 
                 Some(playlist::Key {
                     default_kid: None,
-                    iv: iv.to_owned(),
-                    key_format: keyformat.to_owned(),
+                    iv: iv.clone(),
+                    key_format: keyformat.clone(),
                     method,
                     uri: uri.clone(),
                 })

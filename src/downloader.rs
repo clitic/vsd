@@ -1,15 +1,14 @@
 use crate::{
     commands::Quality,
     merger::Merger,
-    playlist::{KeyMethod, MediaType, PlaylistType},
+    playlist::{KeyMethod, MediaType, PlaylistType, Range},
     utils,
 };
 use anyhow::{anyhow, bail, Result};
 use kdam::{term::Colorizer, tqdm, BarExt, Column, RichProgress};
 use reqwest::{
     blocking::{Client, RequestBuilder},
-    header::{CONTENT_TYPE, RANGE},
-    StatusCode, Url,
+    header, StatusCode, Url,
 };
 use std::{
     collections::{HashMap, HashSet, VecDeque},
@@ -145,7 +144,7 @@ pub(crate) fn download(
         let response = client.get(input).send()?;
         playlist_url = response.url().to_owned();
 
-        if let Some(content_type) = response.headers().get(CONTENT_TYPE) {
+        if let Some(content_type) = response.headers().get(header::CONTENT_TYPE) {
             match content_type.as_bytes() {
                 b"application/dash+xml" | b"video/vnd.mpeg.dash.mpd" => {
                     playlist_type = Some(PlaylistType::Dash)
@@ -174,7 +173,7 @@ pub(crate) fn download(
     // Parse Playlist & Select Streams & Push Segments
     // -----------------------------------------------------------------------------------------
 
-    let (video_audio_streams, subtitle_streams) = match playlist_type {
+    let (mut video_audio_streams, subtitle_streams) = match playlist_type {
         Some(PlaylistType::Dash) => {
             let playlist = String::from_utf8(playlist).unwrap(); // TODO - Return error
             let mpd = dash_mpd::parse(&playlist).map_err(|x| {
@@ -251,7 +250,6 @@ pub(crate) fn download(
                         KeyMethod::Other(x) => bail!("{} decryption is not supported. Use {} flag to download encrypted streams.", x, "--no-decrypt".colorize("bold green")),
                         KeyMethod::SampleAes => {
                             if stream.is_hls() {
-                                // TODO - Only if "keyformat=identity" 
                                 bail!("sample-aes (HLS) decryption is not supported. Use {} flag to download encrypted streams.", "--no-decrypt".colorize("bold green"));
                             }
                         }
@@ -279,7 +277,7 @@ pub(crate) fn download(
                 let mut request = client.get(url);
 
                 if let Some(range) = &map.range {
-                    request = request.header(RANGE, range.as_header_value());
+                    request = request.header(header::RANGE, range.as_header_value());
                 }
 
                 let response = request.send()?;
@@ -447,7 +445,7 @@ pub(crate) fn download(
                 let mut request = client.get(url);
 
                 if let Some(range) = &map.range {
-                    request = request.header(RANGE, range.as_header_value());
+                    request = request.header(header::RANGE, range.as_header_value());
                 }
 
                 let response = request.send()?;
@@ -459,7 +457,7 @@ pub(crate) fn download(
             let mut request = client.get(url);
 
             if let Some(range) = &segment.range {
-                request = request.header(RANGE, range.as_header_value());
+                request = request.header(header::RANGE, range.as_header_value());
             }
 
             let response = request.send()?;
@@ -567,6 +565,71 @@ pub(crate) fn download(
     }
 
     // -----------------------------------------------------------------------------------------
+    // Estimation
+    // -----------------------------------------------------------------------------------------
+
+    let mut downloaded_bytes = 0;
+    let mut relative_sizes = VecDeque::new();
+
+    for stream in video_audio_streams.iter_mut() {
+        let stream_base_url = base_url
+            .clone()
+            .unwrap_or(stream.uri.parse::<Url>().unwrap());
+
+        let total_segments = stream.segments.len();
+        let buffer_size = 1024 * 1024 * 2; // 2 MiB
+        let mut ranges = None;
+
+        if let Some(segment) = stream.segments.get(0) {
+            let url = stream_base_url.join(&segment.uri)?;
+            let mut request = client.head(url.clone());
+
+            if total_segments == 1 {
+                let response = request.send()?;
+                let content_length = response
+                    .headers()
+                    .get(header::CONTENT_LENGTH)
+                    .map(|x| x.to_str().unwrap().parse::<usize>().unwrap())
+                    .unwrap_or(0);
+
+                if content_length == 0 {
+                    bail!("cannot download a single segment ({}) of unknown content length.", url);
+                } else {
+                    ranges = Some(PartialRangeIter {
+                        start: 0,
+                        end: content_length as u64 - 1,
+                        buffer_size,
+                    });
+                    relative_sizes.push_back(content_length);
+                }
+            } else {
+                if let Some(range) = &segment.range {
+                    request = request.header(header::RANGE, range.as_header_value());
+                }
+
+                let response = request.send()?;
+                let content_length = response
+                    .headers()
+                    .get(header::CONTENT_LENGTH)
+                    .map(|x| x.to_str().unwrap().parse::<usize>().unwrap())
+                    .unwrap_or(0);
+
+                relative_sizes.push_back(total_segments * content_length);
+            }
+        }
+
+        if let Some(ranges) = ranges {
+            let segment = stream.segments.remove(0);
+
+            for range in ranges {
+                let mut segment_copy = segment.clone();
+                segment_copy.range = Some(range);
+                stream.segments.push(segment_copy)
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------
     // Prepare Progress Bar
     // -----------------------------------------------------------------------------------------
 
@@ -577,47 +640,6 @@ pub(crate) fn download(
         video_audio_streams.iter().map(|x| x.segments.len()).sum(),
     ));
     let pb = Arc::new(Mutex::new(pb));
-
-    // -----------------------------------------------------------------------------------------
-    // Estimation
-    // -----------------------------------------------------------------------------------------
-
-    let mut downloaded_bytes = 0;
-    let mut relative_sizes = VecDeque::new();
-
-    for stream in &video_audio_streams {
-        let stream_base_url = base_url
-            .clone()
-            .unwrap_or(stream.uri.parse::<Url>().unwrap());
-
-        if let Some(segment) = stream.segments.get(0) {
-            let url = stream_base_url.join(&segment.uri)?;
-            let mut request = client.head(url.clone());
-
-            if let Some(range) = &segment.range {
-                request = request.header(RANGE, range.as_header_value());
-            }
-
-            let response = request.send()?;
-            let content_length = response.content_length().unwrap_or(0);
-
-            if content_length != 0 {
-                relative_sizes.push_back(stream.segments.len() * (content_length as usize));
-            } else {
-                let mut request = client.get(url);
-
-                if let Some(range) = &segment.range {
-                    request = request.header(RANGE, range.as_header_value());
-                }
-
-                let response = request.send()?;
-
-                relative_sizes.push_back(
-                    stream.segments.len() * (response.content_length().unwrap_or(0) as usize),
-                );
-            }
-        }
-    }
 
     // -----------------------------------------------------------------------------------------
     // Download Video & Audio Streams
@@ -679,7 +701,7 @@ pub(crate) fn download(
                 let mut request = client.get(url);
 
                 if let Some(range) = &map.range {
-                    request = request.header(RANGE, range.as_header_value());
+                    request = request.header(header::RANGE, range.as_header_value());
                 }
 
                 let response = request.send()?;
@@ -762,7 +784,7 @@ pub(crate) fn download(
             let mut request = client.get(url);
 
             if let Some(range) = &segment.range {
-                request = request.header(RANGE, range.as_header_value());
+                request = request.header(header::RANGE, range.as_header_value());
             }
 
             let thread_data = ThreadData {
@@ -1077,5 +1099,29 @@ fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
         }
     } else {
         bail!("download failed {}", url)
+    }
+}
+
+// https://rust-lang-nursery.github.io/rust-cookbook/web/clients/download.html#make-a-partial-download-with-http-range-headers
+struct PartialRangeIter {
+    start: u64,
+    end: u64,
+    buffer_size: u32,
+}
+
+impl Iterator for PartialRangeIter {
+    type Item = Range;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start > self.end {
+            None
+        } else {
+            let prev_start = self.start;
+            self.start += std::cmp::min(self.buffer_size as u64, self.end - self.start + 1);
+            Some(Range {
+                start: prev_start,
+                end: self.start - 1,
+            })
+        }
     }
 }
