@@ -14,7 +14,7 @@ pub struct Save {
 
     /// Base url for building segment url. Usually needed for local file.
     #[arg(long)]
-    pub baseurl: Option<reqwest::Url>,
+    pub base_url: Option<reqwest::Url>,
 
     /// Change directory path for temporarily downloaded files.
     /// By default current working directory is used.
@@ -303,7 +303,7 @@ impl Save {
 
         crate::downloader::download(
             self.all_keys,
-            self.baseurl,
+            self.base_url,
             client,
             self.directory,
             &self.input,

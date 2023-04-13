@@ -1,7 +1,8 @@
 use crate::{
     commands::Quality,
     merger::Merger,
-    playlist::{KeyMethod, MediaType, PlaylistType, Range},
+    mp4parser::{Mp4TtmlParser, Mp4VttParser, Pssh, Subtitles},
+    playlist::{KeyMethod, MediaType, PlaylistType, Range, Segment},
     utils,
 };
 use anyhow::{anyhow, bail, Result};
@@ -20,72 +21,7 @@ use std::{
     time::Instant,
 };
 
-enum SubtitleType {
-    Mp4Vtt,
-    Mp4Ttml,
-    SrtText,
-    TtmlText,
-    VttText,
-}
-
-struct Stream {
-    file_path: String,
-    language: Option<String>,
-    media_type: MediaType,
-}
-
-#[derive(Clone)]
-struct Keys {
-    bytes: Vec<u8>,
-    iv: Option<String>,
-    method: KeyMethod,
-}
-
-impl Keys {
-    fn from_hex_keys(keys: HashMap<String, String>) -> Self {
-        let mut bytes = String::new();
-
-        for (kid, key) in keys {
-            bytes += &(kid + ":" + &key + ";");
-        }
-
-        Self {
-            bytes: bytes.get(..(bytes.len() - 1)).unwrap().as_bytes().to_vec(),
-            iv: None,
-            method: KeyMethod::Cenc,
-        }
-    }
-
-    fn as_hex_keys(&self) -> HashMap<String, String> {
-        String::from_utf8(self.bytes.clone())
-            .unwrap()
-            .split(';')
-            .map(|x| {
-                let kid_key = x.split(':').collect::<Vec<_>>();
-                (
-                    kid_key.get(0).unwrap().to_string(),
-                    kid_key.get(1).unwrap().to_string(),
-                )
-            })
-            .collect()
-    }
-
-    fn decrypt(&self, data: Vec<u8>) -> Result<Vec<u8>> {
-        Ok(match self.method {
-            KeyMethod::Aes128 => openssl::symm::decrypt(
-                openssl::symm::Cipher::aes_128_cbc(),
-                &self.bytes,
-                self.iv.as_ref().map(|x| x.as_bytes()),
-                &data,
-            )?,
-            KeyMethod::Cenc => {
-                mp4decrypt::mp4decrypt(&data, self.as_hex_keys(), None).map_err(|x| anyhow!(x))?
-            }
-            _ => data,
-        })
-    }
-}
-
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn download(
     all_keys: bool,
     base_url: Option<Url>,
@@ -103,7 +39,9 @@ pub(crate) fn download(
     retry_count: u8,
     threads: u8,
 ) -> Result<()> {
-    let mut playlist_url = "https://example.com".parse::<Url>().unwrap();
+    let mut playlist_url = base_url
+        .clone()
+        .unwrap_or_else(|| "https://example.com".parse::<Url>().unwrap());
 
     // -----------------------------------------------------------------------------------------
     // Fetch Playlist
@@ -129,17 +67,17 @@ pub(crate) fn download(
             }
         }
 
-        if playlist_type.is_some() {
-            std::fs::read(path)?
-        } else {
-            let text = std::fs::read_to_string(path)?;
+        let text = std::fs::read_to_string(path)?;
+
+        if playlist_type.is_none() {
             if text.contains("<MPD") {
                 playlist_type = Some(PlaylistType::Dash);
             } else if text.contains("#EXTM3U") {
                 playlist_type = Some(PlaylistType::Hls);
             }
-            text.as_bytes().to_vec()
         }
+
+        text
     } else {
         let response = client.get(input).send()?;
         playlist_url = response.url().to_owned();
@@ -156,17 +94,17 @@ pub(crate) fn download(
             }
         }
 
+        let text = response.text()?;
+
         if playlist_type.is_none() {
-            let text = response.text()?;
             if text.contains("<MPD") {
                 playlist_type = Some(PlaylistType::Dash);
             } else if text.contains("#EXTM3U") {
                 playlist_type = Some(PlaylistType::Hls);
             }
-            text.as_bytes().to_vec()
-        } else {
-            response.bytes()?.to_vec()
         }
+
+        text
     };
 
     // -----------------------------------------------------------------------------------------
@@ -175,10 +113,9 @@ pub(crate) fn download(
 
     let (mut video_audio_streams, subtitle_streams) = match playlist_type {
         Some(PlaylistType::Dash) => {
-            let playlist = String::from_utf8(playlist).unwrap(); // TODO - Return error
             let mpd = dash_mpd::parse(&playlist).map_err(|x| {
                 anyhow!(
-                    "couldn't parse xml string as mpd content (failed with {}).\n\n{}",
+                    "couldn't parse response as dash playlist (failed with {}).\n\n{}",
                     x,
                     playlist
                 )
@@ -202,7 +139,7 @@ pub(crate) fn download(
 
             (video_audio_streams, subtitle_streams)
         }
-        Some(PlaylistType::Hls) => match m3u8_rs::parse_playlist_res(&playlist) {
+        Some(PlaylistType::Hls) => match m3u8_rs::parse_playlist_res(playlist.as_bytes()) {
             Ok(m3u8_rs::Playlist::MasterPlaylist(m3u8)) => {
                 let (mut video_audio_streams, mut subtitle_streams) =
                     crate::hls::parse_as_master(&m3u8, playlist_url.as_str())
@@ -218,22 +155,37 @@ pub(crate) fn download(
                         .as_str()
                         .to_owned();
                     let response = client.get(&stream.uri).send()?;
-                    let media_playlist =
-                        m3u8_rs::parse_media_playlist_res(&response.bytes()?).unwrap(); // TODO - Add better message for error
+                    let text = response.text()?;
+                    let media_playlist = m3u8_rs::parse_media_playlist_res(text.as_bytes())
+                        .map_err(|x| {
+                            anyhow!(
+                                "couldn't parse response as hls playlist (failed with {}).\n\n{}\n\n{}",
+                                x,
+                                stream.uri,
+                                text
+                            )
+                        })?;
                     crate::hls::push_segments(&media_playlist, stream);
                 }
 
                 (video_audio_streams, subtitle_streams)
             }
             Ok(m3u8_rs::Playlist::MediaPlaylist(m3u8)) => {
-                let mut media_playlist = crate::playlist::MediaPlaylist::default();
-                media_playlist.uri = playlist_url.as_str().to_owned();
+                let mut media_playlist = crate::playlist::MediaPlaylist {
+                    uri: playlist_url.to_string(),
+                    ..Default::default()
+                };
                 crate::hls::push_segments(&m3u8, &mut media_playlist);
                 (vec![media_playlist], vec![])
             }
-            Err(_) => bail!("couldn't parse {} as HLS playlist.", playlist_url),
+            Err(x) => bail!(
+                "couldn't parse response as hls playlist (failed with {}).\n\n{}\n\n{}",
+                x,
+                playlist_url,
+                playlist
+            ),
         },
-        _ => bail!("only DASH (.mpd) and HLS (.m3u8) playlists are supported."),
+        _ => bail!("couldn't determine playlist type, only DASH and HLS playlists are supported."),
     };
 
     // -----------------------------------------------------------------------------------------
@@ -281,7 +233,7 @@ pub(crate) fn download(
                 }
 
                 let response = request.send()?;
-                let pssh = crate::mp4parser::Pssh::new(&response.bytes()?).unwrap(); // TODO - Add better message for error
+                let pssh = Pssh::new(&response.bytes()?).map_err(|x| anyhow!(x))?;
 
                 for key_id in pssh.key_ids {
                     if !kids.contains(&key_id.value) {
@@ -368,7 +320,7 @@ pub(crate) fn download(
         if video_streams_count == 0
             && (audio_streams_count > 1
                 || subtitle_streams.len() > 1
-                || (audio_streams_count != 0 && subtitle_streams.len() != 0))
+                || (audio_streams_count != 0 && !subtitle_streams.is_empty()))
         {
             println!(
                 "    {} --output is ignored when no video streams is selected but multiple audio/subtitle streams are selected",
@@ -475,12 +427,10 @@ pub(crate) fn download(
                     codec = Some(SubtitleType::SrtText);
                 } else if subtitles_data.starts_with(b"<?xml") || subtitles_data.starts_with(b"<tt")
                 {
-                    // TODO - Match using Representation node @mimeType (DASH)
-                    // application/ttml+xml
                     ext = "srt".to_owned();
                     codec = Some(SubtitleType::TtmlText);
                 } else if codec.is_none() {
-                    bail!("cannot determine subtitle codec.");
+                    bail!("could'nt determine subtitle codec.");
                 }
 
                 temp_file = stream
@@ -516,12 +466,11 @@ pub(crate) fn download(
                     "Extracting".colorize("bold cyan"),
                 ));
 
-                let vtt = crate::mp4parser::Mp4VttParser::parse_init(&subtitles_data)
-                    .map_err(|x| anyhow!(x))?;
+                let vtt = Mp4VttParser::parse_init(&subtitles_data).map_err(|x| anyhow!(x))?;
                 let cues = vtt
                     .parse_media(&subtitles_data, None)
                     .map_err(|x| anyhow!(x))?;
-                let subtitles = crate::mp4parser::Subtitles::new(cues);
+                let subtitles = Subtitles::new(cues);
                 File::create(&temp_file)?.write_all(subtitles.to_vtt().as_bytes())?;
             }
             Some(SubtitleType::Mp4Ttml) => {
@@ -530,10 +479,9 @@ pub(crate) fn download(
                     "Extracting".colorize("bold cyan"),
                 ));
 
-                let ttml = crate::mp4parser::Mp4TtmlParser::parse_init(&subtitles_data)
-                    .map_err(|x| anyhow!(x))?;
+                let ttml = Mp4TtmlParser::parse_init(&subtitles_data).map_err(|x| anyhow!(x))?;
                 let cues = ttml.parse_media(&subtitles_data).map_err(|x| anyhow!(x))?;
-                let subtitles = crate::mp4parser::Subtitles::new(cues);
+                let subtitles = Subtitles::new(cues);
                 File::create(&temp_file)?.write_all(subtitles.to_srt().as_bytes())?;
             }
             Some(SubtitleType::TtmlText) => {
@@ -560,7 +508,7 @@ pub(crate) fn download(
             " {} stream successfully",
             "Downloaded".colorize("bold green"),
         ));
-        println!(); // TODO - See Later
+        println!();
         pb.reset(Some(0));
     }
 
@@ -593,7 +541,10 @@ pub(crate) fn download(
                     .unwrap_or(0);
 
                 if content_length == 0 {
-                    bail!("cannot download a single segment ({}) of unknown content length.", url);
+                    bail!(
+                        "cannot download a single segment ({}) of unknown content length.",
+                        url
+                    );
                 } else {
                     ranges = Some(PartialRangeIter {
                         start: 0,
@@ -621,10 +572,19 @@ pub(crate) fn download(
         if let Some(ranges) = ranges {
             let segment = stream.segments.remove(0);
 
-            for range in ranges {
-                let mut segment_copy = segment.clone();
-                segment_copy.range = Some(range);
-                stream.segments.push(segment_copy)
+            for (i, range) in ranges.enumerate() {
+                if i == 0 {
+                    let mut segment_copy = segment.clone();
+                    segment_copy.range = Some(range);
+                    stream.segments.push(segment_copy);
+                } else {
+                    stream.segments.push(Segment {
+                        range: Some(range),
+                        duration: segment.duration,
+                        uri: segment.uri.clone(),
+                        ..Default::default()
+                    });
+                }
             }
         }
     }
@@ -645,7 +605,6 @@ pub(crate) fn download(
     // Download Video & Audio Streams
     // -----------------------------------------------------------------------------------------
 
-    // TODO - Create a custom thread pool module.
     let pool = threadpool::ThreadPool::new(threads as usize);
 
     for stream in video_audio_streams {
@@ -681,11 +640,9 @@ pub(crate) fn download(
             temp_file.colorize("cyan"),
         ));
 
-        // TODO - Add resume support
         let merger = Arc::new(Mutex::new(Merger::new(stream.segments.len(), &temp_file)?));
         let timer = Arc::new(Instant::now());
 
-        // TODO - Print this value
         let _ = relative_sizes.pop_front();
         let relative_size = relative_sizes.iter().sum();
         let mut previous_map = None;
@@ -757,7 +714,7 @@ pub(crate) fn download(
                                 }
                             }
 
-                            if decryption_keys.len() == 0 {
+                            if decryption_keys.is_empty() {
                                 bail!(
                                     "cannot determine keys to use, bypass this error using {} flag.",
                                     "--all-keys".colorize("bold green")
@@ -985,7 +942,92 @@ pub(crate) fn download(
 
     Ok(())
 }
+enum SubtitleType {
+    Mp4Vtt,
+    Mp4Ttml,
+    SrtText,
+    TtmlText,
+    VttText,
+}
+struct Stream {
+    file_path: String,
+    language: Option<String>,
+    media_type: MediaType,
+}
 
+#[derive(Clone)]
+struct Keys {
+    bytes: Vec<u8>,
+    iv: Option<String>,
+    method: KeyMethod,
+}
+
+impl Keys {
+    fn from_hex_keys(keys: HashMap<String, String>) -> Self {
+        let mut bytes = String::new();
+
+        for (kid, key) in keys {
+            bytes += &(kid + ":" + &key + ";");
+        }
+
+        Self {
+            bytes: bytes.get(..(bytes.len() - 1)).unwrap().as_bytes().to_vec(),
+            iv: None,
+            method: KeyMethod::Cenc,
+        }
+    }
+
+    fn as_hex_keys(&self) -> HashMap<String, String> {
+        String::from_utf8(self.bytes.clone())
+            .unwrap()
+            .split(';')
+            .map(|x| {
+                x.split_once(':')
+                    .map(|(x, y)| (x.to_owned(), y.to_owned()))
+                    .unwrap()
+            })
+            .collect()
+    }
+
+    fn decrypt(&self, data: Vec<u8>) -> Result<Vec<u8>> {
+        Ok(match self.method {
+            KeyMethod::Aes128 => openssl::symm::decrypt(
+                openssl::symm::Cipher::aes_128_cbc(),
+                &self.bytes,
+                self.iv.as_ref().map(|x| x.as_bytes()),
+                &data,
+            )?,
+            KeyMethod::Cenc => {
+                mp4decrypt::mp4decrypt(&data, self.as_hex_keys(), None).map_err(|x| anyhow!(x))?
+            }
+            _ => data,
+        })
+    }
+}
+
+// https://rust-lang-nursery.github.io/rust-cookbook/web/clients/download.html#make-a-partial-download-with-http-range-headers
+struct PartialRangeIter {
+    start: u64,
+    end: u64,
+    buffer_size: u32,
+}
+
+impl Iterator for PartialRangeIter {
+    type Item = Range;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start > self.end {
+            None
+        } else {
+            let prev_start = self.start;
+            self.start += std::cmp::min(self.buffer_size as u64, self.end - self.start + 1);
+            Some(Range {
+                start: prev_start,
+                end: self.start - 1,
+            })
+        }
+    }
+}
 struct ThreadData {
     downloaded_bytes: usize,
     index: usize,
@@ -1047,9 +1089,9 @@ impl ThreadData {
                         continue;
                     } else {
                         bail!(
-                            "reached maximum number of retries to download segment at index {}.",
-                            self.index
-                        )
+                            "reached maximum number of retries to download a segment i.e. {}",
+                            e.url().unwrap()
+                        );
                     }
                 }
             }
@@ -1099,29 +1141,5 @@ fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
         }
     } else {
         bail!("download failed {}", url)
-    }
-}
-
-// https://rust-lang-nursery.github.io/rust-cookbook/web/clients/download.html#make-a-partial-download-with-http-range-headers
-struct PartialRangeIter {
-    start: u64,
-    end: u64,
-    buffer_size: u32,
-}
-
-impl Iterator for PartialRangeIter {
-    type Item = Range;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.start > self.end {
-            None
-        } else {
-            let prev_start = self.start;
-            self.start += std::cmp::min(self.buffer_size as u64, self.end - self.start + 1);
-            Some(Range {
-                start: prev_start,
-                end: self.start - 1,
-            })
-        }
     }
 }

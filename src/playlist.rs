@@ -80,7 +80,7 @@ pub(crate) struct Key {
 #[derive(Clone, Default, Serialize)]
 pub(crate) struct Segment {
     pub(crate) range: Option<Range>,
-    pub(crate) duration: f32, // TODO - Change to f64
+    pub(crate) duration: f32, // Consider changing it to f64
     pub(crate) key: Option<Key>,
     pub(crate) map: Option<Map>,
     pub(crate) uri: String,
@@ -225,10 +225,7 @@ impl MediaPlaylist {
     }
 
     pub(crate) fn is_hls(&self) -> bool {
-        match &self.playlist_type {
-            PlaylistType::Hls => true,
-            _ => false,
-        }
+        matches!(&self.playlist_type, PlaylistType::Hls)
     }
 
     // pub(crate) fn is_dash(&self) -> bool {
@@ -619,7 +616,7 @@ impl MasterPlaylist {
 
                     let input = input.trim();
 
-                    if input != "" {
+                    if !input.is_empty() {
                         selected_choices_index = input
                             .split(',')
                             .filter_map(|x| x.trim().parse::<usize>().ok())
@@ -710,9 +707,7 @@ impl MasterPlaylist {
                 Ok((selected_streams, selected_subtitle_streams))
             }
         } else {
-            // TODO - Add better message
-            // Selected variant stream of quality {} ({} {}/s).
-            bail!("playlist doesn't contain {:?} quality stream", quality)
+            bail!("playlist doesn't contain {:?} quality stream.", quality)
         }
     }
 }

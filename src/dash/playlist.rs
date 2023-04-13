@@ -72,30 +72,20 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
 
                 streams.push(MediaPlaylist {
                     bandwidth: representation.bandwidth,
-                    channels: if let Some(value) = representation
+                    channels: representation
                         .AudioChannelConfiguration
                         .get(0)
-                        .map(|x| x.value.as_ref().map(|y| y.parse::<f32>().ok()))
+                        .and_then(|x| x.value.as_ref().map(|y| y.parse::<f32>().ok()))
                         .flatten()
-                        .flatten()
-                    {
-                        Some(value)
-                    } else if let Some(value) = adaptation_set
-                        .AudioChannelConfiguration
-                        .get(0)
-                        .map(|x| x.value.as_ref().map(|y| y.parse::<f32>().ok()))
-                        .flatten()
-                        .flatten()
-                    {
-                        Some(value)
-                    } else {
-                        None
-                    },
+                        .or(adaptation_set
+                            .AudioChannelConfiguration
+                            .get(0)
+                            .and_then(|x| x.value.as_ref().map(|y| y.parse::<f32>().ok()))
+                            .flatten()),
                     codecs,
                     extension: mime_type
                         .as_ref()
-                        .map(|x| x.split_terminator('/').nth(1).map(|x| x.to_owned()))
-                        .flatten(),
+                        .and_then(|x| x.split_once('/').map(|x| x.1.to_owned())),
                     frame_rate: if representation.frameRate.is_some() {
                         parse_frame_rate(&representation.frameRate)
                     } else if adaptation_set.frameRate.is_some() {
@@ -612,43 +602,31 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
 }
 
 fn parse_frame_rate(frame_rate: &Option<String>) -> Option<f32> {
-    frame_rate
-        .as_ref()
-        .map(|frame_rate| {
-            if frame_rate.contains('/') {
-                let splitted_frame_rate = frame_rate
-                    .split_terminator('/')
-                    .filter_map(|x| x.parse::<f32>().ok())
-                    .collect::<Vec<f32>>();
-
-                if let (Some(upper), Some(lower)) =
-                    (splitted_frame_rate.get(0), splitted_frame_rate.get(1))
-                {
-                    Some(upper / lower)
-                } else {
-                    panic!("could'nt parse \"{}\" frame rate", frame_rate);
-                }
+    frame_rate.as_ref().and_then(|frame_rate| {
+        if frame_rate.contains('/') {
+            if let Some((Some(upper), Some(lower))) = frame_rate
+                .split_once('/')
+                .map(|(x, y)| (x.parse::<f32>().ok(), y.parse::<f32>().ok()))
+            {
+                Some(upper / lower)
             } else {
-                frame_rate.parse::<f32>().ok()
+                panic!("could'nt parse \"{}\" frame rate", frame_rate);
             }
-        })
-        .flatten()
+        } else {
+            frame_rate.parse::<f32>().ok()
+        }
+    })
 }
 
 fn parse_range(range: &Option<String>) -> Option<Range> {
     range.as_ref().map(|range| {
-        let splitted_range = range
-            .split_terminator('-')
-            .filter_map(|x| x.parse::<u64>().ok())
-            .collect::<Vec<u64>>();
-
-        if let (Some(length), Some(end)) = (splitted_range.get(0), splitted_range.get(1)) {
-            Range {
-                start: *length,
-                end: *end,
-            }
+        if let Some((Some(start), Some(end))) = range
+            .split_once('-')
+            .map(|(x, y)| (x.parse::<u64>().ok(), y.parse::<u64>().ok()))
+        {
+            Range { start, end }
         } else {
-            panic!("could'nt convert \"{}\" range to byte range", range);
+            panic!("could'nt parse \"{}\" range", range);
         }
     })
 }

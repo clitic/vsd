@@ -38,3 +38,12 @@ fn main() {
         std::process::exit(1);
     }
 }
+
+/*
+    TODOs
+
+    1. Add resume support
+    2. Create a custom thread pool module
+    3. Reduce dependency on anyhow crate
+
+*/

@@ -87,7 +87,7 @@ pub(super) fn build_links(m3u8: &[u8], file: &str, baseurl: &str) -> Result<()> 
                 }
             }
 
-            master_c.write_to(&mut std::fs::File::create(&file)?)?;
+            master_c.write_to(&mut std::fs::File::create(file)?)?;
         }
         m3u8_rs::Playlist::MediaPlaylist(meadia) => {
             let mut meadia_c = meadia;
@@ -100,7 +100,7 @@ pub(super) fn build_links(m3u8: &[u8], file: &str, baseurl: &str) -> Result<()> 
                 }
             }
 
-            meadia_c.write_to(&mut std::fs::File::create(&file)?)?;
+            meadia_c.write_to(&mut std::fs::File::create(file)?)?;
         }
     }
 

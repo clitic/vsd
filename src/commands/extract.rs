@@ -13,7 +13,6 @@ pub enum Format {
 /// This is based on the https://github.com/xhlove/dash-subtitle-extractor
 #[derive(Debug, Clone, Args)]
 pub struct Extract {
-    // TODO - Write docs
     /// List of subtitles segment files where first file is init.mp4 and following files are *.m4s (segments).
     /// A single mp4 file can also be provided.
     #[arg(required = true)]

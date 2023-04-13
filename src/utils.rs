@@ -1,6 +1,3 @@
-// use kdam::term::Colorizer;
-// use std::io::Write;
-
 pub(super) fn format_bytes(bytesval: usize, precision: usize) -> (String, String, String) {
     let mut val = bytesval as f32;
 
@@ -55,7 +52,6 @@ pub(super) fn format_download_bytes(downloaded: usize, total: usize) -> String {
 // }
 
 
-// TODO: update message if #[cfg(feature = "chrome")]
 // pub(super) fn scrape_website_message(url: &str) -> String {
 //     format!(
 //         "No links found on website source.\n\n\
@@ -81,79 +77,3 @@ pub(super) fn format_download_bytes(downloaded: usize, total: usize) -> String {
 //         url,
 //     )
 // }
-
-
-
-// pub(super) fn duration(duration: &str) -> Result<f32> {
-//     let duration = duration.replace('s', "").replace(',', ".");
-//     let is_frame = duration.split(':').count() >= 4;
-//     let mut duration = duration.split(':').rev();
-//     let mut total_seconds = 0.0;
-
-//     if is_frame {
-//         if let Some(seconds) = duration.next() {
-//             total_seconds += seconds.parse::<f32>()? / 1000.0;
-//         }
-//     }
-
-//     if let Some(seconds) = duration.next() {
-//         total_seconds += seconds.parse::<f32>()?;
-//     }
-
-//     if let Some(minutes) = duration.next() {
-//         total_seconds += minutes.parse::<f32>()? * 60.0;
-//     }
-
-//     if let Some(hours) = duration.next() {
-//         total_seconds += hours.parse::<f32>()? * 3600.0;
-//     }
-
-//     Ok(total_seconds)
-// }
-
-// use reqwest::header::HeaderValue;
-// use reqwest::header;
-
-// struct PartialRangeIter {
-//     start: u64,
-//     end: u64,
-//     buffer_size: u32,
-//   }
-
-//   impl PartialRangeIter {
-//     pub(super) fn new(start: u64, end: u64, buffer_size: u32) -> Self {
-//       if buffer_size == 0 {
-//         panic!("invalid buffer_size, give a value greater than zero.");
-//       }
-
-//       PartialRangeIter {
-//         start,
-//         end,
-//         buffer_size,
-//       }
-//     }
-//   }
-
-//   impl Iterator for PartialRangeIter {
-//     type Item = HeaderValue;
-//     fn next(&mut self) -> Option<Self::Item> {
-//       if self.start > self.end {
-//         None
-//       } else {
-//         let prev_start = self.start;
-//         self.start += std::cmp::min(self.buffer_size as u64, self.end - self.start + 1);
-//         Some(HeaderValue::from_str(&format!("bytes={}-{}", prev_start, self.start - 1)).expect("string provided by format!"))
-//       }
-//     }
-//   }
-
-//   let response = client.head(url).send()?;
-//   let length = response
-//     .headers()
-//     .get(CONTENT_LENGTH)
-//     .ok_or("response doesn't include the content length")?;
-//   let length = u64::from_str(length.to_str()?).map_err(|_| "invalid Content-Length header")?;
-
-//   for range in PartialRangeIter::new(0, length - 1, CHUNK_SIZE)? {
-//     let mut response = client.get(url).header(RANGE, range).send()?;
-//     status == StatusCode::PARTIAL_CONTENT

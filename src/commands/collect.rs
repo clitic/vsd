@@ -51,7 +51,6 @@ impl Collect {
         tab.register_response_handling(
             "vsd-collect",
             Box::new(move |params, get_response_body| {
-                // TODO: check other types
                 if params.Type == ResourceType::Xhr || params.Type == ResourceType::Fetch {
                     let url = params.response.url.split('?').next().unwrap();
 
