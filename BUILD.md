@@ -1,8 +1,6 @@
 # Building From Source
 
-1. Build and install [openssl](https://github.com/openssl/openssl) for your target platform.
-2. Install [Rust](https://www.rust-lang.org).
-3. Download release tarball or clone repository.
+vsd is written in rust so you first need to install [rust](https://www.rust-lang.org). vsd dependencies can be easily built with cargo but some dependencies require c and c++ compiler or some external dependencies in order to build. One such dependency is [openssl](https://docs.rs/openssl/latest/openssl) which requires [openssl](https://github.com/openssl/openssl). So, first build openssl for your target platform. Now download released tarball or clone repository and build vsd through `cargo build`.
 
 ```bash
 git clone https://github.com/clitic/vsd
@@ -10,20 +8,20 @@ git clone https://github.com/clitic/vsd
 
 ## Cargo Features
 
+These features can be turned on or off by cargo `--features` flag.
+
 1. `chrome` (*default*): Enable `capture` and `collect` subcommands.
 
 ## Windows
 
 ```powershell
-$env:X86_64_PC_WINDOWS_MSVC_OPENSSL_DIR="C:\openssl-3.0.5-VC-WIN64A-static"
+$env:X86_64_PC_WINDOWS_MSVC_OPENSSL_DIR="C:\openssl"
 $env:X86_64_PC_WINDOWS_MSVC_NO_VENDOR=$true
 $env:X86_64_PC_WINDOWS_MSVC_OPENSSL_STATIC=$true
 cargo build --release
 ```
 
 ## Linux / MacOS
-
-Install any C++ compiler and run cargo build command inside vsd directory.
 
 ```bash
 cargo build --release

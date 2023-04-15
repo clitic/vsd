@@ -9,19 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Support for multi period DASH mainfests.
-- `#EXT-X-MAP` support.
-- Autoselect `lowest` quality option.
-- Better support for cookies.
+- Support for HLS `#EXT-X-MAP` tag.
+- Support for multi period DASH manifests.
+- Support for downloading playlists with single segment.
+- Support for parsing pssh box from initialization and displaying all key ids.
+- Support for browser cookies i.e. with `--cookies` flag.
+- Support for socks proxy.
+- Better file size estimations even with multiple streams.
+- Better informative and error messages.
+- `min` / `lowest` quality option for `--quality` flag.
+- `--skip-prompts` flag for skipping prompts and continuing with defaults.
+- `--all-keys` flag to pass all the keys to decrypter.
+- `--no-decrypt` flag for downloading encrypted streams.
 
 ### Changed
 
+- Video stream selection prompt is replaced with multi select prompt.
+  Also, `--alternative` flag is removed and merged in this prompt. 
 - Use more accurate units (KiB, MiB, ..) to show download progress.
+  Also, spinner is removed from progress bar.
+- `--cookies` flag is renamed as `--set-cookie`.
+- `--baseurl` flag is renamed as `--base-url`.
 
 ### Fixed
 
-- `src/hls/autoselect.rs:31:57` panic.
-- ttml stream extraction.
+- Some program panics when auto selecting streams using `--quality` flag.
+- `--directory` flag implementation.
+- Unknown errors while extracting `stpp` and `application/ttml+xml` streams.
+- Use HLS `#EXT-X-KEY` tag more correctly.
+- DASH stream parsing logic.
 
 ## [0.2.5] - 2023-01-09
 

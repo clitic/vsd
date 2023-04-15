@@ -59,7 +59,7 @@ Dependencies
 - [ffmpeg](https://www.ffmpeg.org/download.html) (optional, *recommended*) only required for transmuxing and transcoding streams.
 - [chrome](https://www.google.com/chrome) / [chromium](https://www.chromium.org/getting-involved/download-chromium/) (optional) only required for `capture` and `collect` subcommands. 
 
-Visit [releases](https://github.com/clitic/vsd/releases) for prebuilt binaries. Download and extract archive and copy vsd binary to any path. Now add that path to your `PATH` environment variable. Build instructions can be found [here](https://github.com/clitic/vsd/blob/main/BUILD.md).
+Visit [releases](https://github.com/clitic/vsd/releases) for prebuilt binaries. Download and extract archive and copy vsd binary to any path. Now add that path to your `PATH` environment variable. Build instructions can be found [here](https://github.com/clitic/vsd/blob/main/BUILD.md) and changelog [here](https://github.com/clitic/vsd/blob/main/CHANGELOG.md).
 
 | Host                | Architecture | Download                                                                                                      | Install                                                                                |
 |---------------------|--------------|---------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
