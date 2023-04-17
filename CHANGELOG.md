@@ -15,8 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support for parsing pssh box from initialization and displaying all key ids.
 - Support for browser cookies i.e. with `--cookies` flag.
 - Support for socks proxy.
-- Better file size estimations even with multiple streams.
-- Better informative and error messages.
 - `min` / `lowest` quality option for `--quality` flag.
 - `--skip-prompts` flag for skipping prompts and continuing with defaults.
 - `--all-keys` flag to pass all the keys to decrypter.

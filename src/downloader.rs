@@ -104,7 +104,98 @@ pub(crate) fn download(
             }
         }
 
-        text
+        if playlist_type.is_none() {
+            println!(
+                "   {} website for DASH and HLS playlists",
+                "Scraping".colorize("cyan")
+            );
+
+            let links = utils::scrape_playlist_links(&text);
+
+            match links.len() {
+                0 => bail!(utils::scrape_playlist_msg(playlist_url.as_str())),
+                1 => {
+                    println!("      {} {}", "Found".colorize("bold green"), &links[0]);
+                    playlist_url = links[0].parse::<Url>()?;
+                }
+                _ => {
+                    if skip_prompts || raw_prompts {
+                        println!("Select one playlist:");
+
+                        for (i, link) in links.iter().enumerate() {
+                            println!("{:2}) [{}] {}", i + 1, if i == 0 { 'x' } else { ' ' }, link);
+                        }
+
+                        println!("------------------------------");
+
+                        let mut index = 0;
+
+                        if raw_prompts && !skip_prompts {
+                            print!(
+                                "Press enter to proceed with defaults.\n\
+                                Or select playlist to download (1, 2, etc.): "
+                            );
+                            std::io::stdout().flush()?;
+                            let mut input = String::new();
+                            std::io::stdin().read_line(&mut input)?;
+
+                            println!("------------------------------");
+
+                            let input = input.trim();
+
+                            if !input.is_empty() {
+                                index = input.parse::<usize>().map_err(|_| {
+                                    anyhow!("input is not a valid positive number.")
+                                })? - 1;
+                            }
+                        }
+
+                        playlist_url = links
+                            .get(index)
+                            .ok_or_else(|| anyhow!("selected playlist is out of index bounds."))?
+                            .parse::<Url>()?;
+                        println!("   {} {}", "Selected".colorize("bold green"), playlist_url);
+                    } else {
+                        let question = requestty::Question::select("scraped-link")
+                            .message("Select one playlist")
+                            .should_loop(false)
+                            .choices(links)
+                            .build();
+                        let answer = requestty::prompt_one(question)?;
+                        playlist_url = answer.as_list_item().unwrap().text.parse::<Url>()?;
+                    }
+                }
+            }
+
+            let response = client.get(playlist_url).send()?;
+            playlist_url = response.url().to_owned();
+
+            if let Some(content_type) = response.headers().get(header::CONTENT_TYPE) {
+                match content_type.as_bytes() {
+                    b"application/dash+xml" | b"video/vnd.mpeg.dash.mpd" => {
+                        playlist_type = Some(PlaylistType::Dash)
+                    }
+                    b"application/x-mpegurl" | b"application/vnd.apple.mpegurl" => {
+                        playlist_type = Some(PlaylistType::Hls)
+                    }
+                    _ => (),
+                }
+            }
+
+            let text = response.text()?;
+
+            if playlist_type.is_none() {
+                if text.contains("<MPD") {
+                    playlist_type = Some(PlaylistType::Dash);
+                } else if text.contains("#EXTM3U") {
+                    playlist_type = Some(PlaylistType::Hls);
+                }
+            }
+
+            text
+        } else {
+            text
+        }
     };
 
     // -----------------------------------------------------------------------------------------

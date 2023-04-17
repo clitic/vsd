@@ -1,9 +1,12 @@
 use anyhow::Result;
 use clap::Args;
 use kdam::term::Colorizer;
-use reqwest::blocking::Client;
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-use std::sync::Arc;
+use reqwest::{
+    blocking::Client,
+    header::{HeaderMap, HeaderName, HeaderValue},
+    Proxy, Url,
+};
+use std::{path::PathBuf, sync::Arc};
 
 /// Download and save HLS and DASH playlists to disk.
 #[derive(Debug, Clone, Args)]
@@ -14,12 +17,12 @@ pub struct Save {
 
     /// Base url for building segment url. Usually needed for local file.
     #[arg(long)]
-    pub base_url: Option<reqwest::Url>,
+    pub base_url: Option<Url>,
 
     /// Change directory path for temporarily downloaded files.
     /// By default current working directory is used.
     #[arg(short, long)]
-    pub directory: Option<std::path::PathBuf>,
+    pub directory: Option<PathBuf>,
 
     // /// Raw style input prompts for old and unsupported terminals.
     // #[arg(long)]
@@ -67,7 +70,7 @@ pub struct Save {
 
     /// Set HTTP(s) / socks proxy for requests.
     #[arg(long, help_heading = "Client Options", value_parser = proxy_address_parser)]
-    pub proxy_address: Option<reqwest::Proxy>,
+    pub proxy_address: Option<Proxy>,
 
     /// Fill request client with some existing cookies per domain.
     /// First value for this option is set-cookie header and second value is url which was requested to send this set-cookie header.
@@ -231,8 +234,8 @@ fn output_parser(s: &str) -> Result<String, String> {
     }
 }
 
-fn proxy_address_parser(s: &str) -> Result<reqwest::Proxy, String> {
-    reqwest::Proxy::all(s).map_err(|x| x.to_string())
+fn proxy_address_parser(s: &str) -> Result<Proxy, String> {
+    Proxy::all(s).map_err(|x| x.to_string())
 }
 
 impl Save {
@@ -272,34 +275,6 @@ impl Save {
         let client = client_builder
             .cookie_provider(Arc::new(cookie_jar))
             .build()?;
-
-        // if self.input_type().is_website() {
-        //     println!(
-        //         "{} website for HLS and DASH stream links.",
-        //         "Scraping".colorize("bold green"),
-        //     );
-        //     let links = crate::utils::find_hls_dash_links(&client.get(&self.input).send()?.text()?);
-
-        //     match links.len() {
-        //         0 => bail!(crate::utils::scrape_website_message(&self.input)),
-        //         1 => {
-        //             self.input = links[0].clone();
-        //             println!("{} {}", "Found".colorize("bold green"), &links[0]);
-        //         }
-        //         _ => {
-        //             let mut elinks = vec![];
-        //             for (i, link) in links.iter().enumerate() {
-        //                 elinks.push(format!("{:2}) {}", i + 1, link));
-        //             }
-        //             let index = crate::utils::select(
-        //                 "Select one link:".to_string(),
-        //                 &elinks,
-        //                 self.raw_prompts,
-        //             )?;
-        //             self.input = links[index].clone();
-        //         }
-        //     }
-        // }
 
         crate::downloader::download(
             self.all_keys,

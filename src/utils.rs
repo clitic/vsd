@@ -1,3 +1,6 @@
+use kdam::term::Colorizer;
+use regex::Regex;
+
 pub(super) fn format_bytes(bytesval: usize, precision: usize) -> (String, String, String) {
     let mut val = bytesval as f32;
 
@@ -35,45 +38,44 @@ pub(super) fn format_download_bytes(downloaded: usize, total: usize) -> String {
     }
 }
 
-// pub(super) fn find_hls_dash_links(text: &str) -> Vec<String> {
-//     let re = regex::Regex::new(r"(https|ftp|http)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-]\.(m3u8|m3u|mpd))").unwrap();
-//     let links = re
-//         .captures_iter(text)
-//         .map(|caps| caps.get(0).unwrap().as_str().to_string())
-//         .collect::<Vec<String>>();
+pub(super) fn scrape_playlist_links(text: &str) -> Vec<String> {
+    let re = Regex::new(r"(https|ftp|http)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-]\.(m3u8|m3u|mpd))").unwrap();
+    let links = re
+        .captures_iter(text)
+        .map(|caps| caps.get(0).unwrap().as_str().to_string())
+        .collect::<Vec<String>>();
 
-//     let mut unique_links = vec![];
-//     for link in links {
-//         if !unique_links.contains(&link) {
-//             unique_links.push(link);
-//         }
-//     }
-//     unique_links
-// }
+    let mut unique_links = vec![];
+    for link in links {
+        if !unique_links.contains(&link) {
+            unique_links.push(link);
+        }
+    }
+    unique_links
+}
 
-
-// pub(super) fn scrape_website_message(url: &str) -> String {
-//     format!(
-//         "No links found on website source.\n\n\
-//         {} Consider using {} subcommand and then \
-//         run the {} subcommand with same arguments by replacing the {} with captured url.\n\n\
-//         Suppose first command captures https://streaming.site/video_001/master.m3u8\n\
-//         $ vsd capture {}\n\
-//         $ vsd save https://streaming.site/video_001/master.m3u8 \n\n\
-//         {} Consider using {} subcommand \
-//         and then run {} subcommand with saved playlist file as {}. \n\n\
-//         Suppose first command saves master.m3u8\n\
-//         $ vsd collect --build {}\n\
-//         $ vsd save master.m3u8",
-//         "TRY THIS:".colorize("yellow"),
-//         "capture".colorize("bold green"),
-//         "save".colorize("bold green"),
-//         "INPUT".colorize("bold green"),
-//         url,
-//         "OR THIS:".colorize("yellow"),
-//         "collect".colorize("bold green"),
-//         "save".colorize("bold green"),
-//         "INPUT".colorize("bold green"),
-//         url,
-//     )
-// }
+pub(super) fn scrape_playlist_msg(url: &str) -> String {
+    format!(
+        "No links found on website source.\n\n\
+        {} Consider using {} subcommand and then \
+        run the {} subcommand with same arguments by replacing the {} with captured url.\n\n\
+        Suppose first command captures https://streaming.site/video_001/master.m3u8\n\
+        $ vsd capture {}\n\
+        $ vsd save https://streaming.site/video_001/master.m3u8 \n\n\
+        {} Consider using {} subcommand \
+        and then run {} subcommand with saved playlist file as {}. \n\n\
+        Suppose first command saves master.m3u8\n\
+        $ vsd collect --build {}\n\
+        $ vsd save master.m3u8",
+        "TRY THIS:".colorize("yellow"),
+        "capture".colorize("bold green"),
+        "save".colorize("bold green"),
+        "INPUT".colorize("bold green"),
+        url,
+        "OR THIS:".colorize("yellow"),
+        "collect".colorize("bold green"),
+        "save".colorize("bold green"),
+        "INPUT".colorize("bold green"),
+        url,
+    )
+}
