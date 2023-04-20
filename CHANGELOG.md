@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Also, spinner is removed from progress bar.
 - `--cookies` flag is renamed as `--set-cookie`.
 - `--baseurl` flag is renamed as `--base-url`.
+- `--quality` flag now also matches height if that specific resolution is not found.
 
 ### Fixed
 
