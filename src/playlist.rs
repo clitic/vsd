@@ -2,354 +2,9 @@ use crate::commands::Quality;
 use anyhow::{bail, Result};
 use kdam::term::Colorizer;
 use requestty::prompt::style::Stylize;
-use reqwest::{Url, header::HeaderValue};
-use serde::Serialize;
+use reqwest::header::HeaderValue;
 use std::{fmt::Display, io::Write, path::PathBuf};
 
-#[derive(Clone, Default, PartialEq, Serialize)]
-pub(crate) enum MediaType {
-    Audio,
-    Subtitles,
-    #[default]
-    Undefined,
-    Video,
-}
-
-impl Display for MediaType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Self::Audio => "audio",
-                Self::Subtitles => "subtitles",
-                Self::Undefined => "undefined",
-                Self::Video => "video",
-            }
-        )
-    }
-}
-
-#[derive(Default, Serialize)]
-pub(crate) enum PlaylistType {
-    Dash,
-    #[default]
-    Hls,
-}
-
-#[derive(Clone, Serialize)]
-pub(crate) struct Range {
-    pub(crate) start: u64,
-    pub(crate) end: u64,
-}
-
-impl Range {
-    pub(crate) fn as_header_value(&self) -> HeaderValue {
-        HeaderValue::from_str(&format!("bytes={}-{}", self.start, self.end)).unwrap()
-    }
-}
-
-#[derive(Clone, Serialize)]
-pub(crate) struct Map {
-    pub(crate) uri: String,
-    pub(crate) range: Option<Range>,
-}
-
-#[derive(Clone, Serialize, PartialEq)]
-pub(crate) enum KeyMethod {
-    Aes128,
-    Cenc,
-    None,
-    Other(String),
-    SampleAes,
-}
-
-#[derive(Clone, Serialize)]
-pub(crate) struct Key {
-    pub(crate) default_kid: Option<String>,
-    pub(crate) iv: Option<String>,
-    pub(crate) key_format: Option<String>,
-    pub(crate) method: KeyMethod,
-    pub(crate) uri: Option<String>,
-}
-
-// #EXT-X-KEY:METHOD=SAMPLE-AES,URI="data:text/plain;base64,AAAAXHBzc2gAAAAA7e+LqXnWSs6jyCfc1R0h7QAAADwSEDAvgN1BHkiGvKW7H4AYoCQSEDAvgN1BHkiGvKW7H4AYoCQSEDAvgN1BHkiGvKW7H4AYoCRI88aJmwY=",KEYID=0x302F80DD411E4886BCA5BB1F8018A024,IV=0x77FD1889AAF4143B085548B3C0F95B9A,KEYFORMATVERSIONS="1",KEYFORMAT="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"
-// #EXT-X-KEY:METHOD=SAMPLE-AES,URI="skd://302f80dd-411e-4886-bca5-bb1f8018a024:77FD1889AAF4143B085548B3C0F95B9A",KEYFORMATVERSIONS="1",KEYFORMAT="com.apple.streamingkeydelivery"
-// #EXT-X-KEY:METHOD=SAMPLE-AES-CTR,KEYFORMAT="com.microsoft.playready",KEYFORMATVERSIONS="1",URI="data:text/plain;charset=UTF-16;base64,xAEAAAEAAQC6ATwAVwBSAE0ASABFAEEARABFAFIAIAB4AG0AbABuAHMAPQAiAGgAdAB0AHAAOgAvAC8AcwBjAGgAZQBtAGEAcwAuAG0AaQBjAHIAbwBzAG8AZgB0AC4AYwBvAG0ALwBEAFIATQAvADIAMAAwADcALwAwADMALwBQAGwAYQB5AFIAZQBhAGQAeQBIAGUAYQBkAGUAcgAiACAAdgBlAHIAcwBpAG8AbgA9ACIANAAuADAALgAwAC4AMAAiAD4APABEAEEAVABBAD4APABQAFIATwBUAEUAQwBUAEkATgBGAE8APgA8AEsARQBZAEwARQBOAD4AMQA2ADwALwBLAEUAWQBMAEUATgA+ADwAQQBMAEcASQBEAD4AQQBFAFMAQwBUAFIAPAAvAEEATABHAEkARAA+ADwALwBQAFIATwBUAEUAQwBUAEkATgBGAE8APgA8AEsASQBEAD4AOQBmAEIAMQAxAEsAMQB0AC8ARQBtAFEANABYAEMATQBjAEoANgBnAEkAZwA9AD0APAAvAEsASQBEAD4APAAvAEQAQQBUAEEAPgA8AC8AVwBSAE0ASABFAEEARABFAFIAPgA="
-
-#[derive(Clone, Default, Serialize)]
-pub(crate) struct Segment {
-    pub(crate) range: Option<Range>,
-    pub(crate) duration: f32, // Consider changing it to f64
-    pub(crate) key: Option<Key>,
-    pub(crate) map: Option<Map>,
-    pub(crate) uri: String,
-}
-
-#[derive(Default, Serialize)]
-pub(crate) struct MediaPlaylist {
-    pub(crate) bandwidth: Option<u64>,
-    pub(crate) channels: Option<f32>,
-    pub(crate) codecs: Option<String>,
-    pub(crate) extension: Option<String>,
-    pub(crate) frame_rate: Option<f32>,
-    pub(crate) i_frame: bool,
-    pub(crate) language: Option<String>,
-    pub(crate) live: bool,
-    pub(crate) media_type: MediaType,
-    pub(crate) playlist_type: PlaylistType,
-    pub(crate) resolution: Option<(u64, u64)>,
-    pub(crate) segments: Vec<Segment>,
-    pub(crate) uri: String,
-}
-
-impl MediaPlaylist {
-    fn has_resolution(&self, w: u16, h: u16) -> bool {
-        if let Some((video_w, video_h)) = self.resolution {
-            w as u64 == video_w && h as u64 == video_h
-        } else {
-            false
-        }
-    }
-
-    fn display_video_stream(&self) -> String {
-        let resolution = if let Some((w, h)) = self.resolution {
-            match (w, h) {
-                (256, 144) => "144p".to_owned(),
-                (426, 240) => "240p".to_owned(),
-                (640, 360) => "360p".to_owned(),
-                (854, 480) => "480p".to_owned(),
-                (1280, 720) => "720p".to_owned(),
-                (1920, 1080) => "1080p".to_owned(),
-                (2048, 1080) => "2K".to_owned(),
-                (2560, 1440) => "1440p".to_owned(),
-                (3840, 2160) => "4K".to_owned(),
-                (7680, 4320) => "8K".to_owned(),
-                (w, h) => format!("{}x{}", w, h),
-            }
-        } else {
-            "?".to_owned()
-        };
-
-        let bandwidth = if let Some(bandwidth) = self.bandwidth {
-            crate::utils::format_bytes(bandwidth as usize, 2)
-        } else {
-            ("?".to_owned(), "?".to_owned(), "?".to_owned())
-        };
-
-        let mut extra = format!(
-            "(codecs: {}",
-            self.codecs.as_ref().unwrap_or(&"?".to_owned())
-        );
-
-        if let Some(frame_rate) = self.frame_rate {
-            extra += &format!(", frame_rate: {}", frame_rate);
-        }
-
-        if self.i_frame {
-            extra += ", iframe";
-        }
-
-        if self.live {
-            extra += ", live";
-        }
-
-        extra += ")";
-
-        format!(
-            "{:9} {:>7} {}/s {}",
-            resolution, bandwidth.0, bandwidth.1, extra
-        )
-    }
-
-    fn display_audio_stream(&self) -> String {
-        let mut extra = format!(
-            "language: {}",
-            self.language.as_ref().unwrap_or(&"?".to_owned())
-        );
-
-        if let Some(codecs) = &self.codecs {
-            extra += &format!(", codecs: {}", codecs);
-        }
-
-        if let Some(bandwidth) = self.bandwidth {
-            extra += &format!(
-                ", bandwidth: {}/s",
-                crate::utils::format_bytes(bandwidth as usize, 2).2
-            );
-        }
-
-        if let Some(channels) = self.channels {
-            extra += &format!(", channels: {}", channels);
-        }
-
-        if self.live {
-            extra += ", live";
-        }
-
-        extra
-    }
-
-    pub(crate) fn display_subtitle_stream(&self) -> String {
-        let mut extra = format!(
-            "language: {}",
-            self.language.as_ref().unwrap_or(&"?".to_owned())
-        );
-
-        if let Some(codecs) = &self.codecs {
-            extra += &format!(", codecs: {}", codecs);
-        }
-
-        extra
-    }
-
-    pub(crate) fn display_stream(&self) -> String {
-        match self.media_type {
-            MediaType::Audio => self.display_audio_stream(),
-            MediaType::Subtitles => self.display_subtitle_stream(),
-            MediaType::Undefined => "".to_owned(),
-            MediaType::Video => self.display_video_stream(),
-        }
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-    }
-
-    pub(crate) fn url(&self, baseurl: &Url) -> Result<Url> {
-        // self.uri.starts_with("dash://")
-        if self.uri.starts_with("http") || self.uri.starts_with("ftp") {
-            Ok(self.uri.parse::<Url>()?)
-        } else {
-            Ok(baseurl.join(&self.uri)?)
-        }
-    }
-
-    pub(crate) fn is_hls(&self) -> bool {
-        matches!(&self.playlist_type, PlaylistType::Hls)
-    }
-
-    // pub(crate) fn is_dash(&self) -> bool {
-    //     match &self.playlist_type {
-    //         PlaylistType::Dash => true,
-    //         _ => false,
-    //     }
-    // }
-
-    pub(crate) fn extension(&self) -> String {
-        if let Some(ext) = &self.extension {
-            return ext.to_owned();
-        }
-
-        let mut ext = match &self.playlist_type {
-            PlaylistType::Hls => "ts",
-            PlaylistType::Dash => "m4s",
-        };
-
-        if let Some(segment) = self.segments.get(0) {
-            if let Some(init) = &segment.map {
-                if init.uri.ends_with(".mp4") {
-                    ext = "mp4";
-                }
-            }
-
-            if segment.uri.ends_with(".mp4") {
-                ext = "mp4";
-            }
-        }
-
-        ext.to_owned()
-    }
-
-    pub(crate) fn file_path(&self, directory: &Option<PathBuf>, ext: &str) -> PathBuf {
-        let filename = PathBuf::from(
-            self.uri
-                .split('?')
-                .next()
-                .unwrap()
-                .split('/')
-                .last()
-                .unwrap_or("undefined")
-                .chars()
-                .map(|x| match x {
-                    '<' | '>' | ':' | '\"' | '\\' | '|' | '?' => '_',
-                    _ => x,
-                })
-                .collect::<String>(),
-        )
-        .with_extension("");
-
-        let suffix = match &self.media_type {
-            MediaType::Audio => "audio",
-            MediaType::Subtitles => "subtitles",
-            MediaType::Undefined => "undefined",
-            MediaType::Video => "video",
-        };
-
-        let mut path = PathBuf::from(format!(
-            "vsd_{}_{}.{}",
-            suffix,
-            filename.to_string_lossy(),
-            ext
-        ));
-
-        if let Some(directory) = directory {
-            path = directory.join(path);
-        }
-
-        if path.exists() {
-            for i in 1.. {
-                path.set_file_name(format!(
-                    "vsd_{}_{}_({}).{}",
-                    suffix,
-                    filename.to_string_lossy(),
-                    i,
-                    ext
-                ));
-
-                if !path.exists() {
-                    return path;
-                }
-            }
-        }
-
-        path
-    }
-
-    // pub(crate) fn is_encrypted(&self) -> bool {
-    //     match &self.playlist_type {
-    //         PlaylistType::Dash => {
-    //             if let Some(segment) = self.segments.get(0) {
-    //                 return segment.key.is_some();
-    //             }
-    //         }
-    //         PlaylistType::Hls => {
-    //             for segment in &self.segments {
-    //                 if segment.key.is_some() {
-    //                     return true;
-    //                 }
-    //             }
-    //         }
-    //     }
-
-    //     false
-    // }
-
-    pub(crate) fn default_kid(&self) -> Option<String> {
-        if let Some(segment) = self.segments.get(0) {
-            if let Some(Key {
-                default_kid: Some(x),
-                ..
-            }) = &segment.key
-            {
-                return Some(x.replace('-', "").to_lowercase());
-            }
-        }
-
-        None
-    }
-}
-
-#[derive(Serialize)]
 pub(crate) struct MasterPlaylist {
     pub(crate) playlist_type: PlaylistType,
     pub(crate) uri: String,
@@ -357,28 +12,6 @@ pub(crate) struct MasterPlaylist {
 }
 
 impl MasterPlaylist {
-    // pub(crate) fn url(&self, baseurl: &str) -> Result<Url> {
-    //     if self.uri.starts_with("http") || self.uri.starts_with("ftp") {
-    //         Ok(self.uri.parse::<Url>()?)
-    //     } else {
-    //         Ok(baseurl.parse::<Url>()?.join(&self.uri)?)
-    //     }
-    // }
-
-    // pub(crate) fn is_hls(&self) -> bool {
-    //     match self.playlist_type {
-    //         PlaylistType::Hls => true,
-    //         _ => false,
-    //     }
-    // }
-
-    // pub(crate) fn is_dash(&self) -> bool {
-    //     match self.playlist_type {
-    //         PlaylistType::Dash => true,
-    //         _ => false,
-    //     }
-    // }
-
     pub(crate) fn sort_streams(
         mut self,
         prefer_audio_lang: Option<String>,
@@ -462,60 +95,64 @@ impl MasterPlaylist {
         self
     }
 
+    fn select_video_stream(&self, quality: &Quality) -> Option<usize> {
+        let video_streams = self
+            .streams
+            .iter()
+            .filter(|x| x.media_type == MediaType::Video)
+            .enumerate();
+
+        let mut has_resolution = None;
+        let mut has_height = None;
+
+        let (w, h) = match quality {
+            Quality::Lowest => return Some(0),
+            Quality::Highest => return Some(video_streams.count() - 1),
+            Quality::Resolution(w, h) => (*w as u64, *h as u64),
+            Quality::Youtube144p => (256, 144),
+            Quality::Youtube240p => (426, 240),
+            Quality::Youtube360p => (640, 360),
+            Quality::Youtube480p => (854, 480),
+            Quality::Youtube720p => (1280, 720),
+            Quality::Youtube1080p => (1920, 1080),
+            Quality::Youtube2k => (2048, 1080),
+            Quality::Youtube1440p => (2560, 1440),
+            Quality::Youtube4k => (3840, 2160),
+            Quality::Youtube8k => (7680, 4320),
+        };
+
+        for (i, stream) in video_streams {
+            if has_resolution.is_some() && has_height.is_some() {
+                break;
+            }
+
+            if let Some((video_w, video_h)) = &stream.resolution {
+                if h == *video_h {
+                    has_height = Some(i);
+
+                    if w == *video_w {
+                        has_resolution = Some(i);
+                    }
+                }
+            }
+        }
+
+        has_resolution.or(has_height)
+    }
+
     pub(crate) fn select_streams(
         self,
         quality: Quality,
         skip_prompts: bool,
         raw_prompts: bool,
     ) -> Result<(Vec<MediaPlaylist>, Vec<MediaPlaylist>)> {
-        let mut video_streams = self
-            .streams
-            .iter()
-            .filter(|x| x.media_type == MediaType::Video)
-            .enumerate();
-
-        let default_video_stream_index = match &quality {
-            Quality::Lowest => Some(video_streams.count() - 1),
-            Quality::Highest => Some(0),
-            Quality::Resolution(w, h) => video_streams
-                .find(|x| x.1.has_resolution(*w, *h))
-                .map(|y| y.0),
-            Quality::Youtube144p => video_streams
-                .find(|x| x.1.has_resolution(256, 144))
-                .map(|y| y.0),
-            Quality::Youtube240p => video_streams
-                .find(|x| x.1.has_resolution(426, 240))
-                .map(|y| y.0),
-            Quality::Youtube360p => video_streams
-                .find(|x| x.1.has_resolution(640, 360))
-                .map(|y| y.0),
-            Quality::Youtube480p => video_streams
-                .find(|x| x.1.has_resolution(854, 480))
-                .map(|y| y.0),
-            Quality::Youtube720p => video_streams
-                .find(|x| x.1.has_resolution(1280, 720))
-                .map(|y| y.0),
-            Quality::Youtube1080p => video_streams
-                .find(|x| x.1.has_resolution(1920, 1080))
-                .map(|y| y.0),
-            Quality::Youtube2k => video_streams
-                .find(|x| x.1.has_resolution(2048, 1080))
-                .map(|y| y.0),
-            Quality::Youtube1440p => video_streams
-                .find(|x| x.1.has_resolution(2560, 1440))
-                .map(|y| y.0),
-            Quality::Youtube4k => video_streams
-                .find(|x| x.1.has_resolution(3840, 2160))
-                .map(|y| y.0),
-            Quality::Youtube8k => video_streams
-                .find(|x| x.1.has_resolution(7680, 4320))
-                .map(|y| y.0),
-        };
+        let default_video_stream_index = self.select_video_stream(&quality);
 
         if let Some(default_video_stream_index) = default_video_stream_index {
             let mut video_streams = vec![];
             let mut audio_streams = vec![];
             let mut subtitle_streams = vec![];
+            // TODO - Add support for downloading undefined streams
             let mut undefined_streams = vec![];
 
             for stream in self.streams {
@@ -707,7 +344,313 @@ impl MasterPlaylist {
                 Ok((selected_streams, selected_subtitle_streams))
             }
         } else {
-            bail!("playlist doesn't contain {:?} quality stream.", quality)
+            bail!("playlist doesn't contain pre-selected video quality stream.")
         }
     }
+}
+
+#[derive(Default)]
+pub(crate) struct MediaPlaylist {
+    pub(crate) bandwidth: Option<u64>,
+    pub(crate) channels: Option<f32>,
+    pub(crate) codecs: Option<String>,
+    pub(crate) extension: Option<String>,
+    pub(crate) frame_rate: Option<f32>,
+    pub(crate) i_frame: bool,
+    pub(crate) language: Option<String>,
+    pub(crate) live: bool,
+    pub(crate) media_type: MediaType,
+    pub(crate) playlist_type: PlaylistType,
+    pub(crate) resolution: Option<(u64, u64)>,
+    pub(crate) segments: Vec<Segment>,
+    pub(crate) uri: String,
+}
+
+impl MediaPlaylist {
+    pub(crate) fn is_hls(&self) -> bool {
+        matches!(&self.playlist_type, PlaylistType::Hls)
+    }
+
+    pub(crate) fn default_kid(&self) -> Option<String> {
+        if let Some(segment) = self.segments.get(0) {
+            if let Some(Key {
+                default_kid: Some(x),
+                ..
+            }) = &segment.key
+            {
+                return Some(x.replace('-', "").to_lowercase());
+            }
+        }
+
+        None
+    }
+
+    pub(crate) fn extension(&self) -> String {
+        if let Some(ext) = &self.extension {
+            return ext.to_owned();
+        }
+
+        let mut ext = match &self.playlist_type {
+            PlaylistType::Hls => "ts",
+            PlaylistType::Dash => "m4s",
+        };
+
+        if let Some(segment) = self.segments.get(0) {
+            if let Some(init) = &segment.map {
+                if init.uri.ends_with(".mp4") {
+                    ext = "mp4";
+                }
+            }
+
+            if segment.uri.ends_with(".mp4") {
+                ext = "mp4";
+            }
+        }
+
+        ext.to_owned()
+    }
+
+    pub(crate) fn file_path(&self, directory: &Option<PathBuf>, ext: &str) -> PathBuf {
+        let filename = PathBuf::from(
+            self.uri
+                .split('?')
+                .next()
+                .unwrap()
+                .split('/')
+                .last()
+                .unwrap_or("undefined")
+                .chars()
+                .map(|x| match x {
+                    '<' | '>' | ':' | '\"' | '\\' | '|' | '?' => '_',
+                    _ => x,
+                })
+                .collect::<String>(),
+        )
+        .with_extension("");
+
+        let suffix = match &self.media_type {
+            MediaType::Audio => "audio",
+            MediaType::Subtitles => "subtitles",
+            MediaType::Undefined => "undefined",
+            MediaType::Video => "video",
+        };
+
+        let mut path = PathBuf::from(format!(
+            "vsd_{}_{}.{}",
+            suffix,
+            filename.to_string_lossy(),
+            ext
+        ));
+
+        if let Some(directory) = directory {
+            path = directory.join(path);
+        }
+
+        if path.exists() {
+            for i in 1.. {
+                path.set_file_name(format!(
+                    "vsd_{}_{}_({}).{}",
+                    suffix,
+                    filename.to_string_lossy(),
+                    i,
+                    ext
+                ));
+
+                if !path.exists() {
+                    return path;
+                }
+            }
+        }
+
+        path
+    }
+
+    pub(crate) fn display_stream(&self) -> String {
+        match self.media_type {
+            MediaType::Audio => self.display_audio_stream(),
+            MediaType::Subtitles => self.display_subtitle_stream(),
+            MediaType::Undefined => "".to_owned(),
+            MediaType::Video => self.display_video_stream(),
+        }
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+    }
+
+    fn display_video_stream(&self) -> String {
+        let resolution = if let Some((w, h)) = self.resolution {
+            match (w, h) {
+                (256, 144) => "144p".to_owned(),
+                (426, 240) => "240p".to_owned(),
+                (640, 360) => "360p".to_owned(),
+                (854, 480) => "480p".to_owned(),
+                (1280, 720) => "720p".to_owned(),
+                (1920, 1080) => "1080p".to_owned(),
+                (2048, 1080) => "2K".to_owned(),
+                (2560, 1440) => "1440p".to_owned(),
+                (3840, 2160) => "4K".to_owned(),
+                (7680, 4320) => "8K".to_owned(),
+                (w, h) => format!("{}x{}", w, h),
+            }
+        } else {
+            "?".to_owned()
+        };
+
+        let bandwidth = if let Some(bandwidth) = self.bandwidth {
+            crate::utils::format_bytes(bandwidth as usize, 2)
+        } else {
+            ("?".to_owned(), "?".to_owned(), "?".to_owned())
+        };
+
+        let mut extra = format!(
+            "(codecs: {}",
+            self.codecs.as_ref().unwrap_or(&"?".to_owned())
+        );
+
+        if let Some(frame_rate) = self.frame_rate {
+            extra += &format!(", frame_rate: {}", frame_rate);
+        }
+
+        if self.i_frame {
+            extra += ", iframe";
+        }
+
+        if self.live {
+            extra += ", live";
+        }
+
+        extra += ")";
+
+        format!(
+            "{:9} {:>7} {}/s {}",
+            resolution, bandwidth.0, bandwidth.1, extra
+        )
+    }
+
+    fn display_audio_stream(&self) -> String {
+        let mut extra = format!(
+            "language: {}",
+            self.language.as_ref().unwrap_or(&"?".to_owned())
+        );
+
+        if let Some(codecs) = &self.codecs {
+            extra += &format!(", codecs: {}", codecs);
+        }
+
+        if let Some(bandwidth) = self.bandwidth {
+            extra += &format!(
+                ", bandwidth: {}/s",
+                crate::utils::format_bytes(bandwidth as usize, 2).2
+            );
+        }
+
+        if let Some(channels) = self.channels {
+            extra += &format!(", channels: {}", channels);
+        }
+
+        if self.live {
+            extra += ", live";
+        }
+
+        extra
+    }
+
+    pub(crate) fn display_subtitle_stream(&self) -> String {
+        let mut extra = format!(
+            "language: {}",
+            self.language.as_ref().unwrap_or(&"?".to_owned())
+        );
+
+        if let Some(codecs) = &self.codecs {
+            extra += &format!(", codecs: {}", codecs);
+        }
+
+        extra
+    }
+}
+
+#[derive(Default)]
+pub(crate) enum PlaylistType {
+    Dash,
+    #[default]
+    Hls,
+}
+
+#[derive(Clone, Default, PartialEq)]
+pub(crate) enum MediaType {
+    Audio,
+    Subtitles,
+    #[default]
+    Undefined,
+    Video,
+}
+
+impl Display for MediaType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Audio => "audio",
+                Self::Subtitles => "subtitles",
+                Self::Undefined => "undefined",
+                Self::Video => "video",
+            }
+        )
+    }
+}
+
+#[derive(Clone, PartialEq)]
+pub(crate) enum KeyMethod {
+    Aes128,
+    Cenc,
+    None,
+    Other(String),
+    SampleAes,
+}
+
+#[derive(Clone)]
+pub(crate) struct Range {
+    pub(crate) start: u64,
+    pub(crate) end: u64,
+}
+
+impl Range {
+    pub(crate) fn as_header_value(&self) -> HeaderValue {
+        HeaderValue::from_str(&format!("bytes={}-{}", self.start, self.end)).unwrap()
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct Map {
+    pub(crate) uri: String,
+    pub(crate) range: Option<Range>,
+}
+
+/*
+
+.mpd (with encryption) converted to .m3u8
+
+#EXT-X-KEY:METHOD=SAMPLE-AES,URI="data:text/plain;base64,AAAAXHBzc2gAAAAA7e+LqXnWSs6jyCfc1R0h7QAAADwSEDAvgN1BHkiGvKW7H4AYoCQSEDAvgN1BHkiGvKW7H4AYoCQSEDAvgN1BHkiGvKW7H4AYoCRI88aJmwY=",KEYID=0x302F80DD411E4886BCA5BB1F8018A024,IV=0x77FD1889AAF4143B085548B3C0F95B9A,KEYFORMATVERSIONS="1",KEYFORMAT="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"
+#EXT-X-KEY:METHOD=SAMPLE-AES,URI="skd://302f80dd-411e-4886-bca5-bb1f8018a024:77FD1889AAF4143B085548B3C0F95B9A",KEYFORMATVERSIONS="1",KEYFORMAT="com.apple.streamingkeydelivery"
+#EXT-X-KEY:METHOD=SAMPLE-AES-CTR,KEYFORMAT="com.microsoft.playready",KEYFORMATVERSIONS="1",URI="data:text/plain;charset=UTF-16;base64,xAEAAAEAAQC6ATwAVwBSAE0ASABFAEEARABFAFIAIAB4AG0AbABuAHMAPQAiAGgAdAB0AHAAOgAvAC8AcwBjAGgAZQBtAGEAcwAuAG0AaQBjAHIAbwBzAG8AZgB0AC4AYwBvAG0ALwBEAFIATQAvADIAMAAwADcALwAwADMALwBQAGwAYQB5AFIAZQBhAGQAeQBIAGUAYQBkAGUAcgAiACAAdgBlAHIAcwBpAG8AbgA9ACIANAAuADAALgAwAC4AMAAiAD4APABEAEEAVABBAD4APABQAFIATwBUAEUAQwBUAEkATgBGAE8APgA8AEsARQBZAEwARQBOAD4AMQA2ADwALwBLAEUAWQBMAEUATgA+ADwAQQBMAEcASQBEAD4AQQBFAFMAQwBUAFIAPAAvAEEATABHAEkARAA+ADwALwBQAFIATwBUAEUAQwBUAEkATgBGAE8APgA8AEsASQBEAD4AOQBmAEIAMQAxAEsAMQB0AC8ARQBtAFEANABYAEMATQBjAEoANgBnAEkAZwA9AD0APAAvAEsASQBEAD4APAAvAEQAQQBUAEEAPgA8AC8AVwBSAE0ASABFAEEARABFAFIAPgA="
+
+*/
+#[derive(Clone)]
+pub(crate) struct Key {
+    pub(crate) default_kid: Option<String>,
+    pub(crate) iv: Option<String>,
+    pub(crate) key_format: Option<String>,
+    pub(crate) method: KeyMethod,
+    pub(crate) uri: Option<String>,
+}
+
+
+#[derive(Clone, Default)]
+pub(crate) struct Segment {
+    pub(crate) range: Option<Range>,
+    pub(crate) duration: f32, // consider changing it to f64
+    pub(crate) key: Option<Key>,
+    pub(crate) map: Option<Map>,
+    pub(crate) uri: String,
 }

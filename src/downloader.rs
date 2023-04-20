@@ -241,10 +241,11 @@ pub(crate) fn download(
                     .iter_mut()
                     .chain(subtitle_streams.iter_mut())
                 {
-                    stream.uri = stream
-                        .url(base_url.as_ref().unwrap_or(&playlist_url))?
-                        .as_str()
-                        .to_owned();
+                    stream.uri = base_url
+                        .as_ref()
+                        .unwrap_or(&playlist_url)
+                        .join(&stream.uri)?
+                        .to_string();
                     let response = client.get(&stream.uri).send()?;
                     let text = response.text()?;
                     let media_playlist = m3u8_rs::parse_media_playlist_res(text.as_bytes())
