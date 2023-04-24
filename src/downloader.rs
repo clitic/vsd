@@ -107,7 +107,7 @@ pub(crate) fn download(
         if playlist_type.is_none() {
             println!(
                 "   {} website for DASH and HLS playlists",
-                "Scraping".colorize("cyan")
+                "Scraping".colorize("bold cyan")
             );
 
             let links = utils::scrape_playlist_links(&text);
@@ -762,6 +762,10 @@ pub(crate) fn download(
                 if let Some(key) = &segment.key {
                     match key.method {
                         KeyMethod::Aes128 => {
+                            if !keys.is_empty() {
+                                bail!("custom keys with AES-128 encryption is not supported");
+                            }
+
                             if let Some(uri) = &key.uri {
                                 previous_key = Some(Keys {
                                     bytes: if key.key_format.is_none() {
@@ -780,17 +784,19 @@ pub(crate) fn download(
                             }
                         }
                         KeyMethod::Cenc => {
+                            let default_kid = stream.default_kid();
                             let mut decryption_keys = HashMap::new();
 
                             if all_keys {
                                 for key in &keys {
                                     if let Some(kid) = &key.0 {
                                         decryption_keys.insert(kid.to_owned(), key.1.to_owned());
+                                    } else if let Some(default_kid) = &default_kid {
+                                        decryption_keys
+                                            .insert(default_kid.to_owned(), key.1.to_owned());
                                     }
                                 }
                             } else {
-                                let default_kid = stream.default_kid();
-
                                 for key in &keys {
                                     if let Some(default_kid) = &default_kid {
                                         if let Some(kid) = &key.0 {

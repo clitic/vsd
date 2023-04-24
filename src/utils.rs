@@ -79,3 +79,36 @@ pub(super) fn scrape_playlist_msg(url: &str) -> String {
         url,
     )
 }
+
+// fn find_ffmpeg() -> Option<String> {
+//     Some(
+//         std::env::var("PATH")
+//             .ok()?
+//             .split(if cfg!(target_os = "windows") {
+//                 ';'
+//             } else {
+//                 ':'
+//             })
+//             .find(|s| {
+//                 std::path::Path::new(s)
+//                     .join(if cfg!(target_os = "windows") {
+//                         "ffmpeg.exe"
+//                     } else {
+//                         "ffmpeg"
+//                     })
+//                     .exists()
+//             })?
+//             .to_owned(),
+//     )
+// }
+
+// fn output_parser(s: &str) -> Result<String, String> {
+//     if find_ffmpeg().is_some() {
+//         Ok(s.to_owned())
+//     } else {
+//         Err(
+//             "could'nt locate ffmpeg binary in PATH (https://www.ffmpeg.org/download.html)"
+//                 .to_owned(),
+//         )
+//     }
+// }
