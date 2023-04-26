@@ -42,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unknown errors while extracting `stpp` and `application/ttml+xml` streams.
 - Use HLS `#EXT-X-KEY` tag more correctly.
 - DASH stream parsing logic.
+- Handle `CTRL+C` signal correctly with `collect` subcommand.
 
 ## [0.2.5] - 2023-01-09
 
