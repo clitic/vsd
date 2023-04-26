@@ -15,8 +15,6 @@ use kdam::term::Colorizer;
 fn run() -> anyhow::Result<()> {
     match Args::parse().command {
         #[cfg(feature = "chrome")]
-        Commands::Capture(args) => args.perform()?,
-        #[cfg(feature = "chrome")]
         Commands::Collect(args) => args.perform()?,
         Commands::Decrypt(args) => args.perform()?,
         Commands::Extract(args) => args.perform()?,
@@ -45,6 +43,7 @@ fn main() {
     1. Add resume support
     2. Create a custom thread pool module
     3. Reduce dependency on anyhow crate
-    4. Reduce dependency on ffmpeg.
+    4. Reduce dependency on ffmpeg
+    5. Remove #[allow(dead_code)]
 
 */

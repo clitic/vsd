@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--skip-prompts` flag for skipping prompts and continuing with defaults.
 - `--all-keys` flag to pass all the keys to decrypter.
 - `--no-decrypt` flag for downloading encrypted streams.
+- `--directory` flag to `collect` subcommand.
 
 ### Changed
 
@@ -30,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--baseurl` flag is renamed as `--base-url`.
 - `--proxy-address` flag is renamed as `--proxy`.
 - `--quality` flag now also matches height if that specific resolution is not found.
+- `capture` subcommand is merged with `collect` subcommand.
+- `--build` flag is removed from `collect` subcommand.
 
 ### Fixed
 

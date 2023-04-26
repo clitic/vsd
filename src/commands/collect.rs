@@ -1,14 +1,15 @@
 #![cfg(feature = "chrome")]
 
-use super::utils;
 use anyhow::Result;
 use clap::Args;
 use headless_chrome::{
-    protocol::cdp::Network::{GetResponseBodyReturnObject, ResourceType},
+    protocol::cdp::Network::{
+        events::ResponseReceivedEventParams, GetResponseBodyReturnObject, ResourceType,
+    },
     Browser, LaunchOptionsBuilder,
 };
+use std::{fs::File, io::Write, path::PathBuf, sync::mpsc};
 use kdam::term::Colorizer;
-use std::{fs::File, io::Write};
 
 /// Collect playlists and subtitles from a website and save them locally.
 #[derive(Debug, Clone, Args)]
@@ -22,22 +23,27 @@ This is done by reading the request response sent by chrome to server. \
 This command might not work always as expected."
 )]
 pub struct Collect {
-    /// https:// | http://
+    /// http(s)://
     #[arg(required = true)]
     url: String,
 
-    /// Launch Google Chrome without a window for interaction.
+    /// Change directory path for downloaded files.
+    /// By default current working directory is used.
+    #[arg(short, long)]
+    pub directory: Option<PathBuf>,
+
+    /// Launch browser without a window.
     #[arg(long)]
     headless: bool,
-
-    /// Build http links for all uri(s) present in HLS playlists before saving it.
-    #[arg(long)]
-    build: bool,
 }
 
 impl Collect {
     pub fn perform(&self) -> Result<()> {
-        utils::chrome_launch_message(self.headless);
+        let (tx, rx) = mpsc::channel();
+        ctrlc::set_handler(move || {
+            tx.send(())
+                .expect("could not send shutdown signal on channel.")
+        })?;
 
         let browser = Browser::new(
             LaunchOptionsBuilder::default()
@@ -45,99 +51,131 @@ impl Collect {
                 .build()?,
         )?;
 
+        println!(
+            "Launching browser {} a window.\n\
+            Note that sometimes video starts playing but links are not captured.\n\
+            If such condition occurs then try running the command again.",
+            if self.headless { "without" } else { "with" },
+        );
+
         let tab = browser.new_tab()?;
-        let build = self.build;
+        let directory = self.directory.clone();
+
+        if let Some(directory) = &directory {
+            if !directory.exists() {
+                std::fs::create_dir_all(directory)?;
+            }
+        }
 
         tab.register_response_handling(
             "vsd-collect",
             Box::new(move |params, get_response_body| {
-                if params.Type == ResourceType::Xhr || params.Type == ResourceType::Fetch {
-                    let url = params.response.url.split('?').next().unwrap();
-
-                    if url.contains(".m3u")
-                        || url.contains(".mpd")
-                        || url.contains(".vtt")
-                        || url.contains(".srt")
-                    {
-                        if let Ok(body) = get_response_body() {
-                            save_to_disk(url, body, build).unwrap();
-                        }
-                    }
-                }
+                handler(params, get_response_body, &directory);
             }),
         )?;
-
         tab.navigate_to(&self.url)?;
 
-        println!(
-            "Using {} method for collection which might {} as expected.",
-            "COMMON".colorize("cyan"),
-            "not work".colorize("bold red")
-        );
+        rx.recv()?;
+        let _ = tab.deregister_response_handling("vsd-collect")?;
 
-        utils::chrome_warning_message();
-        std::thread::sleep(std::time::Duration::from_secs(60 * 3));
+        if let Some(directory) = &self.directory {
+            if std::fs::read_dir(directory)?.next().is_none() {
+                println!(
+                    "{} {}",
+                    "Deleting".colorize("bold red"),
+                    directory.to_string_lossy()
+                );
+                std::fs::remove_dir(directory)?;
+            }
+        }
+
         Ok(())
     }
 }
 
-fn decode_body(body: GetResponseBodyReturnObject) -> Result<Vec<u8>> {
-    if body.base_64_encoded {
-        Ok(openssl::base64::decode_block(&body.body)?)
-    } else {
-        Ok(body.body.as_bytes().to_vec())
+fn handler(
+    params: ResponseReceivedEventParams,
+    get_response_body: &dyn Fn() -> Result<GetResponseBodyReturnObject>,
+    directory: &Option<PathBuf>,
+) {
+    if params.Type == ResourceType::Xhr || params.Type == ResourceType::Fetch {
+        let splitted_url = params.response.url.split('?').next().unwrap();
+
+        if splitted_url.ends_with(".m3u")
+            || splitted_url.ends_with(".m3u8")
+            || splitted_url.ends_with(".mpd")
+            || splitted_url.ends_with(".vtt")
+            || splitted_url.ends_with(".srt")
+        {
+            let path = file_path(&params.response.url, directory);
+            println!(
+                "{} {} to {}",
+                "Saving".colorize("bold green"),
+                params.response.url,
+                path.to_string_lossy().colorize("bold blue")
+            );
+
+            if let Ok(body) = get_response_body() {
+                let mut file = File::create(path).unwrap();
+
+                if body.base_64_encoded {
+                    file.write_all(&openssl::base64::decode_block(&body.body).unwrap())
+                        .unwrap();
+                } else {
+                    file.write_all(body.body.as_bytes()).unwrap();
+                }
+            } else {
+                println!("Failed to save");
+            }
+        }
     }
 }
 
-fn save_to_disk(url: &str, body: GetResponseBodyReturnObject, build: bool) -> Result<()> {
-    if url.contains(".m3u") {
-        let file = utils::filepath(url, "m3u8");
+fn file_path(url: &str, directory: &Option<PathBuf>) -> PathBuf {
+    let mut filename = PathBuf::from(
+        url.split('?')
+            .next()
+            .unwrap()
+            .split('/')
+            .last()
+            .unwrap_or("undefined")
+            .chars()
+            .map(|x| match x {
+                '<' | '>' | ':' | '\"' | '\\' | '|' | '?' => '_',
+                _ => x,
+            })
+            .collect::<String>(),
+    );
 
-        if build {
-            utils::build_links(&decode_body(body)?, &file, url)?;
-            println!(
-                "Saved {} playlist from {} to {}",
-                "BUILDED HLS".colorize("cyan"),
-                url,
-                file.colorize("bold green")
-            );
-        } else {
-            File::create(&file)?.write_all(&decode_body(body)?)?;
-            println!(
-                "Saved {} playlist from {} to {}",
-                "HLS".colorize("cyan"),
-                url,
-                file.colorize("bold green")
-            );
-        }
-    } else if url.contains(".mpd") {
-        let file = utils::filepath(url, "mpd");
-        File::create(&file)?.write_all(&decode_body(body)?)?;
-        println!(
-            "Saved {} playlist from {} to {}",
-            "DASH".colorize("cyan"),
-            url,
-            file.colorize("bold green")
-        );
-    } else if url.contains(".vtt") {
-        let file = utils::filepath(url, "vtt");
-        File::create(&file)?.write_all(&decode_body(body)?)?;
-        println!(
-            "Saved {} from {} to {}",
-            "SUBTITLES".colorize("cyan"),
-            url,
-            file.colorize("bold green")
-        );
-    } else if url.contains(".srt") {
-        let file = utils::filepath(url, "srt");
-        File::create(&file)?.write_all(&decode_body(body)?)?;
-        println!(
-            "Saved {} from {} to {}",
-            "SUBTITLES".colorize("cyan"),
-            url,
-            file.colorize("bold green")
-        );
+    let ext = filename
+        .extension()
+        .and_then(|x| x.to_str())
+        .unwrap_or("undefined")
+        .to_owned();
+    filename.set_extension("");
+    let prefix = "vsd_collect";
+
+    let mut path = PathBuf::from(format!("{}_{}.{}", prefix, filename.to_string_lossy(), ext));
+
+    if let Some(directory) = directory {
+        path = directory.join(path);
     }
 
-    Ok(())
+    if path.exists() {
+        for i in 1.. {
+            path.set_file_name(format!(
+                "{}_{}_({}).{}",
+                prefix,
+                filename.to_string_lossy(),
+                i,
+                ext
+            ));
+
+            if !path.exists() {
+                return path;
+            }
+        }
+    }
+
+    path
 }

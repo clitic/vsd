@@ -429,16 +429,16 @@ impl MediaPlaylist {
         )
         .with_extension("");
 
-        let suffix = match &self.media_type {
-            MediaType::Audio => "audio",
-            MediaType::Subtitles => "subtitles",
-            MediaType::Undefined => "undefined",
-            MediaType::Video => "video",
+        let prefix = match &self.media_type {
+            MediaType::Audio => "vsd_audio",
+            MediaType::Subtitles => "vsd_subtitles",
+            MediaType::Undefined => "vsd_undefined",
+            MediaType::Video => "vsd_video",
         };
 
         let mut path = PathBuf::from(format!(
-            "vsd_{}_{}.{}",
-            suffix,
+            "{}_{}.{}",
+            prefix,
             filename.to_string_lossy(),
             ext
         ));
@@ -450,8 +450,8 @@ impl MediaPlaylist {
         if path.exists() {
             for i in 1.. {
                 path.set_file_name(format!(
-                    "vsd_{}_{}_({}).{}",
-                    suffix,
+                    "{}_{}_({}).{}",
+                    prefix,
                     filename.to_string_lossy(),
                     i,
                     ext
