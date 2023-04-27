@@ -2,14 +2,20 @@
 
 use anyhow::Result;
 use clap::Args;
+use cookie::Cookie;
 use headless_chrome::{
     protocol::cdp::Network::{
-        events::ResponseReceivedEventParams, GetResponseBodyReturnObject, ResourceType,
+        events::ResponseReceivedEventParams, CookieParam, GetResponseBodyReturnObject, ResourceType,
     },
     Browser, LaunchOptionsBuilder,
 };
-use std::{fs::File, io::Write, path::PathBuf, sync::mpsc};
 use kdam::term::Colorizer;
+use std::{
+    fs::File,
+    io::Write,
+    path::{Path, PathBuf},
+    sync::mpsc,
+};
 
 /// Collect playlists and subtitles from a website and save them locally.
 #[derive(Debug, Clone, Args)]
@@ -27,6 +33,11 @@ pub struct Collect {
     #[arg(required = true)]
     url: String,
 
+    /// Fill browser with some existing cookies value.
+    /// It can be document.cookie value or in json format same as puppeteer.
+    #[arg(long, value_parser = cookie_parser)]
+    pub cookies: Vec<CookieParam>,
+
     /// Change directory path for downloaded files.
     /// By default current working directory is used.
     #[arg(short, long)]
@@ -37,8 +48,57 @@ pub struct Collect {
     headless: bool,
 }
 
+fn cookie_parser(s: &str) -> Result<Vec<CookieParam>, String> {
+    if Path::new(s).exists() {
+        Ok(serde_json::from_slice::<Vec<CookieParam>>(
+            &std::fs::read(s).map_err(|_| format!("could not read json cookies from {}", s))?,
+        )
+        .map_err(|x| {
+            format!(
+                "could not deserialize cookies from json file (failed with {}).",
+                x
+            )
+        })?)
+    } else {
+        if let Ok(cookies) = serde_json::from_str::<Vec<CookieParam>>(s) {
+            Ok(cookies)
+        } else {
+            let mut cookies = vec![];
+
+            for cookie in Cookie::split_parse(s) {
+                match cookie {
+                    Ok(x) => cookies.push(CookieParam {
+                        name: x.name().to_owned(),
+                        value: x.value().to_owned(),
+                        url: None,
+                        domain: None,
+                        path: None,
+                        secure: None,
+                        http_only: None,
+                        same_site: None,
+                        expires: None,
+                        priority: None,
+                        same_party: None,
+                        source_scheme: None,
+                        source_port: None,
+                        partition_key: None,
+                    }),
+                    Err(e) => {
+                        return Err(format!(
+                            "could not split parse cookies (failed with {}).",
+                            e
+                        ))
+                    }
+                }
+            }
+
+            Ok(cookies)
+        }
+    }
+}
+
 impl Collect {
-    pub fn perform(&self) -> Result<()> {
+    pub fn perform(self) -> Result<()> {
         let (tx, rx) = mpsc::channel();
         ctrlc::set_handler(move || {
             tx.send(())
@@ -59,6 +119,8 @@ impl Collect {
         );
 
         let tab = browser.new_tab()?;
+        tab.set_cookies(self.cookies)?;
+
         let directory = self.directory.clone();
 
         if let Some(directory) = &directory {

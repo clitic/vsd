@@ -18,8 +18,9 @@ edition = "2021"
 anyhow = "1"
 chrono = "0.4"
 clap = { version = "4", features = ["derive", "wrap_help"] }
-ctrlc = "3.2.5"
-dash-mpd = { version = "0.7.2", default-features = false }
+cookie = "0.17"
+ctrlc = "3"
+dash-mpd = { version = "0.8.0", default-features = false }
 glob = "0.3"
 headless_chrome = { version = "1.0.5", optional = true }
 hex = "0.4"

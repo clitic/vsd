@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--skip-prompts` flag for skipping prompts and continuing with defaults.
 - `--all-keys` flag to pass all the keys to decrypter.
 - `--no-decrypt` flag for downloading encrypted streams.
-- `--directory` flag to `collect` subcommand.
+- `--directory`, `--cookies` flag to `collect` subcommand.
 
 ### Changed
 

@@ -1,5 +1,7 @@
+use crate::cookie::{CookieJar, CookieParam};
 use anyhow::Result;
 use clap::Args;
+use cookie::Cookie;
 use kdam::term::Colorizer;
 use reqwest::{
     blocking::Client,
@@ -62,9 +64,10 @@ pub struct Save {
     #[arg(long, help_heading = "Automation Options")]
     pub skip_prompts: bool,
 
-    /// Fill request client with some existing cookies (document.cookie) value.
-    #[arg(long, help_heading = "Client Options")]
-    pub cookie: Option<String>,
+    /// Fill request client with some existing cookies value.
+    /// It can be document.cookie value or in json format same as puppeteer.
+    #[arg(long, help_heading = "Client Options", value_parser = cookie_parser)]
+    pub cookies: Vec<CookieParam>,
 
     /// Custom headers for requests.
     /// This option can be used multiple times.
@@ -200,6 +203,40 @@ fn key_parser(s: &str) -> Result<(Option<String>, String), String> {
     Ok((key_id, key.to_lowercase()))
 }
 
+fn cookie_parser(s: &str) -> Result<Vec<CookieParam>, String> {
+    if Path::new(s).exists() {
+        Ok(serde_json::from_slice::<Vec<CookieParam>>(
+            &std::fs::read(s).map_err(|_| format!("could not read json cookies from {}", s))?,
+        )
+        .map_err(|x| {
+            format!(
+                "could not deserialize cookies from json file (failed with {}).",
+                x
+            )
+        })?)
+    } else {
+        if let Ok(cookies) = serde_json::from_str::<Vec<CookieParam>>(s) {
+            Ok(cookies)
+        } else {
+            let mut cookies = vec![];
+
+            for cookie in Cookie::split_parse(s) {
+                match cookie {
+                    Ok(x) => cookies.push(CookieParam::new(x.name(), x.value())),
+                    Err(e) => {
+                        return Err(format!(
+                            "could not split parse cookies (failed with {}).",
+                            e
+                        ))
+                    }
+                }
+            }
+
+            Ok(cookies)
+        }
+    }
+}
+
 fn proxy_address_parser(s: &str) -> Result<Proxy, String> {
     Proxy::all(s).map_err(|x| x.to_string())
 }
@@ -227,18 +264,23 @@ impl Save {
             client_builder = client_builder.proxy(proxy.to_owned());
         }
 
-        let cookie_jar = crate::cookie::CookieJar::new(self.cookie);
+        let mut jar = CookieJar::new();
 
         if !self.set_cookie.is_empty() {
             for i in (0..self.set_cookie.len()).step_by(2) {
-                cookie_jar
-                    .add_cookie_str(&self.set_cookie[i], &self.set_cookie[i + 1].parse::<Url>()?);
+                jar.add_cookie_str(&self.set_cookie[i], &self.set_cookie[i + 1].parse::<Url>()?);
             }
         }
 
-        let client = client_builder
-            .cookie_provider(Arc::new(cookie_jar))
-            .build()?;
+        for cookie in &self.cookies {
+            if let Some(url) = &cookie.url {
+                jar.add_cookie_str(&format!("{}", cookie.as_cookie()), &url.parse::<Url>()?);
+            } else {
+                jar.add_cookie(cookie.as_cookie());
+            }
+        }
+
+        let client = client_builder.cookie_provider(Arc::new(jar)).build()?;
 
         crate::downloader::download(
             self.all_keys,
