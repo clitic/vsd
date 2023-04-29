@@ -13,6 +13,8 @@ use std::{
     sync::Arc,
 };
 
+type CookieParams = Vec<CookieParam>;
+
 /// Download DASH and HLS playlists.
 #[derive(Debug, Clone, Args)]
 pub struct Save {
@@ -67,7 +69,7 @@ pub struct Save {
     /// Fill request client with some existing cookies value.
     /// It can be document.cookie value or in json format same as puppeteer.
     #[arg(long, help_heading = "Client Options", value_parser = cookie_parser)]
-    pub cookies: Vec<CookieParam>,
+    pub cookies: CookieParams,
 
     /// Custom headers for requests.
     /// This option can be used multiple times.
@@ -203,10 +205,10 @@ fn key_parser(s: &str) -> Result<(Option<String>, String), String> {
     Ok((key_id, key.to_lowercase()))
 }
 
-fn cookie_parser(s: &str) -> Result<Vec<CookieParam>, String> {
+fn cookie_parser(s: &str) -> Result<CookieParams, String> {
     if Path::new(s).exists() {
-        Ok(serde_json::from_slice::<Vec<CookieParam>>(
-            &std::fs::read(s).map_err(|_| format!("could not read json cookies from {}", s))?,
+        Ok(serde_json::from_slice::<CookieParams>(
+            &std::fs::read(s).map_err(|_| format!("could not read {}", s))?,
         )
         .map_err(|x| {
             format!(
@@ -215,7 +217,7 @@ fn cookie_parser(s: &str) -> Result<Vec<CookieParam>, String> {
             )
         })?)
     } else {
-        if let Ok(cookies) = serde_json::from_str::<Vec<CookieParam>>(s) {
+        if let Ok(cookies) = serde_json::from_str::<CookieParams>(s) {
             Ok(cookies)
         } else {
             let mut cookies = vec![];
@@ -273,6 +275,7 @@ impl Save {
         }
 
         for cookie in &self.cookies {
+            println!("{:?}", cookie);
             if let Some(url) = &cookie.url {
                 jar.add_cookie_str(&format!("{}", cookie.as_cookie()), &url.parse::<Url>()?);
             } else {

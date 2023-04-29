@@ -17,6 +17,8 @@ use std::{
     sync::mpsc,
 };
 
+type CookieParams = Vec<CookieParam>;
+
 /// Collect playlists and subtitles from a website and save them locally.
 #[derive(Debug, Clone, Args)]
 #[clap(
@@ -36,7 +38,7 @@ pub struct Collect {
     /// Fill browser with some existing cookies value.
     /// It can be document.cookie value or in json format same as puppeteer.
     #[arg(long, value_parser = cookie_parser)]
-    pub cookies: Vec<CookieParam>,
+    pub cookies: CookieParams,
 
     /// Change directory path for downloaded files.
     /// By default current working directory is used.
@@ -48,10 +50,10 @@ pub struct Collect {
     headless: bool,
 }
 
-fn cookie_parser(s: &str) -> Result<Vec<CookieParam>, String> {
+fn cookie_parser(s: &str) -> Result<CookieParams, String> {
     if Path::new(s).exists() {
-        Ok(serde_json::from_slice::<Vec<CookieParam>>(
-            &std::fs::read(s).map_err(|_| format!("could not read json cookies from {}", s))?,
+        Ok(serde_json::from_slice::<CookieParams>(
+            &std::fs::read(s).map_err(|_| format!("could not read {}", s))?,
         )
         .map_err(|x| {
             format!(
@@ -60,7 +62,7 @@ fn cookie_parser(s: &str) -> Result<Vec<CookieParam>, String> {
             )
         })?)
     } else {
-        if let Ok(cookies) = serde_json::from_str::<Vec<CookieParam>>(s) {
+        if let Ok(cookies) = serde_json::from_str::<CookieParams>(s) {
             Ok(cookies)
         } else {
             let mut cookies = vec![];
