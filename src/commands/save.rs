@@ -58,8 +58,8 @@ pub struct Save {
 
     /// Automatic selection of some standard resolution streams with highest bandwidth stream variant from playlist.
     /// If matching resolution of WIDTHxHEIGHT is not found then only resolution HEIGHT would be considered for selection.
-    /// possible values: [lowest, min, 144p, 240p, 360p, 480p, 720p, hd, 1080p, fhd, 2k, 1440p, qhd, 4k, 8k, highest, max]
-    #[arg(short, long, help_heading = "Automation Options", default_value = "highest", value_name = "WIDTHxHEIGHT", value_parser = quality_parser)]
+    /// comman values: [lowest, min, 144p, 240p, 360p, 480p, 720p, hd, 1080p, fhd, 2k, 1440p, qhd, 4k, 8k, highest, max]
+    #[arg(short, long, help_heading = "Automation Options", default_value = "highest", value_name = "WIDTHxHEIGHT|HEIGHTp", value_parser = quality_parser)]
     pub quality: Quality,
 
     /// Skip user input prompts and proceed with defaults.
@@ -69,7 +69,7 @@ pub struct Save {
     /// Fill request client with some existing cookies value.
     /// It can be document.cookie value or in json format same as puppeteer.
     #[arg(long, help_heading = "Client Options", value_parser = cookie_parser)]
-    pub cookies: CookieParams,
+    pub cookies: Option<CookieParams>,
 
     /// Custom headers for requests.
     /// This option can be used multiple times.
@@ -153,28 +153,34 @@ fn quality_parser(s: &str) -> Result<Quality, String> {
         "4k" => Quality::Youtube4k,
         "8k" => Quality::Youtube8k,
         "highest" | "max" => Quality::Highest,
-        x if x.contains('x') => {
-            if let (Some(w), Some(h)) = (x.split('x').next(), x.split('x').nth(1)) {
+        x if x.ends_with('p') => Quality::Resolution(
+            0,
+            x.trim_end_matches('p')
+                .parse::<u16>()
+                .map_err(|_| "could not parse resolution HEIGHT.".to_owned())?,
+        ),
+        x => {
+            if let Some((w, h)) = x.split_once('x') {
                 Quality::Resolution(
-                    w.parse::<u16>().map_err(|_| "invalid width".to_owned())?,
-                    h.parse::<u16>().map_err(|_| "invalid height".to_owned())?,
+                    w.parse::<u16>()
+                        .map_err(|_| "could not parse resolution WIDTH.".to_owned())?,
+                    h.parse::<u16>()
+                        .map_err(|_| "could not parse resolution HEIGHT.".to_owned())?,
                 )
             } else {
-                Err("incorrect resolution format".to_owned())?
+                Err(format!(
+                    "could not parse resolution WIDTHxHEIGHT. comman values: [{}]",
+                    [
+                        "lowest", "min", "144p", "240p", "360p", "480p", "720p", "hd", "1080p",
+                        "fhd", "2k", "1440p", "qhd", "4k", "8k", "highest", "max"
+                    ]
+                    .iter()
+                    .map(|x| x.colorize("green"))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                ))?
             }
         }
-        _ => Err(format!(
-            "\npossible values: [{}]\nFor custom resolution use {}",
-            [
-                "lowest", "144p", "240p", "360p", "480p", "720p", "hd", "1080p", "fhd", "2k",
-                "1440p", "qhd", "4k", "8k", "highest", "max"
-            ]
-            .iter()
-            .map(|x| x.colorize("green"))
-            .collect::<Vec<_>>()
-            .join(", "),
-            "WIDTHxHEIGHT".colorize("green")
-        ))?,
     })
 }
 
@@ -193,29 +199,25 @@ fn key_parser(s: &str) -> Result<(Option<String>, String), String> {
         if key_file.exists() {
             if key_file.is_file() {
                 key = hex::encode(
-                    std::fs::read(&key_file)
-                        .map_err(|_| format!("cannot read key from {}", key))?,
+                    std::fs::read(&key_file).map_err(|_| format!("could not read {}.", key))?,
                 )
             } else {
-                return Err("cannot read key from a non file path".to_owned());
+                return Err("cannot read key from a non file path.".to_owned());
             }
+        } else {
+            key = key.to_lowercase();
         }
     }
 
-    Ok((key_id, key.to_lowercase()))
+    Ok((key_id, key))
 }
 
 fn cookie_parser(s: &str) -> Result<CookieParams, String> {
     if Path::new(s).exists() {
         Ok(serde_json::from_slice::<CookieParams>(
-            &std::fs::read(s).map_err(|_| format!("could not read {}", s))?,
+            &std::fs::read(s).map_err(|_| format!("could not read {}.", s))?,
         )
-        .map_err(|x| {
-            format!(
-                "could not deserialize cookies from json file (failed with {}).",
-                x
-            )
-        })?)
+        .map_err(|x| format!("could not deserialize cookies from json file. {}", x))?)
     } else {
         if let Ok(cookies) = serde_json::from_str::<CookieParams>(s) {
             Ok(cookies)
@@ -225,12 +227,7 @@ fn cookie_parser(s: &str) -> Result<CookieParams, String> {
             for cookie in Cookie::split_parse(s) {
                 match cookie {
                     Ok(x) => cookies.push(CookieParam::new(x.name(), x.value())),
-                    Err(e) => {
-                        return Err(format!(
-                            "could not split parse cookies (failed with {}).",
-                            e
-                        ))
-                    }
+                    Err(e) => return Err(format!("could not split parse cookies. {}", e)),
                 }
             }
 
@@ -262,8 +259,8 @@ impl Save {
             client_builder = client_builder.default_headers(headers);
         }
 
-        if let Some(proxy) = &self.proxy {
-            client_builder = client_builder.proxy(proxy.to_owned());
+        if let Some(proxy) = self.proxy {
+            client_builder = client_builder.proxy(proxy);
         }
 
         let mut jar = CookieJar::new();
@@ -274,12 +271,13 @@ impl Save {
             }
         }
 
-        for cookie in &self.cookies {
-            println!("{:?}", cookie);
-            if let Some(url) = &cookie.url {
-                jar.add_cookie_str(&format!("{}", cookie.as_cookie()), &url.parse::<Url>()?);
-            } else {
-                jar.add_cookie(cookie.as_cookie());
+        if let Some(cookies) = self.cookies {
+            for cookie in cookies {
+                if let Some(url) = &cookie.url {
+                    jar.add_cookie_str(&format!("{}", cookie.as_cookie()), &url.parse::<Url>()?);
+                } else {
+                    jar.add_cookie(cookie.as_cookie());
+                }
             }
         }
 

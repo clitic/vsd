@@ -38,7 +38,7 @@ pub struct Collect {
     /// Fill browser with some existing cookies value.
     /// It can be document.cookie value or in json format same as puppeteer.
     #[arg(long, value_parser = cookie_parser)]
-    pub cookies: CookieParams,
+    pub cookies: Option<CookieParams>,
 
     /// Change directory path for downloaded files.
     /// By default current working directory is used.
@@ -48,19 +48,18 @@ pub struct Collect {
     /// Launch browser without a window.
     #[arg(long)]
     headless: bool,
+
+    /// Do not download and save responses.
+    #[arg(short, long)]
+    no_save: bool,
 }
 
 fn cookie_parser(s: &str) -> Result<CookieParams, String> {
     if Path::new(s).exists() {
         Ok(serde_json::from_slice::<CookieParams>(
-            &std::fs::read(s).map_err(|_| format!("could not read {}", s))?,
+            &std::fs::read(s).map_err(|_| format!("could not read {}.", s))?,
         )
-        .map_err(|x| {
-            format!(
-                "could not deserialize cookies from json file (failed with {}).",
-                x
-            )
-        })?)
+        .map_err(|x| format!("could not deserialize cookies from json file. {}", x))?)
     } else {
         if let Ok(cookies) = serde_json::from_str::<CookieParams>(s) {
             Ok(cookies)
@@ -85,12 +84,7 @@ fn cookie_parser(s: &str) -> Result<CookieParams, String> {
                         source_port: None,
                         partition_key: None,
                     }),
-                    Err(e) => {
-                        return Err(format!(
-                            "could not split parse cookies (failed with {}).",
-                            e
-                        ))
-                    }
+                    Err(e) => return Err(format!("could not split parse cookies. {}", e)),
                 }
             }
 
@@ -107,39 +101,73 @@ impl Collect {
                 .expect("could not send shutdown signal on channel.")
         })?;
 
+        println!(
+            "    {} sometimes video starts playing but links are not detected",
+            "INFO".colorize("bold cyan")
+        );
+
+        println!(
+            " {} launching in {} mode",
+            "Browser".colorize("bold cyan"),
+            if self.headless {
+                "headless (no window)"
+            } else {
+                "headful (window)"
+            }
+        );
+
         let browser = Browser::new(
             LaunchOptionsBuilder::default()
                 .headless(self.headless)
                 .build()?,
         )?;
-
-        println!(
-            "Launching browser {} a window.\n\
-            Note that sometimes video starts playing but links are not captured.\n\
-            If such condition occurs then try running the command again.",
-            if self.headless { "without" } else { "with" },
-        );
-
         let tab = browser.new_tab()?;
-        tab.set_cookies(self.cookies)?;
 
-        let directory = self.directory.clone();
-
-        if let Some(directory) = &directory {
-            if !directory.exists() {
-                std::fs::create_dir_all(directory)?;
-            }
+        if let Some(cookies) = self.cookies {
+            println!(" {} setting cookies", "Browser".colorize("bold cyan"));
+            tab.set_cookies(cookies)?;
         }
 
+        let directory = if self.no_save {
+            None
+        } else {
+            self.directory.clone()
+        };
+        let no_save = self.no_save;
+
+        println!(
+            " {} registering response listeners",
+            "Browser".colorize("bold cyan")
+        );
         tab.register_response_handling(
             "vsd-collect",
             Box::new(move |params, get_response_body| {
-                handler(params, get_response_body, &directory);
+                handler(params, get_response_body, &directory, no_save);
             }),
         )?;
+
+        if let Some(directory) = &self.directory {
+            if !directory.exists() {
+                std::fs::create_dir_all(directory)?;
+            }
+        };
+
+        println!(
+            " {} navigating to {}",
+            "Browser".colorize("bold cyan"),
+            self.url
+        );
         tab.navigate_to(&self.url)?;
 
+        println!(
+            "    {} waiting for CTRL+C signal",
+            "INFO".colorize("bold cyan")
+        );
         rx.recv()?;
+        println!(
+            " {} deregistering response listeners and closing browser",
+            "Browser".colorize("bold cyan")
+        );
         let _ = tab.deregister_response_handling("vsd-collect")?;
 
         if let Some(directory) = &self.directory {
@@ -161,8 +189,9 @@ fn handler(
     params: ResponseReceivedEventParams,
     get_response_body: &dyn Fn() -> Result<GetResponseBodyReturnObject>,
     directory: &Option<PathBuf>,
+    no_save: bool,
 ) {
-    if params.Type == ResourceType::Xhr || params.Type == ResourceType::Fetch {
+    if let ResourceType::Xhr | ResourceType::Fetch = params.Type {
         let splitted_url = params.response.url.split('?').next().unwrap();
 
         if splitted_url.ends_with(".m3u")
@@ -171,25 +200,64 @@ fn handler(
             || splitted_url.ends_with(".vtt")
             || splitted_url.ends_with(".srt")
         {
+            if no_save {
+                println!(
+                    "{} {}",
+                    "Detected".colorize("bold green"),
+                    params.response.url,
+                );
+                return ();
+            }
+
             let path = file_path(&params.response.url, directory);
             println!(
-                "{} {} to {}",
+                "  {} {} response to {}",
                 "Saving".colorize("bold green"),
                 params.response.url,
-                path.to_string_lossy().colorize("bold blue")
+                path.to_string_lossy()
             );
 
             if let Ok(body) = get_response_body() {
-                let mut file = File::create(path).unwrap();
-
-                if body.base_64_encoded {
-                    file.write_all(&openssl::base64::decode_block(&body.body).unwrap())
-                        .unwrap();
+                if let Ok(mut file) = File::create(&path) {
+                    if body.base_64_encoded {
+                        let decoded_body = openssl::base64::decode_block(&body.body);
+                        if file
+                            .write_all(
+                                decoded_body
+                                    .as_ref()
+                                    .map(|x| x.as_slice())
+                                    .unwrap_or(body.body.as_bytes()),
+                            )
+                            .is_err()
+                        {
+                            println!(
+                                "  {} could'nt write response all bytes to {}",
+                                "Saving".colorize("bold red"),
+                                path.to_string_lossy(),
+                            );
+                        }
+                    } else {
+                        if file.write_all(body.body.as_bytes()).is_err() {
+                            println!(
+                                "  {} could'nt write response all bytes to {}",
+                                "Saving".colorize("bold red"),
+                                path.to_string_lossy(),
+                            );
+                        }
+                    }
                 } else {
-                    file.write_all(body.body.as_bytes()).unwrap();
+                    println!(
+                        "  {} could'nt create {} file",
+                        "Saving".colorize("bold red"),
+                        path.to_string_lossy(),
+                    );
                 }
             } else {
-                println!("Failed to save");
+                println!(
+                    "  {} could'nt read response body for {}",
+                    "Saving".colorize("bold red"),
+                    params.response.url,
+                );
             }
         }
     }

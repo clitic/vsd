@@ -177,7 +177,7 @@ impl CookieStore for CookieJar {
                     x.to_str()
                         .expect("could not convert cookie header value to string.")
                 ))
-                .expect("could construct cookie header value.")
+                .expect("could not construct cookie header value.")
             })
         }
     }
