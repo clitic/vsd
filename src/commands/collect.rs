@@ -1,5 +1,6 @@
 #![cfg(feature = "chrome")]
 
+use crate::utils;
 use anyhow::Result;
 use clap::Args;
 use cookie::Cookie;
@@ -37,13 +38,13 @@ pub struct Collect {
 
     /// Fill browser with some existing cookies value.
     /// It can be document.cookie value or in json format same as puppeteer.
-    #[arg(long, value_parser = cookie_parser)]
-    pub cookies: Option<CookieParams>,
+    #[arg(long, default_value = "[]", value_parser = cookie_parser)]
+    cookies: CookieParams,
 
     /// Change directory path for downloaded files.
     /// By default current working directory is used.
     #[arg(short, long)]
-    pub directory: Option<PathBuf>,
+    directory: Option<PathBuf>,
 
     /// Launch browser without a window.
     #[arg(long)]
@@ -123,10 +124,8 @@ impl Collect {
         )?;
         let tab = browser.new_tab()?;
 
-        if let Some(cookies) = self.cookies {
-            println!(" {} setting cookies", "Browser".colorize("bold cyan"));
-            tab.set_cookies(cookies)?;
-        }
+        println!(" {} setting cookies", "Browser".colorize("bold cyan"));
+        tab.set_cookies(self.cookies)?;
 
         let directory = if self.no_save {
             None
@@ -220,7 +219,7 @@ fn handler(
             if let Ok(body) = get_response_body() {
                 if let Ok(mut file) = File::create(&path) {
                     if body.base_64_encoded {
-                        let decoded_body = openssl::base64::decode_block(&body.body);
+                        let decoded_body = utils::decode_base64(&body.body);
                         if file
                             .write_all(
                                 decoded_body

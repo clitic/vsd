@@ -11,6 +11,7 @@ git clone https://github.com/clitic/vsd
 These features can be turned on or off by cargo `--features` flag.
 
 1. `chrome` (*default*): Enable `capture` and `collect` subcommands.
+2. `rustls-tls`: Enable `rustls-tls` feature of reqwest crate.
 
 ## Windows
 

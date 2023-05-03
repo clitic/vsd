@@ -1,4 +1,7 @@
-use crate::cookie::{CookieJar, CookieParam};
+use crate::{
+    cookie::{CookieJar, CookieParam},
+    utils,
+};
 use anyhow::Result;
 use clap::Args;
 use cookie::Cookie;
@@ -68,8 +71,8 @@ pub struct Save {
 
     /// Fill request client with some existing cookies value.
     /// It can be document.cookie value or in json format same as puppeteer.
-    #[arg(long, help_heading = "Client Options", value_parser = cookie_parser)]
-    pub cookies: Option<CookieParams>,
+    #[arg(long, help_heading = "Client Options", default_value = "[]", value_parser = cookie_parser)]
+    pub cookies: CookieParams,
 
     /// Custom headers for requests.
     /// This option can be used multiple times.
@@ -191,7 +194,7 @@ fn key_parser(s: &str) -> Result<(Option<String>, String), String> {
         (None, s.to_owned())
     };
 
-    if let Ok(decoded_key) = openssl::base64::decode_block(&key) {
+    if let Ok(decoded_key) = utils::decode_base64(&key) {
         key = hex::encode(decoded_key);
     } else {
         let key_file = Path::new(&key);
@@ -271,13 +274,11 @@ impl Save {
             }
         }
 
-        if let Some(cookies) = self.cookies {
-            for cookie in cookies {
-                if let Some(url) = &cookie.url {
-                    jar.add_cookie_str(&format!("{}", cookie.as_cookie()), &url.parse::<Url>()?);
-                } else {
-                    jar.add_cookie(cookie.as_cookie());
-                }
+        for cookie in self.cookies {
+            if let Some(url) = &cookie.url {
+                jar.add_cookie_str(&format!("{}", cookie.as_cookie()), &url.parse::<Url>()?);
+            } else {
+                jar.add_cookie(cookie.as_cookie());
             }
         }
 

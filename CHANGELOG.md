@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--quality` flag now also matches height if that specific resolution is not found.
 - `capture` subcommand is merged with `collect` subcommand.
 - `--build` flag is removed from `collect` subcommand.
+- `decrypt` subcommand is removed.
 
 ### Fixed
 

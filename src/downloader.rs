@@ -1087,14 +1087,17 @@ impl Keys {
             .collect()
     }
 
-    fn decrypt(&self, data: Vec<u8>) -> Result<Vec<u8>> {
+    fn decrypt(&self, mut data: Vec<u8>) -> Result<Vec<u8>> {
         Ok(match self.method {
-            KeyMethod::Aes128 => openssl::symm::decrypt(
-                openssl::symm::Cipher::aes_128_cbc(),
-                &self.bytes,
-                self.iv.as_ref().map(|x| x.as_bytes()),
-                &data,
-            )?,
+            KeyMethod::Aes128 => {
+                let iv = if let Some(iv) = &self.iv {
+                    Some(hex::decode(iv.trim_start_matches("0x"))?)
+                } else {
+                    None
+                };
+
+                utils::decrypt_aes_128_cbc(&mut data, &self.bytes, iv.as_ref())?
+            }
             KeyMethod::Cenc => {
                 mp4decrypt::mp4decrypt(&data, self.as_hex_keys(), None).map_err(|x| anyhow!(x))?
             }

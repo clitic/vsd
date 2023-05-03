@@ -16,7 +16,6 @@ fn run() -> anyhow::Result<()> {
     match Args::parse().command {
         #[cfg(feature = "chrome")]
         Commands::Collect(args) => args.perform()?,
-        Commands::Decrypt(args) => args.perform()?,
         Commands::Extract(args) => args.perform()?,
         Commands::Merge(args) => args.perform()?,
         Commands::Save(args) => args.perform()?,

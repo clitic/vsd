@@ -1,10 +1,8 @@
 mod collect;
-mod decrypt;
 mod extract;
 mod merge;
 mod save;
 
-pub use decrypt::Decrypt;
 pub use extract::Extract;
 pub use merge::Merge;
 pub use save::{Save, Quality};
@@ -28,7 +26,6 @@ pub struct Args {
 pub enum Commands {
     #[cfg(feature = "chrome")]
     Collect(Collect),
-    Decrypt(Decrypt),
     Extract(Extract),
     Merge(Merge),
     Save(Save),

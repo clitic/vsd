@@ -15,7 +15,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+aes = "0.8"
 anyhow = "1"
+base64 = "0.21"
+cbc = "0.1"
 chrono = "0.4"
 clap = { version = "4", features = ["derive", "wrap_help"] }
 cookie = "0.17"
@@ -28,12 +31,11 @@ kdam = "0.3"
 # m3u8-rs = "5.0.3"
 m3u8-rs = { git = "https://github.com/rutgersc/m3u8-rs.git", rev = "a197019"}
 mp4decrypt = "0.3.1"
-openssl = "0.10"
 prost = "0.11"
 quick-xml = { version = "0.28", features = ["serialize"] }
 regex = "1"
 requestty = "0.5.0"
-reqwest = { version = "0.11", features = ["native-tls", "blocking", "cookies", "socks"] }
+reqwest = { version = "0.11", features = ["blocking", "cookies", "socks"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 threadpool = "1"
@@ -41,7 +43,7 @@ threadpool = "1"
 [features]
 default = ["chrome"]
 chrome = ["dep:headless_chrome"]
+rustls-tls = ["reqwest/rustls-tls"]
 
 [build-dependencies]
 prost-build = "0.11"
-
