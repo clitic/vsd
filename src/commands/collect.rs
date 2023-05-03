@@ -38,7 +38,7 @@ pub struct Collect {
 
     /// Fill browser with some existing cookies value.
     /// It can be document.cookie value or in json format same as puppeteer.
-    #[arg(long, default_value = "[]", value_parser = cookie_parser)]
+    #[arg(long, default_value = "[]", hide_default_value = true, value_parser = cookie_parser)]
     cookies: CookieParams,
 
     /// Change directory path for downloaded files.

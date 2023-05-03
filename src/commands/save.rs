@@ -71,7 +71,7 @@ pub struct Save {
 
     /// Fill request client with some existing cookies value.
     /// It can be document.cookie value or in json format same as puppeteer.
-    #[arg(long, help_heading = "Client Options", default_value = "[]", value_parser = cookie_parser)]
+    #[arg(long, help_heading = "Client Options", default_value = "[]", hide_default_value = true, value_parser = cookie_parser)]
     pub cookies: CookieParams,
 
     /// Custom headers for requests.
