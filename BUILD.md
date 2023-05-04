@@ -1,32 +1,19 @@
 # Building From Source
 
-vsd is written in rust so you first need to install [rust](https://www.rust-lang.org). vsd dependencies can be easily built with cargo but some dependencies require c and c++ compiler or some external dependencies in order to build. One such dependency is [openssl](https://docs.rs/openssl/latest/openssl) which requires [openssl](https://github.com/openssl/openssl). So, first build openssl for your target platform. Now download released tarball or clone repository and build vsd through `cargo build`.
+vsd is written in rust so you first need to install [rust](https://www.rust-lang.org). vsd dependencies can be easily built with cargo but some dependencies require c and c++ compiler or some external dependencies in order to build. One such dependency can be [openssl](https://docs.rs/openssl/latest/openssl) (on linux) which requires [openssl](https://github.com/openssl/openssl). Now download released tarball or clone repository and build vsd through `cargo build` subcommand.
 
 ```bash
-git clone https://github.com/clitic/vsd
+git clone https://github.com/clitic/vsd --depth 1
+cd vsd
+cargo build --release
 ```
 
 ## Cargo Features
 
 These features can be turned on or off by cargo `--features` flag.
 
-1. `chrome` (*default*): Enable `capture` and `collect` subcommands.
+1. `browser` (*default*): Enable `collect` subcommand.
 2. `rustls-tls`: Enable `rustls-tls` feature of reqwest crate.
-
-## Windows
-
-```powershell
-$env:X86_64_PC_WINDOWS_MSVC_OPENSSL_DIR="C:\openssl"
-$env:X86_64_PC_WINDOWS_MSVC_NO_VENDOR=$true
-$env:X86_64_PC_WINDOWS_MSVC_OPENSSL_STATIC=$true
-cargo build --release
-```
-
-## Linux / MacOS
-
-```bash
-cargo build --release
-```
 
 ## Linux with MUSL (On Linux)
 

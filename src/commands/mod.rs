@@ -7,7 +7,7 @@ pub use extract::Extract;
 pub use merge::Merge;
 pub use save::{Save, Quality};
 
-#[cfg(feature = "chrome")]
+#[cfg(feature = "browser")]
 pub use collect::Collect;
 
 use clap::{Parser, Subcommand};
@@ -24,7 +24,7 @@ pub struct Args {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum Commands {
-    #[cfg(feature = "chrome")]
+    #[cfg(feature = "browser")]
     Collect(Collect),
     Extract(Extract),
     Merge(Merge),

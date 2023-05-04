@@ -107,8 +107,8 @@ impl MasterPlaylist {
         let mut has_height = None;
 
         let (w, h) = match quality {
-            Quality::Lowest => return Some(0),
-            Quality::Highest => return Some(video_streams.count() - 1),
+            Quality::Lowest => return Some(video_streams.count() - 1),
+            Quality::Highest => return Some(0),
             Quality::Resolution(w, h) => (*w as u64, *h as u64),
             Quality::Youtube144p => (256, 144),
             Quality::Youtube240p => (426, 240),

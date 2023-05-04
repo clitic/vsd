@@ -1,4 +1,4 @@
-#![cfg(feature = "chrome")]
+#![cfg(feature = "browser")]
 
 use crate::utils;
 use anyhow::Result;

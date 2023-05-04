@@ -15,7 +15,7 @@ use kdam::term::Colorizer;
 
 fn run() -> anyhow::Result<()> {
     match Args::parse().command {
-        #[cfg(feature = "chrome")]
+        #[cfg(feature = "browser")]
         Commands::Collect(args) => args.perform()?,
         Commands::Extract(args) => args.perform()?,
         Commands::Merge(args) => args.perform()?,

@@ -41,8 +41,8 @@ serde_json = "1"
 threadpool = "1"
 
 [features]
-default = ["chrome"]
-chrome = ["dep:headless_chrome"]
+default = ["browser"]
+browser = ["dep:headless_chrome"]
 rustls-tls = ["reqwest/rustls-tls"]
 
 [build-dependencies]
