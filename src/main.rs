@@ -6,6 +6,7 @@ mod hls;
 mod merger;
 mod mp4parser;
 mod playlist;
+mod update;
 mod utils;
 
 use clap::Parser;

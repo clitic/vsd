@@ -3,7 +3,7 @@ use crate::{
     merger::Merger,
     mp4parser::{Mp4TtmlParser, Mp4VttParser, Pssh, Subtitles},
     playlist::{KeyMethod, MediaType, PlaylistType, Range, Segment},
-    utils,
+    update, utils,
 };
 use anyhow::{anyhow, bail, Result};
 use kdam::{term::Colorizer, tqdm, BarExt, Column, RichProgress};
@@ -1038,8 +1038,10 @@ pub(crate) fn download(
         }
     }
 
+    update::check_for_new_release(&client);
     Ok(())
 }
+
 enum SubtitleType {
     Mp4Vtt,
     Mp4Ttml,
