@@ -2,6 +2,7 @@ use std::{env, process::Command};
 
 fn main() {
     println!("cargo:rerun-if-changed=src/mp4parser/pssh/widevine.proto");
+    println!("cargo:rerun-if-env-changed=VSD_ICON");
 
     let icon = env::var("VSD_ICON").is_ok()
         && env::var("CARGO_CFG_TARGET_OS").unwrap() == "windows"

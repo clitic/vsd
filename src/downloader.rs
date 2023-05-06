@@ -860,7 +860,7 @@ pub(crate) fn download(
             }
 
             pool.execute(move || {
-                if let Err(e) = thread_data.perform() {
+                if let Err(e) = thread_data.execute() {
                     let _lock = thread_data.pb.lock().unwrap();
                     println!("\n{}: {}", "error".colorize("bold red"), e);
                     std::process::exit(1);
@@ -1145,7 +1145,7 @@ struct ThreadData {
 }
 
 impl ThreadData {
-    fn perform(&self) -> Result<()> {
+    fn execute(&self) -> Result<()> {
         let mut segment = self.map.clone().unwrap_or(vec![]);
         segment.append(&mut self.download_segment()?);
 

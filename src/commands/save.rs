@@ -244,7 +244,7 @@ fn proxy_address_parser(s: &str) -> Result<Proxy, String> {
 }
 
 impl Save {
-    pub fn perform(self) -> Result<()> {
+    pub fn execute(self) -> Result<()> {
         let mut client_builder = Client::builder()
             .user_agent(&self.user_agent)
             .cookie_store(true);

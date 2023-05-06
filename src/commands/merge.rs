@@ -1,27 +1,36 @@
 use anyhow::{bail, Result};
-use clap::Args;
-use std::fs::File;
-use std::io::Write;
-use std::path::Path;
+use clap::{Args, ValueEnum};
+use std::{
+    fs,
+    fs::File,
+    io::{BufReader, Read, Write},
+    process::Command,
+};
 
 /// Merge multiple segments to a single file.
 #[derive(Debug, Clone, Args)]
 pub struct Merge {
-    /// List of files to merge together like *.ts, *.m4s etc.
+    /// List of files (at least 2) to merge together e.g. *.ts, *.m4s etc. .
     #[arg(required = true)]
     files: Vec<String>,
 
-    /// Path  of merged output file.
+    /// Path for merged output file.
     #[arg(short, long, required = true)]
     output: String,
 
-    /// Merge using ffmpeg instead of binary merge.
-    #[arg(long)]
-    ffmpeg: bool,
+    /// Type of merge to be performed.
+    #[arg(short, long, value_enum, default_value_t = MergeType::Binary)]
+    _type: MergeType,
+}
+
+#[derive(Debug, Clone, ValueEnum)]
+pub enum MergeType {
+    Binary,
+    Ffmpeg,
 }
 
 impl Merge {
-    pub fn perform(&self) -> Result<()> {
+    pub fn execute(self) -> Result<()> {
         let mut files = vec![];
 
         for pattern in &self.files {
@@ -30,56 +39,70 @@ impl Merge {
             }
         }
 
-        if files.len() <= 1 {
-            bail!("at least two files are required to merge together")
+        if 1 >= files.len() {
+            bail!("at least 2 files are required to merge together.")
         }
 
-        if self.ffmpeg {
-            let mut concat_file = "ffmpeg-concat.txt".to_owned();
+        match self._type {
+            MergeType::Binary => {
+                let mut output = File::create(self.output)?;
+                let buffer_size = 1024 * 1024 * 2; // 2 MiB
 
-            for i in 1.. {
-                if Path::new(&concat_file).exists() {
-                    concat_file = format!("ffmpeg-concat-{}.txt", i);
-                } else {
-                    break;
+                for file in files {
+                    let file_size = fs::metadata(&file)?.len();
+
+                    if buffer_size >= file_size {
+                        let buf = fs::read(file)?;
+                        output.write_all(&buf)?;
+                    } else {
+                        let file = File::open(file)?;
+                        let mut reader = BufReader::new(file);
+
+                        loop {
+                            let mut buf = vec![];
+                            reader.by_ref().take(buffer_size).read_to_end(&mut buf)?;
+
+                            if buf.is_empty() {
+                                break;
+                            }
+
+                            output.write_all(&buf)?;
+                        }
+                    }
                 }
             }
+            MergeType::Ffmpeg => {
+                let concat_file = "vsd-ffmpeg-concat.txt";
+                let mut concat = File::create(concat_file)?;
 
-            let mut concat = File::create(&concat_file)?;
+                for file in files {
+                    let file = file.to_string_lossy();
 
-            for file in files {
-                let file = file.to_str().unwrap();
-
-                if file != self.output {
-                    concat.write_all(format!("file '{}'\n", file).as_bytes())?;
+                    if file != self.output {
+                        concat.write_fmt(format_args!("file '{}'\n", file))?;
+                    }
                 }
-            }
 
-            let code = std::process::Command::new("ffmpeg")
-                .args([
-                    "-hide_banner",
-                    "-y",
-                    "-f",
-                    "concat",
-                    "-i",
-                    &concat_file,
-                    "-c",
-                    "copy",
-                    &self.output,
-                ])
-                .spawn()?
-                .wait()?;
+                let status = Command::new("ffmpeg")
+                    .args([
+                        "-hide_banner",
+                        "-y",
+                        "-f",
+                        "concat",
+                        "-i",
+                        concat_file,
+                        "-c",
+                        "copy",
+                        &self.output,
+                    ])
+                    .spawn()?
+                    .wait()?;
 
-            if !code.success() {
-                bail!("FFMPEG exited with code {}", code.code().unwrap_or(1))
-            }
+                if !status.success() {
+                    bail!("ffmpeg exited with code {}", status.code().unwrap_or(1))
+                }
 
-            std::fs::remove_file(&concat_file)?;
-        } else {
-            let mut merged = File::create(&self.output)?;
-
-            for file in files {
-                merged.write_all(&std::fs::read(file)?)?;
+                fs::remove_file(concat_file)?;
             }
         }
 

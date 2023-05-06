@@ -1,59 +1,50 @@
 use crate::mp4parser::{Mp4TtmlParser, Mp4VttParser, Subtitles};
 use anyhow::{anyhow, bail, Result};
 use clap::{Args, ValueEnum};
+use std::path::PathBuf;
 
-#[derive(Debug, Clone, ValueEnum)]
-pub enum Format {
-    Srt,
-    Vtt,
-}
-
-/// Extract subtitles embedded inside an mp4 file.
-///
-/// This is based on the https://github.com/xhlove/dash-subtitle-extractor
+/// Extract subtitles from mp4 boxes.
 #[derive(Debug, Clone, Args)]
 pub struct Extract {
-    /// List of subtitles segment files where first file is init.mp4 and following files are *.m4s (segments).
-    /// A single mp4 file can also be provided.
+    /// Path of mp4 file which either contains WVTT or STPP boxes.
+    /// If there are multiple segments of same mp4 file,
+    /// then merge them using `merge` sub-command.
     #[arg(required = true)]
-    input: String,
+    input: PathBuf,
 
-    /// Subtitles output format.
-    #[arg(short, long, value_enum, default_value_t = Format::Srt)]
-    format: Format,
+    /// Codec for output subtitles.
+    #[arg(short, long, value_enum, default_value_t = Codec::Subrip)]
+    codec: Codec,
+}
 
-    // /// Set timescale manually if no init segment is present.
-    // /// If timescale is set to anything then webvtt codec is used.
-    // #[arg(short, long)]
-    // timescale: Option<u32>,
-    //   -segment-time SEGMENT_TIME, --segment-time SEGMENT_TIME
-    //                         single segment duration, usually needed for ttml
-    //                         content, calculation method: d / timescale
+#[derive(Debug, Clone, ValueEnum)]
+pub enum Codec {
+    Subrip,
+    Webvtt,
 }
 
 impl Extract {
-    pub fn perform(&self) -> Result<()> {
-        let data = std::fs::read(&self.input)?;
-        let vtt = Mp4VttParser::parse_init(&data);
-        let ttml = Mp4TtmlParser::parse_init(&data);
-
+    pub fn execute(self) -> Result<()> {
+        let data = std::fs::read(self.input)?;
         let cues;
 
-        if let Ok(vtt) = vtt {
+        if let Ok(vtt) = Mp4VttParser::parse_init(&data) {
             cues = vtt.parse_media(&data, None).map_err(|x| anyhow!(x))?;
-        } else if let Ok(ttml) = ttml {
+        } else if let Ok(ttml) = Mp4TtmlParser::parse_init(&data) {
             cues = ttml.parse_media(&data).map_err(|x| anyhow!(x))?;
         } else {
-            bail!("mp4parser.text: cannot determine subtitles codec because WVTT/STPP box is not found.");
+            bail!(
+                "cannot determine subtitles codec because neither WVTT nor STPP boxes are found."
+            );
         }
 
         let subtitles = Subtitles::new(cues);
 
         print!(
             "{}",
-            match &self.format {
-                Format::Srt => subtitles.to_srt(),
-                Format::Vtt => subtitles.to_vtt(),
+            match &self.codec {
+                Codec::Subrip => subtitles.to_srt(),
+                Codec::Webvtt => subtitles.to_vtt(),
             }
         );
 

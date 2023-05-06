@@ -16,10 +16,10 @@ use kdam::term::Colorizer;
 fn run() -> anyhow::Result<()> {
     match Args::parse().command {
         #[cfg(feature = "browser")]
-        Commands::Collect(args) => args.perform()?,
-        Commands::Extract(args) => args.perform()?,
-        Commands::Merge(args) => args.perform()?,
-        Commands::Save(args) => args.perform()?,
+        Commands::Capture(args) => args.execute()?,
+        Commands::Extract(args) => args.execute()?,
+        Commands::Merge(args) => args.execute()?,
+        Commands::Save(args) => args.execute()?,
     }
 
     Ok(())

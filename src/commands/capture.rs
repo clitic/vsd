@@ -20,18 +20,18 @@ use std::{
 
 type CookieParams = Vec<CookieParam>;
 
-/// Collect playlists and subtitles from a website and save them locally.
+/// Capture playlists and subtitles from a website.
 #[derive(Debug, Clone, Args)]
 #[clap(
-    long_about = "Collect playlists and subtitles from a website and save them locally.\n\n\
-Requires any one of these to be installed:\n\
+    long_about = "Capture playlists and subtitles from a website.\n\n\
+Requires any one of these browser to be installed:\n\
 1. chrome - https://www.google.com/chrome\n\
 2. chromium - https://www.chromium.org/getting-involved/download-chromium\n\n\
-Launch Google Chrome and collect .m3u8 (HLS), .mpd (Dash) and subtitles from a website and save them locally. \
-This is done by reading the request response sent by chrome to server. \
+Launch browser and capture .mpd (Dash), .m3u8 (HLS) and subtitles from a website. \
+This is done by reading the response sent by server when browser requested it. \
 This command might not work always as expected."
 )]
-pub struct Collect {
+pub struct Capture {
     /// http(s)://
     #[arg(required = true)]
     url: String,
@@ -41,18 +41,34 @@ pub struct Collect {
     #[arg(long, default_value = "[]", hide_default_value = true, value_parser = cookie_parser)]
     cookies: CookieParams,
 
-    /// Change directory path for downloaded files.
+    /// Change directory path for saved files.
     /// By default current working directory is used.
     #[arg(short, long)]
     directory: Option<PathBuf>,
+
+    /// List of file extensions to be filter out.
+    #[arg(
+        short, long,
+        default_values_t = [
+            "m3u".to_owned(),
+            "m3u8".to_owned(),
+            "mpd".to_owned(),
+            "vtt".to_owned(),
+            "srt".to_owned(),
+        ]
+    )]
+    extensions: Vec<String>,
 
     /// Launch browser without a window.
     #[arg(long)]
     headless: bool,
 
-    /// Do not download and save responses.
+    // #[arg(short, long)]
+    // resource_types: Vec<ResourceType>,
+    
+    /// Save captured requests responses locally.
     #[arg(short, long)]
-    no_save: bool,
+    save: bool,
 }
 
 fn cookie_parser(s: &str) -> Result<CookieParams, String> {
@@ -94,8 +110,8 @@ fn cookie_parser(s: &str) -> Result<CookieParams, String> {
     }
 }
 
-impl Collect {
-    pub fn perform(self) -> Result<()> {
+impl Capture {
+    pub fn execute(self) -> Result<()> {
         let (tx, rx) = mpsc::channel();
         ctrlc::set_handler(move || {
             tx.send(())
@@ -127,12 +143,12 @@ impl Collect {
         println!(" {} setting cookies", "Browser".colorize("bold cyan"));
         tab.set_cookies(self.cookies)?;
 
-        let directory = if self.no_save {
-            None
-        } else {
+        let directory = if self.save {
             self.directory.clone()
+        } else {
+            None
         };
-        let no_save = self.no_save;
+        let save = self.save;
 
         println!(
             " {} registering response listeners",
@@ -141,7 +157,7 @@ impl Collect {
         tab.register_response_handling(
             "vsd-collect",
             Box::new(move |params, get_response_body| {
-                handler(params, get_response_body, &directory, no_save);
+                handler(params, get_response_body, &directory, save);
             }),
         )?;
 
@@ -188,7 +204,7 @@ fn handler(
     params: ResponseReceivedEventParams,
     get_response_body: &dyn Fn() -> Result<GetResponseBodyReturnObject>,
     directory: &Option<PathBuf>,
-    no_save: bool,
+    save: bool,
 ) {
     if let ResourceType::Xhr | ResourceType::Fetch = params.Type {
         let splitted_url = params.response.url.split('?').next().unwrap();
@@ -199,7 +215,7 @@ fn handler(
             || splitted_url.ends_with(".vtt")
             || splitted_url.ends_with(".srt")
         {
-            if no_save {
+            if !save {
                 println!(
                     "{} {}",
                     "Detected".colorize("bold green"),
