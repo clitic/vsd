@@ -70,7 +70,7 @@ pub struct Save {
     pub skip_prompts: bool,
 
     /// Fill request client with some existing cookies value.
-    /// It can be document.cookie value or in json format same as puppeteer.
+    /// Cookies value can be same as document.cookie or in json format same as puppeteer.
     #[arg(long, help_heading = "Client Options", default_value = "[]", hide_default_value = true, value_parser = cookie_parser)]
     pub cookies: CookieParams,
 

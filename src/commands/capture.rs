@@ -2,7 +2,7 @@
 
 use crate::utils;
 use anyhow::Result;
-use clap::Args;
+use clap::{Args, ValueEnum};
 use cookie::Cookie;
 use headless_chrome::{
     protocol::cdp::Network::{
@@ -22,22 +22,21 @@ type CookieParams = Vec<CookieParam>;
 
 /// Capture playlists and subtitles from a website.
 #[derive(Debug, Clone, Args)]
-#[clap(
-    long_about = "Capture playlists and subtitles from a website.\n\n\
+#[clap(long_about = "Capture playlists and subtitles from a website.\n\n\
 Requires any one of these browser to be installed:\n\
 1. chrome - https://www.google.com/chrome\n\
 2. chromium - https://www.chromium.org/getting-involved/download-chromium\n\n\
-Launch browser and capture .mpd (Dash), .m3u8 (HLS) and subtitles from a website. \
-This is done by reading the response sent by server when browser requested it. \
-This command might not work always as expected."
-)]
+Launch browser and capture files based on extension matching. \
+This command work same as doing Inspect > Network > Fetch/XHR (default) > filter extension and viewing url in a browser. \
+The implementation for this command is based on response handling. \
+Note that this command might not work always as expected on every website.")]
 pub struct Capture {
     /// http(s)://
     #[arg(required = true)]
     url: String,
 
     /// Fill browser with some existing cookies value.
-    /// It can be document.cookie value or in json format same as puppeteer.
+    /// Cookies value can be same as document.cookie or in json format same as puppeteer.
     #[arg(long, default_value = "[]", hide_default_value = true, value_parser = cookie_parser)]
     cookies: CookieParams,
 
@@ -47,6 +46,7 @@ pub struct Capture {
     directory: Option<PathBuf>,
 
     /// List of file extensions to be filter out.
+    /// This option can be used multiple times.
     #[arg(
         short, long,
         default_values_t = [
@@ -63,12 +63,36 @@ pub struct Capture {
     #[arg(long)]
     headless: bool,
 
-    // #[arg(short, long)]
-    // resource_types: Vec<ResourceType>,
-    
+    /// List of resource types to be filter out.
+    /// This option can be used multiple times.
+    #[arg(short, long, value_enum, default_values_t = [ResourceTypeCopy::Xhr, ResourceTypeCopy::Fetch])]
+    resource_types: Vec<ResourceTypeCopy>,
+
     /// Save captured requests responses locally.
     #[arg(short, long)]
     save: bool,
+}
+
+#[derive(Debug, Clone, ValueEnum)]
+enum ResourceTypeCopy {
+    All,
+    Document,
+    Stylesheet,
+    Image,
+    Media,
+    Font,
+    Script,
+    TextTrack,
+    Xhr,
+    Fetch,
+    EventSource,
+    WebSocket,
+    Manifest,
+    SignedExchange,
+    Ping,
+    CspViolationReport,
+    Preflight,
+    Other,
 }
 
 fn cookie_parser(s: &str) -> Result<CookieParams, String> {
@@ -143,6 +167,10 @@ impl Capture {
         println!(" {} setting cookies", "Browser".colorize("bold cyan"));
         tab.set_cookies(self.cookies)?;
 
+        let filters = Filters {
+            extensions: self.extensions,
+            resource_types: self.resource_types,
+        };
         let directory = if self.save {
             self.directory.clone()
         } else {
@@ -157,7 +185,7 @@ impl Capture {
         tab.register_response_handling(
             "vsd-collect",
             Box::new(move |params, get_response_body| {
-                handler(params, get_response_body, &directory, save);
+                handler(params, get_response_body, &filters, &directory, save);
             }),
         )?;
 
@@ -203,78 +231,113 @@ impl Capture {
 fn handler(
     params: ResponseReceivedEventParams,
     get_response_body: &dyn Fn() -> Result<GetResponseBodyReturnObject>,
+    filters: &Filters,
     directory: &Option<PathBuf>,
     save: bool,
 ) {
-    if let ResourceType::Xhr | ResourceType::Fetch = params.Type {
-        let splitted_url = params.response.url.split('?').next().unwrap();
+    if !filters.pass(&params.response.url, &params.Type) {
+        return ();
+    }
 
-        if splitted_url.ends_with(".m3u")
-            || splitted_url.ends_with(".m3u8")
-            || splitted_url.ends_with(".mpd")
-            || splitted_url.ends_with(".vtt")
-            || splitted_url.ends_with(".srt")
-        {
-            if !save {
-                println!(
-                    "{} {}",
-                    "Detected".colorize("bold green"),
-                    params.response.url,
-                );
-                return ();
-            }
+    if !save {
+        println!(
+            "{} {}",
+            "Detected".colorize("bold green"),
+            params.response.url,
+        );
+        return ();
+    }
 
-            let path = file_path(&params.response.url, directory);
-            println!(
-                "  {} {} response to {}",
-                "Saving".colorize("bold green"),
-                params.response.url,
-                path.to_string_lossy()
-            );
+    let path = file_path(&params.response.url, directory);
+    println!(
+        "  {} {} response to {}",
+        "Saving".colorize("bold green"),
+        params.response.url,
+        path.to_string_lossy()
+    );
 
-            if let Ok(body) = get_response_body() {
-                if let Ok(mut file) = File::create(&path) {
-                    if body.base_64_encoded {
-                        let decoded_body = utils::decode_base64(&body.body);
-                        if file
-                            .write_all(
-                                decoded_body
-                                    .as_ref()
-                                    .map(|x| x.as_slice())
-                                    .unwrap_or(body.body.as_bytes()),
-                            )
-                            .is_err()
-                        {
-                            println!(
-                                "  {} could'nt write response all bytes to {}",
-                                "Saving".colorize("bold red"),
-                                path.to_string_lossy(),
-                            );
-                        }
-                    } else {
-                        if file.write_all(body.body.as_bytes()).is_err() {
-                            println!(
-                                "  {} could'nt write response all bytes to {}",
-                                "Saving".colorize("bold red"),
-                                path.to_string_lossy(),
-                            );
-                        }
-                    }
-                } else {
+    if let Ok(body) = get_response_body() {
+        if let Ok(mut file) = File::create(&path) {
+            if body.base_64_encoded {
+                let decoded_body = utils::decode_base64(&body.body);
+                if file
+                    .write_all(
+                        decoded_body
+                            .as_ref()
+                            .map(|x| x.as_slice())
+                            .unwrap_or(body.body.as_bytes()),
+                    )
+                    .is_err()
+                {
                     println!(
-                        "  {} could'nt create {} file",
+                        "  {} could'nt write response all bytes to {}",
                         "Saving".colorize("bold red"),
                         path.to_string_lossy(),
                     );
                 }
             } else {
-                println!(
-                    "  {} could'nt read response body for {}",
-                    "Saving".colorize("bold red"),
-                    params.response.url,
-                );
+                if file.write_all(body.body.as_bytes()).is_err() {
+                    println!(
+                        "  {} could'nt write response all bytes to {}",
+                        "Saving".colorize("bold red"),
+                        path.to_string_lossy(),
+                    );
+                }
             }
+        } else {
+            println!(
+                "  {} could'nt create {} file",
+                "Saving".colorize("bold red"),
+                path.to_string_lossy(),
+            );
         }
+    } else {
+        println!(
+            "  {} could'nt read response body for {}",
+            "Saving".colorize("bold red"),
+            params.response.url,
+        );
+    }
+}
+
+struct Filters {
+    extensions: Vec<String>,
+    resource_types: Vec<ResourceTypeCopy>,
+}
+
+impl Filters {
+    fn pass(&self, url: &str, resource_type: &ResourceType) -> bool {
+        let splitted_url = url.split('?').next().unwrap();
+        let extension_matched = self
+            .extensions
+            .iter()
+            .any(|x| splitted_url.ends_with(&(".".to_owned() + x)));
+        let resource_type_matched = self.resource_types.iter().any(|x| {
+            let _type = match x {
+                ResourceTypeCopy::All => return true,
+                ResourceTypeCopy::Document => ResourceType::Document,
+                ResourceTypeCopy::Stylesheet => ResourceType::Stylesheet,
+                ResourceTypeCopy::Image => ResourceType::Image,
+                ResourceTypeCopy::Media => ResourceType::Media,
+                ResourceTypeCopy::Font => ResourceType::Font,
+                ResourceTypeCopy::Script => ResourceType::Script,
+                ResourceTypeCopy::TextTrack => ResourceType::TextTrack,
+                ResourceTypeCopy::Xhr => ResourceType::Xhr,
+                ResourceTypeCopy::Fetch => ResourceType::Fetch,
+                ResourceTypeCopy::EventSource => ResourceType::EventSource,
+                ResourceTypeCopy::WebSocket => ResourceType::WebSocket,
+                ResourceTypeCopy::Manifest => ResourceType::Manifest,
+                ResourceTypeCopy::SignedExchange => ResourceType::SignedExchange,
+                ResourceTypeCopy::Ping => ResourceType::Ping,
+                ResourceTypeCopy::CspViolationReport => ResourceType::CspViolationReport,
+                ResourceTypeCopy::Preflight => ResourceType::Preflight,
+                ResourceTypeCopy::Other => ResourceType::Other,
+            };
+
+            &_type == resource_type
+        });
+
+        extension_matched && resource_type_matched
     }
 }
 

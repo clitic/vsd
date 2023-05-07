@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `capture`
-  - `--cookies`, `--directory`, `--save` and `extensions` flags.
+  - `--cookies`, `--directory`, `--save`, `--extensions` and `--resource-types` flags.
 - `save`
   - Support for HLS `#EXT-X-MAP` tag.
   - Support for multi period DASH manifests.
@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `capture`
   - `collect` sub-command is merged with `capture` sub-command.
   - `--build` flag is removed from `collect` sub-command.
+- `collect` sub-command is removed.
 - `decrypt` sub-command is removed.
 - `extract`
   - `input` now only accepts single file.
