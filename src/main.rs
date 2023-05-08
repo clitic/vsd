@@ -9,12 +9,26 @@ mod playlist;
 mod update;
 mod utils;
 
-use clap::Parser;
+use clap::{ColorChoice, Parser};
 use commands::{Args, Commands};
 use kdam::term::Colorizer;
 
 fn run() -> anyhow::Result<()> {
-    match Args::parse().command {
+    let args = Args::parse();
+
+    match args.color {
+        ColorChoice::Auto => {
+            if atty::isnt(atty::Stream::Stdout) {
+                kdam::term::set_colorize(false);
+            }
+        }
+        ColorChoice::Never => {
+            kdam::term::set_colorize(false);
+        }
+        _ => (),
+    }
+    
+    match args.command {
         #[cfg(feature = "browser")]
         Commands::Capture(args) => args.execute()?,
         Commands::Extract(args) => args.execute()?,

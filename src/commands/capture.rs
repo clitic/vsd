@@ -12,6 +12,7 @@ use headless_chrome::{
 };
 use kdam::term::Colorizer;
 use std::{
+    fs,
     fs::File,
     io::Write,
     path::{Path, PathBuf},
@@ -98,39 +99,37 @@ enum ResourceTypeCopy {
 fn cookie_parser(s: &str) -> Result<CookieParams, String> {
     if Path::new(s).exists() {
         Ok(serde_json::from_slice::<CookieParams>(
-            &std::fs::read(s).map_err(|_| format!("could not read {}.", s))?,
+            &fs::read(s).map_err(|_| format!("could not read {}.", s))?,
         )
         .map_err(|x| format!("could not deserialize cookies from json file. {}", x))?)
+    } else if let Ok(cookies) = serde_json::from_str::<CookieParams>(s) {
+        Ok(cookies)
     } else {
-        if let Ok(cookies) = serde_json::from_str::<CookieParams>(s) {
-            Ok(cookies)
-        } else {
-            let mut cookies = vec![];
+        let mut cookies = vec![];
 
-            for cookie in Cookie::split_parse(s) {
-                match cookie {
-                    Ok(x) => cookies.push(CookieParam {
-                        name: x.name().to_owned(),
-                        value: x.value().to_owned(),
-                        url: None,
-                        domain: None,
-                        path: None,
-                        secure: None,
-                        http_only: None,
-                        same_site: None,
-                        expires: None,
-                        priority: None,
-                        same_party: None,
-                        source_scheme: None,
-                        source_port: None,
-                        partition_key: None,
-                    }),
-                    Err(e) => return Err(format!("could not split parse cookies. {}", e)),
-                }
+        for cookie in Cookie::split_parse(s) {
+            match cookie {
+                Ok(x) => cookies.push(CookieParam {
+                    name: x.name().to_owned(),
+                    value: x.value().to_owned(),
+                    url: None,
+                    domain: None,
+                    path: None,
+                    secure: None,
+                    http_only: None,
+                    same_site: None,
+                    expires: None,
+                    priority: None,
+                    same_party: None,
+                    source_scheme: None,
+                    source_port: None,
+                    partition_key: None,
+                }),
+                Err(e) => return Err(format!("could not split parse cookies. {}", e)),
             }
-
-            Ok(cookies)
         }
+
+        Ok(cookies)
     }
 }
 
@@ -179,11 +178,11 @@ impl Capture {
         let save = self.save;
 
         println!(
-            " {} registering response listeners",
+            " {} registering response listener",
             "Browser".colorize("bold cyan")
         );
         tab.register_response_handling(
-            "vsd-collect",
+            "vsd_capture",
             Box::new(move |params, get_response_body| {
                 handler(params, get_response_body, &filters, &directory, save);
             }),
@@ -191,7 +190,7 @@ impl Capture {
 
         if let Some(directory) = &self.directory {
             if !directory.exists() {
-                std::fs::create_dir_all(directory)?;
+                fs::create_dir_all(directory)?;
             }
         };
 
@@ -208,19 +207,19 @@ impl Capture {
         );
         rx.recv()?;
         println!(
-            " {} deregistering response listeners and closing browser",
+            " {} deregistering response listener and closing browser",
             "Browser".colorize("bold cyan")
         );
-        let _ = tab.deregister_response_handling("vsd-collect")?;
+        let _ = tab.deregister_response_handling("vsd_capture")?;
 
         if let Some(directory) = &self.directory {
-            if std::fs::read_dir(directory)?.next().is_none() {
+            if fs::read_dir(directory)?.next().is_none() {
                 println!(
                     "{} {}",
                     "Deleting".colorize("bold red"),
                     directory.to_string_lossy()
                 );
-                std::fs::remove_dir(directory)?;
+                fs::remove_dir(directory)?;
             }
         }
 
@@ -236,7 +235,7 @@ fn handler(
     save: bool,
 ) {
     if !filters.pass(&params.response.url, &params.Type) {
-        return ();
+        return;
     }
 
     if !save {
@@ -245,7 +244,7 @@ fn handler(
             "Detected".colorize("bold green"),
             params.response.url,
         );
-        return ();
+        return;
     }
 
     let path = file_path(&params.response.url, directory);
@@ -275,14 +274,12 @@ fn handler(
                         path.to_string_lossy(),
                     );
                 }
-            } else {
-                if file.write_all(body.body.as_bytes()).is_err() {
-                    println!(
-                        "  {} could'nt write response all bytes to {}",
-                        "Saving".colorize("bold red"),
-                        path.to_string_lossy(),
-                    );
-                }
+            } else if file.write_all(body.body.as_bytes()).is_err() {
+                println!(
+                    "  {} could'nt write response all bytes to {}",
+                    "Saving".colorize("bold red"),
+                    path.to_string_lossy(),
+                );
             }
         } else {
             println!(

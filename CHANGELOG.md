@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `--color` flag to control when to output colored text.
 - `capture`
   - `--cookies`, `--directory`, `--save`, `--extensions` and `--resource-types` flags.
 - `save`

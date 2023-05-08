@@ -17,6 +17,7 @@ edition = "2021"
 [dependencies]
 aes = "0.8"
 anyhow = "1"
+atty = "0.2"
 base64 = "0.21"
 cbc = "0.1"
 chrono = "0.4"

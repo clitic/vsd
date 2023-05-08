@@ -10,7 +10,7 @@ pub use save::{Save, Quality};
 #[cfg(feature = "browser")]
 pub use capture::Capture;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ColorChoice};
 
 /// Download video streams served over HTTP from websites, HLS and DASH playlists.
 #[derive(Debug, Clone, Parser)]
@@ -18,6 +18,10 @@ use clap::{Parser, Subcommand};
 pub struct Args {
     #[command(subcommand)]
     pub command: Commands,
+    
+    /// When to output coloring text.
+    #[arg(long, global = true, default_value_t = ColorChoice::Auto)]
+    pub color: ColorChoice,
 }
 
 #[derive(Debug, Clone, Subcommand)]

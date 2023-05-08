@@ -202,7 +202,7 @@ fn key_parser(s: &str) -> Result<(Option<String>, String), String> {
         if key_file.exists() {
             if key_file.is_file() {
                 key = hex::encode(
-                    std::fs::read(&key_file).map_err(|_| format!("could not read {}.", key))?,
+                    std::fs::read(key_file).map_err(|_| format!("could not read {}.", key))?,
                 )
             } else {
                 return Err("cannot read key from a non file path.".to_owned());
@@ -221,21 +221,19 @@ fn cookie_parser(s: &str) -> Result<CookieParams, String> {
             &std::fs::read(s).map_err(|_| format!("could not read {}.", s))?,
         )
         .map_err(|x| format!("could not deserialize cookies from json file. {}", x))?)
+    } else if let Ok(cookies) = serde_json::from_str::<CookieParams>(s) {
+        Ok(cookies)
     } else {
-        if let Ok(cookies) = serde_json::from_str::<CookieParams>(s) {
-            Ok(cookies)
-        } else {
-            let mut cookies = vec![];
+        let mut cookies = vec![];
 
-            for cookie in Cookie::split_parse(s) {
-                match cookie {
-                    Ok(x) => cookies.push(CookieParam::new(x.name(), x.value())),
-                    Err(e) => return Err(format!("could not split parse cookies. {}", e)),
-                }
+        for cookie in Cookie::split_parse(s) {
+            match cookie {
+                Ok(x) => cookies.push(CookieParam::new(x.name(), x.value())),
+                Err(e) => return Err(format!("could not split parse cookies. {}", e)),
             }
-
-            Ok(cookies)
         }
+
+        Ok(cookies)
     }
 }
 
