@@ -35,14 +35,15 @@ prost = "0.11"
 quick-xml = { version = "0.28", features = ["serialize"] }
 regex = "1"
 requestty = "0.5.0"
-reqwest = { version = "0.11", features = ["blocking", "cookies", "socks"] }
+reqwest = { version = "0.11", default-features = false, features = ["blocking", "cookies", "socks"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 threadpool = "1"
 
 [features]
-default = ["browser"]
+default = ["browser", "native-tls"]
 browser = ["dep:headless_chrome"]
+native-tls = ["reqwest/native-tls"]
 rustls-tls = ["reqwest/rustls-tls"]
 
 [build-dependencies]

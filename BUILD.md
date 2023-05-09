@@ -13,7 +13,8 @@ cargo build --release
 These features can be turned on or off by cargo `--features` flag.
 
 1. `browser` (*default*): Enable `collect` subcommand.
-2. `rustls-tls`: Enable `rustls-tls` feature of reqwest crate.
+2. `native-tls` (*default*): Enable `native-tls` feature of reqwest crate.
+3. `rustls-tls`: Enable `rustls-tls` feature of reqwest crate.
 
 ## Linux with MUSL (On Linux)
 
