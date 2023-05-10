@@ -20,8 +20,8 @@ pub fn includes() -> Vec<PathBuf> {
 }
 
 pub fn build() {
-    println!("cargo:rerun-if-changed=Bento4");
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    println!("cargo:rerun-if-changed={}", root.join("Bento4").to_string_lossy());
 
     cc::Build::new()
         .cpp(true)

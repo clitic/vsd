@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2023-05-10
+
+### Changed
+
+- Upgraded `bento4-src` v0.1.0 -> v0.1.1
+
 ## [0.4.0] - 2023-05-10
 
 ### Changed
@@ -50,7 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.0] - 2022-08-31
 
-[Unreleased]: https://github.com/clitic/vsd/compare/mp4decrypt-v0.4.0...HEAD
+[Unreleased]: https://github.com/clitic/vsd/compare/mp4decrypt-v0.4.1...HEAD
+[0.4.1]: https://github.com/clitic/vsd/compare/mp4decrypt-v0.4.0...mp4decrypt-v0.4.1
 [0.4.0]: https://github.com/clitic/mp4decrypt/compare/v0.3.1...HEAD
 [0.3.1]: https://github.com/clitic/mp4decrypt/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/clitic/mp4decrypt/compare/5759e24...v0.3.0
