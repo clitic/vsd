@@ -10,7 +10,7 @@ struct Releases {
 
 pub(super) fn check_for_new_release(client: &Client) {
     if let Ok(response) = client
-        .get("https://raw.githubusercontent.com/clitic/vsd/main/releases.json")
+        .get("https://raw.githubusercontent.com/clitic/vsd/main/vsd/releases.json")
         .send()
     {
         if let Ok(text) = response.text() {

@@ -1,0 +1,19 @@
+[package]
+authors = ["clitic <clitic21@gmail.com>"]
+categories = ["cryptography"]
+description = "Decrypt mp4 streams using bento4."
+documentation = "https://docs.rs/mp4decrypt"
+edition = "2021"
+exclude = ["example/sample"]
+keywords = ["crypto"]
+license = "MIT OR Apache-2.0"
+name = "mp4decrypt"
+readme = "README.md"
+repository = "https://github.com/clitic/vsd/tree/main/mp4decrypt"
+version = "0.4.0"
+
+[dependencies]
+
+[build-dependencies]
+bento4-src = { version = "0.1.0", path = "../bento4-src" }
+# bindgen = "0.60"

@@ -1,50 +1,6 @@
-[package]
-name = "vsd"
-version = "0.3.0"
-description = "Download video streams served over HTTP from websites, DASH (.mpd) and HLS (.m3u8) playlists"
-authors = ["clitic <clitic21@gmail.com>"]
-repository = "https://github.com/clitic/vsd"
-documentation = "https://docs.rs/vsd"
-license = "MIT OR Apache-2.0"
-readme = "README.md"
-keywords = ["m3u8"]
-categories = ["command-line-utilities"]
-exclude = ["docs", "images"]
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-aes = "0.8"
-anyhow = "1"
-atty = "0.2"
-base64 = "0.21"
-cbc = "0.1"
-chrono = "0.4"
-clap = { version = "4", features = ["derive", "wrap_help"] }
-cookie = "0.17"
-ctrlc = "3"
-dash-mpd = { version = "0.8.0", default-features = false }
-glob = "0.3"
-headless_chrome = { version = "1.0.5", optional = true }
-hex = "0.4"
-kdam = "0.3"
-m3u8-rs = "5.0.4"
-mp4decrypt = "0.3.1"
-prost = "0.11"
-quick-xml = { version = "0.28", features = ["serialize"] }
-regex = "1"
-requestty = "0.5.0"
-reqwest = { version = "0.11", default-features = false, features = ["blocking", "cookies", "socks"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-threadpool = "1"
-
-[features]
-default = ["browser", "native-tls"]
-browser = ["dep:headless_chrome"]
-native-tls = ["reqwest/native-tls"]
-rustls-tls = ["reqwest/rustls-tls"]
-
-[build-dependencies]
-prost-build = "0.11"
+[workspace]
+members = [
+  "bento4-src",
+  "mp4decrypt",
+  "vsd",
+]
