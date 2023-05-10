@@ -23,7 +23,7 @@ Add this to your Cargo.toml file.
 
 ```toml
 [build-dependencies]
-bento4-src = "0.1.0"
+bento4-src = "0.1.1"
 ```
 
 Or add from command line.
