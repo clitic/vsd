@@ -79,6 +79,10 @@ pub struct Save {
     #[arg(long, help_heading = "Client Options", num_args = 2, value_names = &["KEY", "VALUE"])]
     pub header: Vec<String>, // Vec<(String, String)> not supported
 
+    /// Skip checking and validation of site certificates.
+    #[arg(long, help_heading = "Client Options")]
+    pub no_certificate_checks: bool,
+    
     /// Set http(s) / socks proxy address for requests.
     #[arg(long, help_heading = "Client Options", value_parser = proxy_address_parser)]
     pub proxy: Option<Proxy>,
@@ -244,7 +248,8 @@ fn proxy_address_parser(s: &str) -> Result<Proxy, String> {
 impl Save {
     pub fn execute(self) -> Result<()> {
         let mut client_builder = Client::builder()
-            .user_agent(&self.user_agent)
+            .danger_accept_invalid_certs(self.no_certificate_checks)
+            .user_agent(self.user_agent)
             .cookie_store(true);
 
         if !self.header.is_empty() {

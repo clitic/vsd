@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Support for browser cookies i.e. with `--cookies` flag.
   - Support for socks proxy.
   - `min` / `lowest` quality option for `--quality` flag.
-  - `--skip-prompts`, `--all-keys` and `--no-decrypt` flags.
+  - `--skip-prompts`, `--all-keys`, `--no-decrypt` and `--no-certificate-checks` flags.
 
 ### Changed
 
