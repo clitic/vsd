@@ -3,7 +3,7 @@
 vsd is written in rust so you first need to install [rust](https://www.rust-lang.org). vsd dependencies can be easily built with cargo but some dependencies require c and c++ compiler or some external dependencies in order to build. One such dependency can be [openssl](https://docs.rs/openssl/latest/openssl) (on linux) which requires [openssl](https://github.com/openssl/openssl). Now download released tarball or clone repository and build vsd through `cargo build` subcommand.
 
 ```bash
-git clone https://github.com/clitic/vsd --depth 1
+git clone https://github.com/clitic/vsd --recursive --depth 1
 cd vsd
 cargo build --release
 ```
@@ -13,8 +13,9 @@ cargo build --release
 These features can be turned on or off by cargo `--features` flag.
 
 1. `browser` (*default*): Enable `collect` subcommand.
-2. `native-tls` (*default*): Enable `native-tls` feature of reqwest crate.
-3. `rustls-tls`: Enable `rustls-tls` feature of reqwest crate.
+2. `native-tls` (*default*): Enable `native-tls` feature of [reqwest] crate.
+3. `rustls-tls-webpki-roots`: Enable `rustls-tls-webpki-roots` feature of [reqwest] crate.
+4. `rustls-tls-native-roots`: Enable `rustls-tls-native-roots` feature of [reqwest] crate.
 
 ## Linux with MUSL (On Linux)
 
@@ -152,3 +153,5 @@ $ OPENSSL_INCLUDE_DIR=$PREFIX/include/openssl \
     AR=llvm-ar \
     cargo build --no-default-features --release
 ```
+
+[reqwest]: https://docs.rs/reqwest/latest/reqwest/#optional-features

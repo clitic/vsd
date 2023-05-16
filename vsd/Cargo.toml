@@ -42,7 +42,8 @@ threadpool = "1"
 default = ["browser", "native-tls"]
 browser = ["dep:headless_chrome"]
 native-tls = ["reqwest/native-tls"]
-rustls-tls = ["reqwest/rustls-tls"]
+rustls-tls-webpki-roots = ["reqwest/rustls-tls-webpki-roots"]
+rustls-tls-native-roots = ["reqwest/rustls-tls-native-roots"]
 
 [build-dependencies]
 prost-build = "0.11"

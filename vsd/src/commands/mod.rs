@@ -19,7 +19,7 @@ pub struct Args {
     #[command(subcommand)]
     pub command: Commands,
     
-    /// When to output coloring text.
+    /// When to output colored text.
     #[arg(long, global = true, default_value_t = ColorChoice::Auto)]
     pub color: ColorChoice,
 }
