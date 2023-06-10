@@ -2,7 +2,7 @@
     REFERENCES
     ----------
 
-    1. https://github.com/emarsden/dash-mpd-rs/blob/6ebdfb4759adbda8233b5b3520804e23ff86e7de/src/fetch.rs
+    1. https://github.com/emarsden/dash-mpd-rs/blob/96f311273018b9d980d53e3e214a04659503c068/src/fetch.rs
     2. https://github.com/streamlink/streamlink/blob/781ef1fc92f215d0f3ec9a272fbe9f2cac122f08/src/streamlink/stream/dash_manifest.py
     2. https://github.com/nilaoda/N_m3u8DL-RE/blob/7bba10aa0d7adf7e79e0feec7327039681cb7bd4/src/N_m3u8DL-RE.Parser/Extractor/DASHExtractor2.cs
 
@@ -378,9 +378,14 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                                     bail!("Representation is missing SegmentTemplate @duration attribute.");
                                 }
 
+                                let mut number = segment_template.startNumber.unwrap_or(1) as i64;
+
+                                if init_map.is_some() {
+                                    number -= 1;
+                                }
+
                                 let total_number =
-                                    (period_duration_secs / duration).ceil() as usize;
-                                let mut number = segment_template.startNumber.unwrap_or(1);
+                                    number + (period_duration_secs / duration).ceil() as i64;
 
                                 for _ in 1..=total_number {
                                     template.insert("Number", number.to_string());
