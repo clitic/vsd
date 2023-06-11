@@ -1,12 +1,24 @@
-//! This crate provides a safe function to decrypt, encrypted mp4 data stream using [Bento4](https://github.com/axiomatic-systems/Bento4).
+//! This crate provides a safe function to decrypt,
+//! encrypted mp4 data stream using [Bento4](https://github.com/axiomatic-systems/Bento4).
 //!
 //! Maximum supported stream size is around `4.29` G.B i.e. [u32::MAX](u32::MAX).
+//!
+//! ## Environment Variables
+//!
+//! A set of environment variables that can be used to find ap4 library from Bento4 installation. 
+//!  
+//! - BENTO4_DIR - If specified, the directory of an Bento4 installation.
+//! The directory should contain lib and include subdirectories containing the libraries and headers respectively.
+//! - BENTO4_VENDOR - If set, always build and link against Bento4 vendored version.
+//! 
+//! Additionally, these variables can be prefixed with the upper-cased target architecture (e.g. X86_64_UNKNOWN_LINUX_GNU_BENTO4_DIR), 
+//! which can be useful when cross compiling.
 
 #![allow(improper_ctypes)]
 
+use core::ffi::{c_char, c_int, c_uchar, c_uint};
 use std::collections::HashMap;
 use std::ffi::CString;
-use std::os::raw::{c_char, c_int, c_uchar, c_uint};
 
 extern "C" {
     fn decrypt_in_memory(
@@ -83,11 +95,10 @@ pub fn mp4decrypt(
         c_keys.push(c_keys_holder[i].as_ptr());
     }
 
-    let mut decrypted_data: Box<Vec<u8>> = Box::new(vec![]);
+    let mut decrypted_data: Box<Vec<u8>> = Box::default();
 
     let result = unsafe {
-        if let Some(fragments_info) = fragments_info {
-            let mut fragments_info_data = fragments_info.clone();
+        if let Some(mut fragments_info_data) = fragments_info {
             let fragments_info_data_size = u32::try_from(fragments_info_data.len())
                 .map_err(|_| "fragments info is too large".to_owned())?;
 

@@ -6,7 +6,7 @@ pub use cc;
 use std::{env, path::PathBuf};
 
 pub fn version() -> String {
-    "1.6.0-639".to_owned()
+    "1.6.0-640".to_owned()
 }
 
 pub fn includes() -> Vec<PathBuf> {
@@ -155,6 +155,7 @@ pub fn build() {
         .file(root.join("Bento4/Source/C++/Core/Ap4UuidAtom.cpp"))
         .file(root.join("Bento4/Source/C++/Core/Ap4VmhdAtom.cpp"))
         .file(root.join("Bento4/Source/C++/Core/Ap4VpccAtom.cpp"))
+        .file(root.join("Bento4/Source/C++/Core/Ap4Av1cAtom.cpp"))
         .file(root.join("Bento4/Source/C++/Crypto/Ap4AesBlockCipher.cpp"))
         .file(root.join("Bento4/Source/C++/Crypto/Ap4Hmac.cpp"))
         .file(root.join("Bento4/Source/C++/Crypto/Ap4KeyWrap.cpp"))
