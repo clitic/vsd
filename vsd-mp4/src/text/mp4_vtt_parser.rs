@@ -7,9 +7,12 @@
 */
 
 use super::Cue;
-use crate::mp4parser;
-use crate::mp4parser::boxes::ParsedTRUNSample;
-use crate::mp4parser::{Mp4Parser, Reader};
+use crate::{
+    boxes::{ParsedMDHDBox, ParsedTFDTBox, ParsedTFHDBox, ParsedTRUNBox, ParsedTRUNSample},
+    parser,
+    parser::Mp4Parser,
+    Reader,
+};
 use std::sync::{Arc, Mutex};
 
 pub struct Mp4VttParser {
@@ -26,9 +29,9 @@ impl Mp4VttParser {
         let timescale_c = timescale.clone();
 
         Mp4Parser::default()
-            ._box("moov", Arc::new(mp4parser::children))
-            ._box("trak", Arc::new(mp4parser::children))
-            ._box("mdia", Arc::new(mp4parser::children))
+            ._box("moov", Arc::new(parser::children))
+            ._box("trak", Arc::new(parser::children))
+            ._box("mdia", Arc::new(parser::children))
             .full_box(
                 "mdhd",
                 Arc::new(move |mut _box| {
@@ -38,20 +41,17 @@ impl Mp4VttParser {
                             "mp4parser.mp4vttparser: MDHD version can only be 0 or 1.".to_owned()
                         );
                     }
-                    let parsed_mdhd_box = mp4parser::ParsedMDHDBox::parse(
-                        &mut _box.reader,
-                        _box_version,
-                    )
-                    .map_err(|x| {
-                        x.replace("mp4parser.boxes.MDHD", "mp4parser.mp4vttparser.boxes.MDHD")
-                    })?;
+                    let parsed_mdhd_box = ParsedMDHDBox::parse(&mut _box.reader, _box_version)
+                        .map_err(|x| {
+                            x.replace("mp4parser.boxes.MDHD", "mp4parser.mp4vttparser.boxes.MDHD")
+                        })?;
                     *timescale_c.lock().unwrap() = Some(parsed_mdhd_box.timescale);
                     Ok(())
                 }),
             )
-            ._box("minf", Arc::new(mp4parser::children))
-            ._box("stbl", Arc::new(mp4parser::children))
-            .full_box("stsd", Arc::new(mp4parser::sample_description))
+            ._box("minf", Arc::new(parser::children))
+            ._box("stbl", Arc::new(parser::children))
+            .full_box("stsd", Arc::new(parser::sample_description))
             ._box(
                 "wvtt",
                 Arc::new(move |_box| {
@@ -96,8 +96,8 @@ impl Mp4VttParser {
         let timescale = self.timescale;
 
         Mp4Parser::default()
-            ._box("moof", Arc::new(mp4parser::children))
-            ._box("traf", Arc::new(mp4parser::children))
+            ._box("moof", Arc::new(parser::children))
+            ._box("traf", Arc::new(parser::children))
             .full_box(
                 "tfdt",
                 Arc::new(move |mut _box| {
@@ -110,13 +110,10 @@ impl Mp4VttParser {
                         );
                     }
 
-                    let parsed_tfdt_box = mp4parser::ParsedTFDTBox::parse(
-                        &mut _box.reader,
-                        _box_version,
-                    )
-                    .map_err(|x| {
-                        x.replace("mp4parser.boxes.TFDT", "mp4parser.mp4vttparser.boxes.TFDT")
-                    })?;
+                    let parsed_tfdt_box = ParsedTFDTBox::parse(&mut _box.reader, _box_version)
+                        .map_err(|x| {
+                            x.replace("mp4parser.boxes.TFDT", "mp4parser.mp4vttparser.boxes.TFDT")
+                        })?;
                     *base_time_c.lock().unwrap() = parsed_tfdt_box.base_media_decode_time;
                     Ok(())
                 }),
@@ -131,14 +128,13 @@ impl Mp4VttParser {
                         );
                     }
 
-                    let parsed_tfhd_box =
-                        mp4parser::ParsedTFHDBox::parse(&mut _box.reader, _box.flags.unwrap())
-                            .map_err(|x| {
-                                x.replace(
-                                    "mp4parser.boxes.TFHD",
-                                    "mp4parser.mp4vttparser.boxes.TFHD",
-                                )
-                            })?;
+                    let parsed_tfhd_box = ParsedTFHDBox::parse(
+                        &mut _box.reader,
+                        _box.flags.unwrap(),
+                    )
+                    .map_err(|x| {
+                        x.replace("mp4parser.boxes.TFHD", "mp4parser.mp4vttparser.boxes.TFHD")
+                    })?;
                     *default_duration_c.lock().unwrap() = parsed_tfhd_box.default_sample_duration;
                     Ok(())
                 }),
@@ -160,7 +156,7 @@ impl Mp4VttParser {
                         );
                     }
 
-                    let parsed_trun_box = mp4parser::ParsedTRUNBox::parse(
+                    let parsed_trun_box = ParsedTRUNBox::parse(
                         &mut _box.reader,
                         _box.version.unwrap(),
                         _box.flags.unwrap(),
@@ -174,7 +170,7 @@ impl Mp4VttParser {
             )
             ._box(
                 "mdat",
-                mp4parser::alldata(Arc::new(move |data| {
+                parser::alldata(Arc::new(move |data| {
                     let base_time = *base_time.lock().unwrap();
                     let presentations = presentations.lock().unwrap();
                     let saw_tfdt = *saw_tfdt.lock().unwrap();
@@ -245,7 +241,7 @@ fn parse_mdat(
             let payload_type = reader.read_u32().map_err(|_| {
                 "mp4parser.mp4vttparser: cannot read payload type (u32).".to_owned()
             })?;
-            let payload_name = mp4parser::type_to_string(payload_type as usize).map_err(|_| {
+            let payload_name = parser::type_to_string(payload_type as usize).map_err(|_| {
                 "mp4parser.mp4vttparser: cannot decode payload name as valid utf8 string."
                     .to_owned()
             })?;
@@ -335,24 +331,24 @@ fn parse_vttc(data: &[u8], start_time: f32, end_time: f32) -> Result<Option<Cue>
     let id_c = id.clone();
     let settings_c = settings.clone();
 
-    mp4parser::Mp4Parser::default()
+    Mp4Parser::default()
         ._box(
             "payl",
-            mp4parser::alldata(Arc::new(move |data| {
+            parser::alldata(Arc::new(move |data| {
                 *payload_c.lock().unwrap() = String::from_utf8(data).map_err(|_| "mp4parser.mp4vttparser.boxes.VTTC: cannot decode payload as valid utf8 string.".to_owned())?;
                 Ok(())
             })),
         )
         ._box(
             "iden",
-            mp4parser::alldata(Arc::new(move |data| {
+            parser::alldata(Arc::new(move |data| {
                 *id_c.lock().unwrap() = String::from_utf8(data).map_err(|_| "mp4parser.mp4vttparser.boxes.VTTC: cannot decode id as valid utf8 string.".to_owned())?;
                 Ok(())
             })),
         )
         ._box(
             "sttg",
-            mp4parser::alldata(Arc::new(move |data| {
+            parser::alldata(Arc::new(move |data| {
                 *settings_c.lock().unwrap() = String::from_utf8(data).map_err(|_| "mp4parser.mp4vttparser.boxes.VTTC: cannot decode setting as valid utf8 string.".to_owned())?;
                 Ok(())
             })),

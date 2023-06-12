@@ -10,8 +10,10 @@
 */
 
 use super::{playready, widevine};
-use crate::mp4parser;
-use crate::mp4parser::{Mp4Parser, ParsedBox};
+use crate::{
+    parser,
+    parser::{Mp4Parser, ParsedBox},
+};
 use std::sync::{Arc, Mutex};
 
 const COMMAN_SYSTEM_ID: &str = "1077efecc0b24d02ace33c1e52e2fb4b";
@@ -76,8 +78,8 @@ impl Pssh {
         let pssh_c = pssh.clone();
 
         Mp4Parser::default()
-            ._box("moov", Arc::new(mp4parser::children))
-            ._box("moof", Arc::new(mp4parser::children))
+            ._box("moov", Arc::new(parser::children))
+            ._box("moof", Arc::new(parser::children))
             .full_box(
                 "pssh",
                 Arc::new(move |mut _box| pssh_c.lock().unwrap().parse_pssh_box(&mut _box)),

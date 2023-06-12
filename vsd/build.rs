@@ -1,7 +1,6 @@
 use std::{env, process::Command};
 
 fn main() {
-    println!("cargo:rerun-if-changed=src/mp4parser/pssh/widevine.proto");
     println!("cargo:rerun-if-env-changed=VSD_ICON");
 
     let icon = env::var("VSD_ICON").is_ok()
@@ -13,12 +12,6 @@ fn main() {
         println!("cargo:rerun-if-changed=images/icon.ico");
     }
 
-    prost_build::compile_protos(
-        &["src/mp4parser/pssh/widevine.proto"],
-        &["src/mp4parser/pssh/"],
-    )
-    .unwrap();
-
     if icon {
         Command::new("rc")
             .arg("/fo")
@@ -28,7 +21,7 @@ fn main() {
             .unwrap()
             .wait()
             .unwrap();
-        println!("cargo:rustc-link-search={}", env::var("OUT_DIR").unwrap());
+        println!("cargo:rustc-link-search=native={}", env::var("OUT_DIR").unwrap());
         println!("cargo:rustc-link-lib=resources");
     }
 }

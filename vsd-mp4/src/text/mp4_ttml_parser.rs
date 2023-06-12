@@ -8,8 +8,7 @@
 
 use super::ttml_text_parser;
 use super::Cue;
-use crate::mp4parser;
-use crate::mp4parser::Mp4Parser;
+use crate::{parser, parser::Mp4Parser};
 use std::sync::{Arc, Mutex};
 
 pub struct Mp4TtmlParser;
@@ -20,12 +19,12 @@ impl Mp4TtmlParser {
         let saw_stpp_c = saw_stpp.clone();
 
         Mp4Parser::default()
-            ._box("moov", Arc::new(mp4parser::children))
-            ._box("trak", Arc::new(mp4parser::children))
-            ._box("mdia", Arc::new(mp4parser::children))
-            ._box("minf", Arc::new(mp4parser::children))
-            ._box("stbl", Arc::new(mp4parser::children))
-            .full_box("stsd", Arc::new(mp4parser::sample_description))
+            ._box("moov", Arc::new(parser::children))
+            ._box("trak", Arc::new(parser::children))
+            ._box("mdia", Arc::new(parser::children))
+            ._box("minf", Arc::new(parser::children))
+            ._box("stbl", Arc::new(parser::children))
+            .full_box("stsd", Arc::new(parser::sample_description))
             ._box(
                 "stpp",
                 Arc::new(move |mut _box| {
@@ -55,7 +54,7 @@ impl Mp4TtmlParser {
         Mp4Parser::default()
             ._box(
                 "mdat",
-                mp4parser::alldata(Arc::new(move |data| {
+                parser::alldata(Arc::new(move |data| {
                     *saw_mdat_c.lock().unwrap() = true;
                     // Join this to any previous payload, in case the mp4 has multiple
                     // mdats.

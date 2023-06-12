@@ -1,7 +1,6 @@
 use crate::{
     commands::Quality,
     merger::Merger,
-    mp4parser::{Mp4TtmlParser, Mp4VttParser, Pssh, Subtitles},
     playlist::{KeyMethod, MediaType, PlaylistType, Range, Segment},
     update, utils,
 };
@@ -20,6 +19,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Instant,
 };
+use vsd_mp4::{Mp4TtmlParser, Mp4VttParser, Pssh, Subtitles};
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn download(
@@ -584,7 +584,7 @@ pub(crate) fn download(
 
                 let xml = String::from_utf8(subtitles_data)
                     .map_err(|_| anyhow!("cannot decode subtitles as valid utf8 string."))?;
-                let ttml = crate::mp4parser::ttml_text_parser::parse(&xml).map_err(|x| {
+                let ttml = vsd_mp4::ttml_text_parser::parse(&xml).map_err(|x| {
                     anyhow!(
                         "couldn't parse xml string as ttml content (failed with {}).\n\n{}",
                         x,

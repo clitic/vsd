@@ -1,7 +1,7 @@
-use crate::mp4parser::{Mp4TtmlParser, Mp4VttParser, Subtitles};
 use anyhow::{anyhow, bail, Result};
 use clap::{Args, ValueEnum};
 use std::path::PathBuf;
+use vsd_mp4::{Mp4TtmlParser, Mp4VttParser, Subtitles};
 
 /// Extract subtitles from mp4 boxes.
 #[derive(Debug, Clone, Args)]

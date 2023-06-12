@@ -3,4 +3,5 @@ members = [
   "bento4-src",
   "mp4decrypt",
   "vsd",
+  "vsd-mp4",
 ]

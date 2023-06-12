@@ -7,7 +7,8 @@
 */
 
 use super::{KeyId, KeyIdSystemType};
-use crate::{mp4parser::Reader, utils};
+use crate::Reader;
+use base64::Engine;
 use serde::Deserialize;
 
 pub(super) fn parse(data: &[u8]) -> Result<impl IntoIterator<Item = KeyId>, String> {
@@ -146,7 +147,7 @@ impl WrmHeader {
         }
 
         kids.iter()
-            .map(|x| hex::encode(utils::decode_base64(x).unwrap()))
+            .map(|x| hex::encode(base64::engine::general_purpose::STANDARD.decode(x).unwrap()))
             .collect()
     }
 }

@@ -9,32 +9,32 @@
 use std::io::{Cursor, Error, ErrorKind, Read, Result};
 
 #[derive(Clone, Default)]
-pub(super) struct Reader {
+pub struct Reader {
     inner: Cursor<Vec<u8>>,
     little_endian: bool,
 }
 
 impl Reader {
-    pub(super) fn new(data: &[u8], little_endian: bool) -> Self {
+    pub fn new(data: &[u8], little_endian: bool) -> Self {
         Self {
             inner: Cursor::new(data.to_vec()),
             little_endian,
         }
     }
 
-    pub(super) fn has_more_data(&self) -> bool {
+    pub fn has_more_data(&self) -> bool {
         self.inner.position() < (self.inner.get_ref().len() as u64)
     }
 
-    pub(super) fn get_length(&self) -> u64 {
+    pub fn get_length(&self) -> u64 {
         self.inner.get_ref().len() as u64
     }
 
-    pub(super) fn get_position(&self) -> u64 {
+    pub fn get_position(&self) -> u64 {
         self.inner.position()
     }
 
-    pub(super) fn read_u16(&mut self) -> Result<u16> {
+    pub fn read_u16(&mut self) -> Result<u16> {
         let mut buf = [0; 2];
         self.inner.read_exact(&mut buf)?;
 
@@ -45,7 +45,7 @@ impl Reader {
         }
     }
 
-    pub(super) fn read_i32(&mut self) -> Result<i32> {
+    pub fn read_i32(&mut self) -> Result<i32> {
         let mut buf = [0; 4];
         self.inner.read_exact(&mut buf)?;
 
@@ -56,7 +56,7 @@ impl Reader {
         }
     }
 
-    pub(super) fn read_u32(&mut self) -> Result<u32> {
+    pub fn read_u32(&mut self) -> Result<u32> {
         let mut buf = [0; 4];
         self.inner.read_exact(&mut buf)?;
 
@@ -67,7 +67,7 @@ impl Reader {
         }
     }
 
-    pub(super) fn read_u64(&mut self) -> Result<u64> {
+    pub fn read_u64(&mut self) -> Result<u64> {
         let mut buf = [0; 8];
         self.inner.read_exact(&mut buf)?;
 
@@ -78,14 +78,14 @@ impl Reader {
         }
     }
 
-    pub(super) fn read_bytes_u8(&mut self, bytes: usize) -> Result<Vec<u8>> {
+    pub fn read_bytes_u8(&mut self, bytes: usize) -> Result<Vec<u8>> {
         let mut buf = vec![0; bytes];
         self.inner.read_exact(&mut buf)?;
         Ok(buf)
     }
 
     // https://stackoverflow.com/questions/73176253/how-to-reencode-a-utf-16-byte-array-as-utf-8
-    pub(super) fn read_bytes_u16(&mut self, bytes: usize) -> Result<Vec<u16>> {
+    pub fn read_bytes_u16(&mut self, bytes: usize) -> Result<Vec<u16>> {
         Ok(self
             .read_bytes_u8(bytes)?
             .chunks(2)
@@ -99,7 +99,7 @@ impl Reader {
             .collect::<Vec<_>>())
     }
 
-    pub(super) fn skip(&mut self, bytes: u64) -> Result<()> {
+    pub fn skip(&mut self, bytes: u64) -> Result<()> {
         let position = self.get_position() + bytes;
 
         if position > self.get_length() {

@@ -29,7 +29,6 @@ hex = "0.4"
 kdam = "0.3"
 m3u8-rs = "5.0.4"
 mp4decrypt = { version = "0.4.0", path = "../mp4decrypt" }
-prost = "0.11"
 quick-xml = { version = "0.28", features = ["serialize"] }
 regex = "1"
 requestty = "0.5.0"
@@ -37,6 +36,7 @@ reqwest = { version = "0.11", default-features = false, features = ["blocking", 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 threadpool = "1"
+vsd-mp4 = { version = "0.1.0", path = "../vsd-mp4" }
 
 [features]
 default = ["browser", "native-tls"]
@@ -44,6 +44,3 @@ browser = ["dep:headless_chrome"]
 native-tls = ["reqwest/native-tls"]
 rustls-tls-webpki-roots = ["reqwest/rustls-tls-webpki-roots"]
 rustls-tls-native-roots = ["reqwest/rustls-tls-native-roots"]
-
-[build-dependencies]
-prost-build = "0.11"

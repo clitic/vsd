@@ -5,9 +5,10 @@ use requestty::prompt::style::Stylize;
 use reqwest::header::HeaderValue;
 use std::{fmt::Display, io::Write, path::PathBuf};
 
-#[allow(dead_code)]
 pub(crate) struct MasterPlaylist {
+    #[allow(dead_code)]
     pub(crate) playlist_type: PlaylistType,
+    #[allow(dead_code)]
     pub(crate) uri: String,
     pub(crate) streams: Vec<MediaPlaylist>,
 }

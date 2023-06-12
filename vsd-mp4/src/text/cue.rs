@@ -10,10 +10,10 @@
 
 use std::fmt::Write;
 
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct Cue {
     pub(super) end_time: f32,
+    #[allow(dead_code)]
     pub(super) id: String,
     pub(super) payload: String,
     pub(super) settings: String,

@@ -15,7 +15,7 @@ type HandlerResult = Result<(), String>;
 type CallbackType = Arc<dyn Fn(ParsedBox) -> HandlerResult>;
 
 #[derive(Clone, Default)]
-pub(super) struct Mp4Parser {
+pub struct Mp4Parser {
     headers: HashMap<usize, BoxType>,
     box_definitions: HashMap<usize, CallbackType>,
     done: bool,
@@ -23,7 +23,7 @@ pub(super) struct Mp4Parser {
 
 impl Mp4Parser {
     /// Declare a box type as a Box.
-    pub(super) fn _box(mut self, _type: &str, definition: CallbackType) -> Self {
+    pub fn _box(mut self, _type: &str, definition: CallbackType) -> Self {
         let type_code = type_from_string(_type);
         self.headers.insert(type_code, BoxType::BasicBox);
         self.box_definitions.insert(type_code, definition);
@@ -31,7 +31,7 @@ impl Mp4Parser {
     }
 
     /// Declare a box type as a Full Box.
-    pub(super) fn full_box(mut self, _type: &str, definition: CallbackType) -> Self {
+    pub fn full_box(mut self, _type: &str, definition: CallbackType) -> Self {
         let type_code = type_from_string(_type);
         self.headers.insert(type_code, BoxType::FullBox);
         self.box_definitions.insert(type_code, definition);
@@ -40,7 +40,7 @@ impl Mp4Parser {
 
     /// Stop parsing. Useful for extracting information from partial segments and
     /// avoiding an out-of-bounds error once you find what you are looking for.
-    pub(super) fn stop(&mut self) {
+    pub fn stop(&mut self) {
         self.done = true;
     }
 
@@ -53,7 +53,7 @@ impl Mp4Parser {
     /// without enough data to find all child boxes.
     /// - `stop_on_partial` (optional) - If true, stop reading if an incomplete
     /// box is detected.
-    pub(super) fn parse(
+    pub fn parse(
         &mut self,
         data: &[u8],
         partial_okay: Option<bool>,
@@ -206,7 +206,7 @@ impl Mp4Parser {
 
 /// A callback that tells the Mp4 parser to treat the body of a box as a series
 /// of boxes. The number of boxes is limited by the size of the parent box.
-pub(super) fn children(mut _box: ParsedBox) -> HandlerResult {
+pub fn children(mut _box: ParsedBox) -> HandlerResult {
     // The "reader" starts at the payload, so we need to add the header to the
     // start position.  The header size varies.
     let header_size = _box.header_size();
@@ -227,7 +227,7 @@ pub(super) fn children(mut _box: ParsedBox) -> HandlerResult {
 /// description. A sample description box has a fixed number of children. The
 /// number of children is represented by a 4 byte unsigned integer. Each child
 /// is a box.
-pub(super) fn sample_description(mut _box: ParsedBox) -> HandlerResult {
+pub fn sample_description(mut _box: ParsedBox) -> HandlerResult {
     // The "reader" starts at the payload, so we need to add the header to the
     // start position.  The header size varies.
     let header_size = _box.header_size();
@@ -256,8 +256,7 @@ pub(super) fn sample_description(mut _box: ParsedBox) -> HandlerResult {
 /// sample entry.  A visual sample entry has some fixed-sized fields
 /// describing the video codec parameters, followed by an arbitrary number of
 /// appended children.  Each child is a box.
-#[allow(dead_code)]
-pub(super) fn visual_sample_entry(mut _box: ParsedBox) -> HandlerResult {
+pub fn visual_sample_entry(mut _box: ParsedBox) -> HandlerResult {
     // The "reader" starts at the payload, so we need to add the header to the
     // start position.  The header size varies.
     let header_size = _box.header_size();
@@ -292,7 +291,7 @@ pub(super) fn visual_sample_entry(mut _box: ParsedBox) -> HandlerResult {
 
 /// Create a callback that tells the Mp4 parser to treat the body of a box as a
 /// binary blob and to parse the body's contents using the provided callback.
-pub(super) fn alldata(callback: Arc<dyn Fn(Vec<u8>) -> HandlerResult>) -> CallbackType {
+pub fn alldata(callback: Arc<dyn Fn(Vec<u8>) -> HandlerResult>) -> CallbackType {
     Arc::new(move |mut _box| {
         let all = _box.reader.get_length() - _box.reader.get_position();
         callback(
@@ -321,7 +320,7 @@ fn type_from_string(name: &str) -> usize {
 
 /// Convert an integer type from a box into an ascii string name.
 /// Useful for debugging.
-pub(super) fn type_to_string(_type: usize) -> Result<String, std::string::FromUtf8Error> {
+pub fn type_to_string(_type: usize) -> Result<String, std::string::FromUtf8Error> {
     String::from_utf8(vec![
         ((_type >> 24) & 0xff) as u8,
         ((_type >> 16) & 0xff) as u8,
@@ -338,15 +337,14 @@ enum BoxType {
     FullBox,
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Default)]
-pub(super) struct ParsedBox {
+pub struct ParsedBox {
     /// The box name, a 4-character string (fourcc).
-    name: String,
+    pub name: String,
     /// The parser that parsed this box. The parser can be used to parse child
     /// boxes where the configuration of the current parser is needed to parsed
     /// other boxes
-    pub(super) parser: Mp4Parser,
+    pub parser: Mp4Parser,
     /// If true, allows reading partial payloads from some boxes. If the goal is a
     /// child box, we can sometimes find it without enough data to find all child
     /// boxes. This property allows the partialOkay flag from parse() to be
@@ -355,14 +353,14 @@ pub(super) struct ParsedBox {
     /// The size of this box (including the header).
     start: u64, // i64
     /// The size of this box (including the header).
-    pub(super) size: usize,
+    pub size: usize,
     /// The version for a full box, null for basic boxes.
-    pub(super) version: Option<u32>,
+    pub version: Option<u32>,
     /// The flags for a full box, null for basic boxes.
-    pub(super) flags: Option<u32>,
+    pub flags: Option<u32>,
     /// The reader for this box is only for this box. Reading or not reading to
     /// the end will have no affect on the parser reading other sibling boxes.
-    pub(super) reader: Reader,
+    pub reader: Reader,
     /// If true, the box header had a 64-bit size field.  This affects the offsets
     /// of other fields.
     has_64_bit_size: bool,

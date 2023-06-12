@@ -8,24 +8,23 @@
 
 use super::Reader;
 
-#[allow(dead_code)]
-pub(super) struct ParsedTFHDBox {
+pub struct ParsedTFHDBox {
     /// As per the spec: an integer that uniquely identifies this
     /// track over the entire life‐time of this presentation
-    track_id: u32,
+    pub track_id: u32,
     /// If specified via flags, this overrides the default sample
     /// duration in the Track Extends Box for this fragment
-    pub(super) default_sample_duration: Option<u32>,
+    pub default_sample_duration: Option<u32>,
     /// If specified via flags, this overrides the default sample
     /// size in the Track Extends Box for this fragment
-    default_sample_size: Option<u32>,
+    pub default_sample_size: Option<u32>,
     /// If specified via flags, this indicate the base data offset
-    base_data_offset: Option<u64>,
+    pub base_data_offset: Option<u64>,
 }
 
 impl ParsedTFHDBox {
     /// Parses a TFHD Box.
-    pub(super) fn parse(reader: &mut Reader, flags: u32) -> Result<Self, String> {
+    pub fn parse(reader: &mut Reader, flags: u32) -> Result<Self, String> {
         let mut default_sample_duration = None;
         let mut default_sample_size = None;
         let mut base_data_offset = None;
@@ -72,15 +71,15 @@ impl ParsedTFHDBox {
     }
 }
 
-pub(super) struct ParsedTFDTBox {
+pub struct ParsedTFDTBox {
     /// As per the spec: the absolute decode time, measured on the media
     /// timeline, of the first sample in decode order in the track fragment
-    pub(super) base_media_decode_time: u64,
+    pub base_media_decode_time: u64,
 }
 
 impl ParsedTFDTBox {
     /// Parses a TFDT Box.
-    pub(super) fn parse(reader: &mut Reader, version: u32) -> Result<Self, String> {
+    pub fn parse(reader: &mut Reader, version: u32) -> Result<Self, String> {
         Ok(Self {
             base_media_decode_time: if version == 1 {
                 reader.read_u64().map_err(|_| {
@@ -95,18 +94,17 @@ impl ParsedTFDTBox {
     }
 }
 
-#[allow(dead_code)]
-pub(super) struct ParsedMDHDBox {
+pub struct ParsedMDHDBox {
     /// As per the spec: an integer that specifies the time‐scale for this media;
     /// this is the number of time units that pass in one second
-    pub(super) timescale: u32,
+    pub timescale: u32,
     /// Language code for this media
-    language: String,
+    pub language: String,
 }
 
 impl ParsedMDHDBox {
     /// Parses a MDHD Box.
-    pub(super) fn parse(reader: &mut Reader, version: u32) -> Result<Self, String> {
+    pub fn parse(reader: &mut Reader, version: u32) -> Result<Self, String> {
         if version == 1 {
             reader.skip(8).map_err(|_| {
                 "mp4parser.boxes.MDHD: cannot skip creation time data (8 bytes).".to_owned()
@@ -154,19 +152,18 @@ impl ParsedMDHDBox {
     }
 }
 
-#[allow(dead_code)]
-pub(super) struct ParsedTRUNBox {
+pub struct ParsedTRUNBox {
     /// As per the spec: the number of samples being added in this run;
-    sample_count: u32,
-    ///  An array of size <sampleCount> containing data for each sample
-    pub(super) sample_data: Vec<ParsedTRUNSample>,
+    pub sample_count: u32,
+    /// An array of size sampleCount containing data for each sample
+    pub sample_data: Vec<ParsedTRUNSample>,
     /// If specified via flags, this indicate the offset of the sample in bytes.
-    data_offset: Option<u32>,
+    pub data_offset: Option<u32>,
 }
 
 impl ParsedTRUNBox {
     /// Parses a TRUN Box.
-    pub(super) fn parse(reader: &mut Reader, version: u32, flags: u32) -> Result<Self, String> {
+    pub fn parse(reader: &mut Reader, version: u32, flags: u32) -> Result<Self, String> {
         let sample_count = reader
             .read_u32()
             .map_err(|_| "mp4parser.boxes.TRUN: cannot read sample count (u32).".to_owned())?;
@@ -240,14 +237,14 @@ impl ParsedTRUNBox {
     }
 }
 
-pub(super) struct ParsedTRUNSample {
+pub struct ParsedTRUNSample {
     /// The length of the sample in timescale units.
-    pub(super) sample_duration: Option<u32>,
+    pub sample_duration: Option<u32>,
     /// The size of the sample in bytes.
-    pub(super) sample_size: Option<u32>,
+    pub sample_size: Option<u32>,
     /// The time since the start of the sample in timescale units. Time
     /// offset is based of the start of the sample. If this value is
     /// missing, the accumulated durations preceeding this time sample will
     /// be used to create the start time.
-    pub(super) sample_composition_time_offset: Option<i32>,
+    pub sample_composition_time_offset: Option<i32>,
 }
