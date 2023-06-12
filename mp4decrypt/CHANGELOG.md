@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.4.2] - 2023-06-11
+## [0.4.2] - 2023-06-12
 
 ### Added
 
@@ -62,7 +62,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.0] - 2022-08-31
 
-[Unreleased]: https://github.com/clitic/vsd/compare/mp4decrypt-v0.4.1...HEAD
+[Unreleased]: https://github.com/clitic/vsd/compare/mp4decrypt-v0.4.2...HEAD
+[0.4.2]: https://github.com/clitic/vsd/compare/mp4decrypt-v0.4.1...mp4decrypt-v0.4.2
 [0.4.1]: https://github.com/clitic/vsd/compare/mp4decrypt-v0.4.0...mp4decrypt-v0.4.1
 [0.4.0]: https://github.com/clitic/mp4decrypt/compare/v0.3.1...HEAD
 [0.3.1]: https://github.com/clitic/mp4decrypt/compare/v0.3.0...v0.3.1

@@ -23,7 +23,7 @@ Add this to your Cargo.toml file.
 
 ```toml
 [dependencies]
-mp4decrypt = "0.4.1"
+mp4decrypt = "0.4.2"
 ```
 
 Or add from command line.

@@ -1,4 +1,10 @@
-// https://github.com/axiomatic-systems/Bento4/blob/master/Source/C%2B%2B/Apps/Mp4Decrypt/Mp4Decrypt.cpp
+/*
+    REFERENCES
+    ----------
+
+    1. https://github.com/axiomatic-systems/Bento4/blob/991d890908fb5da73704920c6de43480fb29f76a/Source/C%2B%2B/Apps/Mp4Decrypt/Mp4Decrypt.cpp
+
+*/
 
 #include <stdio.h>
 #include <stdlib.h>
