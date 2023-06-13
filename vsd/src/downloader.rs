@@ -19,7 +19,10 @@ use std::{
     sync::{Arc, Mutex},
     time::Instant,
 };
-use vsd_mp4::{Mp4TtmlParser, Mp4VttParser, Pssh, Subtitles};
+use vsd_mp4::{
+    pssh::Pssh,
+    text::{ttml_text_parser, Mp4TtmlParser, Mp4VttParser, Subtitles},
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn download(
@@ -584,14 +587,15 @@ pub(crate) fn download(
 
                 let xml = String::from_utf8(subtitles_data)
                     .map_err(|_| anyhow!("cannot decode subtitles as valid utf8 string."))?;
-                let ttml = vsd_mp4::ttml_text_parser::parse(&xml).map_err(|x| {
+                let ttml = ttml_text_parser::parse(&xml).map_err(|x| {
                     anyhow!(
                         "couldn't parse xml string as ttml content (failed with {}).\n\n{}",
                         x,
                         xml
                     )
                 })?;
-                File::create(&temp_file)?.write_all(ttml.to_srt().as_bytes())?;
+                File::create(&temp_file)?
+                    .write_all(Subtitles::new(ttml.to_cues()).to_srt().as_bytes())?;
             }
             _ => File::create(&temp_file)?.write_all(&subtitles_data)?,
         };

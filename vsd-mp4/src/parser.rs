@@ -1,3 +1,5 @@
+//! The main mp4 parser.
+
 /*
     REFERENCES
     ----------
@@ -8,17 +10,19 @@
 */
 
 use super::Reader;
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
-type HandlerResult = Result<(), String>;
-type CallbackType = Arc<dyn Fn(ParsedBox) -> HandlerResult>;
+/// Result type returned when parsing an mp4 file.
+pub type HandlerResult = Result<(), String>;
+/// Callback type for parsing an mp4 file.
+pub type CallbackType = Arc<dyn Fn(ParsedBox) -> HandlerResult>;
 
+/// Mp4 file parser.
 #[derive(Clone, Default)]
 pub struct Mp4Parser {
-    headers: HashMap<usize, BoxType>,
-    box_definitions: HashMap<usize, CallbackType>,
-    done: bool,
+    pub headers: HashMap<usize, BoxType>,
+    pub box_definitions: HashMap<usize, CallbackType>,
+    pub done: bool,
 }
 
 impl Mp4Parser {
@@ -306,7 +310,7 @@ pub fn alldata(callback: Arc<dyn Fn(Vec<u8>) -> HandlerResult>) -> CallbackType 
 
 /// Convert an ascii string name to the integer type for a box.
 /// The name must be four characters long.
-fn type_from_string(name: &str) -> usize {
+pub fn type_from_string(name: &str) -> usize {
     assert!(name.len() == 4, "MP4 box names must be 4 characters long");
 
     let mut code = 0;
@@ -332,11 +336,12 @@ pub fn type_to_string(_type: usize) -> Result<String, std::string::FromUtf8Error
 /// An enum used to track the type of box so that the correct values can be
 /// read from the header.
 #[derive(Clone, PartialEq)]
-enum BoxType {
+pub enum BoxType {
     BasicBox,
     FullBox,
 }
 
+/// Parsed mp4 box.
 #[derive(Clone, Default)]
 pub struct ParsedBox {
     /// The box name, a 4-character string (fourcc).
@@ -349,9 +354,9 @@ pub struct ParsedBox {
     /// child box, we can sometimes find it without enough data to find all child
     /// boxes. This property allows the partialOkay flag from parse() to be
     /// propagated through methods like children().
-    partial_okay: bool,
+    pub partial_okay: bool,
     /// The size of this box (including the header).
-    start: u64, // i64
+    pub start: u64, // i64
     /// The size of this box (including the header).
     pub size: usize,
     /// The version for a full box, null for basic boxes.
@@ -363,13 +368,13 @@ pub struct ParsedBox {
     pub reader: Reader,
     /// If true, the box header had a 64-bit size field.  This affects the offsets
     /// of other fields.
-    has_64_bit_size: bool,
+    pub has_64_bit_size: bool,
 }
 
 impl ParsedBox {
     /// Find the header size of the box.
     /// Useful for modifying boxes in place or finding the exact offset of a field.
-    fn header_size(&self) -> u64 {
+    pub fn header_size(&self) -> u64 {
         let basic_header_size = 8;
         let _64_bit_field_size = if self.has_64_bit_size { 8 } else { 0 };
         let version_and_flags_size = if self.flags.is_some() { 4 } else { 0 };

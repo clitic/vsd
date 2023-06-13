@@ -6,14 +6,15 @@
 
 */
 
-use super::ttml_text_parser;
-use super::Cue;
+use super::{ttml_text_parser, Cue};
 use crate::{parser, parser::Mp4Parser};
 use std::sync::{Arc, Mutex};
 
+/// Parse ttml subtitles from mp4 files.
 pub struct Mp4TtmlParser;
 
 impl Mp4TtmlParser {
+    /// Parse intialization segment, a valid `stpp` box should be present.
     pub fn parse_init(data: &[u8]) -> Result<Self, String> {
         let saw_stpp = Arc::new(Mutex::new(false));
         let saw_stpp_c = saw_stpp.clone();
@@ -44,6 +45,7 @@ impl Mp4TtmlParser {
         Ok(Self)
     }
 
+    /// Parse media segments, only if valid `mdat` box(s) are present.
     pub fn parse_media(&self, data: &[u8]) -> Result<Vec<Cue>, String> {
         let saw_mdat = Arc::new(Mutex::new(false));
         let cues = Arc::new(Mutex::new(vec![]));

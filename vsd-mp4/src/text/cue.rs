@@ -10,6 +10,7 @@
 
 use std::fmt::Write;
 
+/// Single subtitle fragment.
 #[derive(Clone)]
 pub struct Cue {
     pub(super) end_time: f32,
@@ -20,6 +21,7 @@ pub struct Cue {
     pub(super) start_time: f32,
 }
 
+/// Multiple subtitle fragments.
 pub struct Subtitles {
     cues: Vec<Cue>,
 }
@@ -50,6 +52,7 @@ impl Subtitles {
         Self { cues: trimmed_cues }
     }
 
+    /// Build subtitles in webvtt format. 
     pub fn to_vtt(&self) -> String {
         let mut subtitles = "WEBVTT\n\n".to_owned();
 
@@ -67,6 +70,7 @@ impl Subtitles {
         subtitles
     }
 
+    /// Build subtitles in subrip format. 
     pub fn to_srt(&self) -> String {
         let mut subtitles = String::new();
 

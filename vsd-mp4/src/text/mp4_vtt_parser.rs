@@ -8,19 +8,21 @@
 
 use super::Cue;
 use crate::{
-    boxes::{ParsedMDHDBox, ParsedTFDTBox, ParsedTFHDBox, ParsedTRUNBox, ParsedTRUNSample},
+    boxes::{MDHDBox, TFDTBox, TFHDBox, TRUNBox, TRUNSample},
     parser,
     parser::Mp4Parser,
     Reader,
 };
 use std::sync::{Arc, Mutex};
 
+/// Parse vtt subtitles from mp4 files.
 pub struct Mp4VttParser {
     /// The current time scale used by the VTT parser.
-    timescale: u32,
+    pub timescale: u32,
 }
 
 impl Mp4VttParser {
+    /// Parse intialization segment, a valid `wvtt` box should be present.
     pub fn parse_init(data: &[u8]) -> Result<Self, String> {
         let saw_wvtt = Arc::new(Mutex::new(false));
         let timescale = Arc::new(Mutex::new(None));
@@ -41,8 +43,8 @@ impl Mp4VttParser {
                             "mp4parser.mp4vttparser: MDHD version can only be 0 or 1.".to_owned()
                         );
                     }
-                    let parsed_mdhd_box = ParsedMDHDBox::parse(&mut _box.reader, _box_version)
-                        .map_err(|x| {
+                    let parsed_mdhd_box =
+                        MDHDBox::parse(&mut _box.reader, _box_version).map_err(|x| {
                             x.replace("mp4parser.boxes.MDHD", "mp4parser.mp4vttparser.boxes.MDHD")
                         })?;
                     *timescale_c.lock().unwrap() = Some(parsed_mdhd_box.timescale);
@@ -76,6 +78,7 @@ impl Mp4VttParser {
         }
     }
 
+    /// Parse media segments, only if valid `mdat` box(s) are present.
     pub fn parse_media(&self, data: &[u8], period_start: Option<f32>) -> Result<Vec<Cue>, String> {
         let period_start = period_start.unwrap_or(0.0);
 
@@ -110,8 +113,8 @@ impl Mp4VttParser {
                         );
                     }
 
-                    let parsed_tfdt_box = ParsedTFDTBox::parse(&mut _box.reader, _box_version)
-                        .map_err(|x| {
+                    let parsed_tfdt_box =
+                        TFDTBox::parse(&mut _box.reader, _box_version).map_err(|x| {
                             x.replace("mp4parser.boxes.TFDT", "mp4parser.mp4vttparser.boxes.TFDT")
                         })?;
                     *base_time_c.lock().unwrap() = parsed_tfdt_box.base_media_decode_time;
@@ -128,13 +131,10 @@ impl Mp4VttParser {
                         );
                     }
 
-                    let parsed_tfhd_box = ParsedTFHDBox::parse(
-                        &mut _box.reader,
-                        _box.flags.unwrap(),
-                    )
-                    .map_err(|x| {
-                        x.replace("mp4parser.boxes.TFHD", "mp4parser.mp4vttparser.boxes.TFHD")
-                    })?;
+                    let parsed_tfhd_box = TFHDBox::parse(&mut _box.reader, _box.flags.unwrap())
+                        .map_err(|x| {
+                            x.replace("mp4parser.boxes.TFHD", "mp4parser.mp4vttparser.boxes.TFHD")
+                        })?;
                     *default_duration_c.lock().unwrap() = parsed_tfhd_box.default_sample_duration;
                     Ok(())
                 }),
@@ -156,7 +156,7 @@ impl Mp4VttParser {
                         );
                     }
 
-                    let parsed_trun_box = ParsedTRUNBox::parse(
+                    let parsed_trun_box = TRUNBox::parse(
                         &mut _box.reader,
                         _box.version.unwrap(),
                         _box.flags.unwrap(),
@@ -206,7 +206,7 @@ fn parse_mdat(
     period_start: f32,
     base_time: u64,
     default_duration: Option<u32>,
-    presentations: &[ParsedTRUNSample],
+    presentations: &[TRUNSample],
     raw_payload: &[u8],
 ) -> Result<impl IntoIterator<Item = Cue>, String> {
     let mut cues = vec![];

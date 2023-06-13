@@ -1,3 +1,5 @@
+//! Parse ttml content.
+
 /*
     REFERENCES
     ----------
@@ -8,11 +10,12 @@
 
 */
 
-use super::{Cue, Subtitles};
+use super::Cue;
 use serde::Deserialize;
 
 // TODO - Parse span (cdata) in `p` node when quick-xml supports cdata+text parsing.
 // https://docs.rs/quick-xml/latest/quick_xml/de/index.html
+/// Parse xml as ttml content.
 pub fn parse(xml: &str) -> Result<TT, quick_xml::de::DeError> {
     let mut xml = xml
         .replace("<br></br>", "\n")
@@ -89,36 +92,36 @@ impl Span {
 #[derive(Deserialize)]
 pub struct TT {
     #[serde(rename = "body")]
-    body: Body,
+    pub body: Body,
 }
 
 #[derive(Deserialize)]
 pub struct Body {
     #[serde(rename = "div", default)]
-    divs: Vec<Div>,
+    pub divs: Vec<Div>,
 }
 
 #[derive(Deserialize)]
 pub struct Div {
     #[serde(rename = "p", default)]
-    paragraphs: Vec<Paragraph>,
+    pub paragraphs: Vec<Paragraph>,
 }
 
 #[derive(Deserialize)]
 pub struct Paragraph {
     #[serde(rename = "@begin")]
-    begin: String,
+    pub begin: String,
     #[serde(rename = "@end")]
-    end: String,
+    pub end: String,
     #[serde(rename = "$value")]
-    value: String,
+    pub value: String,
 }
 
 impl TT {
-    pub fn to_cues(&self) -> Vec<Cue> {
+    pub fn to_cues(self) -> Vec<Cue> {
         let mut cues = vec![];
 
-        for div in &self.body.divs {
+        for div in self.body.divs {
             for paragraph in &div.paragraphs {
                 cues.push(Cue {
                     end_time: duration(&paragraph.end).unwrap_or_else(|_| {
@@ -127,7 +130,7 @@ impl TT {
                             paragraph.end
                         )
                     }),
-                    id: "".to_owned(),
+                    id: String::new(),
                     payload: paragraph
                         .value
                         .replace("{b}", "<b>")
@@ -138,7 +141,7 @@ impl TT {
                         .replace("{/u}", "</u>")
                         .replace("{font", "<font")
                         .replace("{/font}", "</font>"),
-                    settings: "".to_owned(),
+                    settings: String::new(),
                     start_time: duration(&paragraph.begin).unwrap_or_else(|_| {
                         panic!(
                             "mp4parser.ttmltextparser: could'nt convert {} to seconds.",
@@ -150,10 +153,6 @@ impl TT {
         }
 
         cues
-    }
-
-    pub fn to_srt(&self) -> String {
-        Subtitles::new(self.to_cues()).to_srt()
     }
 }
 

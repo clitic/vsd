@@ -1,3 +1,5 @@
+//! Some mp4 boxes with parsers.
+
 /*
     REFERENCES
     ----------
@@ -8,7 +10,7 @@
 
 use super::Reader;
 
-pub struct ParsedTFHDBox {
+pub struct TFHDBox {
     /// As per the spec: an integer that uniquely identifies this
     /// track over the entire life‐time of this presentation
     pub track_id: u32,
@@ -22,7 +24,7 @@ pub struct ParsedTFHDBox {
     pub base_data_offset: Option<u64>,
 }
 
-impl ParsedTFHDBox {
+impl TFHDBox {
     /// Parses a TFHD Box.
     pub fn parse(reader: &mut Reader, flags: u32) -> Result<Self, String> {
         let mut default_sample_duration = None;
@@ -71,13 +73,13 @@ impl ParsedTFHDBox {
     }
 }
 
-pub struct ParsedTFDTBox {
+pub struct TFDTBox {
     /// As per the spec: the absolute decode time, measured on the media
     /// timeline, of the first sample in decode order in the track fragment
     pub base_media_decode_time: u64,
 }
 
-impl ParsedTFDTBox {
+impl TFDTBox {
     /// Parses a TFDT Box.
     pub fn parse(reader: &mut Reader, version: u32) -> Result<Self, String> {
         Ok(Self {
@@ -94,7 +96,7 @@ impl ParsedTFDTBox {
     }
 }
 
-pub struct ParsedMDHDBox {
+pub struct MDHDBox {
     /// As per the spec: an integer that specifies the time‐scale for this media;
     /// this is the number of time units that pass in one second
     pub timescale: u32,
@@ -102,7 +104,7 @@ pub struct ParsedMDHDBox {
     pub language: String,
 }
 
-impl ParsedMDHDBox {
+impl MDHDBox {
     /// Parses a MDHD Box.
     pub fn parse(reader: &mut Reader, version: u32) -> Result<Self, String> {
         if version == 1 {
@@ -152,16 +154,16 @@ impl ParsedMDHDBox {
     }
 }
 
-pub struct ParsedTRUNBox {
+pub struct TRUNBox {
     /// As per the spec: the number of samples being added in this run;
     pub sample_count: u32,
     /// An array of size sampleCount containing data for each sample
-    pub sample_data: Vec<ParsedTRUNSample>,
+    pub sample_data: Vec<TRUNSample>,
     /// If specified via flags, this indicate the offset of the sample in bytes.
     pub data_offset: Option<u32>,
 }
 
-impl ParsedTRUNBox {
+impl TRUNBox {
     /// Parses a TRUN Box.
     pub fn parse(reader: &mut Reader, version: u32, flags: u32) -> Result<Self, String> {
         let sample_count = reader
@@ -186,7 +188,7 @@ impl ParsedTRUNBox {
         }
 
         for _ in 0..sample_count {
-            let mut sample = ParsedTRUNSample {
+            let mut sample = TRUNSample {
                 sample_duration: None,
                 sample_size: None,
                 sample_composition_time_offset: None,
@@ -237,7 +239,7 @@ impl ParsedTRUNBox {
     }
 }
 
-pub struct ParsedTRUNSample {
+pub struct TRUNSample {
     /// The length of the sample in timescale units.
     pub sample_duration: Option<u32>,
     /// The size of the sample in bytes.

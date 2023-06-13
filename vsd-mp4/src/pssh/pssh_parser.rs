@@ -20,6 +20,7 @@ const COMMAN_SYSTEM_ID: &str = "1077efecc0b24d02ace33c1e52e2fb4b";
 const PLAYREADY_SYSTEM_ID: &str = "9a04f07998404286ab92e65be0885f95";
 const WIDEVINE_SYSTEM_ID: &str = "edef8ba979d64acea3c827dcd51d21ed";
 
+/// Key id parsed from `pssh` box.
 #[derive(Clone)]
 pub struct KeyId {
     pub system_type: KeyIdSystemType,
@@ -39,6 +40,7 @@ impl KeyId {
     }
 }
 
+/// System id type parsed from `pssh` box.
 #[derive(Clone)]
 pub enum KeyIdSystemType {
     Comman,
@@ -62,7 +64,7 @@ impl std::fmt::Display for KeyIdSystemType {
     }
 }
 
-/// Parse a PSSH box and extract the system IDs.
+/// Parse `PSSH` box from mp4 files.
 pub struct Pssh {
     pub key_ids: Vec<KeyId>,
     /// In hex.

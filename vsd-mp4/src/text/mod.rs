@@ -1,3 +1,5 @@
+//! Parsers related to text processing.
+
 /*
     REFERENCES
     ----------

@@ -28,15 +28,14 @@ headless_chrome = { version = "1.0.5", optional = true }
 hex = "0.4"
 kdam = "0.3"
 m3u8-rs = "5.0.4"
-mp4decrypt = { version = "0.4.0", path = "../mp4decrypt" }
-quick-xml = { version = "0.28", features = ["serialize"] }
+mp4decrypt = { version = "0.4", path = "../mp4decrypt" }
 regex = "1"
 requestty = "0.5.0"
 reqwest = { version = "0.11", default-features = false, features = ["blocking", "cookies", "socks"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 threadpool = "1"
-vsd-mp4 = { version = "0.1.0", path = "../vsd-mp4" }
+vsd-mp4 = { version = "0.1", path = "../vsd-mp4" }
 
 [features]
 default = ["browser", "native-tls"]

@@ -8,6 +8,7 @@
 
 use std::io::{Cursor, Error, ErrorKind, Read, Result};
 
+/// Reader for parsing mp4 files.
 #[derive(Clone, Default)]
 pub struct Reader {
     inner: Cursor<Vec<u8>>,
