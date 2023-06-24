@@ -1,4 +1,4 @@
-//! Mp4 `pssh` box parser.
+//! Mp4 `PSSH` box parser.
 
 mod playready;
 mod pssh_parser;

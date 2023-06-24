@@ -1,9 +1,10 @@
 /*
-    REFERENCES
-    ----------
 
-    1. https://github.com/rlaphoenix/pywidevine/blob/e58510279825bd3422b2d9c123a034e633742e3e/pywidevine/license_protocol.proto
-    2. https://github.com/shaka-project/shaka-packager/blob/b209aeeb7aefeb53670bba8864286e768844b58e/packager/media/base/widevine_pssh_data.proto
+  REFERENCES
+  ----------
+
+  1. https://github.com/rlaphoenix/pywidevine/blob/e58510279825bd3422b2d9c123a034e633742e3e/pywidevine/license_protocol.proto
+  2. https://github.com/shaka-project/shaka-packager/blob/b209aeeb7aefeb53670bba8864286e768844b58e/packager/media/base/widevine_pssh_data.proto
 
 */
 

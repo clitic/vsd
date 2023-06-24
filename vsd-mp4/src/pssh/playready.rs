@@ -7,60 +7,69 @@
 */
 
 use super::{KeyId, KeyIdSystemType};
-use crate::Reader;
+use crate::{Error, Reader, Result};
 use base64::Engine;
 use serde::Deserialize;
 
-pub(super) fn parse(data: &[u8]) -> Result<impl IntoIterator<Item = KeyId>, String> {
+pub(super) fn parse(data: &[u8]) -> Result<impl IntoIterator<Item = KeyId>> {
     let mut reader = Reader::new(data, true);
     let size = reader
         .read_u32()
-        .map_err(|_| "mp4parser.pssh: cannot read playready object size (u32).".to_owned())?;
+        .map_err(|_| Error::new_read_err("PSSH box playready object size (u32)"))?;
 
     if size as usize != data.len() {
-        return Err("mp4parser.pssh: playready object with invalid length.".to_owned());
+        return Err(Error::new("Invalid length of PSSH box playready object"));
     }
 
-    let count = reader.read_u16().map_err(|_| {
-        "mp4parser.pssh: cannot read playready object record count (u16).".to_owned()
-    })?;
+    let count = reader
+        .read_u16()
+        .map_err(|_| Error::new_read_err("PSSH box playready object record count (u16)"))?;
 
     let mut kids = vec![];
 
     for _ in 0..count {
-        let record_type = reader.read_u16().map_err(|_| {
-            "mp4parser.pssh: cannot read playready object record type (u16).".to_owned()
-        })?;
-        let record_len = reader.read_u16().map_err(|_| {
-            "mp4parser.pssh: cannot read playready object record size (u16).".to_owned()
-        })?;
+        let record_type = reader
+            .read_u16()
+            .map_err(|_| Error::new_read_err("PSSH box playready object record type (u16)"))?;
+        let record_len = reader
+            .read_u16()
+            .map_err(|_| Error::new_read_err("PSSH box playready object record size (u16)"))?;
         let record_data = reader.read_bytes_u16(record_len as usize).map_err(|_| {
-            format!(
-                "mp4parser.pssh: cannot read playready object record data ({} bytes).",
+            Error::new_read_err(format!(
+                "PSSH box playready object record data ({} bytes)",
                 record_len
-            )
+            ))
         })?;
 
         match record_type {
             1 => {
                 let xml = String::from_utf16(&record_data).map_err(|_| {
-                    "mp4parser.pssh: cannot decode playready object record data as valid utf16 data (little endian).".to_owned()
+                    Error::new_decode_err(
+                    "PSSH box playready object record data as valid utf-16 data (little endian)"
+                )
                 })?;
-                let wrm_header = quick_xml::de::from_str::<WrmHeader>(&xml).unwrap();
-                kids.append(&mut wrm_header.kids());
+                let wrm_header = quick_xml::de::from_str::<WrmHeader>(&xml).map_err(|x| {
+                    Error::new_decode_err(format!(
+                        "PSSH box playready object record data i.e. {}\n\n{:#?}",
+                        xml, x
+                    ))
+                })?;
+                kids.append(&mut wrm_header.kids()?);
             }
             2 | 3 => (),
             _ => {
-                return Err(format!(
-                    "mp4parser.pssh: invalid playready object record type {}",
+                return Err(Error::new(format!(
+                    "Invalid PSSH box playready object record type {}",
                     record_type
-                ))
+                )));
             }
         }
     }
 
     if reader.has_more_data() {
-        return Err("mp4parser.pssh: extra data after playready object records.".to_owned());
+        return Err(Error::new_read_err(
+            "PSSH box extra data after playready object records",
+        ));
     }
 
     Ok(kids.into_iter().map(|x| KeyId {
@@ -107,7 +116,7 @@ pub(super) struct KeyIDs {
 }
 
 impl WrmHeader {
-    pub(super) fn kids(&self) -> Vec<String> {
+    pub(super) fn kids(&self) -> Result<Vec<String>> {
         let mut kids = vec![];
 
         match self.version.as_str() {
@@ -143,11 +152,17 @@ impl WrmHeader {
                 }
             }
 
-            x => panic!("unsupported playready header version v{}", x),
+            x => {
+                return Err(Error::new(format!(
+                    "Unsupported PSSH box playready object header version v{}",
+                    x
+                )))
+            }
         }
 
-        kids.iter()
+        Ok(kids
+            .iter()
             .map(|x| hex::encode(base64::engine::general_purpose::STANDARD.decode(x).unwrap()))
-            .collect()
+            .collect())
     }
 }

@@ -7,7 +7,7 @@
 */
 
 use super::{ttml_text_parser, Cue};
-use crate::{parser, parser::Mp4Parser};
+use crate::{parser, parser::Mp4Parser, Error, Result};
 use std::sync::{Arc, Mutex};
 
 /// Parse ttml subtitles from mp4 files.
@@ -15,7 +15,7 @@ pub struct Mp4TtmlParser;
 
 impl Mp4TtmlParser {
     /// Parse intialization segment, a valid `stpp` box should be present.
-    pub fn parse_init(data: &[u8]) -> Result<Self, String> {
+    pub fn parse_init(data: &[u8]) -> Result<Self> {
         let saw_stpp = Arc::new(Mutex::new(false));
         let saw_stpp_c = saw_stpp.clone();
 
@@ -39,14 +39,14 @@ impl Mp4TtmlParser {
         let saw_stpp = *saw_stpp.lock().unwrap();
 
         if !saw_stpp {
-            return Err("mp4parser.mp4ttmlparser: A STPP box should have been seen (a valid ttml init segment with no actual subtitles).".to_owned());
+            return Err(Error::new("STPP box not found"));
         }
 
         Ok(Self)
     }
 
     /// Parse media segments, only if valid `mdat` box(s) are present.
-    pub fn parse_media(&self, data: &[u8]) -> Result<Vec<Cue>, String> {
+    pub fn parse_media(&self, data: &[u8]) -> Result<Vec<Cue>> {
         let saw_mdat = Arc::new(Mutex::new(false));
         let cues = Arc::new(Mutex::new(vec![]));
 
@@ -60,11 +60,19 @@ impl Mp4TtmlParser {
                     *saw_mdat_c.lock().unwrap() = true;
                     // Join this to any previous payload, in case the mp4 has multiple
                     // mdats.
-                    let xml = String::from_utf8(data).map_err(|_| "mp4parser.mp4ttmlparser.boxes.MDAT: cannot decode payload as valid utf8 string.")?;
+                    let xml = String::from_utf8(data).map_err(|_| {
+                        Error::new_decode_err("MDAT box payload as valid utf-8 data")
+                    })?;
                     cues_c.lock().unwrap().append(
                         &mut ttml_text_parser::parse(&xml)
-                            .map_err(|x| format!("mp4parser.ttmltextparser: couldn't parse xml string as ttml content (failed with {}).\n\n{}", x, xml))?.to_cues()
-                        );
+                            .map_err(|x| {
+                                Error::new_decode_err(format!(
+                                    "xml string as ttml content.\n\n{}\n\n{:#?}",
+                                    xml, x
+                                ))
+                            })?
+                            .to_cues(),
+                    );
                     Ok(())
                 })),
             )
@@ -73,7 +81,7 @@ impl Mp4TtmlParser {
         let saw_mdat = *saw_mdat.lock().unwrap();
 
         if !saw_mdat {
-            return Err("mp4parser.mp4ttmlparser: cannot find MDAT box in given data.".to_owned());
+            return Err(Error::new("MDAT box not found"));
         }
 
         let cues = cues.lock().unwrap().clone();

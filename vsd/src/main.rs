@@ -11,13 +11,14 @@ mod utils;
 use clap::{ColorChoice, Parser};
 use commands::{Args, Commands};
 use kdam::term::Colorizer;
+use std::io::{stdout, IsTerminal};
 
 fn run() -> anyhow::Result<()> {
     let args = Args::parse();
 
     match args.color {
         ColorChoice::Auto => {
-            if atty::isnt(atty::Stream::Stdout) {
+            if !stdout().is_terminal() {
                 kdam::term::set_colorize(false);
             }
         }
@@ -26,7 +27,7 @@ fn run() -> anyhow::Result<()> {
         }
         _ => (),
     }
-    
+
     match args.command {
         #[cfg(feature = "browser")]
         Commands::Capture(args) => args.execute()?,

@@ -13,6 +13,7 @@ use super::{playready, widevine};
 use crate::{
     parser,
     parser::{Mp4Parser, ParsedBox},
+    Error, Result,
 };
 use std::sync::{Arc, Mutex};
 
@@ -72,7 +73,7 @@ pub struct Pssh {
 }
 
 impl Pssh {
-    pub fn new(data: &[u8]) -> Result<Self, String> {
+    pub fn new(data: &[u8]) -> Result<Self> {
         let pssh = Arc::new(Mutex::new(Self {
             system_ids: vec![],
             key_ids: vec![],
@@ -103,15 +104,18 @@ impl Pssh {
         })
     }
 
-    fn parse_pssh_box(&mut self, _box: &mut ParsedBox) -> Result<(), String> {
-        assert!(
-            _box.version.is_some(),
-            "PSSH boxes are full boxes and must have a valid version"
-        );
-        assert!(
-            _box.flags.is_some(),
-            "PSSH boxes are full boxes and must have a valid flag"
-        );
+    fn parse_pssh_box(&mut self, _box: &mut ParsedBox) -> Result<()> {
+        if _box.version.is_none() {
+            return Err(Error::new(
+                "PSSH boxes are full boxes and must have a valid version",
+            ));
+        }
+
+        if _box.flags.is_none() {
+            return Err(Error::new(
+                "PSSH boxes are full boxes and must have a valid flag",
+            ));
+        }
 
         let _box_version = _box.version.unwrap();
 
@@ -129,19 +133,24 @@ impl Pssh {
         // );
         // self.data = view(_box.reader.clone(), - 12, _box.size as i64);
 
-        let system_id = hex::encode(_box.reader.read_bytes_u8(16).map_err(|_| {
-            "mp4parser.pssh: cannot read pssh box system id (16 bytes).".to_owned()
-        })?);
+        let system_id = hex::encode(
+            _box.reader
+                .read_bytes_u8(16)
+                .map_err(|_| Error::new_read_err("PSSH box system id (16 bytes)"))?,
+        );
 
         if _box_version > 0 {
-            let num_key_ids = _box.reader.read_u32().map_err(|_| {
-                "mp4parser.pssh: cannot read pssh box number of key ids (u32).".to_owned()
-            })?;
+            let num_key_ids = _box
+                .reader
+                .read_u32()
+                .map_err(|_| Error::new_read_err("PSSH box number of key ids (u32)"))?;
 
             for _ in 0..num_key_ids {
-                let key_id = hex::encode(_box.reader.read_bytes_u8(16).map_err(|_| {
-                    "mp4parser.pssh: cannot read pssh box key id (16 bytes).".to_owned()
-                })?);
+                let key_id = hex::encode(
+                    _box.reader
+                        .read_bytes_u8(16)
+                        .map_err(|_| Error::new_read_err("PSSH box key id (16 bytes)"))?,
+                );
                 self.key_ids.push(KeyId {
                     value: key_id,
                     system_type: if system_id == COMMAN_SYSTEM_ID {
@@ -156,15 +165,12 @@ impl Pssh {
         let pssh_data_size = _box
             .reader
             .read_u32()
-            .map_err(|_| "mp4parser.pssh: cannot read pssh data size (u32).".to_owned())?;
+            .map_err(|_| Error::new_read_err("PSSH box data size (u32)"))?;
         let pssh_data = _box
             .reader
             .read_bytes_u8(pssh_data_size as usize)
             .map_err(|_| {
-                format!(
-                    "mp4parser.pssh: cannot read pssh data ({} bytes).",
-                    pssh_data_size
-                )
+                Error::new_read_err(format!("PSSH box data ({} bytes)", pssh_data_size))
             })?;
 
         match system_id.as_str() {
