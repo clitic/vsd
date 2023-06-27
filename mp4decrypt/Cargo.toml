@@ -1,6 +1,6 @@
 [package]
 authors = ["clitic <clitic21@gmail.com>"]
-categories = ["cryptography"]
+categories = ["api-bindings", "cryptography"]
 description = "Decrypt mp4 streams using bento4."
 documentation = "https://docs.rs/mp4decrypt"
 edition = "2021"

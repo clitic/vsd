@@ -15,6 +15,8 @@
   </a>
 </p>
 
+This crate contains a mp4 parser ported from [shaka-player](https://github.com/shaka-project/shaka-player) project. Also, some optional features are added for parsing subtitles and `PSSH` boxes.
+
 ## Getting Started
 
 Add this to your Cargo.toml file.

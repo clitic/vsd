@@ -6,13 +6,11 @@
 
 */
 
-use super::Cue;
-use crate::{
+use super::{
     boxes::{MDHDBox, TFDTBox, TFHDBox, TRUNBox, TRUNSample},
-    parser,
-    parser::Mp4Parser,
-    Error, Reader, Result,
+    Cue, Subtitles,
 };
+use crate::{parser, parser::Mp4Parser, Error, Reader, Result};
 use std::sync::{Arc, Mutex};
 
 /// Parse vtt subtitles from mp4 files.
@@ -76,7 +74,7 @@ impl Mp4VttParser {
     }
 
     /// Parse media segments, only if valid `mdat` box(s) are present.
-    pub fn parse_media(&self, data: &[u8], period_start: Option<f32>) -> Result<Vec<Cue>> {
+    pub fn parse_media(&self, data: &[u8], period_start: Option<f32>) -> Result<Subtitles> {
         let period_start = period_start.unwrap_or(0.0);
 
         let base_time = Arc::new(Mutex::new(0_u64));
@@ -176,7 +174,7 @@ impl Mp4VttParser {
             .parse(data, Some(false), None)?;
 
         let cues = cues.lock().unwrap().clone();
-        Ok(cues)
+        Ok(Subtitles::new(cues))
     }
 }
 
@@ -338,7 +336,7 @@ fn parse_vttc(data: &[u8], start_time: f32, end_time: f32) -> Result<Option<Cue>
         let settings = settings.lock().unwrap().to_owned();
         return Ok(Some(Cue {
             payload,
-            id,
+            _id: id,
             settings,
             start_time,
             end_time,

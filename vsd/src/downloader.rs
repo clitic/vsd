@@ -21,7 +21,7 @@ use std::{
 };
 use vsd_mp4::{
     pssh::Pssh,
-    text::{ttml_text_parser, Mp4TtmlParser, Mp4VttParser, Subtitles},
+    text::{ttml_text_parser, Mp4TtmlParser, Mp4VttParser},
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -561,12 +561,9 @@ pub(crate) fn download(
                     "Extracting".colorize("bold cyan"),
                 ));
 
-                let vtt = Mp4VttParser::parse_init(&subtitles_data).map_err(|x| anyhow!(x))?;
-                let cues = vtt
-                    .parse_media(&subtitles_data, None)
-                    .map_err(|x| anyhow!(x))?;
-                let subtitles = Subtitles::new(cues);
-                File::create(&temp_file)?.write_all(subtitles.to_vtt().as_bytes())?;
+                let vtt = Mp4VttParser::parse_init(&subtitles_data)?;
+                let subtitles = vtt.parse_media(&subtitles_data, None)?;
+                File::create(&temp_file)?.write_all(subtitles.as_vtt().as_bytes())?;
             }
             Some(SubtitleType::Mp4Ttml) => {
                 pb.write(format!(
@@ -574,10 +571,9 @@ pub(crate) fn download(
                     "Extracting".colorize("bold cyan"),
                 ));
 
-                let ttml = Mp4TtmlParser::parse_init(&subtitles_data).map_err(|x| anyhow!(x))?;
-                let cues = ttml.parse_media(&subtitles_data).map_err(|x| anyhow!(x))?;
-                let subtitles = Subtitles::new(cues);
-                File::create(&temp_file)?.write_all(subtitles.to_srt().as_bytes())?;
+                let ttml = Mp4TtmlParser::parse_init(&subtitles_data)?;
+                let subtitles = ttml.parse_media(&subtitles_data)?;
+                File::create(&temp_file)?.write_all(subtitles.as_srt().as_bytes())?;
             }
             Some(SubtitleType::TtmlText) => {
                 pb.write(format!(
@@ -586,16 +582,15 @@ pub(crate) fn download(
                 ));
 
                 let xml = String::from_utf8(subtitles_data)
-                    .map_err(|_| anyhow!("cannot decode subtitles as valid utf8 string."))?;
+                    .map_err(|_| anyhow!("cannot decode subtitles as valid utf-8 data."))?;
                 let ttml = ttml_text_parser::parse(&xml).map_err(|x| {
                     anyhow!(
-                        "couldn't parse xml string as ttml content (failed with {}).\n\n{}",
+                        "couldn't parse xml string as ttml content.\n\n{}\n\n{:#?}",
+                        xml,
                         x,
-                        xml
                     )
                 })?;
-                File::create(&temp_file)?
-                    .write_all(Subtitles::new(ttml.to_cues()).to_srt().as_bytes())?;
+                File::create(&temp_file)?.write_all(ttml.into_subtitles().as_srt().as_bytes())?;
             }
             _ => File::create(&temp_file)?.write_all(&subtitles_data)?,
         };

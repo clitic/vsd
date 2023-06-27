@@ -10,24 +10,22 @@
 
 use std::fmt::Write;
 
-/// Single subtitle fragment.
 #[derive(Clone)]
-pub struct Cue {
+pub(super) struct Cue {
     pub(super) end_time: f32,
-    #[allow(dead_code)]
-    pub(super) id: String,
+    pub(super) _id: String,
     pub(super) payload: String,
     pub(super) settings: String,
     pub(super) start_time: f32,
 }
 
-/// Multiple subtitle fragments.
+/// Subtitles builder.
 pub struct Subtitles {
     cues: Vec<Cue>,
 }
 
 impl Subtitles {
-    pub fn new(cues: Vec<Cue>) -> Self {
+    pub(super) fn new(cues: Vec<Cue>) -> Self {
         let mut trimmed_cues: Vec<Cue> = vec![];
 
         for current_cue in cues {
@@ -52,8 +50,13 @@ impl Subtitles {
         Self { cues: trimmed_cues }
     }
 
-    /// Build subtitles in webvtt format. 
-    pub fn to_vtt(&self) -> String {
+    /// Extend these subtitles with another subtitles.
+    pub fn extend(&mut self, other: Self) {
+        self.cues.extend(other.cues.into_iter());
+    }
+
+    /// Build subtitles in webvtt format.
+    pub fn as_vtt(&self) -> String {
         let mut subtitles = "WEBVTT\n\n".to_owned();
 
         for cue in &self.cues {
@@ -70,8 +73,8 @@ impl Subtitles {
         subtitles
     }
 
-    /// Build subtitles in subrip format. 
-    pub fn to_srt(&self) -> String {
+    /// Build subtitles in subrip format.
+    pub fn as_srt(&self) -> String {
         let mut subtitles = String::new();
 
         for (i, cue) in self.cues.iter().enumerate() {
@@ -89,9 +92,11 @@ impl Subtitles {
     }
 }
 
-fn seconds_to_timestamp(seconds: f32, millisecond_sep: &str) -> String {
-    let divmod = |x: usize, y: usize| (x / y, x % y);
+fn divmod(x: usize, y: usize) -> (usize, usize) {
+    (x / y, x % y)
+}
 
+fn seconds_to_timestamp(seconds: f32, millisecond_sep: &str) -> String {
     let (seconds, milliseconds) = divmod((seconds * 1000.0) as usize, 1000);
     let (minutes, seconds) = divmod(seconds, 60);
     let (hours, minutes) = divmod(minutes, 60);

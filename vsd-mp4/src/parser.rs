@@ -1,5 +1,3 @@
-//! The main mp4 parser.
-
 /*
     REFERENCES
     ----------
@@ -12,7 +10,7 @@
 use crate::{Error, Reader};
 use std::{collections::HashMap, sync::Arc};
 
-/// Result type returned when parsing an mp4 file.
+/// `Result` type returned when parsing an mp4 file.
 pub type HandlerResult = Result<(), Error>;
 /// Callback type for parsing an mp4 file.
 pub type CallbackType = Arc<dyn Fn(ParsedBox) -> HandlerResult>;

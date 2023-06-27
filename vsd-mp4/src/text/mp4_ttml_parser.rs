@@ -6,7 +6,7 @@
 
 */
 
-use super::{ttml_text_parser, Cue};
+use super::{ttml_text_parser, Subtitles};
 use crate::{parser, parser::Mp4Parser, Error, Result};
 use std::sync::{Arc, Mutex};
 
@@ -46,7 +46,7 @@ impl Mp4TtmlParser {
     }
 
     /// Parse media segments, only if valid `mdat` box(s) are present.
-    pub fn parse_media(&self, data: &[u8]) -> Result<Vec<Cue>> {
+    pub fn parse_media(&self, data: &[u8]) -> Result<Subtitles> {
         let saw_mdat = Arc::new(Mutex::new(false));
         let cues = Arc::new(Mutex::new(vec![]));
 
@@ -71,7 +71,7 @@ impl Mp4TtmlParser {
                                     xml, x
                                 ))
                             })?
-                            .to_cues(),
+                            .into_cues(),
                     );
                     Ok(())
                 })),
@@ -85,7 +85,6 @@ impl Mp4TtmlParser {
         }
 
         let cues = cues.lock().unwrap().clone();
-
-        Ok(cues)
+        Ok(Subtitles::new(cues))
     }
 }

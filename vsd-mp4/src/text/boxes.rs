@@ -1,5 +1,3 @@
-//! Some mp4 boxes with parsers.
-
 /*
     REFERENCES
     ----------
@@ -8,26 +6,25 @@
 
 */
 
-use super::Reader;
-use crate::{Error, Result};
+use crate::{Error, Result, Reader};
 
-pub struct TFHDBox {
+pub(super) struct TFHDBox {
     /// As per the spec: an integer that uniquely identifies this
     /// track over the entire life‐time of this presentation
-    pub track_id: u32,
+    pub(super) _track_id: u32,
     /// If specified via flags, this overrides the default sample
     /// duration in the Track Extends Box for this fragment
-    pub default_sample_duration: Option<u32>,
+    pub(super) default_sample_duration: Option<u32>,
     /// If specified via flags, this overrides the default sample
     /// size in the Track Extends Box for this fragment
-    pub default_sample_size: Option<u32>,
+    pub(super) _default_sample_size: Option<u32>,
     /// If specified via flags, this indicate the base data offset
-    pub base_data_offset: Option<u64>,
+    pub(super) _base_data_offset: Option<u64>,
 }
 
 impl TFHDBox {
     /// Parses a TFHD Box.
-    pub fn parse(reader: &mut Reader, flags: u32) -> Result<Self> {
+    pub(super) fn parse(reader: &mut Reader, flags: u32) -> Result<Self> {
         let mut default_sample_duration = None;
         let mut default_sample_size = None;
         let mut base_data_offset = None;
@@ -71,23 +68,23 @@ impl TFHDBox {
         }
 
         Ok(Self {
-            track_id,
+            _track_id: track_id,
             default_sample_duration,
-            default_sample_size,
-            base_data_offset,
+            _default_sample_size: default_sample_size,
+            _base_data_offset: base_data_offset,
         })
     }
 }
 
-pub struct TFDTBox {
+pub(super) struct TFDTBox {
     /// As per the spec: the absolute decode time, measured on the media
     /// timeline, of the first sample in decode order in the track fragment
-    pub base_media_decode_time: u64,
+    pub(super) base_media_decode_time: u64,
 }
 
 impl TFDTBox {
     /// Parses a TFDT Box.
-    pub fn parse(reader: &mut Reader, version: u32) -> Result<Self> {
+    pub(super) fn parse(reader: &mut Reader, version: u32) -> Result<Self> {
         Ok(Self {
             base_media_decode_time: if version == 1 {
                 reader
@@ -103,17 +100,17 @@ impl TFDTBox {
     }
 }
 
-pub struct MDHDBox {
+pub(super) struct MDHDBox {
     /// As per the spec: an integer that specifies the time‐scale for this media;
     /// this is the number of time units that pass in one second
-    pub timescale: u32,
+    pub(super) timescale: u32,
     /// Language code for this media
-    pub language: String,
+    pub(super) _language: String,
 }
 
 impl MDHDBox {
     /// Parses a MDHD Box.
-    pub fn parse(reader: &mut Reader, version: u32) -> Result<Self> {
+    pub(super) fn parse(reader: &mut Reader, version: u32) -> Result<Self> {
         if version == 1 {
             reader
                 .skip(8)
@@ -154,23 +151,23 @@ impl MDHDBox {
 
         Ok(Self {
             timescale,
-            language: language_string,
+            _language: language_string,
         })
     }
 }
 
-pub struct TRUNBox {
+pub(super) struct TRUNBox {
     /// As per the spec: the number of samples being added in this run;
-    pub sample_count: u32,
+    pub(super) _sample_count: u32,
     /// An array of size sampleCount containing data for each sample
-    pub sample_data: Vec<TRUNSample>,
+    pub(super) sample_data: Vec<TRUNSample>,
     /// If specified via flags, this indicate the offset of the sample in bytes.
-    pub data_offset: Option<u32>,
+    pub(super) _data_offset: Option<u32>,
 }
 
 impl TRUNBox {
     /// Parses a TRUN Box.
-    pub fn parse(reader: &mut Reader, version: u32, flags: u32) -> Result<Self> {
+    pub(super) fn parse(reader: &mut Reader, version: u32, flags: u32) -> Result<Self> {
         let sample_count = reader
             .read_u32()
             .map_err(|_| Error::new_read_err("TRUN box sample count (u32)"))?;
@@ -243,21 +240,21 @@ impl TRUNBox {
         }
 
         Ok(Self {
-            sample_count,
+            _sample_count: sample_count,
             sample_data,
-            data_offset,
+            _data_offset: data_offset,
         })
     }
 }
 
-pub struct TRUNSample {
+pub(super) struct TRUNSample {
     /// The length of the sample in timescale units.
-    pub sample_duration: Option<u32>,
+    pub(super) sample_duration: Option<u32>,
     /// The size of the sample in bytes.
-    pub sample_size: Option<u32>,
+    pub(super) sample_size: Option<u32>,
     /// The time since the start of the sample in timescale units. Time
     /// offset is based of the start of the sample. If this value is
     /// missing, the accumulated durations preceeding this time sample will
     /// be used to create the start time.
-    pub sample_composition_time_offset: Option<i32>,
+    pub(super) sample_composition_time_offset: Option<i32>,
 }

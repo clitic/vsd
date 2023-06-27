@@ -10,13 +10,15 @@
 
 */
 
-use super::Cue;
+use super::{Cue, Subtitles};
 use serde::Deserialize;
+
+pub use quick_xml::de::DeError;
 
 // TODO - Parse span (cdata) in `p` node when quick-xml supports cdata+text parsing.
 // https://docs.rs/quick-xml/latest/quick_xml/de/index.html
 /// Parse xml as ttml content.
-pub fn parse(xml: &str) -> Result<TT, quick_xml::de::DeError> {
+pub fn parse(xml: &str) -> Result<TT, DeError> {
     let mut xml = xml
         .replace("<br></br>", "\n")
         .replace("<br/>", "\n")
@@ -118,7 +120,7 @@ pub struct Paragraph {
 }
 
 impl TT {
-    pub fn to_cues(self) -> Vec<Cue> {
+    pub(super) fn into_cues(self) -> Vec<Cue> {
         let mut cues = vec![];
 
         for div in self.body.divs {
@@ -130,7 +132,7 @@ impl TT {
                             paragraph.end
                         )
                     }),
-                    id: String::new(),
+                    _id: String::new(),
                     payload: paragraph
                         .value
                         .replace("{b}", "<b>")
@@ -153,6 +155,10 @@ impl TT {
         }
 
         cues
+    }
+
+    pub fn into_subtitles(self) -> Subtitles {
+        Subtitles::new(self.into_cues())
     }
 }
 

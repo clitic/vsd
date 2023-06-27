@@ -1,16 +1,32 @@
 [package]
-name = "vsd-mp4"
-version = "0.1.0"
+authors = ["clitic <clitic21@gmail.com>"]
+categories = ["parser-implementations", "parsing"]
+description = "Port of mp4 parser from shaka-player project."
+documentation = "https://docs.rs/vsd-mp4"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+keywords = ["mp4"]
+license = "MIT OR Apache-2.0"
+name = "vsd-mp4"
+repository = "https://github.com/clitic/vsd/tree/main/vsd-mp4"
+version = "0.1.0"
+readme = "README.md"
 
 [dependencies]
-base64 = "0.21"
-hex = "0.4"
-prost = "0.11"
-quick-xml = { version = "0.28", features = ["serialize"] }
-serde = { version = "1", features = ["derive"] }
+base64 = { version = "0.21", optional = true }
+hex = { version = "0.4", optional = true }
+prost = { version = "0.11", optional = true }
+quick-xml = { version = "0.28", features = ["serialize"], optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
 
 [build-dependencies]
-prost-build = "0.11"
+prost-build = { version = "0.11", optional = true }
+
+[features]
+pssh = ["dep:base64", "dep:hex", "dep:prost", "dep:prost-build", "dep:serde"]
+text-ttml = ["dep:serde", "dep:quick-xml"]
+text-vtt = []
+
+[package.metadata.docs.rs]
+all-features = true
+targets = ["x86_64-unknown-linux-gnu"]
+rustdoc-args = ["--cfg", "docsrs"]

@@ -1,4 +1,4 @@
-/// The Errors that may occur when parsing some data.
+/// The Errors that may occur when parsing data.
 #[derive(Debug)]
 pub struct Error {
     read_err: bool,
@@ -41,7 +41,7 @@ impl Error {
         }
     }
 
-    /// Create a new read error.
+    /// Create a new decode error.
     pub fn new_decode_err<T: Into<String>>(reason: T) -> Self {
         Self {
             read_err: false,
