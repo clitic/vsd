@@ -16,6 +16,7 @@ use subtitles::Cue;
 pub use subtitles::Subtitles;
 
 #[cfg(feature = "text-ttml")]
+#[cfg_attr(docsrs, doc(cfg(feature = "text-ttml")))]
 pub mod ttml_text_parser;
 
 #[cfg(feature = "text-ttml")]
