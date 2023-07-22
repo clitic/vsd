@@ -40,7 +40,7 @@ impl Merge {
         }
 
         if 1 >= files.len() {
-            bail!("at least 2 files are required to merge together.")
+            bail!("At least 2 files are required to merge together.")
         }
 
         match self._type {
@@ -99,7 +99,7 @@ impl Merge {
                     .wait()?;
 
                 if !status.success() {
-                    bail!("ffmpeg exited with code {}", status.code().unwrap_or(1))
+                    bail!("ffmpeg exited with code {}.", status.code().unwrap_or(1))
                 }
 
                 fs::remove_file(concat_file)?;

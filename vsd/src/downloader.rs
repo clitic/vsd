@@ -1162,6 +1162,7 @@ impl ThreadData {
 
     fn download_segment(&self) -> Result<Vec<u8>> {
         let fetch_segment = || -> Result<Vec<u8>, reqwest::Error> {
+            // TODO - Check status code is error
             Ok(self.request.try_clone().unwrap().send()?.bytes()?.to_vec())
         };
 

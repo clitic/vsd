@@ -1,3 +1,12 @@
+/*
+    REFERENCES
+    ----------
+
+    1.https://en.wikipedia.org/wiki/Filename#Reserved_characters_and_words
+    2. https://en.wikipedia.org/wiki/Comparison_of_file_systems#Limits
+
+*/
+
 use crate::commands::Quality;
 use anyhow::{bail, Result};
 use kdam::term::Colorizer;
@@ -413,22 +422,27 @@ impl MediaPlaylist {
     }
 
     pub(crate) fn file_path(&self, directory: &Option<PathBuf>, ext: &str) -> PathBuf {
-        let filename = PathBuf::from(
-            self.uri
-                .split('?')
-                .next()
-                .unwrap()
-                .split('/')
-                .last()
-                .unwrap_or("undefined")
-                .chars()
-                .map(|x| match x {
-                    '<' | '>' | ':' | '\"' | '\\' | '|' | '?' => '_',
-                    _ => x,
-                })
-                .collect::<String>(),
-        )
-        .with_extension("");
+        let mut filename = self
+            .uri
+            .split('?')
+            .next()
+            .unwrap()
+            .split('/')
+            .last()
+            .unwrap_or("undefined")
+            .chars()
+            .map(|x| match x {
+                '/' | '\\' | '?' | '%' | '*' | ':' | '|' | '"' | '<' | '>' | '.' | ';' | '='
+                | ' ' => '_',
+                _ => x,
+            })
+            .collect::<String>();
+
+        if filename.len() > 128 {
+            filename = filename[..128].to_owned();
+        }
+
+        let filename = PathBuf::from(filename).with_extension("");
 
         let prefix = match &self.media_type {
             MediaType::Audio => "vsd_audio",

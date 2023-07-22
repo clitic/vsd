@@ -1,7 +1,7 @@
 [package]
 authors = ["clitic <clitic21@gmail.com>"]
 categories = ["command-line-utilities"]
-description = "Download video streams served over HTTP from websites, DASH (.mpd) and HLS (.m3u8) playlists"
+description = "Download video streams served over HTTP from websites, DASH (.mpd) and HLS (.m3u8) playlists."
 documentation = "https://docs.rs/vsd"
 edition = "2021"
 exclude = ["docs", "images"]

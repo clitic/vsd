@@ -1,5 +1,3 @@
-#![cfg(feature = "browser")]
-
 use crate::utils;
 use anyhow::Result;
 use clap::{Args, ValueEnum};
@@ -27,10 +25,10 @@ type CookieParams = Vec<CookieParam>;
 Requires any one of these browser to be installed:\n\
 1. chrome - https://www.google.com/chrome\n\
 2. chromium - https://www.chromium.org/getting-involved/download-chromium\n\n\
-Launch browser and capture files based on extension matching. \
-This command work same as doing Inspect > Network > Fetch/XHR (default) > filter extension and viewing url in a browser. \
-The implementation for this command is based on response handling. \
-Note that this command might not work always as expected on every website.")]
+Launches browser and capture files based on extension matching. \
+It is same as doing these steps: Inspect > Network > Fetch/XHR > filter extension and viewing url. \
+It uses response handling for capturing request information, no requests are intercepted. \
+Note that this might not work always as expected on every website.")]
 pub struct Capture {
     /// http(s)://
     #[arg(required = true)]

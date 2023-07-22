@@ -221,7 +221,21 @@ pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playli
             }
         }
 
-        if let Some(extension) = segment.uri.split('?').next().unwrap().split('.').last() {
+        if let Some(extension) = segment
+            .uri
+            .split('?')
+            .next()
+            .unwrap()
+            .split('/')
+            .last()
+            .and_then(|x| {
+                if x.contains('.') {
+                    x.split('.').last()
+                } else {
+                    Some("mp4")
+                }
+            })
+        {
             playlist.extension = Some(extension.to_owned());
         }
     }
