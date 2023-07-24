@@ -371,16 +371,16 @@ pub(crate) fn download(
     let mut pb = RichProgress::new(
         tqdm!(unit = " SEG".to_owned(), dynamic_ncols = true),
         vec![
-            Column::text("[bold blue]?"),
-            Column::Bar,
+            Column::Text("[bold blue]?".to_owned()),
+            Column::Animation,
             Column::Percentage(0),
-            Column::text("•"),
+            Column::Text("•".to_owned()),
             Column::CountTotal,
-            Column::text("•"),
+            Column::Text("•".to_owned()),
             Column::ElapsedTime,
-            Column::text("[cyan]>"),
+            Column::Text("[cyan]>".to_owned()),
             Column::RemainingTime,
-            Column::text("•"),
+            Column::Text("•".to_owned()),
             Column::Rate,
         ],
     );
@@ -443,7 +443,7 @@ pub(crate) fn download(
             "Processing".colorize("bold green"),
             stream.media_type,
             stream.display_stream().colorize("cyan"),
-        ));
+        ))?;
 
         let length = stream.segments.len();
 
@@ -451,11 +451,11 @@ pub(crate) fn download(
             pb.write(format!(
                 "    {} skipping stream (no segments)",
                 "Warning".colorize("bold yellow"),
-            ));
+            ))?;
             continue;
         }
 
-        pb.pb.set_total(length);
+        pb.pb.total = length;
 
         let mut ext = stream.extension();
         let mut codec = None;
@@ -541,7 +541,7 @@ pub(crate) fn download(
                     "{} stream to {}",
                     "Downloading".colorize("bold green"),
                     temp_file.colorize("cyan")
-                ));
+                ))?;
             }
 
             pb.replace(
@@ -551,7 +551,7 @@ pub(crate) fn download(
                     utils::format_bytes(subtitles_data.len(), 2).2
                 )),
             );
-            pb.update(1);
+            pb.update(1)?;
         }
 
         match codec {
@@ -559,7 +559,7 @@ pub(crate) fn download(
                 pb.write(format!(
                     " {} wvtt subtitles",
                     "Extracting".colorize("bold cyan"),
-                ));
+                ))?;
 
                 let vtt = Mp4VttParser::parse_init(&subtitles_data)?;
                 let subtitles = vtt.parse_media(&subtitles_data, None)?;
@@ -569,7 +569,7 @@ pub(crate) fn download(
                 pb.write(format!(
                     " {} stpp subtitles",
                     "Extracting".colorize("bold cyan"),
-                ));
+                ))?;
 
                 let ttml = Mp4TtmlParser::parse_init(&subtitles_data)?;
                 let subtitles = ttml.parse_media(&subtitles_data)?;
@@ -579,7 +579,7 @@ pub(crate) fn download(
                 pb.write(format!(
                     " {} ttml+xml subtitles",
                     "Extracting".colorize("bold cyan"),
-                ));
+                ))?;
 
                 let xml = String::from_utf8(subtitles_data)
                     .map_err(|_| anyhow!("cannot decode subtitles as valid utf-8 data."))?;
@@ -598,8 +598,8 @@ pub(crate) fn download(
         pb.write(format!(
             " {} stream successfully",
             "Downloaded".colorize("bold green"),
-        ));
-        println!();
+        ))?;
+        eprintln!();
         pb.reset(Some(0));
     }
 
@@ -685,8 +685,10 @@ pub(crate) fn download(
     // -----------------------------------------------------------------------------------------
 
     pb.replace(2, Column::Percentage(2));
-    pb.columns
-        .extend_from_slice(&[Column::text("•"), Column::text("[yellow]?")]);
+    pb.columns.extend_from_slice(&[
+        Column::Text("•".to_owned()),
+        Column::Text("[yellow]?".to_owned()),
+    ]);
     pb.pb.reset(Some(
         video_audio_streams.iter().map(|x| x.segments.len()).sum(),
     ));
@@ -704,7 +706,7 @@ pub(crate) fn download(
             "Processing".colorize("bold green"),
             stream.media_type,
             stream.display_stream().colorize("cyan"),
-        ));
+        ))?;
 
         let length = stream.segments.len();
 
@@ -712,7 +714,7 @@ pub(crate) fn download(
             pb.lock().unwrap().write(format!(
                 "    {} skipping stream (no segments)",
                 "Warning".colorize("bold yellow"),
-            ));
+            ))?;
             continue;
         }
 
@@ -729,7 +731,7 @@ pub(crate) fn download(
             "{} stream to {}",
             "Downloading".colorize("bold green"),
             temp_file.colorize("cyan"),
-        ));
+        ))?;
 
         let merger = Arc::new(Mutex::new(Merger::new(stream.segments.len(), &temp_file)?));
         let timer = Arc::new(Instant::now());
@@ -824,7 +826,7 @@ pub(crate) fn download(
                                     "Key".colorize("bold green"),
                                     key.0,
                                     key.1
-                                ));
+                                ))?;
                             }
 
                             previous_key = Some(Keys::from_hex_keys(decryption_keys));
@@ -884,7 +886,7 @@ pub(crate) fn download(
         pb.lock().unwrap().write(format!(
             " {} stream successfully",
             "Downloaded".colorize("bold green"),
-        ));
+        ))?;
     }
 
     eprintln!();
@@ -1187,7 +1189,7 @@ impl ThreadData {
                 }
                 Err(e) => {
                     if self.total_retries > retries {
-                        self.pb.lock().unwrap().write(check_reqwest_error(&e)?);
+                        self.pb.lock().unwrap().write(check_reqwest_error(&e)?).unwrap();
                         retries += 1;
                         continue;
                     } else {
@@ -1215,7 +1217,7 @@ impl ThreadData {
                 ),
             )),
         );
-        pb.update(1);
+        pb.update(1).unwrap();
         Ok(())
     }
 }

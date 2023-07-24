@@ -21,11 +21,11 @@ chrono = "0.4"
 clap = { version = "4", features = ["derive", "wrap_help"] }
 cookie = "0.17"
 ctrlc = "3"
-dash-mpd = { version = "0.9.1", default-features = false }
+dash-mpd = { version = "0.12.0", default-features = false }
 glob = "0.3"
 headless_chrome = { version = "1.0.5", optional = true }
 hex = "0.4"
-kdam = "0.3"
+kdam = { version = "0.4", features = ["rich"] }
 m3u8-rs = "5.0.4"
 mp4decrypt = { version = "0.4", path = "../mp4decrypt" }
 regex = "1"

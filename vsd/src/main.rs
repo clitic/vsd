@@ -10,23 +10,21 @@ mod utils;
 
 use clap::{ColorChoice, Parser};
 use commands::{Args, Commands};
-use kdam::term::Colorizer;
-use std::io::{stdout, IsTerminal};
+use kdam::{term, term::Colorizer};
+use requestty::symbols;
+use std::{
+    io::{stderr, IsTerminal},
+    process,
+};
 
 fn run() -> anyhow::Result<()> {
     let args = Args::parse();
 
-    match args.color {
-        ColorChoice::Auto => {
-            if !stdout().is_terminal() {
-                kdam::term::set_colorize(false);
-            }
-        }
-        ColorChoice::Never => {
-            kdam::term::set_colorize(false);
-        }
-        _ => (),
-    }
+    term::init(match args.color {
+        ColorChoice::Always => true,
+        ColorChoice::Auto => stderr().is_terminal(),
+        ColorChoice::Never => false,
+    });
 
     match args.command {
         #[cfg(feature = "browser")]
@@ -40,14 +38,14 @@ fn run() -> anyhow::Result<()> {
 }
 
 fn main() {
-    let mut symbols = requestty::symbols::UNICODE;
+    let mut symbols = symbols::UNICODE;
     symbols.completed = '•';
     symbols.cross = 'x';
-    requestty::symbols::set(symbols);
+    symbols::set(symbols);
 
     if let Err(e) = run() {
         eprintln!("{}: {}", "error".colorize("bold red"), e);
-        std::process::exit(1);
+        process::exit(1);
     }
 }
 
@@ -58,6 +56,4 @@ fn main() {
     2. Create a custom thread pool module
     3. Reduce dependency on anyhow crate
     4. Reduce dependency on ffmpeg
-    5. Remove #[allow(dead_code)]
-
 */
