@@ -16,9 +16,6 @@
   <a href="https://github.com/clitic/vsd">
     <img src="https://img.shields.io/github/repo-size/clitic/vsd?logo=github&style=flat-square">
   </a>
-  <a href="https://github.com/clitic/vsd">
-    <img src="https://img.shields.io/tokei/lines/github/clitic/vsd?style=flat-square">
-  </a>
   <a href="https://colab.research.google.com/github/clitic/vsd/blob/main/vsd/vsd-on-colab.ipynb">
     <img src="https://img.shields.io/badge/Open%20In%20Colab-F9AB00?logo=googlecolab&color=525252&style=flat-square">
   </a>

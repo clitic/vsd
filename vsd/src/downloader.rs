@@ -1163,46 +1163,42 @@ impl ThreadData {
     }
 
     fn download_segment(&self) -> Result<Vec<u8>> {
-        let fetch_segment = || -> Result<Vec<u8>, reqwest::Error> {
-            // TODO - Check status code is error
-            Ok(self.request.try_clone().unwrap().send()?.bytes()?.to_vec())
-        };
-
-        let mut retries = 0;
-        let data = loop {
-            match fetch_segment() {
-                Ok(bytes) => {
-                    // Download Speed
-                    let elapsed_time = self.timer.elapsed().as_secs() as usize;
-                    if elapsed_time != 0 {
-                        let stored = self.merger.lock().unwrap().stored() + bytes.len();
-                        self.pb.lock().unwrap().replace(
-                            12,
-                            Column::Text(format!(
-                                "[yellow]{}/s",
-                                utils::format_bytes(stored / elapsed_time, 2).2
-                            )),
-                        );
-                    }
-
-                    break bytes;
+        for _ in 0..self.total_retries {
+            let response = match self.request.try_clone().unwrap().send() {
+                Ok(response) => response,
+                Err(error) => {
+                    self.pb
+                        .lock()
+                        .unwrap()
+                        .write(check_reqwest_error(&error)?)?;
+                    continue;
                 }
-                Err(e) => {
-                    if self.total_retries > retries {
-                        self.pb.lock().unwrap().write(check_reqwest_error(&e)?).unwrap();
-                        retries += 1;
-                        continue;
-                    } else {
-                        bail!(
-                            "reached maximum number of retries to download a segment i.e. {}",
-                            e.url().unwrap()
-                        );
-                    }
-                }
+            };
+
+            let status = response.status();
+
+            if status.is_client_error() || status.is_server_error() {
+                bail!("failed to fetch segments");
             }
-        };
 
-        Ok(data)
+            let data = response.bytes()?.to_vec();
+            let elapsed_time = self.timer.elapsed().as_secs() as usize;
+
+            if elapsed_time != 0 {
+                let stored = self.merger.lock().unwrap().stored() + data.len();
+                self.pb.lock().unwrap().replace(
+                    12,
+                    Column::Text(format!(
+                        "[yellow]{}/s",
+                        utils::format_bytes(stored / elapsed_time, 2).2
+                    )),
+                );
+            }
+
+            return Ok(data);
+        }
+
+        bail!("reached maximum number of retries to download a segment");
     }
 
     fn notify(&self, stored: usize, estimate: usize) -> Result<()> {
