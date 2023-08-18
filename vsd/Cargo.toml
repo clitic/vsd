@@ -8,7 +8,7 @@ exclude = ["docs", "images"]
 keywords = ["m3u8"]
 license = "MIT OR Apache-2.0"
 name = "vsd"
-repository = "https://github.com/clitic/vsd"
+repository = "https://github.com/clitic/vsd/tree/main/vsd"
 version = "0.3.0"
 readme = "README.md"
 
