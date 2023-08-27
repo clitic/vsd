@@ -1,5 +1,6 @@
 mod extract;
 mod merge;
+mod parse;
 mod save;
 
 #[cfg(feature = "browser")]
@@ -7,6 +8,7 @@ mod capture;
 
 pub use extract::Extract;
 pub use merge::Merge;
+pub use parse::Parse;
 pub use save::{Quality, Save};
 
 #[cfg(feature = "browser")]
@@ -43,5 +45,6 @@ pub enum Commands {
     Capture(Capture),
     Extract(Extract),
     Merge(Merge),
+    Parse(Parse),
     Save(Save),
 }

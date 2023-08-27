@@ -31,6 +31,7 @@ fn run() -> anyhow::Result<()> {
         Commands::Capture(args) => args.execute()?,
         Commands::Extract(args) => args.execute()?,
         Commands::Merge(args) => args.execute()?,
+        Commands::Parse(args) => args.execute()?,
         Commands::Save(args) => args.execute()?,
     }
 

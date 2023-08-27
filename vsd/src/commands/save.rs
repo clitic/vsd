@@ -219,7 +219,7 @@ fn key_parser(s: &str) -> Result<(Option<String>, String), String> {
     Ok((key_id, key))
 }
 
-fn cookie_parser(s: &str) -> Result<CookieParams, String> {
+pub(super) fn cookie_parser(s: &str) -> Result<CookieParams, String> {
     if Path::new(s).exists() {
         Ok(serde_json::from_slice::<CookieParams>(
             &std::fs::read(s).map_err(|_| format!("could not read {}.", s))?,
@@ -241,7 +241,7 @@ fn cookie_parser(s: &str) -> Result<CookieParams, String> {
     }
 }
 
-fn proxy_address_parser(s: &str) -> Result<Proxy, String> {
+pub(super) fn proxy_address_parser(s: &str) -> Result<Proxy, String> {
     Proxy::all(s).map_err(|x| x.to_string())
 }
 
