@@ -3,8 +3,8 @@
 ## Build Dependencies
 
 - C/C++ Compiler
-- [openssl](https://docs.rs/openssl/latest/openssl) (crate)
 - [protoc](https://github.com/protocolbuffers/protobuf)
+- [reqwest](https://github.com/seanmonstar/reqwest#requirements) (crate)
 - [rust](https://www.rust-lang.org)
 
 ## Cargo Features
