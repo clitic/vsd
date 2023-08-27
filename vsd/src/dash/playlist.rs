@@ -6,19 +6,21 @@
     2. https://github.com/streamlink/streamlink/blob/781ef1fc92f215d0f3ec9a272fbe9f2cac122f08/src/streamlink/stream/dash_manifest.py
     2. https://github.com/nilaoda/N_m3u8DL-RE/blob/7bba10aa0d7adf7e79e0feec7327039681cb7bd4/src/N_m3u8DL-RE.Parser/Extractor/DASHExtractor2.cs
 
-    
+
 */
 
 use super::{DashUrl, Template};
-use crate::playlist::{
-    Key, KeyMethod, Map, MasterPlaylist, MediaPlaylist, MediaType, PlaylistType, Range, Segment,
+use crate::{
+    error::Result,
+    playlist::{
+        Key, KeyMethod, Map, MasterPlaylist, MediaPlaylist, MediaType, PlaylistType, Range, Segment,
+    },
 };
-use anyhow::{anyhow, bail, Result};
 use dash_mpd::MPD;
-use reqwest::Url;
 use std::collections::HashMap;
+use url::Url;
 
-pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
+pub(crate) fn parse_as_master(mpd: &MPD, uri: &Url) -> MasterPlaylist {
     let mut streams = vec![];
 
     if let Some(period) = mpd.periods.get(0) {
@@ -120,13 +122,13 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
 
     MasterPlaylist {
         playlist_type: PlaylistType::Dash,
-        uri: uri.to_owned(),
+        uri: uri.to_string(),
         streams,
     }
 }
 
-pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &str) -> Result<()> {
-    let location = playlist.uri.parse::<DashUrl>().map_err(|x| anyhow!(x))?;
+pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &Url) -> Result<()> {
+    let location = playlist.uri.parse::<DashUrl>()?;
 
     for (_period_index, period) in mpd.periods.iter().enumerate() {
         for (adaptation_index, adaptation_set) in period.adaptations.iter().enumerate() {
@@ -146,26 +148,26 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                         period_duration_secs = duration.as_secs_f32();
                     }
 
-                    let mut base_url = base_url.parse::<Url>().unwrap();
+                    let mut base_url = base_url.clone();
 
-                    if let Some(mpd_baseurl) = mpd.base_url.get(0).map(|x| x.base.as_ref()) {
-                        base_url = base_url.join(mpd_baseurl)?;
+                    if let Some(mpd_base_url) = mpd.base_url.get(0).map(|x| x.base.as_ref()) {
+                        base_url = base_url.join(mpd_base_url)?;
                     }
 
-                    if let Some(period_baseurl) = period.BaseURL.get(0).map(|x| x.base.as_ref()) {
-                        base_url = base_url.join(period_baseurl)?;
+                    if let Some(period_base_url) = period.BaseURL.get(0).map(|x| x.base.as_ref()) {
+                        base_url = base_url.join(period_base_url)?;
                     }
 
-                    if let Some(adaptation_set_baseurl) =
+                    if let Some(adaptation_set_base_url) =
                         adaptation_set.BaseURL.get(0).map(|x| x.base.as_ref())
                     {
-                        base_url = base_url.join(adaptation_set_baseurl)?;
+                        base_url = base_url.join(adaptation_set_base_url)?;
                     }
 
-                    if let Some(representation_baseurl) =
+                    if let Some(representation_base_url) =
                         representation.BaseURL.get(0).map(|x| x.base.as_ref())
                     {
-                        base_url = base_url.join(representation_baseurl)?;
+                        base_url = base_url.join(representation_base_url)?;
                     }
 
                     let mut init_map = None;
@@ -173,7 +175,7 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                     let rid = if let Some(id) = &representation.id {
                         id.to_owned()
                     } else {
-                        bail!("missing @id on representation node.");
+                        return Err("missing @id on representation node.".into());
                     };
 
                     let mut template_vars = HashMap::from([("RepresentationID".to_owned(), rid)]);
@@ -358,7 +360,7 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                                     segment_time += s.d;
                                 }
                             } else {
-                                bail!("SegmentTimeline without a media attribute.");
+                                return Err("SegmentTimeline without a media attribute.".into());
                             }
                         } else {
                             // (3) SegmentTemplate@duration || (4) SegmentTemplate@index (simple addressing)
@@ -376,7 +378,7 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                                 }
 
                                 if duration == 0.0 {
-                                    bail!("Representation is missing SegmentTemplate @duration attribute.");
+                                    return Err("Representation is missing SegmentTemplate @duration attribute.".into());
                                 }
 
                                 let mut number = segment_template.startNumber.unwrap_or(1) as i64;
@@ -445,7 +447,9 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                     }
 
                     if playlist.segments.is_empty() {
-                        bail!("no usable addressing mode identified for representation.");
+                        return Err(
+                            "no usable addressing mode identified for representation.".into()
+                        );
                     }
 
                     if let Some(first_segment) = playlist.segments.get_mut(0) {
@@ -616,7 +620,7 @@ fn parse_frame_rate(frame_rate: &Option<String>) -> Option<f32> {
             {
                 Some(upper / lower)
             } else {
-                panic!("could'nt parse \"{}\" frame rate", frame_rate);
+                panic!("could'nt parse `{}` frame rate", frame_rate);
             }
         } else {
             frame_rate.parse::<f32>().ok()
@@ -632,7 +636,7 @@ fn parse_range(range: &Option<String>) -> Option<Range> {
         {
             Range { start, end }
         } else {
-            panic!("could'nt parse \"{}\" range", range);
+            panic!("could'nt parse `{}` range", range);
         }
     })
 }

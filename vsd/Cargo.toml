@@ -33,7 +33,8 @@ requestty = "0.5.0"
 reqwest = { version = "0.11", default-features = false, features = ["blocking", "cookies", "socks"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-threadpool = "1"
+tokio = { version = "1", features = ["rt-multi-thread"] }
+url = "2.2"
 vsd-mp4 = { version = "0.1", path = "../vsd-mp4", features = ["pssh", "text-ttml", "text-vtt"] }
 
 [features]

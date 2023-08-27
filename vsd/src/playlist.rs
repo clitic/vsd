@@ -7,30 +7,86 @@
 
 */
 
-use crate::commands::Quality;
-use anyhow::{bail, Result};
+use crate::{
+    commands::Quality,
+    error::{Error, Result},
+    options::{Client, Preferences, Prompts},
+};
 use kdam::term::Colorizer;
-use requestty::prompt::style::Stylize;
-use reqwest::header::HeaderValue;
-use std::{fmt::Display, io::Write, path::PathBuf};
+use requestty::{prompt::style::Stylize, Question};
+use reqwest::header::{HeaderValue, RANGE};
+use serde::{Deserialize, Serialize};
+use std::{collections::HashSet, fmt::Display, io, io::Write, path::PathBuf};
+use vsd_mp4::pssh::Pssh;
+use url::Url;
 
+#[derive(Deserialize, Serialize)]
 pub(crate) struct MasterPlaylist {
-    #[allow(dead_code)]
     pub(crate) playlist_type: PlaylistType,
-    #[allow(dead_code)]
-    pub(crate) uri: String,
     pub(crate) streams: Vec<MediaPlaylist>,
+    pub(crate) uri: String,
 }
 
 impl MasterPlaylist {
-    pub(crate) fn sort_streams(
-        mut self,
-        prefer_audio_lang: Option<String>,
-        prefer_subs_lang: Option<String>,
-    ) -> Self {
-        let prefer_audio_lang = prefer_audio_lang.map(|x| x.to_lowercase());
-        let prefer_subs_lang = prefer_subs_lang.map(|x| x.to_lowercase());
+    fn default_kids(&self) -> HashSet<String> {
+        let mut default_kids = HashSet::new();
 
+        for stream in &self.streams {
+            if let Some(Segment {
+                key:
+                    Some(Key {
+                        default_kid: Some(default_kid),
+                        ..
+                    }),
+                ..
+            }) = stream.segments.get(0)
+            {
+                default_kids.insert(default_kid.to_lowercase().replace('-', ""));
+            }
+        }
+
+        default_kids
+    }
+
+    pub(crate) async fn kids(&self, client: &Client) -> Result<HashSet<String>> {
+        let default_kids = self.default_kids();
+        let mut kids = HashSet::new();
+
+        for stream in &self.streams {
+            if let Some(Segment { map: Some(map), .. }) = stream.segments.get(0) {
+                let url = stream.uri.parse::<Url>().unwrap().join(&map.uri).unwrap();
+                let mut request = client.get(url);
+
+                if let Some(range) = &map.range {
+                    request = request.header(RANGE, range.as_header_value());
+                }
+
+                let response = request.send().await?;
+                let pssh = Pssh::new(&response.bytes().await?).map_err(|x| anyhow!(x))?;
+
+                for key_id in pssh.key_ids {
+                    if !kids.contains(&key_id.value) {
+                        kids.insert(key_id.value.clone());
+                        println!(
+                            "      {} {} {} ({})",
+                            "KeyId".colorize("bold green"),
+                            if default_kids.contains(&key_id.value) {
+                                "*"
+                            } else {
+                                " "
+                            },
+                            key_id.uuid(),
+                            key_id.system_type,
+                        );
+                    }
+                }
+            }
+        }
+
+        Ok(kids)
+    }
+
+    pub(crate) fn sort_streams(mut self, preferences: &Preferences) -> Self {
         let mut video_streams = vec![];
         let mut audio_streams = vec![];
         let mut subtitle_streams = vec![];
@@ -39,39 +95,25 @@ impl MasterPlaylist {
         for stream in self.streams {
             match stream.media_type {
                 MediaType::Audio => {
-                    let mut language_factor = 0;
+                    let mut lang_factor = 0;
 
-                    if let Some(playlist_lang) = &stream.language.as_ref().map(|x| x.to_lowercase())
-                    {
-                        if let Some(prefer_lang) = &prefer_audio_lang {
-                            if playlist_lang == prefer_lang {
-                                language_factor = 2;
-                            } else if playlist_lang.get(0..2) == prefer_lang.get(0..2) {
-                                language_factor = 1;
-                            }
-                        }
+                    if let Some(audio_lang) = &stream.language {
+                        lang_factor = preferences.audio_lang_factor(audio_lang);
                     }
 
                     let channels = stream.channels.unwrap_or(0.0);
                     let bandwidth = stream.bandwidth.unwrap_or(0);
 
-                    audio_streams.push((stream, language_factor, channels, bandwidth));
+                    audio_streams.push((stream, lang_factor, channels, bandwidth));
                 }
                 MediaType::Subtitles => {
-                    let mut language_factor = 0;
+                    let mut lang_factor = 0;
 
-                    if let Some(playlist_lang) = &stream.language.as_ref().map(|x| x.to_lowercase())
-                    {
-                        if let Some(prefer_lang) = &prefer_subs_lang {
-                            if playlist_lang == prefer_lang {
-                                language_factor = 2;
-                            } else if playlist_lang.get(0..2) == prefer_lang.get(0..2) {
-                                language_factor = 1;
-                            }
-                        }
+                    if let Some(subs_lang) = &stream.language {
+                        lang_factor = preferences.subs_lang_factor(subs_lang);
                     }
 
-                    subtitle_streams.push((stream, language_factor));
+                    subtitle_streams.push((stream, lang_factor));
                 }
                 MediaType::Undefined => undefined_streams.push(stream),
                 MediaType::Video => {
@@ -153,10 +195,9 @@ impl MasterPlaylist {
 
     pub(crate) fn select_streams(
         self,
-        quality: Quality,
-        skip_prompts: bool,
-        raw_prompts: bool,
-    ) -> Result<(Vec<MediaPlaylist>, Vec<MediaPlaylist>)> {
+        quality: &Quality,
+        prompts: &Prompts,
+    ) -> Result<Vec<MediaPlaylist>> {
         let default_video_stream_index = self.select_video_stream(&quality);
 
         if let Some(default_video_stream_index) = default_video_stream_index {
@@ -196,7 +237,7 @@ impl MasterPlaylist {
                     .map(|(i, x)| requestty::Choice((x.display_audio_stream(), i == 0))),
             );
 
-            if skip_prompts || raw_prompts {
+            if prompts.skip || prompts.raw {
                 choices_with_default_ranges[1] =
                     choices_with_default_ranges[0].end..(choices_with_default.len() - 1);
             } else {
@@ -214,7 +255,7 @@ impl MasterPlaylist {
                     .map(|(i, x)| requestty::Choice((x.display_subtitle_stream(), i == 0))),
             );
 
-            if skip_prompts || raw_prompts {
+            if prompts.skip || prompts.raw {
                 choices_with_default_ranges[2] =
                     choices_with_default_ranges[1].end..(choices_with_default.len() - 2);
             } else {
@@ -224,7 +265,7 @@ impl MasterPlaylist {
 
             // println!("{:?}", choices_with_default_ranges);
 
-            if skip_prompts || raw_prompts {
+            if prompts.skip || prompts.raw {
                 println!("Select streams to download:");
                 let mut selected_choices_index = vec![];
                 let mut index = 1;
@@ -251,14 +292,16 @@ impl MasterPlaylist {
 
                 println!("------------------------------");
 
-                if raw_prompts && !skip_prompts {
+                if prompts.raw && !prompts.skip {
                     print!(
                         "Press enter to proceed with defaults.\n\
                         Or select streams to download (1, 2, etc.): "
                     );
-                    std::io::stdout().flush()?;
+                    io::stdout().flush().unwrap();
                     let mut input = String::new();
-                    std::io::stdin().read_line(&mut input)?;
+                    io::stdin()
+                        .read_line(&mut input)
+                        .map_err(|_| Error::new("User input couldn't be read".to_owned()))?;
 
                     println!("------------------------------");
 
@@ -273,7 +316,6 @@ impl MasterPlaylist {
                 }
 
                 let mut selected_streams = vec![];
-                let mut selected_subtitle_streams = vec![];
                 let mut video_streams_offset = 1;
                 let mut audio_streams_offset = video_streams_offset + video_streams.len();
                 let mut subtitle_streams_offset = audio_streams_offset + audio_streams.len();
@@ -304,14 +346,14 @@ impl MasterPlaylist {
                             "Selected".colorize("bold green"),
                             stream.display_stream()
                         );
-                        selected_subtitle_streams.push(stream);
+                        selected_streams.push(stream);
                         subtitle_streams_offset += 1;
                     }
                 }
 
-                Ok((selected_streams, selected_subtitle_streams))
+                Ok(selected_streams)
             } else {
-                let question = requestty::Question::multi_select("streams")
+                let question = Question::multi_select("streams")
                     .should_loop(false)
                     .message("Select streams to download")
                     .choices_with_default(choices_with_default)
@@ -327,10 +369,14 @@ impl MasterPlaylist {
                     })
                     .build();
 
-                let answer = requestty::prompt_one(question)?;
+                let answer = requestty::prompt_one(question).map_err(|e| {
+                    Error::new(format!(
+                        "User input couldn't be captured (requestty-error: {})",
+                        e
+                    ))
+                })?;
 
                 let mut selected_streams = vec![];
-                let mut selected_subtitle_streams = vec![];
                 let mut video_streams_offset = 1;
                 let mut audio_streams_offset = video_streams_offset + video_streams.len() + 1;
                 let mut subtitle_streams_offset = audio_streams_offset + audio_streams.len() + 1;
@@ -345,22 +391,24 @@ impl MasterPlaylist {
                             .push(audio_streams.remove(selected_item.index - audio_streams_offset));
                         audio_streams_offset += 1;
                     } else if choices_with_default_ranges[2].contains(&selected_item.index) {
-                        selected_subtitle_streams.push(
+                        selected_streams.push(
                             subtitle_streams.remove(selected_item.index - subtitle_streams_offset),
                         );
                         subtitle_streams_offset += 1;
                     }
                 }
 
-                Ok((selected_streams, selected_subtitle_streams))
+                Ok(selected_streams)
             }
         } else {
-            bail!("playlist doesn't contain pre-selected video quality stream.")
+            Err(Error::new(
+                "Playlist doesn't contain pre-selected video quality stream".to_owned(),
+            ))
         }
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Deserialize, Serialize)]
 pub(crate) struct MediaPlaylist {
     pub(crate) bandwidth: Option<u64>,
     pub(crate) channels: Option<f32>,
@@ -451,12 +499,7 @@ impl MediaPlaylist {
             MediaType::Video => "vsd_video",
         };
 
-        let mut path = PathBuf::from(format!(
-            "{}_{}.{}",
-            prefix,
-            filename.to_string_lossy(),
-            ext
-        ));
+        let mut path = PathBuf::from(format!("{}_{}.{}", prefix, filename.to_string_lossy(), ext));
 
         if let Some(directory) = directory {
             path = directory.join(path);
@@ -585,14 +628,14 @@ impl MediaPlaylist {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Deserialize, Serialize)]
 pub(crate) enum PlaylistType {
     Dash,
     #[default]
     Hls,
 }
 
-#[derive(Clone, Default, PartialEq)]
+#[derive(Clone, Default, Deserialize, PartialEq, Serialize)]
 pub(crate) enum MediaType {
     Audio,
     Subtitles,
@@ -616,7 +659,7 @@ impl Display for MediaType {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Deserialize, PartialEq, Serialize)]
 pub(crate) enum KeyMethod {
     Aes128,
     Cenc,
@@ -625,7 +668,7 @@ pub(crate) enum KeyMethod {
     SampleAes,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub(crate) struct Range {
     pub(crate) start: u64,
     pub(crate) end: u64,
@@ -637,7 +680,7 @@ impl Range {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub(crate) struct Map {
     pub(crate) uri: String,
     pub(crate) range: Option<Range>,
@@ -652,7 +695,7 @@ pub(crate) struct Map {
 #EXT-X-KEY:METHOD=SAMPLE-AES-CTR,KEYFORMAT="com.microsoft.playready",KEYFORMATVERSIONS="1",URI="data:text/plain;charset=UTF-16;base64,xAEAAAEAAQC6ATwAVwBSAE0ASABFAEEARABFAFIAIAB4AG0AbABuAHMAPQAiAGgAdAB0AHAAOgAvAC8AcwBjAGgAZQBtAGEAcwAuAG0AaQBjAHIAbwBzAG8AZgB0AC4AYwBvAG0ALwBEAFIATQAvADIAMAAwADcALwAwADMALwBQAGwAYQB5AFIAZQBhAGQAeQBIAGUAYQBkAGUAcgAiACAAdgBlAHIAcwBpAG8AbgA9ACIANAAuADAALgAwAC4AMAAiAD4APABEAEEAVABBAD4APABQAFIATwBUAEUAQwBUAEkATgBGAE8APgA8AEsARQBZAEwARQBOAD4AMQA2ADwALwBLAEUAWQBMAEUATgA+ADwAQQBMAEcASQBEAD4AQQBFAFMAQwBUAFIAPAAvAEEATABHAEkARAA+ADwALwBQAFIATwBUAEUAQwBUAEkATgBGAE8APgA8AEsASQBEAD4AOQBmAEIAMQAxAEsAMQB0AC8ARQBtAFEANABYAEMATQBjAEoANgBnAEkAZwA9AD0APAAvAEsASQBEAD4APAAvAEQAQQBUAEEAPgA8AC8AVwBSAE0ASABFAEEARABFAFIAPgA="
 
 */
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub(crate) struct Key {
     pub(crate) default_kid: Option<String>,
     pub(crate) iv: Option<String>,
@@ -661,8 +704,7 @@ pub(crate) struct Key {
     pub(crate) uri: Option<String>,
 }
 
-
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Deserialize, Serialize)]
 pub(crate) struct Segment {
     pub(crate) range: Option<Range>,
     pub(crate) duration: f32, // consider changing it to f64

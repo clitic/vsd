@@ -1,3 +1,4 @@
+use crate::error::{Error, Result};
 use std::str::FromStr;
 
 pub(super) struct DashUrl {
@@ -26,15 +27,15 @@ impl ToString for DashUrl {
 }
 
 impl FromStr for DashUrl {
-    type Err = String;
+    type Err = Error;
 
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self> {
         if !s.starts_with("dash://") {
-            return Err(format!(
-                "url doesn't have dash scheme \
+            return Err(Error::new_parse(format!(
+                "url doesn't have dash scheme. \
             (expected: dash://period.{{}}.adaptation-set.{{}}.representation.{{}}, found: {})",
                 s
-            ));
+            )));
         }
 
         let location = s
@@ -47,11 +48,11 @@ impl FromStr for DashUrl {
             .collect::<Vec<usize>>();
 
         if location.len() != 3 {
-            return Err(format!(
-                "url doesn't have full location to locate dash resource \
+            return Err(Error::new_parse(format!(
+                "url doesn't have full location to locate dash resource. \
             (expected: dash://period.{{}}.adaptation-set.{{}}.representation.{{}}, found: {})",
                 s
-            ));
+            )));
         }
 
         Ok(Self {

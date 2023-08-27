@@ -1,29 +1,31 @@
 use crate::{
     cookie::{CookieJar, CookieParam},
+    error::Error,
+    options::{Client, Input, Quality, Preferences, Prompts},
     utils,
 };
-use anyhow::Result;
 use clap::Args;
 use cookie::Cookie;
 use kdam::term::Colorizer;
 use reqwest::{
-    blocking::Client,
     header::{HeaderMap, HeaderName, HeaderValue},
-    Proxy, Url,
+    Proxy,
 };
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
+use tokio::runtime::Builder;
+use url::Url;
 
 type CookieParams = Vec<CookieParam>;
 
 /// Download DASH and HLS playlists.
-#[derive(Debug, Clone, Args)]
+#[derive(Args, Clone, Debug)]
 pub struct Save {
     /// http(s):// | .mpd | .xml | .m3u8
-    #[arg(required = true)]
-    pub input: String,
+    #[arg(required = true, value_parser = parse_input)]
+    pub input: Input,
 
     /// Base url to be used for building absolute url to segment.
     /// This flag is usually needed for local input files.
@@ -62,7 +64,7 @@ pub struct Save {
     /// Automatic selection of some standard resolution streams with highest bandwidth stream variant from playlist.
     /// If matching resolution of WIDTHxHEIGHT is not found then only resolution HEIGHT would be considered for selection.
     /// comman values: [lowest, min, 144p, 240p, 360p, 480p, 720p, hd, 1080p, fhd, 2k, 1440p, qhd, 4k, 8k, highest, max]
-    #[arg(short, long, help_heading = "Automation Options", default_value = "highest", value_name = "WIDTHxHEIGHT|HEIGHTp", value_parser = quality_parser)]
+    #[arg(short, long, help_heading = "Automation Options", default_value = "highest", value_name = "WIDTHxHEIGHT|HEIGHTp", value_parser = parse_quality)]
     pub quality: Quality,
 
     /// Skip user input prompts and proceed with defaults.
@@ -71,7 +73,7 @@ pub struct Save {
 
     /// Fill request client with some existing cookies value.
     /// Cookies value can be same as document.cookie or in json format same as puppeteer.
-    #[arg(long, help_heading = "Client Options", default_value = "[]", hide_default_value = true, value_parser = cookie_parser)]
+    #[arg(long, help_heading = "Client Options", default_value = "[]", hide_default_value = true, value_parser = parse_cookie)]
     pub cookies: CookieParams,
 
     /// Custom headers for requests.
@@ -82,9 +84,9 @@ pub struct Save {
     /// Skip checking and validation of site certificates.
     #[arg(long, help_heading = "Client Options")]
     pub no_certificate_checks: bool,
-    
+
     /// Set http(s) / socks proxy address for requests.
-    #[arg(long, help_heading = "Client Options", value_parser = proxy_address_parser)]
+    #[arg(long, help_heading = "Client Options", value_parser = parse_proxy_address)]
     pub proxy: Option<Proxy>,
 
     /// Fill request client with some existing cookies per domain.
@@ -111,7 +113,7 @@ pub struct Save {
     /// else specify decryption key in format KID:KEY.
     /// KEY value can be specified in hex, base64 or file format.
     /// This option can be used multiple times.
-    #[arg(short, long, help_heading = "Decrypt Options", value_name = "KEY|KID:KEY", value_parser = key_parser)]
+    #[arg(short, long, help_heading = "Decrypt Options", value_name = "KEY|KID:KEY", value_parser = parse_key)]
     pub key: Vec<(Option<String>, String)>,
 
     /// Download encrypted streams without decrypting them.
@@ -129,24 +131,19 @@ pub struct Save {
     pub threads: u8,
 }
 
-#[derive(Debug, Clone)]
-pub enum Quality {
-    Lowest,
-    Highest,
-    Resolution(u16, u16),
-    Youtube144p,
-    Youtube240p,
-    Youtube360p,
-    Youtube480p,
-    Youtube720p,
-    Youtube1080p,
-    Youtube2k,
-    Youtube1440p,
-    Youtube4k,
-    Youtube8k,
+fn parse_input(s: &str) -> Result<Input, String> {
+    let file = Path::new(s);
+
+    if file.exists() {
+        Ok(Input::File(PathBuf::from(file)))
+    } else if let Ok(url) = s.parse::<Url>() {
+        Ok(Input::Url(url))
+    } else {
+        Err(format!("`{}` is neither a file path nor a valid url.", s))
+    }
 }
 
-fn quality_parser(s: &str) -> Result<Quality, String> {
+fn parse_quality(s: &str) -> Result<Quality, String> {
     Ok(match s.to_lowercase().as_str() {
         "lowest" | "min" => Quality::Lowest,
         "144p" => Quality::Youtube144p,
@@ -191,7 +188,33 @@ fn quality_parser(s: &str) -> Result<Quality, String> {
     })
 }
 
-fn key_parser(s: &str) -> Result<(Option<String>, String), String> {
+fn parse_cookie(s: &str) -> Result<CookieParams, String> {
+    if Path::new(s).exists() {
+        Ok(serde_json::from_slice::<CookieParams>(
+            &std::fs::read(s).map_err(|_| format!("could not read {}.", s))?,
+        )
+        .map_err(|x| format!("could not deserialize cookies from json file. {}", x))?)
+    } else if let Ok(cookies) = serde_json::from_str::<CookieParams>(s) {
+        Ok(cookies)
+    } else {
+        let mut cookies = vec![];
+
+        for cookie in Cookie::split_parse(s) {
+            match cookie {
+                Ok(x) => cookies.push(CookieParam::new(x.name(), x.value())),
+                Err(e) => return Err(format!("could not split parse cookies. {}", e)),
+            }
+        }
+
+        Ok(cookies)
+    }
+}
+
+fn parse_proxy_address(s: &str) -> Result<Proxy, String> {
+    Proxy::all(s).map_err(|x| x.to_string())
+}
+
+fn parse_key(s: &str) -> Result<(Option<String>, String), String> {
     let (key_id, mut key) = if let Some((key_id, key)) = s.split_once(':') {
         (Some(key_id.to_lowercase().replace('-', "")), key.to_owned())
     } else {
@@ -219,34 +242,8 @@ fn key_parser(s: &str) -> Result<(Option<String>, String), String> {
     Ok((key_id, key))
 }
 
-fn cookie_parser(s: &str) -> Result<CookieParams, String> {
-    if Path::new(s).exists() {
-        Ok(serde_json::from_slice::<CookieParams>(
-            &std::fs::read(s).map_err(|_| format!("could not read {}.", s))?,
-        )
-        .map_err(|x| format!("could not deserialize cookies from json file. {}", x))?)
-    } else if let Ok(cookies) = serde_json::from_str::<CookieParams>(s) {
-        Ok(cookies)
-    } else {
-        let mut cookies = vec![];
-
-        for cookie in Cookie::split_parse(s) {
-            match cookie {
-                Ok(x) => cookies.push(CookieParam::new(x.name(), x.value())),
-                Err(e) => return Err(format!("could not split parse cookies. {}", e)),
-            }
-        }
-
-        Ok(cookies)
-    }
-}
-
-fn proxy_address_parser(s: &str) -> Result<Proxy, String> {
-    Proxy::all(s).map_err(|x| x.to_string())
-}
-
 impl Save {
-    pub fn execute(self) -> Result<()> {
+    pub fn execute(self) -> Result<(), Error> {
         let mut client_builder = Client::builder()
             .danger_accept_invalid_certs(self.no_certificate_checks)
             .user_agent(self.user_agent)
@@ -257,8 +254,12 @@ impl Save {
 
             for i in (0..self.header.len()).step_by(2) {
                 headers.insert(
-                    self.header[i].parse::<HeaderName>()?,
-                    self.header[i + 1].parse::<HeaderValue>()?,
+                    self.header[i]
+                        .parse::<HeaderName>()
+                        .map_err(|_| Error::new_parse("some header names are invalid."))?,
+                    self.header[i + 1]
+                        .parse::<HeaderValue>()
+                        .map_err(|_| Error::new_parse("some header values are invalid."))?,
                 );
             }
 
@@ -286,24 +287,28 @@ impl Save {
         }
 
         let client = client_builder.cookie_provider(Arc::new(jar)).build()?;
+        let prompts = Prompts { raw: self.raw_prompts, skip: self.skip_prompts };
+        let preferences = Preferences { audio_lang: self.prefer_audio_lang, subs_lang: self.prefer_subs_lang };
 
-        crate::downloader::download(
-            self.all_keys,
-            self.base_url,
-            client,
-            self.directory,
-            &self.input,
-            self.key,
-            self.no_decrypt,
-            self.output,
-            self.prefer_audio_lang,
-            self.prefer_subs_lang,
-            self.quality,
-            self.skip_prompts,
-            self.raw_prompts,
-            self.retry_count,
-            self.threads,
-        )?;
+        Builder::new_multi_thread()
+            .worker_threads(self.threads as usize)
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(async {
+                let mut playlist = self.input.fetch(&client).await?;
+
+                if playlist.is_site() {
+                    playlist = playlist.scrape(&prompts)?.fetch(&client).await?;
+                }
+
+                let playlist = playlist
+                    .parse_sort_select(self.base_url.as_ref(), &client, &preferences, &prompts, &self.quality)
+                    .await?;
+
+                // save this master
+                Ok::<(), Error>(())
+            });
 
         Ok(())
     }

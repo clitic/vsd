@@ -1,5 +1,4 @@
-use crate::utils;
-use anyhow::Result;
+use crate::{error::Error, utils};
 use clap::{Args, ValueEnum};
 use cookie::Cookie;
 use headless_chrome::{
@@ -20,7 +19,7 @@ use std::{
 type CookieParams = Vec<CookieParam>;
 
 /// Capture playlists and subtitles from a website.
-#[derive(Debug, Clone, Args)]
+#[derive(Args, Clone, Debug)]
 #[clap(long_about = "Capture playlists and subtitles from a website.\n\n\
 Requires any one of these browser to be installed:\n\
 1. chrome - https://www.google.com/chrome\n\
@@ -72,7 +71,7 @@ pub struct Capture {
     save: bool,
 }
 
-#[derive(Debug, Clone, ValueEnum)]
+#[derive(Clone, Debug, ValueEnum)]
 enum ResourceTypeCopy {
     All,
     Document,
@@ -132,12 +131,13 @@ fn cookie_parser(s: &str) -> Result<CookieParams, String> {
 }
 
 impl Capture {
-    pub fn execute(self) -> Result<()> {
+    pub fn execute(self) -> Result<(), Error> {
         let (tx, rx) = mpsc::channel();
         ctrlc::set_handler(move || {
             tx.send(())
                 .expect("could not send shutdown signal on channel.")
-        })?;
+        })
+        .map_err(|e| Error::new_io(format!("cannot set CTRL+C handler. (ctrlc-error: {})", e)))?;
 
         println!(
             "    {} sometimes video starts playing but links are not detected",
@@ -157,12 +157,29 @@ impl Capture {
         let browser = Browser::new(
             LaunchOptionsBuilder::default()
                 .headless(self.headless)
-                .build()?,
-        )?;
-        let tab = browser.new_tab()?;
+                .build()
+                .unwrap(),
+        )
+        .map_err(|e| {
+            Error::new(format!(
+                "cannot find compatible browser. (headless-chrome-error: {})",
+                e
+            ))
+        })?;
+        let tab = browser.new_tab().map_err(|e| {
+            Error::new(format!(
+                "couldn't open a new tab. (headless-chrome-error: {})",
+                e
+            ))
+        })?;
 
         println!(" {} setting cookies", "Browser".colorize("bold cyan"));
-        tab.set_cookies(self.cookies)?;
+        tab.set_cookies(self.cookies).map_err(|e| {
+            Error::new(format!(
+                "couldn't set cookies. (headless-chrome-error: {})",
+                e
+            ))
+        })?;
 
         let filters = Filters {
             extensions: self.extensions,
@@ -184,11 +201,22 @@ impl Capture {
             Box::new(move |params, get_response_body| {
                 handler(params, get_response_body, &filters, &directory, save);
             }),
-        )?;
+        )
+        .map_err(|e| {
+            Error::new(format!(
+                "couldn't register response handling. (headless-chrome-error: {})",
+                e
+            ))
+        })?;
 
         if let Some(directory) = &self.directory {
             if !directory.exists() {
-                fs::create_dir_all(directory)?;
+                fs::create_dir_all(directory).map_err(|_| {
+                    Error::new_io(format!(
+                        "cannot create `{}` directory.",
+                        directory.to_string_lossy()
+                    ))
+                })?;
             }
         };
 
@@ -197,27 +225,45 @@ impl Capture {
             "Browser".colorize("bold cyan"),
             self.url
         );
-        tab.navigate_to(&self.url)?;
+        tab.navigate_to(&self.url).map_err(|e| {
+            Error::new(format!(
+                "couldn't navigate to url. (headless-chrome-error: {})",
+                e
+            ))
+        })?;
 
         println!(
             "    {} waiting for CTRL+C signal",
             "INFO".colorize("bold cyan")
         );
-        rx.recv()?;
+        rx.recv()
+            .map_err(|_| Error::new("cannot receive CTRL+C signal."))?;
         println!(
             " {} deregistering response listener and closing browser",
             "Browser".colorize("bold cyan")
         );
-        let _ = tab.deregister_response_handling("vsd_capture")?;
+        let _ = tab
+            .deregister_response_handling("vsd_capture")
+            .map_err(|e| {
+                Error::new(format!(
+                    "couldn't deregister response handling. (headless-chrome-error: {})",
+                    e
+                ))
+            })?;
 
         if let Some(directory) = &self.directory {
-            if fs::read_dir(directory)?.next().is_none() {
+            if fs::read_dir(directory).unwrap().next().is_none() {
                 println!(
                     "{} {}",
                     "Deleting".colorize("bold red"),
                     directory.to_string_lossy()
                 );
-                fs::remove_dir(directory)?;
+                fs::remove_dir(directory).map_err(|e| {
+                    Error::new(format!(
+                        "cannot remove `{}` directory.",
+                        directory.to_string_lossy()
+                    ))
+                })?;
             }
         }
 
@@ -227,7 +273,7 @@ impl Capture {
 
 fn handler(
     params: ResponseReceivedEventParams,
-    get_response_body: &dyn Fn() -> Result<GetResponseBodyReturnObject>,
+    get_response_body: &dyn Fn() -> anyhow::Result<GetResponseBodyReturnObject>,
     filters: &Filters,
     directory: &Option<PathBuf>,
     save: bool,

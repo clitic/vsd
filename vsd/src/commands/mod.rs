@@ -7,7 +7,7 @@ mod capture;
 
 pub use extract::Extract;
 pub use merge::Merge;
-pub use save::{Quality, Save};
+pub use save::Save;
 
 #[cfg(feature = "browser")]
 pub use capture::Capture;
@@ -23,8 +23,8 @@ use clap::{ColorChoice, Parser, Subcommand};
         "\n\nEnabled features:",
         "\n  browser                 : ", cfg!(feature = "browser"),
         "\n  native-tls              : ", cfg!(feature = "native-tls"),
-        "\n  rustls-tls-webpki-roots : ", cfg!(feature = "rustls-tls-webpki-roots"),
         "\n  rustls-tls-native-roots : ", cfg!(feature = "rustls-tls-native-roots"),
+        "\n  rustls-tls-webpki-roots : ", cfg!(feature = "rustls-tls-webpki-roots"),
     ),
     version,
 )]
