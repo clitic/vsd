@@ -182,7 +182,7 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                         template_vars.insert("Bandwidth".to_owned(), bandwidth.to_string());
                     }
 
-                    let mut template = Template::new(template_vars.clone());
+                    let mut template = Template::new(template_vars);
 
                     // Now the 6 possible addressing modes:
                     // (1) SegmentList
