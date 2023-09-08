@@ -182,7 +182,7 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                         template_vars.insert("Bandwidth".to_owned(), bandwidth.to_string());
                     }
 
-                    let mut template = Template::new(template_vars);
+                    let mut template = Template::new(template_vars.clone());
 
                     // Now the 6 possible addressing modes:
                     // (1) SegmentList
@@ -381,12 +381,12 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
 
                                 let mut number = segment_template.startNumber.unwrap_or(1) as i64;
 
-                                if init_map.is_some() {
-                                    number -= 1;
-                                }
-
-                                let total_number =
+                                let mut total_number =
                                     number + (period_duration_secs / duration).ceil() as i64;
+
+                                if init_map.is_some() {
+                                    total_number -= 1;
+                                }
 
                                 for _ in 1..=total_number {
                                     template.insert("Number", number.to_string());
