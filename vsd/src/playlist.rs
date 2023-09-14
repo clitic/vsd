@@ -100,7 +100,7 @@ impl MasterPlaylist {
             .map(|x| x.0)
             .chain(audio_streams.into_iter().map(|x| x.0))
             .chain(subtitle_streams.into_iter().map(|x| x.0))
-            .chain(undefined_streams.into_iter())
+            .chain(undefined_streams)
             .collect::<Vec<_>>();
 
         self

@@ -432,6 +432,7 @@ pub(crate) fn download(
     }
 
     let mut temp_files = vec![];
+    let one_stream = (video_audio_streams.len() == 1) && subtitle_streams.is_empty();
 
     // -----------------------------------------------------------------------------------------
     // Download Subtitle Streams
@@ -699,6 +700,7 @@ pub(crate) fn download(
     // -----------------------------------------------------------------------------------------
 
     let pool = threadpool::ThreadPool::new(threads as usize);
+    let mut should_mux = !no_decrypt;
 
     for stream in video_audio_streams {
         pb.lock().unwrap().write(format!(
@@ -718,10 +720,18 @@ pub(crate) fn download(
             continue;
         }
 
-        let temp_file = stream
+        let mut temp_file = stream
             .file_path(&directory, &stream.extension())
             .to_string_lossy()
             .to_string();
+
+        if let Some(output) = &output {
+            if one_stream && output.ends_with(&format!(".{}", stream.extension())) {
+                temp_file = output.to_owned();
+                should_mux = false;
+            }
+        }
+
         temp_files.push(Stream {
             file_path: temp_file.clone(),
             language: stream.language.clone(),
@@ -897,7 +907,7 @@ pub(crate) fn download(
 
     let video_temp_files = temp_files
         .iter()
-        .filter(|x| x.media_type == MediaType::Video)
+        .filter(|x| (x.media_type == MediaType::Video) || (x.media_type == MediaType::Undefined))
         .collect::<Vec<_>>();
     let video_streams_count = video_temp_files.len();
     let audio_streams_count = temp_files
@@ -909,13 +919,15 @@ pub(crate) fn download(
         .filter(|x| x.media_type == MediaType::Subtitles)
         .count();
 
-    if !no_decrypt
+    if should_mux
         && (video_streams_count == 1 || audio_streams_count == 1 || subtitle_streams_count == 1)
     {
         if let Some(output) = &output {
             let all_temp_files = temp_files
                 .iter()
-                .filter(|x| x.media_type == MediaType::Video)
+                .filter(|x| {
+                    (x.media_type == MediaType::Video) || (x.media_type == MediaType::Undefined)
+                })
                 .chain(
                     temp_files
                         .iter()
@@ -934,16 +946,14 @@ pub(crate) fn download(
                 args.extend_from_slice(&["-i".to_owned(), temp_file.file_path.clone()]);
             }
 
-            if args.len() == 2 && (video_streams_count == 1 || audio_streams_count == 1) {
+            if (video_streams_count == 1)
+                || (audio_streams_count == 1)
+                || (subtitle_streams_count == 1)
+            {
+                // TODO - Re-consider this copy
                 args.extend_from_slice(&["-c".to_owned(), "copy".to_owned()]);
-            } else if args.len() > 2 {
+            } else {
                 args.extend_from_slice(&["-c".to_owned(), "copy".to_owned()]);
-                // args.extend_from_slice(&[
-                //     "-c:v".to_owned(),
-                //     "copy".to_owned(),
-                //     "-c:a".to_owned(),
-                //     "copy".to_owned(),
-                // ]);
 
                 if subtitle_streams_count > 0 && output.ends_with(".mp4") {
                     args.extend_from_slice(&["-c:s".to_owned(), "mov_text".to_owned()]);
@@ -982,7 +992,7 @@ pub(crate) fn download(
                     }
                 }
 
-                if subtitle_streams_count > 1 {
+                if subtitle_streams_count > 0 {
                     args.extend_from_slice(&["-disposition:s:0".to_owned(), "default".to_owned()]);
                 }
             }
