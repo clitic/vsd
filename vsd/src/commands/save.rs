@@ -122,6 +122,11 @@ pub struct Save {
     /// Maximum number of retries to download an individual segment.
     #[arg(long, help_heading = "Download Options", default_value_t = 15)]
     pub retry_count: u8,
+    
+    /// Download streams without merging them.
+    /// Note that --output flag is ignored if this flag is used.
+    #[arg(long, help_heading = "Download Options")]
+    pub no_merge: bool,
 
     /// Maximum number of threads for parllel downloading of segments.
     /// Number of threads should be in range 1-16 (inclusive).
@@ -295,6 +300,7 @@ impl Save {
             &self.input,
             self.key,
             self.no_decrypt,
+            self.no_merge,
             self.output,
             self.prefer_audio_lang,
             self.prefer_subs_lang,

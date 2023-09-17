@@ -1,6 +1,12 @@
 // use crate::progress::DownloadProgress;
 use anyhow::Result;
-use std::{collections::HashMap, fs::File, io::Write};
+use std::{
+    collections::HashMap,
+    fs,
+    fs::File,
+    io::Write,
+    path::PathBuf,
+};
 
 pub(super) struct Merger {
     size: usize,
@@ -10,12 +16,11 @@ pub(super) struct Merger {
     stored_bytes: usize,
     flushed_bytes: usize,
     indexed: usize,
-    // progress: DownloadProgress,
-    // json_file: File,
+
+    directory: Option<PathBuf>,
 }
 
 impl Merger {
-    // pub(super) fn new(size: usize, filename: &str, progress: DownloadProgress) -> Result<Self> {
     pub(super) fn new(size: usize, filename: &str) -> Result<Self> {
         Ok(Self {
             size: size - 1,
@@ -25,50 +30,48 @@ impl Merger {
             stored_bytes: 0,
             flushed_bytes: 0,
             indexed: 0,
-            // json_file: File::create(&progress.file)?,
-            // progress,
+            directory: None,
         })
     }
 
-    // pub(super) fn try_from_json(size: usize, filename: &str, json_file: String) -> Result<Self> {
-    //     if !Path::new(&json_file).exists() {
-    //         bail!("Can't resume because {} doesn't exists.", json_file)
-    //     }
+    pub(super) fn with_directory(size: usize, directory: &str) -> Result<Self> {
+        let directory = PathBuf::from(directory);
 
-    //     let progress: DownloadProgress = serde_json::from_reader(std::fs::File::open(&json_file)?)?;
-    //     let mut pos = progress.downloaded("video");
+        if !directory.exists() {
+            fs::create_dir_all(&directory)?;
+        }
 
-    //     let file = if Path::new(filename).exists() {
-    //         std::fs::OpenOptions::new().append(true).open(filename)?
-    //     } else {
-    //         pos = 0;
-    //         File::create(filename)?
-    //     };
-
-    //     let stored_bytes = file.metadata()?.len() as usize;
-
-    //     Ok(Self {
-    //         size: size - 1,
-    //         file,
-    //         pos,
-    //         buffers: HashMap::new(),
-    //         stored_bytes,
-    //         flushed_bytes: stored_bytes,
-    //         indexed: pos,
-    //         progress,
-    //         json_file: std::fs::OpenOptions::new().append(true).open(&json_file)?,
-    //     })
-    // }
+        Ok(Self {
+            size: size - 1,
+            file: File::create(directory.join(format!(
+                "0.{}",
+                directory.extension().unwrap().to_string_lossy()
+            )))?,
+            pos: 0,
+            buffers: HashMap::new(),
+            stored_bytes: 0,
+            flushed_bytes: 0,
+            indexed: 0,
+            directory: Some(directory),
+        })
+    }
 
     pub(super) fn write(&mut self, pos: usize, buf: &[u8]) -> Result<()> {
-        if pos == 0 || (self.pos != 0 && self.pos == pos) {
+        if let Some(directory) = &self.directory {
+            self.file = File::create(directory.join(format!(
+                "{}.{}",
+                pos,
+                directory.extension().unwrap().to_string_lossy()
+            )))?;
+        }
+
+        if self.directory.is_some() || (pos == 0 || (self.pos != 0 && self.pos == pos)) {
             self.file.write_all(buf)?;
             self.file.flush()?;
             self.pos += 1;
             let size = buf.len();
             self.stored_bytes += size;
             self.flushed_bytes += size;
-            // self.update()?;
         } else {
             self.buffers.insert(pos, buf.to_vec());
             self.stored_bytes += buf.len();
@@ -115,10 +118,4 @@ impl Merger {
             (self.stored_bytes / self.indexed) * (self.size + 1)
         }
     }
-
-    // pub(super) fn update(&mut self) -> Result<()> {
-    //     self.progress
-    //         .update("video", self.pos, &mut self.json_file)?;
-    //     Ok(())
-    // }
 }

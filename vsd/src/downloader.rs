@@ -33,6 +33,7 @@ pub(crate) fn download(
     input: &str,
     keys: Vec<(Option<String>, String)>,
     no_decrypt: bool,
+    no_merge: bool,
     output: Option<String>,
     prefer_audio_lang: Option<String>,
     prefer_subs_lang: Option<String>,
@@ -429,6 +430,20 @@ pub(crate) fn download(
                 "Warning".colorize("bold yellow")
             );
         }
+
+        if no_merge {
+            println!(
+                "    {} --output is ignored when --no-merge is used",
+                "Warning".colorize("bold yellow")
+            );
+        }
+    }
+
+    if !subtitle_streams.is_empty() && no_merge {
+        println!(
+            "    {} subtitle streams are always merged even if --no-merge is used",
+            "Warning".colorize("bold yellow")
+        );
     }
 
     let mut temp_files = vec![];
@@ -700,7 +715,7 @@ pub(crate) fn download(
     // -----------------------------------------------------------------------------------------
 
     let pool = threadpool::ThreadPool::new(threads as usize);
-    let mut should_mux = !no_decrypt;
+    let mut should_mux = !no_decrypt && !no_merge;
 
     for stream in video_audio_streams {
         pb.lock().unwrap().write(format!(
@@ -743,7 +758,11 @@ pub(crate) fn download(
             temp_file.colorize("cyan"),
         ))?;
 
-        let merger = Arc::new(Mutex::new(Merger::new(stream.segments.len(), &temp_file)?));
+        let merger = Arc::new(Mutex::new(if no_merge {
+            Merger::with_directory(stream.segments.len(), &temp_file)?
+        } else {
+            Merger::new(stream.segments.len(), &temp_file)?
+        }));
         let timer = Arc::new(Instant::now());
 
         let _ = relative_sizes.pop_front();
