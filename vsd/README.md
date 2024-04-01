@@ -61,6 +61,7 @@ Visit [releases](https://github.com/clitic/vsd/releases) for prebuilt binaries. 
 | Host                | Architecture | Download                                                                                                      |
 |---------------------|--------------|---------------------------------------------------------------------------------------------------------------|
 | Android 7+ (Termux) | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/v0.3.0/vsd-v0.3.0-aarch64-linux-android.tar.xz)     |
+| MacOS 11.7+         | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/v0.3.0/vsd-v0.3.0-aarch64-apple-darwin.tar.xz)      |
 | Linux               | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/v0.3.0/vsd-v0.3.0-x86_64-unknown-linux-musl.tar.xz) |
 | MacOS 11.7+         | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/v0.3.0/vsd-v0.3.0-x86_64-apple-darwin.tar.xz)       |
 | Windows             | x86_64       | [.zip](https://github.com/clitic/vsd/releases/download/v0.3.0/vsd-v0.3.0-x86_64-pc-windows-msvc.zip)          |
