@@ -1,7 +1,7 @@
 use crate::{
     commands::Quality,
     merger::Merger,
-    playlist::{KeyMethod, MediaType, PlaylistType, Range, Segment},
+    playlist::{KeyMethod, MediaPlaylist, MediaType, PlaylistType, Range, Segment},
     update, utils,
 };
 use anyhow::{anyhow, bail, Result};
@@ -182,6 +182,94 @@ fn fetch_from_website(client: &Client, meta: &mut InputMetadata, prompts: &Promp
     Ok(())
 }
 
+fn process_playlist(
+    base_url: Option<Url>,
+    client: &Client,
+    meta: &InputMetadata,
+    prefer_audio_lang: Option<String>,
+    prefer_subs_lang: Option<String>,
+    prompts: &Prompts,
+    quality: Quality,
+) -> Result<(Vec<MediaPlaylist>, Vec<MediaPlaylist>)> {
+    match meta.pl_type {
+        Some(PlaylistType::Dash) => {
+            let mpd = dash_mpd::parse(&meta.text).map_err(|x| {
+                anyhow!(
+                    "couldn't parse response as dash playlist (failed with {}).\n\n{}",
+                    x,
+                    meta.text
+                )
+            })?;
+            let (mut video_audio_streams, mut subtitle_streams) =
+                crate::dash::parse_as_master(&mpd, meta.url.as_ref())
+                    .sort_streams(prefer_audio_lang, prefer_subs_lang)
+                    .select_streams(quality, prompts.skip, prompts.raw)?;
+
+            for stream in video_audio_streams
+                .iter_mut()
+                .chain(subtitle_streams.iter_mut())
+            {
+                crate::dash::push_segments(
+                    &mpd,
+                    stream,
+                    base_url.as_ref().unwrap_or(&meta.url).as_str(),
+                )?;
+                stream.uri = meta.url.as_ref().to_owned();
+            }
+
+            Ok((video_audio_streams, subtitle_streams))
+        }
+        Some(PlaylistType::Hls) => match m3u8_rs::parse_playlist_res(meta.text.as_bytes()) {
+            Ok(m3u8_rs::Playlist::MasterPlaylist(m3u8)) => {
+                let (mut video_audio_streams, mut subtitle_streams) =
+                    crate::hls::parse_as_master(&m3u8, meta.url.as_str())
+                        .sort_streams(prefer_audio_lang, prefer_subs_lang)
+                        .select_streams(quality, prompts.skip, prompts.raw)?;
+
+                for stream in video_audio_streams
+                    .iter_mut()
+                    .chain(subtitle_streams.iter_mut())
+                {
+                    stream.uri = base_url
+                        .as_ref()
+                        .unwrap_or(&meta.url)
+                        .join(&stream.uri)?
+                        .to_string();
+                    let response = client.get(&stream.uri).send()?;
+                    let text = response.text()?;
+                    let media_playlist = m3u8_rs::parse_media_playlist_res(text.as_bytes())
+                        .map_err(|x| {
+                            anyhow!(
+                                "couldn't parse response as hls playlist (failed with {}).\n\n{}\n\n{}",
+                                x,
+                                stream.uri,
+                                text
+                            )
+                        })?;
+                    crate::hls::push_segments(&media_playlist, stream);
+                }
+
+                Ok((video_audio_streams, subtitle_streams))
+            }
+            Ok(m3u8_rs::Playlist::MediaPlaylist(m3u8)) => {
+                let mut media_playlist = crate::playlist::MediaPlaylist {
+                    uri: meta.url.as_ref().to_owned(),
+                    ..Default::default()
+                };
+                crate::hls::push_segments(&m3u8, &mut media_playlist);
+                Ok((vec![media_playlist], vec![]))
+            }
+            Err(x) => bail!(
+                "couldn't parse response as hls playlist (failed with {}).\n\n{}\n\n{}",
+                x,
+                meta.url,
+                meta.text
+            ),
+        },
+        _ => bail!("couldn't determine playlist type, only DASH and HLS playlists are supported."),
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn download(
     all_keys: bool,
@@ -201,92 +289,20 @@ pub(crate) fn download(
     retry_count: u8,
     threads: u8,
 ) -> Result<()> {
-    let prompts = Prompts { skip: skip_prompts, raw: raw_prompts };
-    let meta = fetch_playlist(base_url.clone(), &client, input, &prompts)?;
-    let playlist_type = meta.pl_type;
-    let playlist = meta.text;
-    let playlist_url = meta.url;
-    // -----------------------------------------------------------------------------------------
-    // Parse Playlist & Select Streams & Push Segments
-    // -----------------------------------------------------------------------------------------
-
-    let (mut video_audio_streams, subtitle_streams) = match playlist_type {
-        Some(PlaylistType::Dash) => {
-            let mpd = dash_mpd::parse(&playlist).map_err(|x| {
-                anyhow!(
-                    "couldn't parse response as dash playlist (failed with {}).\n\n{}",
-                    x,
-                    playlist
-                )
-            })?;
-            let (mut video_audio_streams, mut subtitle_streams) =
-                crate::dash::parse_as_master(&mpd, playlist_url.as_str())
-                    .sort_streams(prefer_audio_lang, prefer_subs_lang)
-                    .select_streams(quality, skip_prompts, raw_prompts)?;
-
-            for stream in video_audio_streams
-                .iter_mut()
-                .chain(subtitle_streams.iter_mut())
-            {
-                crate::dash::push_segments(
-                    &mpd,
-                    stream,
-                    base_url.as_ref().unwrap_or(&playlist_url).as_str(),
-                )?;
-                stream.uri = playlist_url.as_str().to_owned();
-            }
-
-            (video_audio_streams, subtitle_streams)
-        }
-        Some(PlaylistType::Hls) => match m3u8_rs::parse_playlist_res(playlist.as_bytes()) {
-            Ok(m3u8_rs::Playlist::MasterPlaylist(m3u8)) => {
-                let (mut video_audio_streams, mut subtitle_streams) =
-                    crate::hls::parse_as_master(&m3u8, playlist_url.as_str())
-                        .sort_streams(prefer_audio_lang, prefer_subs_lang)
-                        .select_streams(quality, skip_prompts, raw_prompts)?;
-
-                for stream in video_audio_streams
-                    .iter_mut()
-                    .chain(subtitle_streams.iter_mut())
-                {
-                    stream.uri = base_url
-                        .as_ref()
-                        .unwrap_or(&playlist_url)
-                        .join(&stream.uri)?
-                        .to_string();
-                    let response = client.get(&stream.uri).send()?;
-                    let text = response.text()?;
-                    let media_playlist = m3u8_rs::parse_media_playlist_res(text.as_bytes())
-                        .map_err(|x| {
-                            anyhow!(
-                                "couldn't parse response as hls playlist (failed with {}).\n\n{}\n\n{}",
-                                x,
-                                stream.uri,
-                                text
-                            )
-                        })?;
-                    crate::hls::push_segments(&media_playlist, stream);
-                }
-
-                (video_audio_streams, subtitle_streams)
-            }
-            Ok(m3u8_rs::Playlist::MediaPlaylist(m3u8)) => {
-                let mut media_playlist = crate::playlist::MediaPlaylist {
-                    uri: playlist_url.to_string(),
-                    ..Default::default()
-                };
-                crate::hls::push_segments(&m3u8, &mut media_playlist);
-                (vec![media_playlist], vec![])
-            }
-            Err(x) => bail!(
-                "couldn't parse response as hls playlist (failed with {}).\n\n{}\n\n{}",
-                x,
-                playlist_url,
-                playlist
-            ),
-        },
-        _ => bail!("couldn't determine playlist type, only DASH and HLS playlists are supported."),
+    let prompts = Prompts {
+        skip: skip_prompts,
+        raw: raw_prompts,
     };
+    let meta = fetch_playlist(base_url.clone(), &client, input, &prompts)?;
+    let (mut video_audio_streams, subtitle_streams) = process_playlist(
+        base_url.clone(),
+        &client,
+        &meta,
+        prefer_audio_lang,
+        prefer_subs_lang,
+        &prompts,
+        quality,
+    )?;
 
     // -----------------------------------------------------------------------------------------
     // Parse Key Ids
