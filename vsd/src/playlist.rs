@@ -12,12 +12,12 @@ use anyhow::{bail, Result};
 use kdam::term::Colorizer;
 use requestty::prompt::style::Stylize;
 use reqwest::header::HeaderValue;
+use serde::Serialize;
 use std::{fmt::Display, io::Write, path::PathBuf};
 
+#[derive(Serialize)]
 pub(crate) struct MasterPlaylist {
-    #[allow(dead_code)]
     pub(crate) playlist_type: PlaylistType,
-    #[allow(dead_code)]
     pub(crate) uri: String,
     pub(crate) streams: Vec<MediaPlaylist>,
 }
@@ -360,7 +360,7 @@ impl MasterPlaylist {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Serialize)]
 pub(crate) struct MediaPlaylist {
     pub(crate) bandwidth: Option<u64>,
     pub(crate) channels: Option<f32>,
@@ -451,12 +451,7 @@ impl MediaPlaylist {
             MediaType::Video => "vsd_video",
         };
 
-        let mut path = PathBuf::from(format!(
-            "{}_{}.{}",
-            prefix,
-            filename.to_string_lossy(),
-            ext
-        ));
+        let mut path = PathBuf::from(format!("{}_{}.{}", prefix, filename.to_string_lossy(), ext));
 
         if let Some(directory) = directory {
             path = directory.join(path);
@@ -585,14 +580,14 @@ impl MediaPlaylist {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Serialize)]
 pub(crate) enum PlaylistType {
     Dash,
     #[default]
     Hls,
 }
 
-#[derive(Clone, Default, PartialEq)]
+#[derive(Clone, Default, PartialEq, Serialize)]
 pub(crate) enum MediaType {
     Audio,
     Subtitles,
@@ -616,7 +611,7 @@ impl Display for MediaType {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Serialize)]
 pub(crate) enum KeyMethod {
     Aes128,
     Cenc,
@@ -625,7 +620,7 @@ pub(crate) enum KeyMethod {
     SampleAes,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub(crate) struct Range {
     pub(crate) start: u64,
     pub(crate) end: u64,
@@ -637,7 +632,7 @@ impl Range {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub(crate) struct Map {
     pub(crate) uri: String,
     pub(crate) range: Option<Range>,
@@ -652,7 +647,7 @@ pub(crate) struct Map {
 #EXT-X-KEY:METHOD=SAMPLE-AES-CTR,KEYFORMAT="com.microsoft.playready",KEYFORMATVERSIONS="1",URI="data:text/plain;charset=UTF-16;base64,xAEAAAEAAQC6ATwAVwBSAE0ASABFAEEARABFAFIAIAB4AG0AbABuAHMAPQAiAGgAdAB0AHAAOgAvAC8AcwBjAGgAZQBtAGEAcwAuAG0AaQBjAHIAbwBzAG8AZgB0AC4AYwBvAG0ALwBEAFIATQAvADIAMAAwADcALwAwADMALwBQAGwAYQB5AFIAZQBhAGQAeQBIAGUAYQBkAGUAcgAiACAAdgBlAHIAcwBpAG8AbgA9ACIANAAuADAALgAwAC4AMAAiAD4APABEAEEAVABBAD4APABQAFIATwBUAEUAQwBUAEkATgBGAE8APgA8AEsARQBZAEwARQBOAD4AMQA2ADwALwBLAEUAWQBMAEUATgA+ADwAQQBMAEcASQBEAD4AQQBFAFMAQwBUAFIAPAAvAEEATABHAEkARAA+ADwALwBQAFIATwBUAEUAQwBUAEkATgBGAE8APgA8AEsASQBEAD4AOQBmAEIAMQAxAEsAMQB0AC8ARQBtAFEANABYAEMATQBjAEoANgBnAEkAZwA9AD0APAAvAEsASQBEAD4APAAvAEQAQQBUAEEAPgA8AC8AVwBSAE0ASABFAEEARABFAFIAPgA="
 
 */
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub(crate) struct Key {
     pub(crate) default_kid: Option<String>,
     pub(crate) iv: Option<String>,
@@ -661,8 +656,7 @@ pub(crate) struct Key {
     pub(crate) uri: Option<String>,
 }
 
-
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize)]
 pub(crate) struct Segment {
     pub(crate) range: Option<Range>,
     pub(crate) duration: f32, // consider changing it to f64

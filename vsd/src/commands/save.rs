@@ -304,29 +304,35 @@ impl Save {
         };
         let meta =
             downloader::fetch_playlist(self.base_url.clone(), &client, &self.input, &prompts)?;
-        let selected_playlists = downloader::process_playlist(
-            self.base_url.clone(),
-            &client,
-            &meta,
-            self.prefer_audio_lang,
-            self.prefer_subs_lang,
-            &prompts,
-            self.quality,
-        )?;
 
-        downloader::download(
-            self.all_keys,
-            self.base_url,
-            client,
-            self.directory,
-            self.key,
-            self.no_decrypt,
-            self.no_merge,
-            self.output,
-            selected_playlists,
-            self.retry_count,
-            self.threads,
-        )?;
+        if self.parse {
+            let playlist = downloader::parse_playlist(self.base_url.clone(), &client, &meta)?;
+            serde_json::to_writer(std::io::stdout(), &playlist)?;
+        } else {
+            let selected_playlists = downloader::process_playlist(
+                self.base_url.clone(),
+                &client,
+                &meta,
+                self.prefer_audio_lang,
+                self.prefer_subs_lang,
+                &prompts,
+                self.quality,
+            )?;
+
+            downloader::download(
+                self.all_keys,
+                self.base_url,
+                client,
+                self.directory,
+                self.key,
+                self.no_decrypt,
+                self.no_merge,
+                self.output,
+                selected_playlists,
+                self.retry_count,
+                self.threads,
+            )?;
+        }
 
         Ok(())
     }

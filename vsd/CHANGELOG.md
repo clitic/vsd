@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `save`
   - `--no-merge` flag. ([#17](https://github.com/clitic/vsd/issues/17), [#20](https://github.com/clitic/vsd/issues/20))
+  - `==parse` flag.
 
 ### Fixed
 
