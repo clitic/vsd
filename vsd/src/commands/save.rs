@@ -1,5 +1,6 @@
 use crate::{
     cookie::{CookieJar, CookieParam},
+    downloader::{self, Prompts},
     utils,
 };
 use anyhow::Result;
@@ -40,6 +41,11 @@ pub struct Save {
     /// Note that existing files will be overwritten and downloaded streams will be deleted.
     #[arg(short, long)]
     pub output: Option<String>,
+
+    /// Parse playlist and returns it in json format.
+    /// Note that `--output` flag is ignored when this flag is used.
+    #[arg(long)]
+    pub parse: bool,
 
     /// Raw style input prompts for old and unsupported terminals.
     #[arg(long)]
@@ -82,7 +88,7 @@ pub struct Save {
     /// Skip checking and validation of site certificates.
     #[arg(long, help_heading = "Client Options")]
     pub no_certificate_checks: bool,
-    
+
     /// Set http(s) / socks proxy address for requests.
     #[arg(long, help_heading = "Client Options", value_parser = proxy_address_parser)]
     pub proxy: Option<Proxy>,
@@ -122,7 +128,7 @@ pub struct Save {
     /// Maximum number of retries to download an individual segment.
     #[arg(long, help_heading = "Download Options", default_value_t = 15)]
     pub retry_count: u8,
-    
+
     /// Download streams without merging them.
     /// Note that --output flag is ignored if this flag is used.
     #[arg(long, help_heading = "Download Options")]
@@ -292,21 +298,32 @@ impl Save {
 
         let client = client_builder.cookie_provider(Arc::new(jar)).build()?;
 
-        crate::downloader::download(
+        let prompts = Prompts {
+            skip: self.skip_prompts,
+            raw: self.raw_prompts,
+        };
+        let meta =
+            downloader::fetch_playlist(self.base_url.clone(), &client, &self.input, &prompts)?;
+        let selected_playlists = downloader::process_playlist(
+            self.base_url.clone(),
+            &client,
+            &meta,
+            self.prefer_audio_lang,
+            self.prefer_subs_lang,
+            &prompts,
+            self.quality,
+        )?;
+
+        downloader::download(
             self.all_keys,
             self.base_url,
             client,
             self.directory,
-            &self.input,
             self.key,
             self.no_decrypt,
             self.no_merge,
             self.output,
-            self.prefer_audio_lang,
-            self.prefer_subs_lang,
-            self.quality,
-            self.skip_prompts,
-            self.raw_prompts,
+            selected_playlists,
             self.retry_count,
             self.threads,
         )?;

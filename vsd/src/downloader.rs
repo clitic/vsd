@@ -24,14 +24,21 @@ use vsd_mp4::{
     text::{ttml_text_parser, Mp4TtmlParser, Mp4VttParser},
 };
 
-struct InputMetadata {
-    pl_type: Option<PlaylistType>,
-    text: String,
-    url: Url,
+pub type SelectedPlaylists = (Vec<MediaPlaylist>, Vec<MediaPlaylist>);
+
+pub struct Prompts {
+    pub skip: bool,
+    pub raw: bool,
+}
+
+pub struct InputMetadata {
+    pub pl_type: Option<PlaylistType>,
+    pub text: String,
+    pub url: Url,
 }
 
 impl InputMetadata {
-    fn fetch(&mut self, client: &Client) -> Result<()> {
+    pub fn fetch(&mut self, client: &Client) -> Result<()> {
         let response = client.get(self.url.as_ref()).send()?;
         self.url = response.url().to_owned();
 
@@ -52,7 +59,7 @@ impl InputMetadata {
         Ok(())
     }
 
-    fn update_pl_type_from_text(&mut self) {
+    pub fn update_pl_type_from_text(&mut self) {
         if self.pl_type.is_none() {
             if self.text.contains("<MPD") {
                 self.pl_type = Some(PlaylistType::Dash);
@@ -63,12 +70,7 @@ impl InputMetadata {
     }
 }
 
-struct Prompts {
-    skip: bool,
-    raw: bool,
-}
-
-fn fetch_playlist(
+pub fn fetch_playlist(
     base_url: Option<Url>,
     client: &Client,
     input: &str,
@@ -182,7 +184,7 @@ fn fetch_from_website(client: &Client, meta: &mut InputMetadata, prompts: &Promp
     Ok(())
 }
 
-fn process_playlist(
+pub fn process_playlist(
     base_url: Option<Url>,
     client: &Client,
     meta: &InputMetadata,
@@ -190,7 +192,7 @@ fn process_playlist(
     prefer_subs_lang: Option<String>,
     prompts: &Prompts,
     quality: Quality,
-) -> Result<(Vec<MediaPlaylist>, Vec<MediaPlaylist>)> {
+) -> Result<SelectedPlaylists> {
     match meta.pl_type {
         Some(PlaylistType::Dash) => {
             let mpd = dash_mpd::parse(&meta.text).map_err(|x| {
@@ -276,33 +278,15 @@ pub(crate) fn download(
     base_url: Option<Url>,
     client: Client,
     directory: Option<PathBuf>,
-    input: &str,
     keys: Vec<(Option<String>, String)>,
     no_decrypt: bool,
     no_merge: bool,
     output: Option<String>,
-    prefer_audio_lang: Option<String>,
-    prefer_subs_lang: Option<String>,
-    quality: Quality,
-    skip_prompts: bool,
-    raw_prompts: bool,
+    selected_playlists: SelectedPlaylists,
     retry_count: u8,
     threads: u8,
 ) -> Result<()> {
-    let prompts = Prompts {
-        skip: skip_prompts,
-        raw: raw_prompts,
-    };
-    let meta = fetch_playlist(base_url.clone(), &client, input, &prompts)?;
-    let (mut video_audio_streams, subtitle_streams) = process_playlist(
-        base_url.clone(),
-        &client,
-        &meta,
-        prefer_audio_lang,
-        prefer_subs_lang,
-        &prompts,
-        quality,
-    )?;
+    let (mut video_audio_streams, subtitle_streams) = selected_playlists;
 
     // -----------------------------------------------------------------------------------------
     // Parse Key Ids
