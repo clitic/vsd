@@ -23,7 +23,7 @@ cookie = "0.17"
 ctrlc = "3"
 dash-mpd = { version = "0.12.0", default-features = false }
 glob = "0.3"
-headless_chrome = { version = "1.0.5", optional = true }
+headless_chrome = { version = "1.0.10", optional = true }
 hex = "0.4"
 kdam = { version = "0.4", features = ["rich"] }
 m3u8-rs = "5.0.4"
