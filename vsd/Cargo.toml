@@ -15,22 +15,22 @@ readme = "README.md"
 [dependencies]
 aes = "0.8"
 anyhow = "1"
-base64 = "0.21"
+base64 = "0.22"
 cbc = "0.1"
 chrono = "0.4"
 clap = { version = "4", features = ["derive", "wrap_help"] }
-cookie = "0.17"
+cookie = "0.18"
 ctrlc = "3"
-dash-mpd = { version = "0.12.0", default-features = false }
+dash-mpd = { version = "0.16.5", default-features = false }
 glob = "0.3"
 headless_chrome = { version = "1.0.10", optional = true }
 hex = "0.4"
-kdam = { version = "0.4", features = ["rich"] }
-m3u8-rs = "5.0.4"
+kdam = { version = "0.5", features = ["rich"] }
+m3u8-rs = "6.0.0"
 mp4decrypt = { version = "0.4", path = "../mp4decrypt" }
 regex = "1"
 requestty = "0.5.0"
-reqwest = { version = "0.11", default-features = false, features = ["blocking", "cookies", "socks"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "cookies", "socks"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 threadpool = "1"
