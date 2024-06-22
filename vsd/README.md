@@ -58,11 +58,12 @@ Dependencies
 
 Visit [releases](https://github.com/clitic/vsd/releases) for prebuilt binaries. Download and extract archive and then copy vsd binary to any path. Now add that path to your `PATH` environment variable.
 
-| Host                | Architecture | Download                                                                                                       |
-|---------------------|--------------|----------------------------------------------------------------------------------------------------------------|
+| Host                | Architecture | Download                                                                                                     |
+|---------------------|--------------|--------------------------------------------------------------------------------------------------------------|
 | Android 7+ (Termux) | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.1/vsd-0.3.1-aarch64-linux-android.tar.xz)      |
 | Linux               | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.1/vsd-0.3.1-aarch64-unknown-linux-musl.tar.xz) |
 | MacOS 11.7+         | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.1/vsd-0.3.1-aarch64-apple-darwin.tar.xz)       |
+| Windows             | aarch64      | [.zip](https://github.com/clitic/vsd/releases/download/0.3.1/vsd-0.3.1-aarch64-pc-windows-msvc.zip)          |
 | Linux               | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.1/vsd-0.3.1-x86_64-unknown-linux-musl.tar.xz)  |
 | MacOS 11.7+         | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.1/vsd-0.3.1-x86_64-apple-darwin.tar.xz)        |
 | Windows             | x86_64       | [.zip](https://github.com/clitic/vsd/releases/download/0.3.1/vsd-0.3.1-x86_64-pc-windows-msvc.zip)           |
@@ -74,6 +75,8 @@ cargo install vsd
 ```
 
 Build instructions can be found [here](https://github.com/clitic/vsd/blob/main/vsd/BUILD.md) and changelog [here](https://github.com/clitic/vsd/blob/main/vsd/CHANGELOG.md).
+
+Additionally, you can also install third party [gui](https://github.com/theRealCataclysm/VSD-GUI) frontend created by [theRealCataclysm](https://github.com/theRealCataclysm).
 
 ## Usage
 
