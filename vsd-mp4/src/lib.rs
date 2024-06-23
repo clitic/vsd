@@ -5,7 +5,7 @@
 //! 
 //! # Optional Features
 //! 
-//! The following are a list of [Cargo features][https://doc.rust-lang.org/stable/cargo/reference/features.html#the-features-section] that can be
+//! The following are a list of [Cargo features](https://doc.rust-lang.org/stable/cargo/reference/features.html#the-features-section) that can be
 //! enabled or disabled:
 //! 
 //! - **pssh**: Enables support for parsing `PSSH` boxes.

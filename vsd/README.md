@@ -60,13 +60,13 @@ Visit [releases](https://github.com/clitic/vsd/releases) for prebuilt binaries. 
 
 | Host                | Architecture | Download                                                                                                     |
 |---------------------|--------------|--------------------------------------------------------------------------------------------------------------|
-| Android 7+ (Termux) | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.1/vsd-0.3.1-aarch64-linux-android.tar.xz)      |
-| Linux               | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.1/vsd-0.3.1-aarch64-unknown-linux-musl.tar.xz) |
-| MacOS 11.7+         | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.1/vsd-0.3.1-aarch64-apple-darwin.tar.xz)       |
-| Windows             | aarch64      | [.zip](https://github.com/clitic/vsd/releases/download/0.3.1/vsd-0.3.1-aarch64-pc-windows-msvc.zip)          |
-| Linux               | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.1/vsd-0.3.1-x86_64-unknown-linux-musl.tar.xz)  |
-| MacOS 11.7+         | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.1/vsd-0.3.1-x86_64-apple-darwin.tar.xz)        |
-| Windows             | x86_64       | [.zip](https://github.com/clitic/vsd/releases/download/0.3.1/vsd-0.3.1-x86_64-pc-windows-msvc.zip)           |
+| Android 7+ (Termux) | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.2/vsd-0.3.2-aarch64-linux-android.tar.xz)      |
+| Linux               | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.2/vsd-0.3.2-aarch64-unknown-linux-musl.tar.xz) |
+| MacOS 11.7+         | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.2/vsd-0.3.2-aarch64-apple-darwin.tar.xz)       |
+| Windows             | aarch64      | [.zip](https://github.com/clitic/vsd/releases/download/0.3.2/vsd-0.3.2-aarch64-pc-windows-msvc.zip)          |
+| Linux               | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.2/vsd-0.3.2-x86_64-unknown-linux-musl.tar.xz)  |
+| MacOS 11.7+         | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.2/vsd-0.3.2-x86_64-apple-darwin.tar.xz)        |
+| Windows             | x86_64       | [.zip](https://github.com/clitic/vsd/releases/download/0.3.2/vsd-0.3.2-x86_64-pc-windows-msvc.zip)           |
 
 You can also install vsd through cargo by using this command. 
 
