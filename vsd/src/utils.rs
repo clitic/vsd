@@ -1,7 +1,6 @@
 use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
 use anyhow::{anyhow, bail, Result};
 use base64::Engine;
-use kdam::term::Colorizer;
 use regex::Regex;
 
 type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
@@ -57,32 +56,6 @@ pub(super) fn scrape_playlist_links(text: &str) -> Vec<String> {
         }
     }
     unique_links
-}
-
-pub(super) fn scrape_playlist_msg(url: &str) -> String {
-    format!(
-        "No links found on website source.\n\n\
-        {} Consider using {} subcommand and then \
-        run the {} subcommand with same arguments by replacing the {} with captured url.\n\n\
-        Suppose first command captures https://streaming.site/video_001/master.m3u8\n\
-        $ vsd capture {}\n\
-        $ vsd save https://streaming.site/video_001/master.m3u8 \n\n\
-        {} Consider using {} subcommand \
-        and then run {} subcommand with saved playlist file as {}. \n\n\
-        Suppose first command saves master.m3u8\n\
-        $ vsd collect --build {}\n\
-        $ vsd save master.m3u8",
-        "TRY THIS:".colorize("yellow"),
-        "capture".colorize("bold green"),
-        "save".colorize("bold green"),
-        "INPUT".colorize("bold green"),
-        url,
-        "OR THIS:".colorize("yellow"),
-        "collect".colorize("bold green"),
-        "save".colorize("bold green"),
-        "INPUT".colorize("bold green"),
-        url,
-    )
 }
 
 pub(super) fn decode_base64<T: AsRef<[u8]>>(input: T) -> Result<Vec<u8>> {

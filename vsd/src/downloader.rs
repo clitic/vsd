@@ -125,7 +125,7 @@ fn fetch_from_website(client: &Client, meta: &mut InputMetadata, prompts: &Promp
     let links = utils::scrape_playlist_links(&meta.text);
 
     match links.len() {
-        0 => bail!(utils::scrape_playlist_msg(meta.url.as_str())),
+        0 => bail!("No playlists were found in website source."),
         1 => {
             println!("      {} {}", "Found".colorize("bold green"), &links[0]);
             meta.url = links[0].parse::<Url>()?;
