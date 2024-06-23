@@ -2,7 +2,7 @@ use crate::{
     commands::Quality,
     merger::Merger,
     playlist::{KeyMethod, MasterPlaylist, MediaPlaylist, MediaType, PlaylistType, Range, Segment},
-    update, utils,
+    utils,
 };
 use anyhow::{anyhow, bail, Result};
 use kdam::{term::Colorizer, tqdm, BarExt, Column, RichProgress};
@@ -1148,7 +1148,6 @@ pub(crate) fn download(
         }
     }
 
-    update::check_for_new_release(&client);
     Ok(())
 }
 

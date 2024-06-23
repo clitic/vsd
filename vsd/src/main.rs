@@ -5,7 +5,6 @@ mod downloader;
 mod hls;
 mod merger;
 mod playlist;
-mod update;
 mod utils;
 
 use clap::{ColorChoice, Parser};

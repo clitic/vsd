@@ -2,7 +2,7 @@
     REFERENCES
     ----------
 
-    1. https://docs.rs/headless_chrome/1.0.5/headless_chrome/protocol/cdp/Network/struct.CookieParam.html
+    1. https://docs.rs/headless_chrome/1.0.10/headless_chrome/protocol/cdp/Network/struct.CookieParam.html
 
 */
 
@@ -14,6 +14,7 @@ use reqwest::{
 };
 use serde::Deserialize;
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct CookieParam {
     #[serde(default)]
