@@ -240,14 +240,12 @@ fn cookie_parser(s: &str) -> Result<CookieParams, String> {
         Ok(cookies)
     } else {
         let mut cookies = vec![];
-
         for cookie in Cookie::split_parse(s) {
             match cookie {
                 Ok(x) => cookies.push(CookieParam::new(x.name(), x.value())),
                 Err(e) => return Err(format!("could not split parse cookies. {}", e)),
             }
         }
-
         Ok(cookies)
     }
 }

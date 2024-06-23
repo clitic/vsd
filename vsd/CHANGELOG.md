@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `--cookies` flag and it's implementation.
 - Amalgated links found through website scraper.
 - Detect missing ffmpeg binary when it is required.
 

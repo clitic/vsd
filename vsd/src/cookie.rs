@@ -171,15 +171,21 @@ impl CookieStore for CookieJar {
         if self.document_cookie.is_empty() {
             self.inner.cookies(url)
         } else {
-            self.inner.cookies(url).map(|x| {
-                HeaderValue::from_str(&format!(
-                    "{}{}",
-                    self.document_cookie,
-                    x.to_str()
-                        .expect("could not convert cookie header value to string.")
-                ))
-                .expect("could not construct cookie header value.")
-            })
+            let cookies = self.inner.cookies(url);
+
+            if let Some(cookies) = cookies {
+                Some(
+                    HeaderValue::from_str(
+                        &(self.document_cookie.clone()
+                            + cookies
+                                .to_str()
+                                .expect("could not convert cookie header value to string.")),
+                    )
+                    .expect("could not construct cookie header value."),
+                )
+            } else {
+                cookies
+            }
         }
     }
 
