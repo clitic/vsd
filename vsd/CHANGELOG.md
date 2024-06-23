@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Removed self update checker.
+- Website scraper now only parses qouted links.
+
+### Fixed
+
+- Amalgated links found through website scraper.
 
 ## [0.3.1] - 2024-06-22
 
