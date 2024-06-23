@@ -2,7 +2,7 @@ use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
 use anyhow::{anyhow, bail, Result};
 use base64::Engine;
 use regex::Regex;
-use std::collections::HashSet;
+use std::{collections::HashSet, env, path::Path};
 
 type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
@@ -45,7 +45,8 @@ pub(super) fn format_download_bytes(downloaded: usize, total: usize) -> String {
 
 pub(super) fn scrape_playlist_links(text: &str) -> Vec<String> {
     // let re = Regex::new(r"(https|ftp|http)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-]\.(m3u8|m3u|mpd))").unwrap();
-    let re = Regex::new(r#"([\"\'])(https?:\/\/[^\"\']*\.(m3u8|m3u|mpd)[^\"\']*)([\"\'])"#).unwrap();
+    let re =
+        Regex::new(r#"([\"\'])(https?:\/\/[^\"\']*\.(m3u8|m3u|mpd)[^\"\']*)([\"\'])"#).unwrap();
     let links = re
         .captures_iter(text)
         .map(|caps| caps.get(2).unwrap().as_str().to_string())
@@ -107,35 +108,24 @@ pub(super) fn decrypt_aes_128_cbc(
         .map_err(|x| anyhow!("{}", x))
 }
 
-// fn find_ffmpeg() -> Option<String> {
-//     Some(
-//         std::env::var("PATH")
-//             .ok()?
-//             .split(if cfg!(target_os = "windows") {
-//                 ';'
-//             } else {
-//                 ':'
-//             })
-//             .find(|s| {
-//                 std::path::Path::new(s)
-//                     .join(if cfg!(target_os = "windows") {
-//                         "ffmpeg.exe"
-//                     } else {
-//                         "ffmpeg"
-//                     })
-//                     .exists()
-//             })?
-//             .to_owned(),
-//     )
-// }
-
-// fn output_parser(s: &str) -> Result<String, String> {
-//     if find_ffmpeg().is_some() {
-//         Ok(s.to_owned())
-//     } else {
-//         Err(
-//             "could'nt locate ffmpeg binary in PATH (https://www.ffmpeg.org/download.html)"
-//                 .to_owned(),
-//         )
-//     }
-// }
+pub(super) fn find_ffmpeg() -> Option<String> {
+    Some(
+        env::var("PATH")
+            .ok()?
+            .split(if cfg!(target_os = "windows") {
+                ';'
+            } else {
+                ':'
+            })
+            .find(|s| {
+                Path::new(s)
+                    .join(if cfg!(target_os = "windows") {
+                        "ffmpeg.exe"
+                    } else {
+                        "ffmpeg"
+                    })
+                    .exists()
+            })?
+            .to_owned(),
+    )
+}

@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Amalgated links found through website scraper.
+- Detect missing ffmpeg binary when it is required.
 
 ## [0.3.1] - 2024-06-22
 

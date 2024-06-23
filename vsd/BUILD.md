@@ -6,6 +6,7 @@
 - [protoc](https://github.com/protocolbuffers/protobuf)
 - [reqwest](https://github.com/seanmonstar/reqwest#requirements) (crate)
 - [rust](https://www.rust-lang.org)
+- [rustfmt](https://github.com/rust-lang/rustfmt)
 
 ## Cargo Features
 

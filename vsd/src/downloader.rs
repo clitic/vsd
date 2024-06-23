@@ -364,6 +364,33 @@ pub(crate) fn download(
 ) -> Result<()> {
     let (mut video_audio_streams, subtitle_streams) = selected_playlists;
 
+    let one_stream = (video_audio_streams.len() == 1) && subtitle_streams.is_empty();
+    let mut should_mux = !no_decrypt && !no_merge;
+
+    if let Some(output) = &output {
+        if one_stream
+            && output.ends_with(&format!(
+                ".{}",
+                video_audio_streams.get(0).unwrap().extension()
+            ))
+        {
+            should_mux = false;
+        }
+    }
+
+    let video_streams_count = video_audio_streams
+        .iter()
+        .filter(|x| x.media_type == MediaType::Video)
+        .count();
+
+    if video_streams_count > 1 {
+        should_mux = false;
+    }
+
+    if should_mux && utils::find_ffmpeg().is_none() {
+        bail!("ffmpeg couldn't be found, it is required to continue further.");
+    }
+
     // -----------------------------------------------------------------------------------------
     // Parse Key Ids
     // -----------------------------------------------------------------------------------------
@@ -527,7 +554,6 @@ pub(crate) fn download(
     }
 
     let mut temp_files = vec![];
-    let one_stream = (video_audio_streams.len() == 1) && subtitle_streams.is_empty();
 
     // -----------------------------------------------------------------------------------------
     // Download Subtitle Streams
@@ -795,7 +821,6 @@ pub(crate) fn download(
     // -----------------------------------------------------------------------------------------
 
     let pool = threadpool::ThreadPool::new(threads as usize);
-    let mut should_mux = !no_decrypt && !no_merge;
 
     for stream in video_audio_streams {
         pb.lock().unwrap().write(format!(
@@ -823,7 +848,6 @@ pub(crate) fn download(
         if let Some(output) = &output {
             if one_stream && output.ends_with(&format!(".{}", stream.extension())) {
                 temp_file = output.to_owned();
-                should_mux = false;
             }
         }
 
