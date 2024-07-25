@@ -1,8 +1,7 @@
 use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
 use anyhow::{anyhow, bail, Result};
 use base64::Engine;
-use regex::Regex;
-use std::{collections::HashSet, env, path::Path};
+use std::{env, path::Path};
 
 type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
@@ -41,29 +40,6 @@ pub(super) fn format_download_bytes(downloaded: usize, total: usize) -> String {
     } else {
         format!("{} / {}", downloaded.2, total.2)
     }
-}
-
-pub(super) fn scrape_playlist_links(text: &str) -> Vec<String> {
-    // let re = Regex::new(r"(https|ftp|http)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-]\.(m3u8|m3u|mpd))").unwrap();
-    let re =
-        Regex::new(r#"([\"\'])(https?:\/\/[^\"\']*\.(m3u8|m3u|mpd)[^\"\']*)([\"\'])"#).unwrap();
-    let links = re
-        .captures_iter(text)
-        .map(|caps| caps.get(2).unwrap().as_str().to_string())
-        .collect::<HashSet<String>>();
-
-    // in case of amalgated urls
-    links
-        .into_iter()
-        .map(|x| {
-            if x.starts_with("http") {
-                if let Some(y) = x.split("http").last() {
-                    return format!("http{}", y);
-                }
-            }
-            x
-        })
-        .collect()
 }
 
 pub(super) fn decode_base64<T: AsRef<[u8]>>(input: T) -> Result<Vec<u8>> {

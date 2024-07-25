@@ -304,10 +304,10 @@ impl Save {
             downloader::fetch_playlist(self.base_url.clone(), &client, &self.input, &prompts)?;
 
         if self.parse {
-            let playlist = downloader::parse_playlist(self.base_url.clone(), &client, &meta)?;
+            let playlist = downloader::parse_all_streams(self.base_url.clone(), &client, &meta)?;
             serde_json::to_writer(std::io::stdout(), &playlist)?;
         } else {
-            let selected_playlists = downloader::process_playlist(
+            let selected_playlists = downloader::parse_selected_streams(
                 self.base_url.clone(),
                 &client,
                 &meta,
