@@ -1,8 +1,10 @@
 mod fetch;
 mod parse;
+mod subtitle;
 
 pub use fetch::{fetch_playlist, InputMetadata};
 pub use parse::{parse_all_streams, parse_selected_streams};
+pub use subtitle::{download_subtitle_stream, download_subtitle_streams};
 
 use crate::{
     merger::Merger,
@@ -17,23 +19,43 @@ use reqwest::{
 };
 use std::{
     collections::{HashMap, HashSet, VecDeque},
-    fs::File,
-    io::Write,
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{Arc, Mutex},
     time::Instant,
 };
-use vsd_mp4::{
-    pssh::Pssh,
-    text::{ttml_text_parser, Mp4TtmlParser, Mp4VttParser},
-};
+use vsd_mp4::pssh::Pssh;
 
 pub type SelectedPlaylists = (Vec<MediaPlaylist>, Vec<MediaPlaylist>);
 
 pub struct Prompts {
     pub skip: bool,
     pub raw: bool,
+}
+
+pub struct Stream {
+    pub file_path: String,
+    pub language: Option<String>,
+    pub media_type: MediaType,
+}
+
+pub fn progress_bar() -> RichProgress {
+    RichProgress::new(
+        tqdm!(unit = " SEG".to_owned(), dynamic_ncols = true),
+        vec![
+            Column::Text("[bold blue]?".to_owned()),
+            Column::Animation,
+            Column::Percentage(0),
+            Column::Text("•".to_owned()),
+            Column::CountTotal,
+            Column::Text("•".to_owned()),
+            Column::ElapsedTime,
+            Column::Text("[cyan]>".to_owned()),
+            Column::RemainingTime,
+            Column::Text("•".to_owned()),
+            Column::Rate,
+        ],
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -164,22 +186,7 @@ pub(crate) fn download(
     // Prepare Progress Bar
     // -----------------------------------------------------------------------------------------
 
-    let mut pb = RichProgress::new(
-        tqdm!(unit = " SEG".to_owned(), dynamic_ncols = true),
-        vec![
-            Column::Text("[bold blue]?".to_owned()),
-            Column::Animation,
-            Column::Percentage(0),
-            Column::Text("•".to_owned()),
-            Column::CountTotal,
-            Column::Text("•".to_owned()),
-            Column::ElapsedTime,
-            Column::Text("[cyan]>".to_owned()),
-            Column::RemainingTime,
-            Column::Text("•".to_owned()),
-            Column::Rate,
-        ],
-    );
+    let mut pb = progress_bar();
 
     // -----------------------------------------------------------------------------------------
     // Prepare Directory & Store Streams Metadata
@@ -247,171 +254,14 @@ pub(crate) fn download(
     // Download Subtitle Streams
     // -----------------------------------------------------------------------------------------
 
-    for stream in subtitle_streams {
-        pb.write(format!(
-            " {} {} stream {}",
-            "Processing".colorize("bold green"),
-            stream.media_type,
-            stream.display_stream().colorize("cyan"),
-        ))?;
-
-        let length = stream.segments.len();
-
-        if length == 0 {
-            pb.write(format!(
-                "    {} skipping stream (no segments)",
-                "Warning".colorize("bold yellow"),
-            ))?;
-            continue;
-        }
-
-        pb.pb.total = length;
-
-        let mut ext = stream.extension();
-        let mut codec = None;
-
-        if let Some(codecs) = &stream.codecs {
-            match codecs.as_str() {
-                "vtt" => {
-                    ext = "vtt".to_owned();
-                    codec = Some(SubtitleType::VttText);
-                }
-                "wvtt" => {
-                    ext = "vtt".to_owned();
-                    codec = Some(SubtitleType::Mp4Vtt);
-                }
-                "stpp" | "stpp.ttml" | "stpp.ttml.im1t" | "stpp.TTML.im1t" => {
-                    ext = "srt".to_owned();
-                    codec = Some(SubtitleType::Mp4Ttml);
-                }
-                _ => (),
-            }
-        }
-        let mut temp_file = String::new();
-
-        let mut first_run = true;
-        let mut subtitles_data = vec![];
-
-        let stream_base_url = base_url
-            .clone()
-            .unwrap_or(stream.uri.parse::<Url>().unwrap());
-
-        for segment in &stream.segments {
-            if let Some(map) = &segment.map {
-                let url = stream_base_url.join(&map.uri)?;
-                let mut request = client.get(url);
-
-                if let Some(range) = &map.range {
-                    request = request.header(header::RANGE, range.as_header_value());
-                }
-
-                let response = request.send()?;
-                let bytes = response.bytes()?;
-                subtitles_data.extend_from_slice(&bytes);
-            }
-
-            let url = stream_base_url.join(&segment.uri)?;
-            let mut request = client.get(url);
-
-            if let Some(range) = &segment.range {
-                request = request.header(header::RANGE, range.as_header_value());
-            }
-
-            let response = request.send()?;
-            let bytes = response.bytes()?;
-            subtitles_data.extend_from_slice(&bytes);
-
-            if first_run {
-                first_run = false;
-
-                if subtitles_data.starts_with(b"WEBVTT") {
-                    ext = "vtt".to_owned();
-                    codec = Some(SubtitleType::VttText);
-                } else if subtitles_data.starts_with(b"1") {
-                    ext = "srt".to_owned();
-                    codec = Some(SubtitleType::SrtText);
-                } else if subtitles_data.starts_with(b"<?xml") || subtitles_data.starts_with(b"<tt")
-                {
-                    ext = "srt".to_owned();
-                    codec = Some(SubtitleType::TtmlText);
-                } else if codec.is_none() {
-                    bail!("could'nt determine subtitle codec.");
-                }
-
-                temp_file = stream
-                    .file_path(&directory, &ext)
-                    .to_string_lossy()
-                    .to_string();
-                temp_files.push(Stream {
-                    file_path: temp_file.clone(),
-                    language: stream.language.clone(),
-                    media_type: stream.media_type.clone(),
-                });
-                pb.write(format!(
-                    "{} stream to {}",
-                    "Downloading".colorize("bold green"),
-                    temp_file.colorize("cyan")
-                ))?;
-            }
-
-            pb.replace(
-                0,
-                Column::Text(format!(
-                    "[bold blue]{}",
-                    utils::format_bytes(subtitles_data.len(), 2).2
-                )),
-            );
-            pb.update(1)?;
-        }
-
-        match codec {
-            Some(SubtitleType::Mp4Vtt) => {
-                pb.write(format!(
-                    " {} wvtt subtitles",
-                    "Extracting".colorize("bold cyan"),
-                ))?;
-
-                let vtt = Mp4VttParser::parse_init(&subtitles_data)?;
-                let subtitles = vtt.parse_media(&subtitles_data, None)?;
-                File::create(&temp_file)?.write_all(subtitles.as_vtt().as_bytes())?;
-            }
-            Some(SubtitleType::Mp4Ttml) => {
-                pb.write(format!(
-                    " {} stpp subtitles",
-                    "Extracting".colorize("bold cyan"),
-                ))?;
-
-                let ttml = Mp4TtmlParser::parse_init(&subtitles_data)?;
-                let subtitles = ttml.parse_media(&subtitles_data)?;
-                File::create(&temp_file)?.write_all(subtitles.as_srt().as_bytes())?;
-            }
-            Some(SubtitleType::TtmlText) => {
-                pb.write(format!(
-                    " {} ttml+xml subtitles",
-                    "Extracting".colorize("bold cyan"),
-                ))?;
-
-                let xml = String::from_utf8(subtitles_data)
-                    .map_err(|_| anyhow!("cannot decode subtitles as valid utf-8 data."))?;
-                let ttml = ttml_text_parser::parse(&xml).map_err(|x| {
-                    anyhow!(
-                        "couldn't parse xml string as ttml content.\n\n{}\n\n{:#?}",
-                        xml,
-                        x,
-                    )
-                })?;
-                File::create(&temp_file)?.write_all(ttml.into_subtitles().as_srt().as_bytes())?;
-            }
-            _ => File::create(&temp_file)?.write_all(&subtitles_data)?,
-        };
-
-        pb.write(format!(
-            " {} stream successfully",
-            "Downloaded".colorize("bold green"),
-        ))?;
-        eprintln!();
-        pb.reset(Some(0));
-    }
+    download_subtitle_streams(
+        base_url.clone(),
+        &client,
+        &directory,
+        &subtitle_streams,
+        &mut pb,
+        &mut temp_files,
+    )?;
 
     // -----------------------------------------------------------------------------------------
     // Estimation
@@ -861,19 +711,6 @@ pub(crate) fn download(
     }
 
     Ok(())
-}
-
-enum SubtitleType {
-    Mp4Vtt,
-    Mp4Ttml,
-    SrtText,
-    TtmlText,
-    VttText,
-}
-struct Stream {
-    file_path: String,
-    language: Option<String>,
-    media_type: MediaType,
 }
 
 #[derive(Clone)]
