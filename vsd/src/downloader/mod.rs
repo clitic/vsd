@@ -39,25 +39,6 @@ pub struct Stream {
     pub media_type: MediaType,
 }
 
-pub fn progress_bar() -> RichProgress {
-    RichProgress::new(
-        tqdm!(unit = " SEG".to_owned(), dynamic_ncols = true),
-        vec![
-            Column::Text("[bold blue]?".to_owned()),
-            Column::Animation,
-            Column::Percentage(0),
-            Column::Text("•".to_owned()),
-            Column::CountTotal,
-            Column::Text("•".to_owned()),
-            Column::ElapsedTime,
-            Column::Text("[cyan]>".to_owned()),
-            Column::RemainingTime,
-            Column::Text("•".to_owned()),
-            Column::Rate,
-        ],
-    )
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn download(
     all_keys: bool,
@@ -186,7 +167,22 @@ pub(crate) fn download(
     // Prepare Progress Bar
     // -----------------------------------------------------------------------------------------
 
-    let mut pb = progress_bar();
+    let mut pb = RichProgress::new(
+        tqdm!(unit = " SEG".to_owned(), dynamic_ncols = true),
+        vec![
+            Column::Text("[bold blue]?".to_owned()),
+            Column::Animation,
+            Column::Percentage(0),
+            Column::Text("•".to_owned()),
+            Column::CountTotal,
+            Column::Text("•".to_owned()),
+            Column::ElapsedTime,
+            Column::Text("[cyan]>".to_owned()),
+            Column::RemainingTime,
+            Column::Text("•".to_owned()),
+            Column::Rate,
+        ],
+    );
 
     // -----------------------------------------------------------------------------------------
     // Prepare Directory & Store Streams Metadata
