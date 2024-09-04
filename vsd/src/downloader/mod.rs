@@ -4,7 +4,7 @@ mod subtitle;
 
 pub use fetch::{fetch_playlist, InputMetadata};
 pub use parse::{parse_all_streams, parse_selected_streams};
-pub use subtitle::{download_subtitle_stream, download_subtitle_streams};
+pub use subtitle::download_subtitle_streams;
 
 use crate::{
     merger::Merger,

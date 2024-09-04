@@ -11,7 +11,7 @@ use crate::commands::Quality;
 use anyhow::{bail, Result};
 use kdam::term::Colorizer;
 use requestty::prompt::style::Stylize;
-use reqwest::header::HeaderValue;
+use reqwest::{header::HeaderValue, Url};
 use serde::Serialize;
 use std::{fmt::Display, io::Write, path::PathBuf};
 
@@ -577,6 +577,34 @@ impl MediaPlaylist {
         }
 
         extra
+    }
+
+    pub(crate) fn add_query(&mut self, query: &str) {
+        for segment in &mut self.segments {
+            if let Some(map) = &mut segment.map {
+                let mut uri = map.uri.clone();
+
+                if uri.ends_with("??") || !uri.contains('?') {
+                    uri += "?";
+                } else if (uri.ends_with("&&") || !uri.ends_with('&')) && !uri.ends_with('?') {
+                    uri += "&";
+                }
+
+                uri += query;
+                map.uri = uri;
+            }
+
+            let mut uri = segment.uri.clone();
+
+            if uri.ends_with("??") || !uri.contains('?') {
+                uri += "?";
+            } else if (uri.ends_with("&&") || !uri.ends_with('&')) && !uri.ends_with('?') {
+                uri += "&";
+            }
+
+            uri += query;
+            segment.uri = uri;
+        }
     }
 }
 

@@ -5,13 +5,13 @@
 //!
 //! ## Environment Variables
 //!
-//! A set of environment variables that can be used to find ap4 library from Bento4 installation. 
+//! A set of environment variables that can be used to find ap4 library from Bento4 installation.
 //!  
 //! - BENTO4_DIR - If specified, the directory of an Bento4 installation.
 //! The directory should contain lib and include subdirectories containing the libraries and headers respectively.
 //! - BENTO4_VENDOR - If set, always build and link against Bento4 vendored version.
-//! 
-//! Additionally, these variables can be prefixed with the upper-cased target architecture (e.g. X86_64_UNKNOWN_LINUX_GNU_BENTO4_DIR), 
+//!
+//! Additionally, these variables can be prefixed with the upper-cased target architecture (e.g. X86_64_UNKNOWN_LINUX_GNU_BENTO4_DIR),
 //! which can be useful when cross compiling.
 
 #![allow(improper_ctypes)]

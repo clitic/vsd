@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `save`
+  - `--no-query-pass` flag.
+  - `--query` flag.
+
+### Changed
+
+- Query parameters are passed on by default now. This behaviour can be changeed using `--no-query-pass` flag.
+
+### Fixed
+
+- Passing query parameters for DASH playlists. ([#36](https://github.com/clitic/vsd/issues/36))
+
 ## [0.3.2] - 2024-06-23
 
 ### Changed

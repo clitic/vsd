@@ -1,12 +1,6 @@
 // use crate::progress::DownloadProgress;
 use anyhow::Result;
-use std::{
-    collections::HashMap,
-    fs,
-    fs::File,
-    io::Write,
-    path::PathBuf,
-};
+use std::{collections::HashMap, fs, fs::File, io::Write, path::PathBuf};
 
 pub(super) struct Merger {
     size: usize,

@@ -80,7 +80,7 @@ pub fn fetch_playlist(
         meta.update_pl_type_from_text();
     } else {
         meta.url = input.parse::<Url>().unwrap();
-        // TODO - We can add site specific parsers here 
+        // TODO - We can add site specific parsers here
         meta.fetch(&client)?;
 
         if meta.pl_type.is_none() {

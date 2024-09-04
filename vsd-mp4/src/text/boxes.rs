@@ -6,7 +6,7 @@
 
 */
 
-use crate::{Error, Result, Reader};
+use crate::{Error, Reader, Result};
 
 pub(super) struct TFHDBox {
     /// As per the spec: an integer that uniquely identifies this

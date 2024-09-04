@@ -51,7 +51,11 @@ impl Template {
 
             if let Some(cap) = ident_re.captures(&template) {
                 if let Some(value) = self.vars.get(var) {
-                    let count = format!("{:0>width$}", value, width = cap[1].parse::<usize>().unwrap());
+                    let count = format!(
+                        "{:0>width$}",
+                        value,
+                        width = cap[1].parse::<usize>().unwrap()
+                    );
                     let m = ident_re.find(&template).unwrap();
                     template = template[..m.start()].to_owned() + &count + &template[m.end()..];
                 }

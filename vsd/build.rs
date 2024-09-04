@@ -21,7 +21,10 @@ fn main() {
             .unwrap()
             .wait()
             .unwrap();
-        println!("cargo:rustc-link-search=native={}", env::var("OUT_DIR").unwrap());
+        println!(
+            "cargo:rustc-link-search=native={}",
+            env::var("OUT_DIR").unwrap()
+        );
         println!("cargo:rustc-link-lib=resources");
     }
 }

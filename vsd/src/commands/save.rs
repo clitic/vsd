@@ -89,9 +89,17 @@ pub struct Save {
     #[arg(long, help_heading = "Client Options")]
     pub no_certificate_checks: bool,
 
+    /// Skip passing query parameters where not needed.
+    #[arg(long, help_heading = "Client Options")]
+    pub no_query_pass: bool,
+
     /// Set http(s) / socks proxy address for requests.
     #[arg(long, help_heading = "Client Options", value_parser = proxy_address_parser)]
     pub proxy: Option<Proxy>,
+
+    /// Set query parameters for requests.
+    #[arg(long, help_heading = "Client Options")]
+    pub query: Option<String>,
 
     /// Fill request client with some existing cookies per domain.
     /// First value for this option is set-cookie header and second value is url which was requested to send this set-cookie header.
@@ -255,7 +263,7 @@ fn proxy_address_parser(s: &str) -> Result<Proxy, String> {
 }
 
 impl Save {
-    pub fn execute(self) -> Result<()> {
+    pub fn execute(mut self) -> Result<()> {
         let mut client_builder = Client::builder()
             .danger_accept_invalid_certs(self.no_certificate_checks)
             .user_agent(self.user_agent)
@@ -307,7 +315,7 @@ impl Save {
             let playlist = downloader::parse_all_streams(self.base_url.clone(), &client, &meta)?;
             serde_json::to_writer(std::io::stdout(), &playlist)?;
         } else {
-            let selected_playlists = downloader::parse_selected_streams(
+            let mut selected_playlists = downloader::parse_selected_streams(
                 self.base_url.clone(),
                 &client,
                 &meta,
@@ -316,6 +324,38 @@ impl Save {
                 &prompts,
                 self.quality,
             )?;
+
+            if !self.no_query_pass {
+                if let Some(query) = self.query.as_mut() {
+                    if query.starts_with('&') {
+                        *query = query.trim_start_matches('&').to_owned();
+                    }
+                }
+
+                selected_playlists.0.iter_mut().for_each(|x| {
+                    if let Some(query) = self.query.clone().or(x
+                        .uri
+                        .parse::<Url>()
+                        .unwrap()
+                        .query()
+                        .map(|y| y.to_owned()))
+                    {
+                        x.add_query(&query);
+                    }
+                });
+
+                selected_playlists.1.iter_mut().for_each(|x| {
+                    if let Some(query) = self.query.clone().or(x
+                        .uri
+                        .parse::<Url>()
+                        .unwrap()
+                        .query()
+                        .map(|y| y.to_owned()))
+                    {
+                        x.add_query(&query);
+                    }
+                });
+            }
 
             downloader::download(
                 self.all_keys,
