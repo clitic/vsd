@@ -2,6 +2,7 @@ use crate::{
     commands::Quality,
     downloader::{InputMetadata, Prompts, SelectedPlaylists},
     playlist::{MasterPlaylist, MediaPlaylist, PlaylistType},
+    utils
 };
 use anyhow::{anyhow, bail, Result};
 use reqwest::{blocking::Client, Url};
@@ -43,8 +44,16 @@ pub fn parse_all_streams(
                         .unwrap_or(&meta.url)
                         .join(&stream.uri)?
                         .to_string();
-                    let response = client.get(&stream.uri).send()?;
-                    let text = response.text()?;
+
+                    let text;
+                    if let Some(bs) = stream.uri.strip_prefix("data:application/x-mpegurl;base64,") {
+                        let decoded = utils::decode_base64(bs)?;
+                        text = String::from_utf8(decoded)?;
+                    } else {
+                        let response = client.get(&stream.uri).send()?;
+                        text = response.text()?;
+                    }
+
                     let media_playlist = m3u8_rs::parse_media_playlist_res(text.as_bytes())
                         .map_err(|x| {
                             anyhow!(
@@ -135,8 +144,16 @@ pub fn parse_selected_streams(
                         .unwrap_or(&meta.url)
                         .join(&stream.uri)?
                         .to_string();
-                    let response = client.get(&stream.uri).send()?;
-                    let text = response.text()?;
+
+                    let text;
+                    if let Some(bs) = stream.uri.strip_prefix("data:application/x-mpegurl;base64,") {
+                        let decoded = utils::decode_base64(bs)?;
+                        text = String::from_utf8(decoded)?;
+                    } else {
+                        let response = client.get(&stream.uri).send()?;
+                        text = response.text()?;
+                    }
+
                     let media_playlist = m3u8_rs::parse_media_playlist_res(text.as_bytes())
                         .map_err(|x| {
                             anyhow!(
