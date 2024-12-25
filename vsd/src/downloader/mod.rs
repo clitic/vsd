@@ -354,7 +354,10 @@ pub(crate) fn download(
     // Download Video & Audio Streams
     // -----------------------------------------------------------------------------------------
 
-    let pool = threadpool::ThreadPool::new(threads as usize);
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(threads as usize)
+        .build()
+        .unwrap();
 
     for stream in video_audio_streams {
         pb.lock().unwrap().write(format!(
@@ -411,6 +414,8 @@ pub(crate) fn download(
         let stream_base_url = base_url
             .clone()
             .unwrap_or(stream.uri.parse::<Url>().unwrap());
+
+        let mut thread_datas = Vec::with_capacity(stream.segments.len());
 
         for (i, segment) in stream.segments.iter().enumerate() {
             if let Some(map) = &segment.map {
@@ -527,16 +532,21 @@ pub(crate) fn download(
                 previous_map = None;
             }
 
-            pool.execute(move || {
-                if let Err(e) = thread_data.execute() {
-                    let _lock = thread_data.pb.lock().unwrap();
-                    println!("\n{}: {}", "error".colorize("bold red"), e);
-                    std::process::exit(1);
-                }
-            });
+            thread_datas.push(thread_data);
         }
 
-        pool.join();
+        pool.scope_fifo(|s| {
+            for thread_data in thread_datas {
+                s.spawn_fifo(move |_| {
+                    if let Err(e) = thread_data.execute() {
+                        let _lock = thread_data.pb.lock().unwrap();
+                        println!("\n{}: {}", "error".colorize("bold red"), e);
+                        std::process::exit(1);
+                    }
+                });
+            }
+        });
+
         let mut merger = merger.lock().unwrap();
         merger.flush()?;
 
