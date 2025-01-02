@@ -11,7 +11,7 @@ use crate::commands::Quality;
 use anyhow::{bail, Result};
 use kdam::term::Colorizer;
 use requestty::prompt::style::Stylize;
-use reqwest::header::HeaderValue;
+use reqwest::{header::HeaderValue, Url};
 use serde::Serialize;
 use std::{fmt::Display, io::Write, path::PathBuf};
 use url::Url;

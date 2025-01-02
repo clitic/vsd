@@ -28,13 +28,12 @@ hex = "0.4"
 kdam = { version = "0.6", features = ["rich"] }
 m3u8-rs = "6.0.0"
 mp4decrypt = { version = "0.4", path = "../mp4decrypt" }
-rayon = "1"
 regex = "1"
 requestty = "0.5.0"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "cookies", "socks"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-url = { version = "2", features = ["serde"] }
+threadpool = "1"
 vsd-mp4 = { version = "0.1", path = "../vsd-mp4", features = ["pssh", "text-ttml", "text-vtt"] }
 
 [features]
