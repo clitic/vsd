@@ -1,5 +1,4 @@
 use crate::playlist;
-use url::Url;
 
 pub(crate) fn parse_as_master(
     m3u8: &m3u8_rs::MasterPlaylist,
@@ -26,7 +25,7 @@ pub(crate) fn parse_as_master(
                 None
             },
             segments: vec![], // Cannot be comment here
-            uri: video_stream.uri.parse::<Url>().unwrap(),
+            uri: video_stream.uri.to_owned(),
         });
     }
 
@@ -46,7 +45,7 @@ pub(crate) fn parse_as_master(
                     playlist_type: playlist::PlaylistType::Hls,
                     resolution: None, // Cannot be comment here
                     segments: vec![], // Cannot be comment here
-                    uri: uri.parse::<Url>().unwrap(),
+                    uri: uri.to_owned(),
                 }),
 
                 m3u8_rs::AlternativeMediaType::Audio => streams.push(playlist::MediaPlaylist {
@@ -68,7 +67,7 @@ pub(crate) fn parse_as_master(
                     playlist_type: playlist::PlaylistType::Hls,
                     resolution: None,
                     segments: vec![], // Cannot be comment here
-                    uri: uri.parse::<Url>().unwrap(),
+                    uri: uri.to_owned(),
                 }),
 
                 m3u8_rs::AlternativeMediaType::ClosedCaptions
@@ -89,7 +88,7 @@ pub(crate) fn parse_as_master(
                         playlist_type: playlist::PlaylistType::Hls,
                         resolution: None,
                         segments: vec![], // Cannot be comment here
-                        uri: uri.parse::<Url>().unwrap(),
+                        uri: uri.to_owned(),
                     })
                 }
 
@@ -112,7 +111,7 @@ pub(crate) fn parse_as_master(
                     playlist_type: playlist::PlaylistType::Hls,
                     resolution: None, // Cannot be comment here
                     segments: vec![], // Cannot be comment here
-                    uri: uri.parse::<Url>().unwrap(),
+                    uri: uri.to_owned(),
                 }),
             }
         }
@@ -133,7 +132,7 @@ pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playli
 
     for segment in &m3u8.segments {
         let map = segment.map.as_ref().map(|x| playlist::Map {
-            uri: x.uri.parse::<Url>().unwrap(),
+            uri: x.uri.to_owned(),
             range: x.byte_range.as_ref().map(|x| {
                 let offset = x.offset.unwrap_or(0);
 
@@ -211,19 +210,19 @@ pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playli
             },
             map,
             range,
-            uri: segment.uri.parse::<Url>().unwrap(),
+            uri: segment.uri.to_owned(),
         });
     }
 
     if let Some(segment) = playlist.segments.get(0) {
         if let Some(init) = &segment.map {
-            if init.uri.as_str().split('?').next().unwrap().ends_with(".mp4") {
+            if init.uri.split('?').next().unwrap().ends_with(".mp4") {
                 playlist.extension = Some("m4s".to_owned());
             }
         }
 
         if let Some(extension) = segment
-            .uri.as_str()
+            .uri
             .split('?')
             .next()
             .unwrap()

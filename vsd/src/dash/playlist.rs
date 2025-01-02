@@ -15,8 +15,8 @@ use crate::playlist::{
 };
 use anyhow::{anyhow, bail, Result};
 use dash_mpd::MPD;
+use reqwest::Url;
 use std::collections::HashMap;
-use url::Url;
 
 pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
     let mut streams = vec![];
@@ -111,7 +111,8 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
                         None
                     },
                     segments: vec![], // Cannot be comment here
-                    uri: DashUrl::new(period_index, adaptation_index, representation_index).into(),
+                    uri: DashUrl::new(period_index, adaptation_index, representation_index)
+                        .to_string(),
                 });
             }
         }
@@ -125,7 +126,7 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
 }
 
 pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &str) -> Result<()> {
-    let location = DashUrl::try_from(playlist.uri.clone()).map_err(|x| anyhow!(x))?;
+    let location = playlist.uri.parse::<DashUrl>().map_err(|x| anyhow!(x))?;
 
     for (_period_index, period) in mpd.periods.iter().enumerate() {
         for (adaptation_index, adaptation_set) in period.adaptations.iter().enumerate() {
@@ -203,12 +204,12 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                             if let Some(source_url) = &initialization.sourceURL {
                                 init_map = Some(Map {
                                     range: byte_range,
-                                    uri: base_url.join(&template.resolve(source_url))?,
+                                    uri: base_url.join(&template.resolve(source_url))?.to_string(),
                                 });
                             } else {
                                 init_map = Some(Map {
                                     range: byte_range,
-                                    uri: base_url.clone(),
+                                    uri: base_url.to_string(),
                                 });
                             }
                         }
@@ -220,13 +221,13 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                             if let Some(media) = &segment_url.media {
                                 playlist.segments.push(Segment {
                                     range: byte_range,
-                                    uri: base_url.join(media)?,
+                                    uri: base_url.join(media)?.to_string(),
                                     ..Default::default()
                                 });
                             } else if !adaptation_set.BaseURL.is_empty() {
                                 playlist.segments.push(Segment {
                                     range: byte_range,
-                                    uri: base_url.clone(),
+                                    uri: base_url.to_string(),
                                     ..Default::default()
                                 });
                             }
@@ -241,12 +242,12 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                             if let Some(source_url) = &initialization.sourceURL {
                                 init_map = Some(Map {
                                     range: byte_range,
-                                    uri: base_url.join(&template.resolve(source_url))?,
+                                    uri: base_url.join(&template.resolve(source_url))?.to_string(),
                                 });
                             } else {
                                 init_map = Some(Map {
                                     range: byte_range,
-                                    uri: base_url.clone(),
+                                    uri: base_url.to_string(),
                                 });
                             }
                         }
@@ -258,13 +259,13 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                             if let Some(media) = &segment_url.media {
                                 playlist.segments.push(Segment {
                                     range: byte_range,
-                                    uri: base_url.join(media)?,
+                                    uri: base_url.join(media)?.to_string(),
                                     ..Default::default()
                                 });
                             } else if !representation.BaseURL.is_empty() {
                                 playlist.segments.push(Segment {
                                     range: byte_range,
-                                    uri: base_url.clone(),
+                                    uri: base_url.to_string(),
                                     ..Default::default()
                                 });
                             }
@@ -281,7 +282,9 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                         if let Some(initialization) = &segment_template.initialization {
                             init_map = Some(Map {
                                 range: None,
-                                uri: base_url.join(&template.resolve(initialization))?,
+                                uri: base_url
+                                    .join(&template.resolve(initialization))?
+                                    .to_string(),
                             });
                         }
 
@@ -303,7 +306,7 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
 
                                     playlist.segments.push(Segment {
                                         duration: s.d as f32 / timescale,
-                                        uri: base_url.join(&template.resolve(&media))?,
+                                        uri: base_url.join(&template.resolve(&media))?.to_string(),
                                         ..Default::default()
                                     });
 
@@ -342,7 +345,9 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
 
                                             playlist.segments.push(Segment {
                                                 duration: s.d as f32 / timescale,
-                                                uri: base_url.join(&template.resolve(&media))?,
+                                                uri: base_url
+                                                    .join(&template.resolve(&media))?
+                                                    .to_string(),
                                                 ..Default::default()
                                             });
 
@@ -388,7 +393,7 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
 
                                     playlist.segments.push(Segment {
                                         duration,
-                                        uri: base_url.join(&template.resolve(&media))?,
+                                        uri: base_url.join(&template.resolve(&media))?.to_string(),
                                         ..Default::default()
                                     });
 
@@ -421,20 +426,20 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                             if let Some(source_url) = &initialization.sourceURL {
                                 init_map = Some(Map {
                                     range: byte_range,
-                                    uri: base_url.join(&template.resolve(source_url))?,
+                                    uri: base_url.join(&template.resolve(source_url))?.to_string(),
                                 });
                             }
                         }
 
                         playlist.segments.push(Segment {
-                            uri: base_url.clone(),
+                            uri: base_url.to_string(),
                             ..Default::default()
                         });
                     } else if playlist.segments.is_empty() && !representation.BaseURL.is_empty() {
                         // (6) Plain BaseURL
                         playlist.segments.push(Segment {
                             duration: period_duration_secs,
-                            uri: base_url.clone(),
+                            uri: base_url.to_string(),
                             ..Default::default()
                         });
                     }

@@ -115,11 +115,11 @@ pub(crate) fn download(
     for stream in &video_audio_streams {
         let stream_base_url = base_url
             .clone()
-            .unwrap_or(stream.uri.clone());
+            .unwrap_or(stream.uri.parse::<Url>().unwrap());
 
         if let Some(segment) = stream.segments.get(0) {
             if let Some(map) = &segment.map {
-                let url = stream_base_url.join(map.uri.as_str())?;
+                let url = stream_base_url.join(&map.uri)?;
                 let mut request = client.get(url);
 
                 if let Some(range) = &map.range {
@@ -269,14 +269,14 @@ pub(crate) fn download(
     for stream in video_audio_streams.iter_mut() {
         let stream_base_url = base_url
             .clone()
-            .unwrap_or(stream.uri.clone());
+            .unwrap_or(stream.uri.parse::<Url>().unwrap());
 
         let total_segments = stream.segments.len();
         let buffer_size = 1024 * 1024 * 2; // 2 MiB
         let mut ranges = None;
 
         if let Some(segment) = stream.segments.get(0) {
-            let url = stream_base_url.join(segment.uri.as_str())?;
+            let url = stream_base_url.join(&segment.uri)?;
             let mut request = client.head(url.clone());
 
             if total_segments == 1 {
@@ -354,7 +354,10 @@ pub(crate) fn download(
     // Download Video & Audio Streams
     // -----------------------------------------------------------------------------------------
 
-    let pool = threadpool::ThreadPool::new(threads as usize);
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(threads as usize)
+        .build()
+        .unwrap();
 
     for stream in video_audio_streams {
         pb.lock().unwrap().write(format!(
@@ -410,11 +413,13 @@ pub(crate) fn download(
 
         let stream_base_url = base_url
             .clone()
-            .unwrap_or(stream.uri.clone());
+            .unwrap_or(stream.uri.parse::<Url>().unwrap());
+
+        let mut thread_datas = Vec::with_capacity(stream.segments.len());
 
         for (i, segment) in stream.segments.iter().enumerate() {
             if let Some(map) = &segment.map {
-                let url = stream_base_url.join(map.uri.as_str())?;
+                let url = stream_base_url.join(&map.uri)?;
                 let mut request = client.get(url);
 
                 if let Some(range) = &map.range {
@@ -503,7 +508,7 @@ pub(crate) fn download(
                 }
             }
 
-            let url = stream_base_url.join(segment.uri.as_str())?;
+            let url = stream_base_url.join(&segment.uri)?;
             let mut request = client.get(url);
 
             if let Some(range) = &segment.range {
@@ -527,16 +532,21 @@ pub(crate) fn download(
                 previous_map = None;
             }
 
-            pool.execute(move || {
-                if let Err(e) = thread_data.execute() {
-                    let _lock = thread_data.pb.lock().unwrap();
-                    println!("\n{}: {}", "error".colorize("bold red"), e);
-                    std::process::exit(1);
-                }
-            });
+            thread_datas.push(thread_data);
         }
 
-        pool.join();
+        pool.scope_fifo(|s| {
+            for thread_data in thread_datas {
+                s.spawn_fifo(move |_| {
+                    if let Err(e) = thread_data.execute() {
+                        let _lock = thread_data.pb.lock().unwrap();
+                        println!("\n{}: {}", "error".colorize("bold red"), e);
+                        std::process::exit(1);
+                    }
+                });
+            }
+        });
+
         let mut merger = merger.lock().unwrap();
         merger.flush()?;
 

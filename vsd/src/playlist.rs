@@ -11,10 +11,9 @@ use crate::commands::Quality;
 use anyhow::{bail, Result};
 use kdam::term::Colorizer;
 use requestty::prompt::style::Stylize;
-use reqwest::{header::HeaderValue, Url};
+use reqwest::header::HeaderValue;
 use serde::Serialize;
 use std::{fmt::Display, io::Write, path::PathBuf};
-use url::Url;
 
 #[derive(Serialize)]
 pub(crate) struct MasterPlaylist {
@@ -361,7 +360,7 @@ impl MasterPlaylist {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Default, Serialize)]
 pub(crate) struct MediaPlaylist {
     pub(crate) bandwidth: Option<u64>,
     pub(crate) channels: Option<f32>,
@@ -375,27 +374,7 @@ pub(crate) struct MediaPlaylist {
     pub(crate) playlist_type: PlaylistType,
     pub(crate) resolution: Option<(u64, u64)>,
     pub(crate) segments: Vec<Segment>,
-    pub(crate) uri: Url,
-}
-
-impl Default for MediaPlaylist {
-    fn default() -> Self {
-        Self {
-            bandwidth: None,
-            channels: None,
-            codecs: None,
-            extension: None,
-            frame_rate: None,
-            i_frame: false,
-            language: None,
-            live: false,
-            media_type: MediaType::default(),
-            playlist_type: PlaylistType::default(),
-            resolution: None,
-            segments: Vec::new(),
-            uri: Url::parse("null://").unwrap(),
-        }
-    }
+    pub(crate) uri: String,
 }
 
 impl MediaPlaylist {
@@ -429,12 +408,12 @@ impl MediaPlaylist {
 
         if let Some(segment) = self.segments.get(0) {
             if let Some(init) = &segment.map {
-                if init.uri.as_str().ends_with(".mp4") {
+                if init.uri.ends_with(".mp4") {
                     ext = "mp4";
                 }
             }
 
-            if segment.uri.as_str().ends_with(".mp4") {
+            if segment.uri.ends_with(".mp4") {
                 ext = "mp4";
             }
         }
@@ -445,7 +424,6 @@ impl MediaPlaylist {
     pub(crate) fn file_path(&self, directory: &Option<PathBuf>, ext: &str) -> PathBuf {
         let mut filename = self
             .uri
-            .as_str()
             .split('?')
             .next()
             .unwrap()
@@ -604,43 +582,28 @@ impl MediaPlaylist {
     pub(crate) fn add_query(&mut self, query: &str) {
         for segment in &mut self.segments {
             if let Some(map) = &mut segment.map {
-                if let Some(map_uri_query) = map.uri.query() {
-                    map.uri.set_query(Some(&(map_uri_query.to_owned() + "&" + query)));
-                } else {
-                    map.uri.set_query(Some(query));
-                }
-            }
+                let mut uri = map.uri.clone();
 
-            if let Some(uri_query) = segment.uri.query() {
-                segment.uri.set_query(Some(&(uri_query.to_owned() + "&" + query)));
-            } else {
-                segment.uri.set_query(Some(query));
-            }
-        }
-    }
-
-    pub(crate) fn reset_query(&mut self) {
-        for segment in &mut self.segments {
-            if let Some(map) = &mut segment.map {
-                map.uri.set_query(None);
-            }
-
-            segment.uri.set_query(None);
-        }
-    }
-
-    pub(crate) fn sync_query(&mut self) {
-        for segment in &mut self.segments {
-            if let Some(map) = &mut segment.map {
-                for (name, value) in segment.uri.query_pairs() {
-                    map.uri.query_pairs_mut().append_pair(&name, &value);
-                }
-                
-                for (name, value) in map.uri.query_pairs() {
-                    segment.uri.query_pairs_mut().append_pair(&name, &value);
+                if uri.ends_with("??") || !uri.contains('?') {
+                    uri += "?";
+                } else if (uri.ends_with("&&") || !uri.ends_with('&')) && !uri.ends_with('?') {
+                    uri += "&";
                 }
 
+                uri += query;
+                map.uri = uri;
             }
+
+            let mut uri = segment.uri.clone();
+
+            if uri.ends_with("??") || !uri.contains('?') {
+                uri += "?";
+            } else if (uri.ends_with("&&") || !uri.ends_with('&')) && !uri.ends_with('?') {
+                uri += "&";
+            }
+
+            uri += query;
+            segment.uri = uri;
         }
     }
 }
@@ -699,7 +662,7 @@ impl Range {
 
 #[derive(Clone, Serialize)]
 pub(crate) struct Map {
-    pub(crate) uri: Url,
+    pub(crate) uri: String,
     pub(crate) range: Option<Range>,
 }
 
@@ -721,23 +684,11 @@ pub(crate) struct Key {
     pub(crate) uri: Option<String>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Default, Serialize)]
 pub(crate) struct Segment {
     pub(crate) range: Option<Range>,
     pub(crate) duration: f32, // consider changing it to f64
     pub(crate) key: Option<Key>,
     pub(crate) map: Option<Map>,
-    pub(crate) uri: Url,
-}
-
-impl Default for Segment {
-    fn default() -> Self {
-        Self {
-            range: None,
-            duration: f32::default(),
-            key: None,
-            map: None,
-            uri: Url::parse("null://").unwrap(),
-        }
-    }
+    pub(crate) uri: String,
 }

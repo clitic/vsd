@@ -1,4 +1,4 @@
-use url::Url;
+use std::str::FromStr;
 
 pub(super) struct DashUrl {
     pub(super) adaptation_set: usize,
@@ -16,30 +16,26 @@ impl DashUrl {
     }
 }
 
-impl Into<Url> for DashUrl {
-    fn into(self) -> Url {
+impl ToString for DashUrl {
+    fn to_string(&self) -> String {
         format!(
             "dash://period.{}.adaptation-set.{}.representation.{}",
             self.period, self.adaptation_set, self.representation
         )
-        .parse::<Url>()
-        .unwrap()
     }
 }
 
-impl TryFrom<Url> for DashUrl {
-    type Error = String;
+impl FromStr for DashUrl {
+    type Err = String;
 
-    fn try_from(value: Url) -> Result<Self, Self::Error> {
-        if value.scheme() != "dash" {
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        if !s.starts_with("dash://") {
             return Err(format!(
                 "url doesn't have dash scheme \
             (expected: dash://period.{{}}.adaptation-set.{{}}.representation.{{}}, found: {})",
-                value.as_str()
+                s
             ));
         }
-
-        let s = value.as_str();
 
         let location = s
             .replace("dash://", "")

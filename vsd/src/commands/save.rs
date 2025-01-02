@@ -89,7 +89,7 @@ pub struct Save {
     #[arg(long, help_heading = "Client Options")]
     pub no_certificate_checks: bool,
 
-    /// Skip passing query parameters where not needed. By default query parameters are passed. 
+    /// Skip passing query parameters where not needed.
     #[arg(long, help_heading = "Client Options")]
     pub no_query_pass: bool,
 
@@ -107,10 +107,6 @@ pub struct Save {
     /// This option can be used multiple times.
     #[arg(long, help_heading = "Client Options", num_args = 2, value_names = &["SET_COOKIE", "URL"])]
     pub set_cookie: Vec<String>, // Vec<(String, String)> not supported
-
-    /// Sync query parameters for corresponding map and segment uri.
-    #[arg(long, help_heading = "Client Options")]
-    pub sync_query: bool,
 
     /// Update and set user agent header for requests.
     #[arg(
@@ -267,7 +263,7 @@ fn proxy_address_parser(s: &str) -> Result<Proxy, String> {
 }
 
 impl Save {
-    pub fn execute(self) -> Result<()> {
+    pub fn execute(mut self) -> Result<()> {
         let mut client_builder = Client::builder()
             .danger_accept_invalid_certs(self.no_certificate_checks)
             .user_agent(self.user_agent)
@@ -329,38 +325,36 @@ impl Save {
                 self.quality,
             )?;
 
-            if self.no_query_pass {
-                selected_playlists.0.iter_mut().for_each(|x| {
-                    x.reset_query();
-
-                    if let Some(query) = &self.query {
-                        x.add_query(query);
+            if !self.no_query_pass {
+                if let Some(query) = self.query.as_mut() {
+                    if query.starts_with('&') {
+                        *query = query.trim_start_matches('&').to_owned();
                     }
-                });
-                selected_playlists.1.iter_mut().for_each(|x| {
-                    x.reset_query();
-
-                    if let Some(query) = &self.query {
-                        x.add_query(query);
-                    }
-                });
-            } else {
-                if let Some(query) = &self.query {
-                    selected_playlists.0.iter_mut().for_each(|x| {
-                        if self.sync_query {
-                            x.sync_query();
-                        }
-
-                        x.add_query(query);
-                    });
-                    selected_playlists.1.iter_mut().for_each(|x| {
-                        if self.sync_query {
-                            x.sync_query();
-                        }
-
-                        x.add_query(query);
-                    });
                 }
+
+                selected_playlists.0.iter_mut().for_each(|x| {
+                    if let Some(query) = self.query.clone().or(x
+                        .uri
+                        .parse::<Url>()
+                        .unwrap()
+                        .query()
+                        .map(|y| y.to_owned()))
+                    {
+                        x.add_query(&query);
+                    }
+                });
+
+                selected_playlists.1.iter_mut().for_each(|x| {
+                    if let Some(query) = self.query.clone().or(x
+                        .uri
+                        .parse::<Url>()
+                        .unwrap()
+                        .query()
+                        .map(|y| y.to_owned()))
+                    {
+                        x.add_query(&query);
+                    }
+                });
             }
 
             downloader::download(
