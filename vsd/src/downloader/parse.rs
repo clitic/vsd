@@ -29,7 +29,7 @@ pub fn parse_all_streams(
                     stream,
                     base_url.as_ref().unwrap_or(&meta.url).as_str(),
                 )?;
-                stream.uri = meta.url.as_ref().to_owned();
+                stream.uri = meta.url.clone();
             }
 
             Ok(playlist)
@@ -42,15 +42,16 @@ pub fn parse_all_streams(
                     stream.uri = base_url
                         .as_ref()
                         .unwrap_or(&meta.url)
-                        .join(&stream.uri)?
-                        .to_string();
+                        .join(stream.uri.as_str())?
+                        
+                        ;
 
                     let text;
-                    if let Some(bs) = stream.uri.strip_prefix("data:application/x-mpegurl;base64,") {
+                    if let Some(bs) = stream.uri.as_str().strip_prefix("data:application/x-mpegurl;base64,") {
                         let decoded = utils::decode_base64(bs)?;
                         text = String::from_utf8(decoded)?;
                     } else {
-                        let response = client.get(&stream.uri).send()?;
+                        let response = client.get(stream.uri.clone()).send()?;
                         text = response.text()?;
                     }
 
@@ -70,7 +71,7 @@ pub fn parse_all_streams(
             }
             Ok(m3u8_rs::Playlist::MediaPlaylist(m3u8)) => {
                 let mut media_playlist = crate::playlist::MediaPlaylist {
-                    uri: meta.url.as_ref().to_owned(),
+                    uri: meta.url.clone(),
                     ..Default::default()
                 };
                 crate::hls::push_segments(&m3u8, &mut media_playlist);
@@ -123,7 +124,7 @@ pub fn parse_selected_streams(
                     stream,
                     base_url.as_ref().unwrap_or(&meta.url).as_str(),
                 )?;
-                stream.uri = meta.url.as_ref().to_owned();
+                stream.uri = meta.url.clone();
             }
 
             Ok((video_audio_streams, subtitle_streams))
@@ -142,15 +143,15 @@ pub fn parse_selected_streams(
                     stream.uri = base_url
                         .as_ref()
                         .unwrap_or(&meta.url)
-                        .join(&stream.uri)?
-                        .to_string();
+                        .join(stream.uri.as_str())?
+                        ;
 
                     let text;
-                    if let Some(bs) = stream.uri.strip_prefix("data:application/x-mpegurl;base64,") {
+                    if let Some(bs) = stream.uri.as_str().strip_prefix("data:application/x-mpegurl;base64,") {
                         let decoded = utils::decode_base64(bs)?;
                         text = String::from_utf8(decoded)?;
                     } else {
-                        let response = client.get(&stream.uri).send()?;
+                        let response = client.get(stream.uri.clone()).send()?;
                         text = response.text()?;
                     }
 
@@ -170,7 +171,7 @@ pub fn parse_selected_streams(
             }
             Ok(m3u8_rs::Playlist::MediaPlaylist(m3u8)) => {
                 let mut media_playlist = MediaPlaylist {
-                    uri: meta.url.as_ref().to_owned(),
+                    uri: meta.url.clone(),
                     ..Default::default()
                 };
                 crate::hls::push_segments(&m3u8, &mut media_playlist);

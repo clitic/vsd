@@ -10,13 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `save`
-  - `--no-query-pass` flag.
-  - `--query` flag.
+  - `--no-query-pass`, `--query`, `--sync-query` flag.
 - Optimized threads management.
 
 ### Changed
 
-- Query parameters are passed on by default now. This behaviour can be changeed using `--no-query-pass` flag.
+- Query parameters are passed on by default now. This behaviour can be changed by using `--no-query-pass` flag.
 
 ### Fixed
 

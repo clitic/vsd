@@ -115,11 +115,11 @@ pub(crate) fn download(
     for stream in &video_audio_streams {
         let stream_base_url = base_url
             .clone()
-            .unwrap_or(stream.uri.parse::<Url>().unwrap());
+            .unwrap_or(stream.uri.clone());
 
         if let Some(segment) = stream.segments.get(0) {
             if let Some(map) = &segment.map {
-                let url = stream_base_url.join(&map.uri)?;
+                let url = stream_base_url.join(map.uri.as_str())?;
                 let mut request = client.get(url);
 
                 if let Some(range) = &map.range {
@@ -269,14 +269,14 @@ pub(crate) fn download(
     for stream in video_audio_streams.iter_mut() {
         let stream_base_url = base_url
             .clone()
-            .unwrap_or(stream.uri.parse::<Url>().unwrap());
+            .unwrap_or(stream.uri.clone());
 
         let total_segments = stream.segments.len();
         let buffer_size = 1024 * 1024 * 2; // 2 MiB
         let mut ranges = None;
 
         if let Some(segment) = stream.segments.get(0) {
-            let url = stream_base_url.join(&segment.uri)?;
+            let url = stream_base_url.join(segment.uri.as_str())?;
             let mut request = client.head(url.clone());
 
             if total_segments == 1 {
@@ -413,13 +413,13 @@ pub(crate) fn download(
 
         let stream_base_url = base_url
             .clone()
-            .unwrap_or(stream.uri.parse::<Url>().unwrap());
+            .unwrap_or(stream.uri.clone());
 
         let mut thread_datas = Vec::with_capacity(stream.segments.len());
 
         for (i, segment) in stream.segments.iter().enumerate() {
             if let Some(map) = &segment.map {
-                let url = stream_base_url.join(&map.uri)?;
+                let url = stream_base_url.join(map.uri.as_str())?;
                 let mut request = client.get(url);
 
                 if let Some(range) = &map.range {
@@ -508,7 +508,7 @@ pub(crate) fn download(
                 }
             }
 
-            let url = stream_base_url.join(&segment.uri)?;
+            let url = stream_base_url.join(segment.uri.as_str())?;
             let mut request = client.get(url);
 
             if let Some(range) = &segment.range {

@@ -67,11 +67,11 @@ pub fn download_subtitle_stream(
 
     let stream_base_url = base_url
         .clone()
-        .unwrap_or(stream.uri.parse::<Url>().unwrap());
+        .unwrap_or(stream.uri.clone());
 
     for segment in &stream.segments {
         if let Some(map) = &segment.map {
-            let url = stream_base_url.join(&map.uri)?;
+            let url = stream_base_url.join(map.uri.as_str())?;
             let mut request = client.get(url);
 
             if let Some(range) = &map.range {
@@ -83,7 +83,7 @@ pub fn download_subtitle_stream(
             subtitles_data.extend_from_slice(&bytes);
         }
 
-        let url = stream_base_url.join(&segment.uri)?;
+        let url = stream_base_url.join(segment.uri.as_str())?;
         let mut request = client.get(url);
 
         if let Some(range) = &segment.range {
