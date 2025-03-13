@@ -12,7 +12,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `save`
   - `--no-query-pass` flag.
   - `--query` flag.
-- ffmpeg can now be fetched from working directory. ([#37](https://github.com/clitic/vsd/issues/37))
 - Optimized threads management.
 
 ### Changed
@@ -21,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Ffmpeg can now be fetched from working directory. ([#42](https://github.com/clitic/vsd/issues/42))
 - Passing query parameters for DASH playlists. ([#36](https://github.com/clitic/vsd/issues/36))
 
 ## [0.3.2] - 2024-06-23
