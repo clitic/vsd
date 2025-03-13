@@ -684,7 +684,7 @@ pub(crate) fn download(
                 std::fs::remove_file(output)?;
             }
 
-            let code = Command::new("ffmpeg")
+            let code = Command::new(utils::find_ffmpeg().unwrap())
                 .args(args)
                 .stderr(Stdio::null())
                 .spawn()?

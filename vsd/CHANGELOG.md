@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `save`
   - `--no-query-pass` flag.
   - `--query` flag.
+- ffmpeg can now be fetched from working directory. ([#37](https://github.com/clitic/vsd/issues/37))
 - Optimized threads management.
 
 ### Changed

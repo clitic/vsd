@@ -85,23 +85,30 @@ pub(super) fn decrypt_aes_128_cbc(
 }
 
 pub(super) fn find_ffmpeg() -> Option<String> {
-    Some(
-        env::var("PATH")
-            .ok()?
-            .split(if cfg!(target_os = "windows") {
-                ';'
+    let bin = if cfg!(target_os = "windows") {
+        "ffmpeg.exe"
+    } else {
+        "ffmpeg"
+    };
+
+    if Path::new(bin).exists() {
+        return Some(bin.to_owned());
+    }
+
+    env::var("PATH")
+        .ok()?
+        .split(if cfg!(target_os = "windows") {
+            ';'
+        } else {
+            ':'
+        })
+        .find_map(|s| {
+            let x = Path::new(s).join(bin);
+
+            if x.exists() {
+                Some(x.to_str().unwrap().to_owned())
             } else {
-                ':'
-            })
-            .find(|s| {
-                Path::new(s)
-                    .join(if cfg!(target_os = "windows") {
-                        "ffmpeg.exe"
-                    } else {
-                        "ffmpeg"
-                    })
-                    .exists()
-            })?
-            .to_owned(),
-    )
+                None
+            }
+        })
 }
