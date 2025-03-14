@@ -8,9 +8,9 @@ use clap::Args;
 use cookie::Cookie;
 use kdam::term::Colorizer;
 use reqwest::{
+    Proxy, Url,
     blocking::Client,
     header::{HeaderMap, HeaderName, HeaderValue},
-    Proxy, Url,
 };
 use std::{
     path::{Path, PathBuf},
@@ -120,12 +120,13 @@ pub struct Save {
     #[arg(long, help_heading = "Decrypt Options")]
     pub all_keys: bool,
 
-    /// Keys for decrypting encrypted streams.
+    /// Keys for decrypting encrypted cenc streams.
     /// If streams are encrypted with a single key then there is no need to specify key id
     /// else specify decryption key in format KID:KEY.
-    /// KEY value can be specified in hex, base64 or file format.
+    /// KID should be specified in hex format.
+    /// KEY value can be specified in base64, file or hex format.
     /// This option can be used multiple times.
-    #[arg(short, long, help_heading = "Decrypt Options", value_name = "KEY|KID:KEY", value_parser = key_parser)]
+    #[arg(short, long, help_heading = "Decrypt Options", value_name = "(base64=|file=|hex=)KEY | [kid=]KID:(base64=|file=|hex=)KEY", value_parser = key_parser)]
     pub key: Vec<(Option<String>, String)>,
 
     /// Download encrypted streams without decrypting them.
@@ -211,31 +212,33 @@ fn quality_parser(s: &str) -> Result<Quality, String> {
 }
 
 fn key_parser(s: &str) -> Result<(Option<String>, String), String> {
-    let (key_id, mut key) = if let Some((key_id, key)) = s.split_once(':') {
-        (Some(key_id.to_lowercase().replace('-', "")), key.to_owned())
+    let (kid, mut key) = if let Some((kid, key)) = s.split_once(':') {
+        (
+            Some(
+                kid.to_lowercase()
+                    .trim_start_matches("kid=")
+                    .replace('-', ""),
+            ),
+            key.to_owned(),
+        )
     } else {
         (None, s.to_owned())
     };
 
-    if let Ok(decoded_key) = utils::decode_base64(&key) {
-        key = hex::encode(decoded_key);
+    if key.starts_with("base64=") {
+        key = hex::encode(
+            utils::decode_base64(&key[7..])
+                .map_err(|_| format!("key `{}` could not be decoded.", key))?,
+        );
+    } else if key.starts_with("file=") {
+        std::fs::read(&key[5..]).map_err(|_| format!("key `{}` couldn't be read.", key))?;
+    } else if key.starts_with("hex=") {
+        key = key[4..].to_owned();
     } else {
-        let key_file = Path::new(&key);
-
-        if key_file.exists() {
-            if key_file.is_file() {
-                key = hex::encode(
-                    std::fs::read(key_file).map_err(|_| format!("could not read {}.", key))?,
-                )
-            } else {
-                return Err("cannot read key from a non file path.".to_owned());
-            }
-        } else {
-            key = key.to_lowercase();
-        }
+        return Err("please specify key format.".to_owned());
     }
 
-    Ok((key_id, key))
+    Ok((kid, key))
 }
 
 fn cookie_parser(s: &str) -> Result<CookieParams, String> {

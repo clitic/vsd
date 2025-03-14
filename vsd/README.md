@@ -94,6 +94,14 @@ $ vsd save <url> -o video.mp4
 $ vsd capture <url> --save
 ```
 
+- Downloading encrypted streams.
+
+```bash
+$ vsd save https://media.axprod.net/TestVectors/Dash/protected_dash_1080p_h264_singlekey/manifest.mpd \
+    --key "kid=4060a865887842679cbf91ae5bae1e72:base64=/DU0CDcxDMD7U96X4ipp4A==" \
+    --key "kid=4060a865887842679cbf91ae5bae1e72:hex=fc35340837310cc0fb53de97e22a69e0"
+```
+
 ## Help
 
 ```bash
