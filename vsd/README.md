@@ -60,13 +60,13 @@ Visit [releases](https://github.com/clitic/vsd/releases) for prebuilt binaries. 
 
 | Host                | Architecture | Download                                                                                                     |
 |---------------------|--------------|--------------------------------------------------------------------------------------------------------------|
-| Android 7+ (Termux) | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.2/vsd-0.3.2-aarch64-linux-android.tar.xz)      |
-| Linux               | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.2/vsd-0.3.2-aarch64-unknown-linux-musl.tar.xz) |
-| MacOS 11.7+         | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.2/vsd-0.3.2-aarch64-apple-darwin.tar.xz)       |
-| Windows             | aarch64      | [.zip](https://github.com/clitic/vsd/releases/download/0.3.2/vsd-0.3.2-aarch64-pc-windows-msvc.zip)          |
-| Linux               | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.2/vsd-0.3.2-x86_64-unknown-linux-musl.tar.xz)  |
-| MacOS 11.7+         | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.2/vsd-0.3.2-x86_64-apple-darwin.tar.xz)        |
-| Windows             | x86_64       | [.zip](https://github.com/clitic/vsd/releases/download/0.3.2/vsd-0.3.2-x86_64-pc-windows-msvc.zip)           |
+| Android 7+ (Termux) | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.3/vsd-0.3.3-aarch64-linux-android.tar.xz)      |
+| Linux               | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.3/vsd-0.3.3-aarch64-unknown-linux-musl.tar.xz) |
+| MacOS 11.7+         | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.3/vsd-0.3.3-aarch64-apple-darwin.tar.xz)       |
+| Windows             | aarch64      | [.zip](https://github.com/clitic/vsd/releases/download/0.3.3/vsd-0.3.3-aarch64-pc-windows-msvc.zip)          |
+| Linux               | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.3/vsd-0.3.3-x86_64-unknown-linux-musl.tar.xz)  |
+| MacOS 11.7+         | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/0.3.3/vsd-0.3.3-x86_64-apple-darwin.tar.xz)        |
+| Windows             | x86_64       | [.zip](https://github.com/clitic/vsd/releases/download/0.3.3/vsd-0.3.3-x86_64-pc-windows-msvc.zip)           |
 
 You can also install vsd through cargo by using this command. 
 
@@ -139,51 +139,66 @@ Arguments:
   <INPUT>  http(s):// | .mpd | .xml | .m3u8
 
 Options:
-      --base-url <BASE_URL>    Base url to be used for building absolute url to segment. This flag is usually needed for local input files. By default redirected
-                               playlist url is used
-  -d, --directory <DIRECTORY>  Change directory path for temporarily downloaded files. By default current working directory is used
-  -o, --output <OUTPUT>        Mux all downloaded streams to a video container (.mp4, .mkv, etc.) using ffmpeg. Note that existing files will be overwritten and
-                               downloaded streams will be deleted
-      --parse                  Parse playlist and returns it in json format. Note that `--output` flag is ignored when this flag is used
+      --base-url <BASE_URL>    Base url to be used for building absolute url to segment. This flag is usually needed for
+                               local input files. By default redirected playlist url is used
+  -d, --directory <DIRECTORY>  Change directory path for temporarily downloaded files. By default current working
+                               directory is used
+  -o, --output <OUTPUT>        Mux all downloaded streams to a video container (.mp4, .mkv, etc.) using ffmpeg. Note
+                               that existing files will be overwritten and downloaded streams will be deleted
+      --parse                  Parse playlist and returns it in json format. Note that `--output` flag is ignored when
+                               this flag is used
       --color <COLOR>          When to output colored text [default: auto] [possible values: auto, always, never]
       --raw-prompts            Raw style input prompts for old and unsupported terminals
   -h, --help                   Print help
 
 Automation Options:
-      --prefer-audio-lang <PREFER_AUDIO_LANG>  Preferred language when multiple audio streams with different languages are available. Must be in RFC 5646 format (eg.
-                                               fr or en-AU). If a preference is not specified and multiple audio streams are present, the first one listed in the
-                                               manifest will be downloaded
-      --prefer-subs-lang <PREFER_SUBS_LANG>    Preferred language when multiple subtitles streams with different languages are available. Must be in RFC 5646 format
-                                               (eg. fr or en-AU). If a preference is not specified and multiple subtitles streams are present, the first one listed in
-                                               the manifest will be downloaded
-  -q, --quality <WIDTHxHEIGHT|HEIGHTp>         Automatic selection of some standard resolution streams with highest bandwidth stream variant from playlist. If
-                                               matching resolution of WIDTHxHEIGHT is not found then only resolution HEIGHT would be considered for selection. comman
-                                               values: [lowest, min, 144p, 240p, 360p, 480p, 720p, hd, 1080p, fhd, 2k, 1440p, qhd, 4k, 8k, highest, max] [default:
-                                               highest]
+      --prefer-audio-lang <PREFER_AUDIO_LANG>  Preferred language when multiple audio streams with different languages
+                                               are available. Must be in RFC 5646 format (eg. fr or en-AU). If a
+                                               preference is not specified and multiple audio streams are present, the
+                                               first one listed in the manifest will be downloaded
+      --prefer-subs-lang <PREFER_SUBS_LANG>    Preferred language when multiple subtitles streams with different
+                                               languages are available. Must be in RFC 5646 format (eg. fr or en-AU). If
+                                               a preference is not specified and multiple subtitles streams are present,
+                                               the first one listed in the manifest will be downloaded
+  -q, --quality <WIDTHxHEIGHT|HEIGHTp>         Automatic selection of some standard resolution streams with highest
+                                               bandwidth stream variant from playlist. If matching resolution of
+                                               WIDTHxHEIGHT is not found then only resolution HEIGHT would be considered
+                                               for selection. comman values: [lowest, min, 144p, 240p, 360p, 480p, 720p,
+                                               hd, 1080p, fhd, 2k, 1440p, qhd, 4k, 8k, highest, max] [default: highest]
       --skip-prompts                           Skip user input prompts and proceed with defaults
 
 Client Options:
-      --cookies <COOKIES>              Fill request client with some existing cookies value. Cookies value can be same as document.cookie or in json format same as
-                                       puppeteer
+      --cookies <COOKIES>              Fill request client with some existing cookies value. Cookies value can be same
+                                       as document.cookie or in json format same as puppeteer
       --header <KEY> <VALUE>           Custom headers for requests. This option can be used multiple times
       --no-certificate-checks          Skip checking and validation of site certificates
+      --no-query-pass                  Skip passing query parameters where not needed
       --proxy <PROXY>                  Set http(s) / socks proxy address for requests
-      --set-cookie <SET_COOKIE> <URL>  Fill request client with some existing cookies per domain. First value for this option is set-cookie header and second value is
-                                       url which was requested to send this set-cookie header. Example `--set-cookie "foo=bar; Domain=yolo.local" https://yolo.local`.
-                                       This option can be used multiple times
-      --user-agent <USER_AGENT>        Update and set user agent header for requests [default: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
-                                       like Gecko) Chrome/112.0.0.0 Safari/537.36"]
+      --query <QUERY>                  Set query parameters for requests
+      --set-cookie <SET_COOKIE> <URL>  Fill request client with some existing cookies per domain. First value for this
+                                       option is set-cookie header and second value is url which was requested to send
+                                       this set-cookie header. Example `--set-cookie "foo=bar; Domain=yolo.local"
+                                       https://yolo.local`. This option can be used multiple times
+      --user-agent <USER_AGENT>        Update and set user agent header for requests [default: "Mozilla/5.0 (Windows NT
+                                       10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0
+                                       Safari/537.36"]
 
 Decrypt Options:
-      --all-keys           Use all supplied keys for decryption instead of using keys which matches with default kid only
-  -k, --key <KEY|KID:KEY>  Keys for decrypting encrypted streams. If streams are encrypted with a single key then there is no need to specify key id else specify
-                           decryption key in format KID:KEY. KEY value can be specified in hex, base64 or file format. This option can be used multiple times
-      --no-decrypt         Download encrypted streams without decrypting them. Note that --output flag is ignored if this flag is used
+      --all-keys
+          Use all supplied keys for decryption instead of using keys which matches with default kid only
+  -k, --key <(base64=|file=|hex=)KEY | [kid=]KID:(base64=|file=|hex=)KEY>
+          Keys for decrypting encrypted cenc streams. If streams are encrypted with a single key then there is no need
+          to specify key id else specify decryption key in format KID:KEY. KID should be specified in hex format. KEY
+          value can be specified in base64, file or hex format. This option can be used multiple times
+      --no-decrypt
+          Download encrypted streams without decrypting them. Note that --output flag is ignored if this flag is used
 
 Download Options:
       --retry-count <RETRY_COUNT>  Maximum number of retries to download an individual segment [default: 15]
-      --no-merge                   Download streams without merging them. Note that --output flag is ignored if this flag is used
-  -t, --threads <THREADS>          Maximum number of threads for parllel downloading of segments. Number of threads should be in range 1-16 (inclusive) [default: 5]
+      --no-merge                   Download streams without merging them. Note that --output flag is ignored if this
+                                   flag is used
+  -t, --threads <THREADS>          Maximum number of threads for parllel downloading of segments. Number of threads
+                                   should be in range 1-16 (inclusive) [default: 5]
 ```
 
 ## Alternatives
