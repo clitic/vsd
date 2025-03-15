@@ -26,7 +26,7 @@
   &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
   <a href="#Usage">Usage</a>
   &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
-  <a href="https://colab.research.google.com/github/clitic/vsd/blob/main/vsd-on-colab.ipynb">Try Without Install</a>
+  <a href="https://colab.research.google.com/github/clitic/vsd/blob/main/vsd/vsd-on-colab.ipynb">Try Without Install</a>
 </p>
 
 **v**ideo **s**tream **d**ownloader is a command line program to download video streams served over HTTP from websites, [HLS](https://howvideo.works/#hls) and [DASH](https://howvideo.works/#dash) playlists.
