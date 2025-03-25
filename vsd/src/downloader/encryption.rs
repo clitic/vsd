@@ -8,7 +8,7 @@ use vsd_mp4::pssh::Pssh;
 
 pub fn check_unsupported_encryptions(streams: &Vec<MediaPlaylist>) -> Result<()> {
     for stream in streams {
-        if let Some(Segment { key: Some(x), .. }) = stream.segments.get(0) {
+        if let Some(Segment { key: Some(x), .. }) = stream.segments.first() {
             match &x.method {
                 KeyMethod::Other(x) => bail!(
                     "{} decryption is not supported. Use {} flag to download encrypted streams.",
@@ -42,7 +42,7 @@ pub fn check_unsupported_encryptions(streams: &Vec<MediaPlaylist>) -> Result<()>
 }
 
 pub fn check_key_exists_for_kid(
-    keys: &Vec<(Option<String>, String)>,
+    keys: &[(Option<String>, String)],
     kids: &HashSet<String>,
 ) -> Result<()> {
     let user_kids = keys.iter().flat_map(|x| x.0.as_ref());
@@ -73,7 +73,7 @@ pub fn extract_kids(
                 ..
             }),
             ..
-        }) = stream.segments.get(0)
+        }) = stream.segments.first()
         {
             default_kids.insert(x.replace('-', ""));
         }
@@ -86,7 +86,7 @@ pub fn extract_kids(
             .clone()
             .unwrap_or(stream.uri.parse::<Url>().unwrap());
 
-        if let Some(Segment { map: Some(x), .. }) = stream.segments.get(0) {
+        if let Some(Segment { map: Some(x), .. }) = stream.segments.first() {
             let url = stream_base_url.join(&x.uri)?;
             let mut request = client.get(url);
 
@@ -158,10 +158,7 @@ pub enum Decrypter {
 
 impl Decrypter {
     pub fn is_none(&self) -> bool {
-        match self {
-            Self::None => true,
-            _ => false,
-        }
+        matches!(self, Self::None)
     }
 
     pub fn decrypt(&self, mut data: Vec<u8>) -> Result<Vec<u8>> {

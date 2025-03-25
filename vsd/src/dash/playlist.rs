@@ -21,7 +21,7 @@ use std::collections::HashMap;
 pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
     let mut streams = vec![];
 
-    if let Some(period) = mpd.periods.get(0) {
+    if let Some(period) = mpd.periods.first() {
         let period_index = 0;
         // for (period_index, period) in mpd.periods.iter().enumerate() {
         for (adaptation_index, adaptation_set) in period.adaptations.iter().enumerate() {
@@ -74,13 +74,11 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
                 streams.push(MediaPlaylist {
                     bandwidth: representation.bandwidth,
                     channels: representation
-                        .AudioChannelConfiguration
-                        .get(0)
+                        .AudioChannelConfiguration.first()
                         .and_then(|x| x.value.as_ref().map(|y| y.parse::<f32>().ok()))
                         .flatten()
                         .or(adaptation_set
-                            .AudioChannelConfiguration
-                            .get(0)
+                            .AudioChannelConfiguration.first()
                             .and_then(|x| x.value.as_ref().map(|y| y.parse::<f32>().ok()))
                             .flatten()),
                     codecs,
@@ -128,7 +126,7 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
 pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &str) -> Result<()> {
     let location = playlist.uri.parse::<DashUrl>().map_err(|x| anyhow!(x))?;
 
-    for (_period_index, period) in mpd.periods.iter().enumerate() {
+    for period in mpd.periods.iter() {
         for (adaptation_index, adaptation_set) in period.adaptations.iter().enumerate() {
             for (representation_index, representation) in
                 adaptation_set.representations.iter().enumerate()
@@ -148,22 +146,22 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
 
                     let mut base_url = base_url.parse::<Url>().unwrap();
 
-                    if let Some(mpd_baseurl) = mpd.base_url.get(0).map(|x| x.base.as_ref()) {
+                    if let Some(mpd_baseurl) = mpd.base_url.first().map(|x| x.base.as_ref()) {
                         base_url = base_url.join(mpd_baseurl)?;
                     }
 
-                    if let Some(period_baseurl) = period.BaseURL.get(0).map(|x| x.base.as_ref()) {
+                    if let Some(period_baseurl) = period.BaseURL.first().map(|x| x.base.as_ref()) {
                         base_url = base_url.join(period_baseurl)?;
                     }
 
                     if let Some(adaptation_set_baseurl) =
-                        adaptation_set.BaseURL.get(0).map(|x| x.base.as_ref())
+                        adaptation_set.BaseURL.first().map(|x| x.base.as_ref())
                     {
                         base_url = base_url.join(adaptation_set_baseurl)?;
                     }
 
                     if let Some(representation_baseurl) =
-                        representation.BaseURL.get(0).map(|x| x.base.as_ref())
+                        representation.BaseURL.first().map(|x| x.base.as_ref())
                     {
                         base_url = base_url.join(representation_baseurl)?;
                     }

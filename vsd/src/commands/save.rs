@@ -230,8 +230,8 @@ fn key_parser(s: &str) -> Result<(Option<String>, String), String> {
             utils::decode_base64(&key[7..])
                 .map_err(|_| format!("key `{}` could not be decoded.", key))?,
         );
-    } else if key.starts_with("file=") {
-        std::fs::read(&key[5..]).map_err(|_| format!("key `{}` couldn't be read.", key))?;
+    } else if let Some(key) = key.strip_prefix("file=") {
+        std::fs::read(key).map_err(|_| format!("key `{}` couldn't be read.", key))?;
     } else if key.starts_with("hex=") {
         key = key[4..].to_owned();
     } else {

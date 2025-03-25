@@ -64,7 +64,7 @@ pub(crate) fn download(
         if one_stream
             && output.ends_with(&format!(
                 ".{}",
-                video_audio_streams.get(0).unwrap().extension()
+                video_audio_streams.first().unwrap().extension()
             ))
         {
             should_mux = false;
@@ -206,7 +206,7 @@ pub(crate) fn download(
         let buffer_size = 1024 * 1024 * 2; // 2 MiB
         let mut ranges = None;
 
-        if let Some(segment) = stream.segments.get(0) {
+        if let Some(segment) = stream.segments.first() {
             let url = stream_base_url.join(&segment.uri)?;
             let mut request = client.head(url.clone());
 
@@ -685,7 +685,7 @@ struct ThreadData {
 
 impl ThreadData {
     fn execute(&self) -> Result<()> {
-        let mut segment = self.map.clone().unwrap_or(vec![]);
+        let mut segment = self.map.clone().unwrap_or_default();
         segment.append(&mut self.download_segment()?);
 
         segment = self.decrypter.decrypt(segment)?;

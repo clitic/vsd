@@ -81,7 +81,7 @@ pub fn fetch_playlist(
     } else {
         meta.url = input.parse::<Url>().unwrap();
         // TODO - We can add site specific parsers here
-        meta.fetch(&client)?;
+        meta.fetch(client)?;
 
         if meta.pl_type.is_none() {
             fetch_from_website(client, &mut meta, prompts)?;

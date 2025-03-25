@@ -214,7 +214,7 @@ pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playli
         });
     }
 
-    if let Some(segment) = playlist.segments.get(0) {
+    if let Some(segment) = playlist.segments.first() {
         if let Some(init) = &segment.map {
             if init.uri.split('?').next().unwrap().ends_with(".mp4") {
                 playlist.extension = Some("m4s".to_owned());

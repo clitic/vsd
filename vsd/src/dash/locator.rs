@@ -16,9 +16,10 @@ impl DashUrl {
     }
 }
 
-impl ToString for DashUrl {
-    fn to_string(&self) -> String {
-        format!(
+impl std::fmt::Display for DashUrl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
             "dash://period.{}.adaptation-set.{}.representation.{}",
             self.period, self.adaptation_set, self.representation
         )

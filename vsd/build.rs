@@ -15,7 +15,7 @@ fn main() {
     if icon {
         Command::new("rc")
             .arg("/fo")
-            .arg(&format!("{}/resources.lib", env::var("OUT_DIR").unwrap()))
+            .arg(format!("{}/resources.lib", env::var("OUT_DIR").unwrap()))
             .arg("resources.rc")
             .spawn()
             .unwrap()

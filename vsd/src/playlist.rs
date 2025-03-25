@@ -383,7 +383,7 @@ impl MediaPlaylist {
     }
 
     pub(crate) fn default_kid(&self) -> Option<String> {
-        if let Some(segment) = self.segments.get(0) {
+        if let Some(segment) = self.segments.first() {
             if let Some(Key {
                 default_kid: Some(x),
                 ..
@@ -406,7 +406,7 @@ impl MediaPlaylist {
             PlaylistType::Dash => "m4s",
         };
 
-        if let Some(segment) = self.segments.get(0) {
+        if let Some(segment) = self.segments.first() {
             if let Some(init) = &segment.map {
                 if init.uri.ends_with(".mp4") {
                     ext = "mp4";
