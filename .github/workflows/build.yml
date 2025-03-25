@@ -19,4 +19,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: "vsd-${{ env.SHA }}-debug-x86_64-pc-windows-msvc"
-          path: vsd\BUILD.md
+          path: ${{ github.workspace }}\vsd\BUILD.md
