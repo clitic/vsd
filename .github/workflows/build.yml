@@ -30,10 +30,7 @@ jobs:
         with:
             submodules: true
       - name: Install dependencies
-        run: |
-          Invoke-WebRequest -Uri "https://github.com/protocolbuffers/protobuf/releases/download/v30.1/protoc-30.1-win64.zip" -OutFile "protoc.zip"
-          Expand-Archive -Path "protoc.zip" -DestinationPath "C:\protoc"
-          echo "C:\protoc\bin" | Out-File -Append -FilePath $env:GITHUB_PATH
+        uses: arduino/setup-protoc@v3
       - name: Build vsd
         run: cargo build -p vsd
       - name: Upload windows build
