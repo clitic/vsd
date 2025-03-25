@@ -7,40 +7,22 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-            submodules: true
-      - name: Install dependencies
-        run: sudo apt install protobuf-compiler
-      - name: Build vsd
-        run: cargo build -p vsd
-      - name: Set up upload environment
-        run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-      - name: Upload linux build
-        uses: actions/upload-artifact@v4
-        with:
-          name: "vsd-${{ env.SHORT_SHA }}-debug-x86_64-unknown-linux-gnu"
-          path: target/debug/vsd
-
   build-windows:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
             submodules: true
-      - name: Install dependencies
+      - name: Install protoc
         uses: arduino/setup-protoc@v3
+        with:
+          version: "30.1"
       - name: Build vsd
         run: cargo build -p vsd
       - name: Set up upload environment
-        run: |
-          $short_sha = (git rev-parse --short HEAD)
-          echo "SHORT_SHA=$short_sha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
+        uses: benjlevesque/short-sha@v3.0
       - name: Upload windows build
         uses: actions/upload-artifact@v4
         with:
-          name: "vsd-${{ env.SHORT_SHA }}-debug-x86_64-pc-windows-msvc"
+          name: "vsd-${{ env.SHA }}-debug-x86_64-pc-windows-msvc"
           path: target/debug/vsd.exe
