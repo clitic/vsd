@@ -90,8 +90,8 @@ pub(crate) fn download(
 
     if !no_decrypt {
         encryption::check_unsupported_encryptions(&video_audio_streams)?;
-        let kids = encryption::extract_kids(&base_url, &client, &video_audio_streams)?;
-        encryption::check_key_exists_for_kid(&keys, &kids)?;
+        let default_kids = encryption::extract_default_kids(&base_url, &client, &video_audio_streams)?;
+        encryption::check_key_exists_for_kid(&keys, &default_kids)?;
     }
 
     // -----------------------------------------------------------------------------------------

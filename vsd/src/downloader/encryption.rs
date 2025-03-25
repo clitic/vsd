@@ -43,11 +43,11 @@ pub fn check_unsupported_encryptions(streams: &Vec<MediaPlaylist>) -> Result<()>
 
 pub fn check_key_exists_for_kid(
     keys: &[(Option<String>, String)],
-    kids: &HashSet<String>,
+    default_kids: &HashSet<String>,
 ) -> Result<()> {
     let user_kids = keys.iter().flat_map(|x| x.0.as_ref());
 
-    for kid in kids {
+    for kid in default_kids {
         if !user_kids.clone().any(|x| x == kid) {
             bail!(
                 "use {} flag to specify content decryption keys for at least * pre-fixed key ids.",
@@ -59,7 +59,7 @@ pub fn check_key_exists_for_kid(
     Ok(())
 }
 
-pub fn extract_kids(
+pub fn extract_default_kids(
     base_url: &Option<Url>,
     client: &Client,
     streams: &Vec<MediaPlaylist>,
@@ -116,7 +116,7 @@ pub fn extract_kids(
         }
     }
 
-    Ok(parsed_kids)
+    Ok(default_kids)
 }
 
 type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
