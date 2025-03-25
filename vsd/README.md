@@ -10,6 +10,9 @@
   <a href="https://crates.io/crates/vsd">
     <img src="https://img.shields.io/crates/v/vsd?style=flat-square">
   </a>
+  <a href="https://github.com/clitic/vsd">
+    <img src="https://img.shields.io/github/actions/workflow/status/clitic/vsd/build.yml?logo=github&style=flat-square">
+  </a>
   <a href="https://github.com/clitic/vsd#license">
     <img src="https://img.shields.io/crates/l/vsd?style=flat-square">
   </a>
