@@ -17,10 +17,12 @@ jobs:
         run: sudo apt install protobuf-compiler
       - name: Build vsd
         run: cargo build -p vsd
+      - name: Set up upload environment
+        run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
       - name: Upload linux build
         uses: actions/upload-artifact@v4
         with:
-          name: "vsd-$(git rev-parse --short HEAD)-debug-x86_64-unknown-linux-gnu"
+          name: "vsd-${{ env.SHORT_SHA }}-debug-x86_64-unknown-linux-gnu"
           path: target/debug/vsd
 
   build-windows:
@@ -33,8 +35,12 @@ jobs:
         uses: arduino/setup-protoc@v3
       - name: Build vsd
         run: cargo build -p vsd
+      - name: Set up upload environment
+        run: |
+          $short_sha = (git rev-parse --short HEAD)
+          echo "SHORT_SHA=$short_sha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
       - name: Upload windows build
         uses: actions/upload-artifact@v4
         with:
-          name: "vsd-$(git rev-parse --short HEAD)-debug-x86_64-pc-windows-msvc"
+          name: "vsd-${{ env.SHORT_SHA }}-debug-x86_64-pc-windows-msvc"
           path: target/debug/vsd.exe
