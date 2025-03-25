@@ -1,9 +1,10 @@
+mod encryption;
 mod fetch;
 mod parse;
 mod subtitle;
-mod extract;
 
-pub use fetch::{fetch_playlist, InputMetadata};
+use encryption::Decrypter;
+pub use fetch::{InputMetadata, fetch_playlist};
 pub use parse::{parse_all_streams, parse_selected_streams};
 pub use subtitle::download_subtitle_streams;
 
@@ -12,20 +13,20 @@ use crate::{
     playlist::{KeyMethod, MediaPlaylist, MediaType, Range, Segment},
     utils,
 };
-use anyhow::{anyhow, bail, Result};
-use kdam::{term::Colorizer, tqdm, BarExt, Column, RichProgress};
+use anyhow::{Result, bail};
+use kdam::{BarExt, Column, RichProgress, term::Colorizer, tqdm};
 use reqwest::{
+    StatusCode, Url,
     blocking::{Client, RequestBuilder},
-    header, StatusCode, Url,
+    header,
 };
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, VecDeque},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{Arc, Mutex},
     time::Instant,
 };
-use vsd_mp4::pssh::Pssh;
 
 pub type SelectedPlaylists = (Vec<MediaPlaylist>, Vec<MediaPlaylist>);
 
@@ -88,86 +89,9 @@ pub(crate) fn download(
     // -----------------------------------------------------------------------------------------
 
     if !no_decrypt {
-        extract::check_unsupported_encryptions(&video_audio_streams)?;
-        let default_kids = extract::extract_kids(&base_url, &client, &video_audio_streams)?;
-        extract::check_key_exists_for_kid(&keys, &default_kids)?;
-    }
-
-    let mut default_kids = HashSet::new();
-
-    for stream in &video_audio_streams {
-        if let Some(segment) = stream.segments.get(0) {
-            if let Some(key) = &segment.key {
-                if !no_decrypt {
-                    match &key.method {
-                        KeyMethod::Other(x) => bail!("{} decryption is not supported. Use {} flag to download encrypted streams.", x, "--no-decrypt".colorize("bold green")),
-                        KeyMethod::SampleAes => {
-                            if stream.is_hls() {
-                                bail!("sample-aes (HLS) decryption is not supported. Use {} flag to download encrypted streams.", "--no-decrypt".colorize("bold green"));
-                            }
-                        }
-                        _ => (),
-                    }
-                }
-
-                if let Some(default_kid) = &key.default_kid {
-                    default_kids.insert(default_kid.replace('-', ""));
-                }
-            }
-        }
-    }
-
-    let mut kids = HashSet::new();
-
-    for stream in &video_audio_streams {
-        let stream_base_url = base_url
-            .clone()
-            .unwrap_or(stream.uri.parse::<Url>().unwrap());
-
-        if let Some(segment) = stream.segments.get(0) {
-            if let Some(map) = &segment.map {
-                let url = stream_base_url.join(&map.uri)?;
-                let mut request = client.get(url);
-
-                if let Some(range) = &map.range {
-                    request = request.header(header::RANGE, range.as_header_value());
-                }
-
-                let response = request.send()?;
-                let pssh = Pssh::new(&response.bytes()?).map_err(|x| anyhow!(x))?;
-
-                for key_id in pssh.key_ids {
-                    if !kids.contains(&key_id.value) {
-                        kids.insert(key_id.value.clone());
-                        println!(
-                            "      {} {} {} ({})",
-                            "KeyId".colorize("bold green"),
-                            if default_kids.contains(&key_id.value) {
-                                "*"
-                            } else {
-                                " "
-                            },
-                            key_id.uuid(),
-                            key_id.system_type,
-                        );
-                    }
-                }
-            }
-        }
-    }
-
-    for default_kid in &default_kids {
-        if !keys
-            .iter()
-            .flat_map(|x| x.0.as_ref())
-            .any(|x| x == default_kid)
-            && !no_decrypt
-        {
-            bail!(
-                "use {} flag to specify CENC content decryption keys for at least * (star) prefixed key ids.",
-                "--key".colorize("bold green")
-            );
-        }
+        encryption::check_unsupported_encryptions(&video_audio_streams)?;
+        let kids = encryption::extract_kids(&base_url, &client, &video_audio_streams)?;
+        encryption::check_key_exists_for_kid(&keys, &kids)?;
     }
 
     // -----------------------------------------------------------------------------------------
@@ -416,7 +340,7 @@ pub(crate) fn download(
         let _ = relative_sizes.pop_front();
         let relative_size = relative_sizes.iter().sum();
         let mut previous_map = None;
-        let mut previous_key = None;
+        let mut decrypter = Decrypter::None;
 
         let stream_base_url = base_url
             .clone()
@@ -447,18 +371,15 @@ pub(crate) fn download(
                             }
 
                             if let Some(uri) = &key.uri {
-                                previous_key = Some(Keys {
-                                    bytes: if key.key_format.is_none() {
+                                decrypter = Decrypter::Aes128(
+                                    {
                                         let url = stream_base_url.join(uri)?;
                                         let request = client.get(url);
                                         let response = request.send()?;
                                         response.bytes()?.to_vec()
-                                    } else {
-                                        vec![]
                                     },
-                                    iv: key.iv.clone(),
-                                    method: key.method.clone(),
-                                });
+                                    key.iv.clone(),
+                                );
                             } else {
                                 bail!("uri cannot be none when key method is AES-128");
                             }
@@ -508,9 +429,9 @@ pub(crate) fn download(
                                 ))?;
                             }
 
-                            previous_key = Some(Keys::from_hex_keys(decryption_keys));
+                            decrypter = Decrypter::Cenc(decryption_keys);
                         }
-                        _ => previous_key = None,
+                        _ => decrypter = Decrypter::None,
                     }
                 }
             }
@@ -525,7 +446,7 @@ pub(crate) fn download(
             let thread_data = ThreadData {
                 downloaded_bytes,
                 index: i,
-                keys: previous_key.clone(),
+                decrypter: decrypter.clone(),
                 map: previous_map.clone(),
                 merger: merger.clone(),
                 pb: pb.clone(),
@@ -535,7 +456,7 @@ pub(crate) fn download(
                 total_retries: retry_count,
             };
 
-            if previous_key.is_none() {
+            if decrypter.is_none() {
                 previous_map = None;
             }
 
@@ -726,59 +647,6 @@ pub(crate) fn download(
     Ok(())
 }
 
-#[derive(Clone)]
-struct Keys {
-    bytes: Vec<u8>,
-    iv: Option<String>,
-    method: KeyMethod,
-}
-
-impl Keys {
-    fn from_hex_keys(keys: HashMap<String, String>) -> Self {
-        let mut bytes = String::new();
-
-        for (kid, key) in keys {
-            bytes += &(kid + ":" + &key + ";");
-        }
-
-        Self {
-            bytes: bytes.get(..(bytes.len() - 1)).unwrap().as_bytes().to_vec(),
-            iv: None,
-            method: KeyMethod::Cenc,
-        }
-    }
-
-    fn as_hex_keys(&self) -> HashMap<String, String> {
-        String::from_utf8(self.bytes.clone())
-            .unwrap()
-            .split(';')
-            .map(|x| {
-                x.split_once(':')
-                    .map(|(x, y)| (x.to_owned(), y.to_owned()))
-                    .unwrap()
-            })
-            .collect()
-    }
-
-    fn decrypt(&self, mut data: Vec<u8>) -> Result<Vec<u8>> {
-        Ok(match self.method {
-            KeyMethod::Aes128 => {
-                let iv = if let Some(iv) = &self.iv {
-                    Some(hex::decode(iv.trim_start_matches("0x"))?)
-                } else {
-                    None
-                };
-
-                utils::decrypt_aes_128_cbc(&mut data, &self.bytes, iv.as_ref())?
-            }
-            KeyMethod::Cenc => {
-                mp4decrypt::mp4decrypt(&data, self.as_hex_keys(), None).map_err(|x| anyhow!(x))?
-            }
-            _ => data,
-        })
-    }
-}
-
 // https://rust-lang-nursery.github.io/rust-cookbook/web/clients/download.html#make-a-partial-download-with-http-range-headers
 struct PartialRangeIter {
     start: u64,
@@ -805,7 +673,7 @@ impl Iterator for PartialRangeIter {
 struct ThreadData {
     downloaded_bytes: usize,
     index: usize,
-    keys: Option<Keys>,
+    decrypter: Decrypter,
     map: Option<Vec<u8>>,
     merger: Arc<Mutex<Merger>>,
     pb: Arc<Mutex<RichProgress>>,
@@ -820,9 +688,7 @@ impl ThreadData {
         let mut segment = self.map.clone().unwrap_or(vec![]);
         segment.append(&mut self.download_segment()?);
 
-        if let Some(keys) = &self.keys {
-            segment = keys.decrypt(segment)?;
-        }
+        segment = self.decrypter.decrypt(segment)?;
 
         let mut merger = self.merger.lock().unwrap();
         merger.write(self.index, &segment)?;

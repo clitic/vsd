@@ -1,9 +1,6 @@
-use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
-use anyhow::{anyhow, bail, Result};
+use anyhow::Result;
 use base64::Engine;
 use std::{env, path::Path};
-
-type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
 pub(super) fn format_bytes(bytesval: usize, precision: usize) -> (String, String, String) {
     let mut val = bytesval as f32;
@@ -51,38 +48,6 @@ pub(super) fn decode_base64<T: AsRef<[u8]>>(input: T) -> Result<Vec<u8>> {
 // pub(super) fn encode_base64<T: AsRef<[u8]>>(input: T) -> String {
 //     base64::engine::general_purpose::STANDARD.encode(input)
 // }
-
-pub(super) fn decrypt_aes_128_cbc(
-    input: &mut [u8],
-    key: &[u8],
-    iv: Option<&Vec<u8>>,
-) -> Result<Vec<u8>> {
-    let key_length = key.len();
-
-    if key_length != 16 {
-        bail!("invalid key size i.e. {} but expected size 16.", key_length);
-    }
-
-    let mut key_c = [0_u8; 16];
-    key_c.copy_from_slice(key);
-
-    let mut iv_c = [0_u8; 16];
-
-    if let Some(iv) = iv {
-        let iv_length = key.len();
-
-        if iv_length != 16 {
-            bail!("invalid iv size i.e. {} but expected size 16.", iv_length);
-        }
-
-        iv_c.copy_from_slice(iv);
-    }
-
-    Aes128CbcDec::new(&key_c.into(), &iv_c.into())
-        .decrypt_padded_mut::<Pkcs7>(input)
-        .map(|x| x.to_vec())
-        .map_err(|x| anyhow!("{}", x))
-}
 
 pub(super) fn find_ffmpeg() -> Option<String> {
     let bin = if cfg!(target_os = "windows") {
