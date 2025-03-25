@@ -1,0 +1,22 @@
+name: build
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+            submodules: true
+      - name: Build vsd
+        run: cargo build -p vsd
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: "vsd-${{ github.sha }}-debug-x86_64-unknown-linux-gnu"
+          path: target/debug/vsd
