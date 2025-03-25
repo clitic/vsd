@@ -1,6 +1,7 @@
 mod fetch;
 mod parse;
 mod subtitle;
+mod extract;
 
 pub use fetch::{fetch_playlist, InputMetadata};
 pub use parse::{parse_all_streams, parse_selected_streams};
@@ -85,6 +86,12 @@ pub(crate) fn download(
     // -----------------------------------------------------------------------------------------
     // Parse Key Ids
     // -----------------------------------------------------------------------------------------
+
+    if !no_decrypt {
+        extract::check_unsupported_encryptions(&video_audio_streams)?;
+        let default_kids = extract::extract_kids(&base_url, &client, &video_audio_streams)?;
+        extract::check_key_exists_for_kid(&keys, &default_kids)?;
+    }
 
     let mut default_kids = HashSet::new();
 
