@@ -173,7 +173,7 @@ impl Decrypter {
                 decrypt_aes_128_cbc(&mut data, key, iv.as_ref())?
             }
             Decrypter::Cenc(kid_key_pairs) => {
-                mp4decrypt::mp4decrypt(&data, kid_key_pairs.to_owned(), None)
+                mp4decrypt::mp4decrypt(&data, kid_key_pairs, None)
                     .map_err(|x| anyhow!(x))?
             }
             Decrypter::None => data,

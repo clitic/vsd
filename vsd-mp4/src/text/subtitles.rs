@@ -52,7 +52,7 @@ impl Subtitles {
 
     /// Extend these subtitles with another subtitles.
     pub fn extend(&mut self, other: Self) {
-        self.cues.extend(other.cues.into_iter());
+        self.cues.extend(other.cues);
     }
 
     /// Build subtitles in webvtt format.

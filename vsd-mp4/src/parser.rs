@@ -51,10 +51,10 @@ impl Mp4Parser {
     /// # Arguments
     ///
     /// - `partial_okay` (optional) - If true, allow reading partial payloads
-    /// from some boxes. If the goal is a child box, we can sometimes find it
-    /// without enough data to find all child boxes.
+    ///   from some boxes. If the goal is a child box, we can sometimes find it
+    ///   without enough data to find all child boxes.
     /// - `stop_on_partial` (optional) - If true, stop reading if an incomplete
-    /// box is detected.
+    ///   box is detected.
     pub fn parse(
         &mut self,
         data: &[u8],
@@ -77,12 +77,12 @@ impl Mp4Parser {
     /// # Arguments
     ///
     /// - `abs_start` - The absolute start position in the original
-    /// byte array.
+    ///   byte array.
     /// - `partial_okay` (optional) - If true, allow reading partial payloads
-    /// from some boxes. If the goal is a child box, we can sometimes find it
-    /// without enough data to find all child boxes.
+    ///   from some boxes. If the goal is a child box, we can sometimes find it
+    ///   without enough data to find all child boxes.
     /// - `stop_on_partial` (optional) - If true, stop reading if an incomplete
-    /// box is detected.
+    ///   box is detected.
     fn parse_next(
         &mut self,
         abs_start: u64,
@@ -288,6 +288,7 @@ pub fn visual_sample_entry(mut _box: ParsedBox) -> HandlerResult {
 
 /// Create a callback that tells the Mp4 parser to treat the body of a box as a
 /// binary blob and to parse the body's contents using the provided callback.
+#[allow(clippy::arc_with_non_send_sync)]
 pub fn alldata(callback: Arc<dyn Fn(Vec<u8>) -> HandlerResult>) -> CallbackType {
     Arc::new(move |mut _box| {
         let all = _box.reader.get_length() - _box.reader.get_position();

@@ -8,18 +8,18 @@ keywords = ["mp4"]
 license = "MIT OR Apache-2.0"
 name = "vsd-mp4"
 repository = "https://github.com/clitic/vsd/tree/main/vsd-mp4"
-version = "0.1.1"
+version = "0.1.2"
 readme = "README.md"
 
 [dependencies]
 base64 = { version = "0.22", optional = true }
 hex = { version = "0.4", optional = true }
-prost = { version = "0.12", optional = true }
-quick-xml = { version = "0.33", features = ["serialize"], optional = true }
+prost = { version = "0.13", optional = true }
+quick-xml = { version = "0.37", features = ["serialize"], optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 
 [build-dependencies]
-prost-build = { version = "0.12", optional = true }
+prost-build = { version = "0.13", optional = true }
 
 [features]
 pssh = ["dep:base64", "dep:hex", "dep:prost", "dep:prost-build", "dep:serde"]
