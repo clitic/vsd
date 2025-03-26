@@ -3,6 +3,7 @@ members = [
   "bento4-src",
   "mp4decrypt",
   "vsd",
+  "vsd-gui",
   "vsd-mp4",
 ]
 resolver = "2"
