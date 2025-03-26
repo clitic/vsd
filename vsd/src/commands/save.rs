@@ -211,6 +211,12 @@ fn quality_parser(s: &str) -> Result<Quality, String> {
     })
 }
 
+// fn is_valid_kid_key_pair(kid: &str, key: &str) -> bool {
+//     kid.len() == 32
+//         && key.len() == 32
+//         && kid.chars().all(|c| c.is_ascii_hexdigit())
+//         && key.chars().all(|c| c.is_ascii_hexdigit())
+// }
 fn key_parser(s: &str) -> Result<(Option<String>, String), String> {
     let (kid, mut key) = if let Some((kid, key)) = s.split_once(':') {
         (

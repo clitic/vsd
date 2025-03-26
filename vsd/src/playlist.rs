@@ -8,7 +8,7 @@
 */
 
 use crate::commands::Quality;
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use kdam::term::Colorizer;
 use requestty::prompt::style::Stylize;
 use reqwest::header::HeaderValue;
@@ -370,6 +370,7 @@ pub(crate) struct MediaPlaylist {
     pub(crate) i_frame: bool,
     pub(crate) language: Option<String>,
     pub(crate) live: bool,
+    pub(crate) media_sequence: u64,
     pub(crate) media_type: MediaType,
     pub(crate) playlist_type: PlaylistType,
     pub(crate) resolution: Option<(u64, u64)>,
@@ -642,7 +643,7 @@ impl Display for MediaType {
 #[derive(Clone, PartialEq, Serialize)]
 pub(crate) enum KeyMethod {
     Aes128,
-    Cenc,
+    ClearKey,
     None,
     Other(String),
     SampleAes,
@@ -682,6 +683,29 @@ pub(crate) struct Key {
     pub(crate) key_format: Option<String>,
     pub(crate) method: KeyMethod,
     pub(crate) uri: Option<String>,
+}
+
+impl Key {
+    pub(crate) fn key(&self, bytes: &[u8]) -> Result<[u8; 16]> {
+        if bytes.len() != 16 {
+            bail!("invalid key size.");
+        }
+
+        let mut key = [0_u8; 16];
+        key.copy_from_slice(bytes);
+        Ok(key)
+    }
+
+    pub(crate) fn iv(&self, sequence: u64) -> Result<[u8; 16]> {
+        Ok(if let Some(iv) = self.iv.as_ref() {
+            let iv = if iv.starts_with("0x") { &iv[2..] } else { iv };
+            u128::from_str_radix(iv, 16)
+                .map_err(|_| anyhow!("invalid iv size."))?
+                .to_be_bytes()
+        } else {
+            (sequence as u128).to_be_bytes()
+        })
+    }
 }
 
 #[derive(Clone, Default, Serialize)]

@@ -1,10 +1,12 @@
 use crate::playlist::{Key, KeyMethod, MediaPlaylist, Segment};
-use aes::cipher::{BlockDecryptMut, KeyIvInit, block_padding::Pkcs7};
-use anyhow::{Result, anyhow, bail};
+use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
+use anyhow::{anyhow, bail, Result};
 use kdam::term::Colorizer;
-use reqwest::{Url, blocking::Client, header};
+use reqwest::{blocking::Client, header, Url};
 use std::collections::{HashMap, HashSet};
 use vsd_mp4::pssh::Pssh;
+
+type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
 pub fn check_unsupported_encryptions(streams: &Vec<MediaPlaylist>) -> Result<()> {
     for stream in streams {
@@ -15,14 +17,6 @@ pub fn check_unsupported_encryptions(streams: &Vec<MediaPlaylist>) -> Result<()>
                     x,
                     "--no-decrypt".colorize("bold green")
                 ),
-                KeyMethod::SampleAes => {
-                    if stream.is_hls() {
-                        bail!(
-                            "sample-aes decryption is not supported. Use {} flag to download encrypted streams.",
-                            "--no-decrypt".colorize("bold green")
-                        );
-                    }
-                }
                 _ => (),
             }
 
@@ -119,62 +113,56 @@ pub fn extract_default_kids(
     Ok(default_kids)
 }
 
-type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
-
-fn decrypt_aes_128_cbc(input: &mut [u8], key: &[u8], iv: Option<&Vec<u8>>) -> Result<Vec<u8>> {
-    let key_length = key.len();
-
-    if key_length != 16 {
-        bail!("invalid key size i.e. {} but expected size 16.", key_length);
-    }
-
-    let mut key_c = [0_u8; 16];
-    key_c.copy_from_slice(key);
-
-    let mut iv_c = [0_u8; 16];
-
-    if let Some(iv) = iv {
-        let iv_length = key.len();
-
-        if iv_length != 16 {
-            bail!("invalid iv size i.e. {} but expected size 16.", iv_length);
-        }
-
-        iv_c.copy_from_slice(iv);
-    }
-
-    Aes128CbcDec::new(&key_c.into(), &iv_c.into())
-        .decrypt_padded_mut::<Pkcs7>(input)
-        .map(|x| x.to_vec())
-        .map_err(|x| anyhow!("{}", x))
+#[derive(Clone)]
+pub enum EncryptionType {
+    Aes128,
+    SampleAes,
 }
 
 #[derive(Clone)]
 pub enum Decrypter {
-    Aes128(Vec<u8>, Option<String>),
-    Cenc(HashMap<String, String>),
+    Aes([u8; 16], [u8; 16], EncryptionType),
+    ClearKey(HashMap<String, String>),
     None,
 }
 
 impl Decrypter {
+    pub fn new_aes(key: [u8; 16], iv: [u8; 16], method: &KeyMethod) -> Result<Self> {
+        let enc_type = match method {
+            KeyMethod::Aes128 => EncryptionType::Aes128,
+            KeyMethod::SampleAes => EncryptionType::SampleAes,
+            _ => panic!("trying to create a non aes decrypter."),
+        };
+
+        Ok(Self::Aes(key, iv, enc_type))
+    }
+
     pub fn is_none(&self) -> bool {
         matches!(self, Self::None)
     }
 
+    pub fn increment_iv(&mut self) {
+        if let Self::Aes(_, iv, _) = self {
+            *iv = (u128::from_be_bytes(*iv) + 1).to_be_bytes();
+        }
+    }
+
     pub fn decrypt(&self, mut data: Vec<u8>) -> Result<Vec<u8>> {
         Ok(match self {
-            Decrypter::Aes128(key, iv) => {
-                let iv = if let Some(x) = iv {
-                    Some(hex::decode(x.trim_start_matches("0x"))?)
-                } else {
-                    None
-                };
-
-                decrypt_aes_128_cbc(&mut data, key, iv.as_ref())?
-            }
-            Decrypter::Cenc(kid_key_pairs) => {
-                mp4decrypt::mp4decrypt(&data, kid_key_pairs, None)
-                    .map_err(|x| anyhow!(x))?
+            Decrypter::Aes(key, iv, enc_type) => match enc_type {
+                EncryptionType::Aes128 => Aes128CbcDec::new(key.into(), iv.into())
+                    .decrypt_padded_mut::<Pkcs7>(&mut data)
+                    .map(|x| x.to_vec())
+                    .map_err(|x| anyhow!("{}", x))?,
+                EncryptionType::SampleAes => {
+                    let mut reader = std::io::Cursor::new(data);
+                    let mut writer = Vec::new();
+                    iori_ssa::decrypt(&mut reader, &mut writer, *key, *iv)?;
+                    writer
+                }
+            },
+            Decrypter::ClearKey(kid_key_pairs) => {
+                mp4decrypt::mp4decrypt(&data, kid_key_pairs, None).map_err(|x| anyhow!(x))?
             }
             Decrypter::None => data,
         })

@@ -16,6 +16,7 @@ pub(crate) fn parse_as_master(
             i_frame: video_stream.is_i_frame,
             language: None,
             live: false, // Cannot be comment here
+            media_sequence: 0,
             media_type: playlist::MediaType::Video,
             playlist_type: playlist::PlaylistType::Hls,
             resolution: if let Some(m3u8_rs::Resolution { width, height }) = video_stream.resolution
@@ -41,6 +42,7 @@ pub(crate) fn parse_as_master(
                     i_frame: false,                   // Cannot be comment here
                     language: None,
                     live: false, // Cannot be comment here
+                    media_sequence: 0,
                     media_type: playlist::MediaType::Video,
                     playlist_type: playlist::PlaylistType::Hls,
                     resolution: None, // Cannot be comment here
@@ -63,6 +65,7 @@ pub(crate) fn parse_as_master(
                         .to_owned()
                         .or(alternative_stream.assoc_language.to_owned()),
                     live: false, // Cannot be comment here
+                    media_sequence: 0,
                     media_type: playlist::MediaType::Audio,
                     playlist_type: playlist::PlaylistType::Hls,
                     resolution: None,
@@ -84,6 +87,7 @@ pub(crate) fn parse_as_master(
                             .to_owned()
                             .or(alternative_stream.assoc_language.to_owned()),
                         live: false, // Cannot be comment here
+                        media_sequence: 0,
                         media_type: playlist::MediaType::Subtitles,
                         playlist_type: playlist::PlaylistType::Hls,
                         resolution: None,
@@ -107,6 +111,7 @@ pub(crate) fn parse_as_master(
                         .to_owned()
                         .or(alternative_stream.assoc_language.to_owned()),
                     live: false, // Cannot be comment here
+                    media_sequence: 0,
                     media_type: playlist::MediaType::Undefined,
                     playlist_type: playlist::PlaylistType::Hls,
                     resolution: None, // Cannot be comment here
@@ -127,6 +132,7 @@ pub(crate) fn parse_as_master(
 pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playlist::MediaPlaylist) {
     playlist.i_frame = m3u8.i_frames_only;
     playlist.live = !m3u8.end_list;
+    playlist.media_sequence = m3u8.media_sequence;
 
     let mut previous_byterange_end = 0;
 
@@ -184,7 +190,7 @@ pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playli
                         if x == "SAMPLE-AES-CTR" || x == "SAMPLE-AES-CENC" =>
                     {
                         // cenc | cbc1 (pattern-based)
-                        playlist::KeyMethod::Cenc
+                        playlist::KeyMethod::ClearKey
                     }
                     m3u8_rs::KeyMethod::Other(x) => playlist::KeyMethod::Other(x.to_owned()),
                 };
@@ -193,7 +199,7 @@ pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playli
                     method = match keyformat.as_str() {
                         "urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"
                         | "com.apple.streamingkeydelivery"
-                        | "com.microsoft.playready" => playlist::KeyMethod::Cenc, // cbcs (pattern-based) | cbc1
+                        | "com.microsoft.playready" => playlist::KeyMethod::ClearKey, // cbcs (pattern-based) | cbc1
                         _ => method,
                     };
                 }

@@ -4,7 +4,7 @@ mod parse;
 mod subtitle;
 
 use encryption::Decrypter;
-pub use fetch::{InputMetadata, fetch_playlist};
+pub use fetch::{fetch_playlist, InputMetadata};
 pub use parse::{parse_all_streams, parse_selected_streams};
 pub use subtitle::download_subtitle_streams;
 
@@ -13,12 +13,11 @@ use crate::{
     playlist::{KeyMethod, MediaPlaylist, MediaType, Range, Segment},
     utils,
 };
-use anyhow::{Result, bail};
-use kdam::{BarExt, Column, RichProgress, term::Colorizer, tqdm};
+use anyhow::{bail, Result};
+use kdam::{term::Colorizer, tqdm, BarExt, Column, RichProgress};
 use reqwest::{
-    StatusCode, Url,
     blocking::{Client, RequestBuilder},
-    header,
+    header, StatusCode, Url,
 };
 use std::{
     collections::{HashMap, VecDeque},
@@ -90,7 +89,8 @@ pub(crate) fn download(
 
     if !no_decrypt {
         encryption::check_unsupported_encryptions(&video_audio_streams)?;
-        let default_kids = encryption::extract_default_kids(&base_url, &client, &video_audio_streams)?;
+        let default_kids =
+            encryption::extract_default_kids(&base_url, &client, &video_audio_streams)?;
         encryption::check_key_exists_for_kid(&keys, &default_kids)?;
     }
 
@@ -339,8 +339,9 @@ pub(crate) fn download(
 
         let _ = relative_sizes.pop_front();
         let relative_size = relative_sizes.iter().sum();
-        let mut previous_map = None;
+        let mut iv_present = false;
         let mut decrypter = Decrypter::None;
+        let mut previous_map = None;
 
         let stream_base_url = base_url
             .clone()
@@ -363,28 +364,32 @@ pub(crate) fn download(
             }
 
             if !no_decrypt {
+                if !decrypter.is_none() && !iv_present {
+                    decrypter.increment_iv();
+                }
+
                 if let Some(key) = &segment.key {
                     match key.method {
-                        KeyMethod::Aes128 => {
+                        KeyMethod::Aes128 | KeyMethod::SampleAes => {
                             if !keys.is_empty() {
                                 bail!("custom keys with AES-128 encryption is not supported");
                             }
 
+                            iv_present = key.iv.is_some();
+
                             if let Some(uri) = &key.uri {
-                                decrypter = Decrypter::Aes128(
-                                    {
-                                        let url = stream_base_url.join(uri)?;
-                                        let request = client.get(url);
-                                        let response = request.send()?;
-                                        response.bytes()?.to_vec()
-                                    },
-                                    key.iv.clone(),
-                                );
+                                let bytes =
+                                    client.get(stream_base_url.join(uri)?).send()?.bytes()?;
+                                decrypter = Decrypter::new_aes(
+                                    key.key(&bytes)?,
+                                    key.iv(stream.media_sequence + (i as u64))?,
+                                    &key.method,
+                                )?;
                             } else {
-                                bail!("uri cannot be none when key method is AES-128");
+                                bail!("uri cannot be none when key method is AES-128/SAMPLE-AES");
                             }
                         }
-                        KeyMethod::Cenc => {
+                        KeyMethod::ClearKey => {
                             let default_kid = stream.default_kid();
                             let mut decryption_keys = HashMap::new();
 
@@ -429,7 +434,7 @@ pub(crate) fn download(
                                 ))?;
                             }
 
-                            decrypter = Decrypter::Cenc(decryption_keys);
+                            decrypter = Decrypter::ClearKey(decryption_keys);
                         }
                         _ => decrypter = Decrypter::None,
                     }

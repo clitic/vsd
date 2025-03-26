@@ -99,6 +99,7 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
                     } else {
                         false
                     },
+                    media_sequence: 0,
                     media_type,
                     playlist_type: PlaylistType::Dash,
                     resolution: if let (Some(width), Some(height)) =
@@ -459,7 +460,7 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                             if encryption_type == KeyMethod::None
                                 && content_protection.value.is_some()
                             {
-                                encryption_type = KeyMethod::Cenc;
+                                encryption_type = KeyMethod::ClearKey;
                             }
                         }
 
@@ -473,7 +474,7 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                                 if encryption_type == KeyMethod::None
                                     && content_protection.value.is_some()
                                 {
-                                    encryption_type = KeyMethod::Cenc;
+                                    encryption_type = KeyMethod::ClearKey;
                                 }
                             }
                         }
