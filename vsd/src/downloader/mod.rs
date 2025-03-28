@@ -6,6 +6,7 @@ mod subtitle;
 
 use encryption::Decrypter;
 pub use fetch::{fetch_playlist, InputMetadata};
+use mux::Stream;
 pub use parse::{parse_all_streams, parse_selected_streams};
 pub use subtitle::download_subtitle_streams;
 
@@ -22,7 +23,7 @@ use reqwest::{
 };
 use std::{
     collections::{HashMap, VecDeque},
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::{Command, Stdio},
     sync::{Arc, Mutex},
     time::Instant,
@@ -33,11 +34,6 @@ pub struct Prompts {
     pub raw: bool,
 }
 
-pub struct Stream {
-    pub file_path: String,
-    pub language: Option<String>,
-    pub media_type: MediaType,
-}
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn download(
@@ -67,7 +63,7 @@ pub(crate) fn download(
     .count()
     == 1;
 
-    let output = output.map(|x| x.to_str().unwrap().to_owned());
+    // let output = output.map(|x| x.to_str().unwrap().to_owned());
 
     let mut video_audio_streams = vec![];
     let mut subtitle_streams = vec![];
@@ -307,8 +303,7 @@ pub(crate) fn download(
 
         let mut temp_file = stream
             .file_path(&directory, &stream.extension())
-            .to_string_lossy()
-            .to_string();
+            ;
 
         if let Some(output) = &output {
             if one_stream && output.ends_with(&format!(".{}", stream.extension())) {
@@ -317,14 +312,14 @@ pub(crate) fn download(
         }
 
         temp_files.push(Stream {
-            file_path: temp_file.clone(),
             language: stream.language.clone(),
             media_type: stream.media_type.clone(),
+            path: temp_file.clone(),
         });
         pb.lock().unwrap().write(format!(
             "{} stream to {}",
             "Downloading".colorize("bold green"),
-            temp_file.colorize("cyan"),
+            temp_file.to_string_lossy().colorize("cyan"),
         ))?;
 
         let merger = Arc::new(Mutex::new(if no_merge {
@@ -484,7 +479,7 @@ pub(crate) fn download(
             bail!(
                 "failed to download {} stream to {}",
                 stream.display_stream().colorize("cyan"),
-                temp_file
+                temp_file.to_string_lossy()
             );
         }
 
@@ -540,7 +535,7 @@ pub(crate) fn download(
             let mut args = vec![];
 
             for temp_file in &all_temp_files {
-                args.extend_from_slice(&["-i".to_owned(), temp_file.file_path.clone()]);
+                args.extend_from_slice(&["-i".to_owned(), temp_file.path.to_string_lossy().into()]);
             }
 
             if (video_streams_count == 1)
@@ -594,7 +589,7 @@ pub(crate) fn download(
                 }
             }
 
-            args.push(output.to_owned());
+            args.push(output.to_string_lossy().into());
 
             println!(
                 "  {} ffmpeg {}",
@@ -609,8 +604,8 @@ pub(crate) fn download(
                     .join(" ")
             );
 
-            if Path::new(output).exists() {
-                println!("   {} {}", "Deleting".colorize("bold red"), output);
+            if output.exists() {
+                println!("   {} {}", "Deleting".colorize("bold red"), output.to_string_lossy());
                 std::fs::remove_file(output)?;
             }
 
@@ -628,9 +623,9 @@ pub(crate) fn download(
                 println!(
                     "   {} {}",
                     "Deleting".colorize("bold red"),
-                    temp_file.file_path
+                    temp_file.path.to_string_lossy()
                 );
-                std::fs::remove_file(&temp_file.file_path)?;
+                std::fs::remove_file(&temp_file.path)?;
             }
 
             if let Some(directory) = &directory {

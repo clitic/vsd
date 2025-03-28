@@ -1,8 +1,7 @@
-// use crate::progress::DownloadProgress;
 use anyhow::Result;
 use std::{collections::HashMap, fs, fs::File, io::Write, path::PathBuf};
 
-pub(super) struct Merger {
+pub struct Merger {
     size: usize,
     file: File,
     pos: usize,
@@ -10,12 +9,11 @@ pub(super) struct Merger {
     stored_bytes: usize,
     flushed_bytes: usize,
     indexed: usize,
-
     directory: Option<PathBuf>,
 }
 
 impl Merger {
-    pub(super) fn new(size: usize, filename: &str) -> Result<Self> {
+    pub fn new(size: usize, filename: &PathBuf) -> Result<Self> {
         Ok(Self {
             size: size - 1,
             file: File::create(filename)?,
@@ -28,9 +26,7 @@ impl Merger {
         })
     }
 
-    pub(super) fn with_directory(size: usize, directory: &str) -> Result<Self> {
-        let directory = PathBuf::from(directory);
-
+    pub fn with_directory(size: usize, directory: &PathBuf) -> Result<Self> {
         if !directory.exists() {
             fs::create_dir_all(&directory)?;
         }
@@ -46,11 +42,11 @@ impl Merger {
             stored_bytes: 0,
             flushed_bytes: 0,
             indexed: 0,
-            directory: Some(directory),
+            directory: Some(directory.to_owned()),
         })
     }
 
-    pub(super) fn write(&mut self, pos: usize, buf: &[u8]) -> Result<()> {
+    pub fn write(&mut self, pos: usize, buf: &[u8]) -> Result<()> {
         if let Some(directory) = &self.directory {
             self.file = File::create(directory.join(format!(
                 "{}.{}",
@@ -75,7 +71,7 @@ impl Merger {
         Ok(())
     }
 
-    pub(super) fn flush(&mut self) -> Result<()> {
+    pub fn flush(&mut self) -> Result<()> {
         while self.pos <= self.size {
             let op_buf = self.buffers.remove(&self.pos);
 
@@ -93,19 +89,19 @@ impl Merger {
         Ok(())
     }
 
-    // pub(super) fn position(&self) -> usize {
+    // pub fn position(&self) -> usize {
     //     self.pos
     // }
 
-    pub(super) fn buffered(&self) -> bool {
+    pub fn buffered(&self) -> bool {
         self.buffers.is_empty() && self.pos >= (self.size + 1)
     }
 
-    pub(super) fn stored(&self) -> usize {
+    pub fn stored(&self) -> usize {
         self.stored_bytes
     }
 
-    pub(super) fn estimate(&self) -> usize {
+    pub fn estimate(&self) -> usize {
         if self.indexed == 0 {
             0
         } else {

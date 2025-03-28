@@ -1,4 +1,5 @@
-use crate::{downloader::Stream, playlist::MediaPlaylist, utils};
+use super::mux::Stream;
+use crate::{playlist::MediaPlaylist, utils};
 use anyhow::{anyhow, bail, Result};
 use kdam::{term::Colorizer, BarExt, Column, RichProgress};
 use reqwest::{blocking::Client, header, Url};
@@ -60,7 +61,7 @@ pub fn download_subtitle_stream(
             _ => (),
         }
     }
-    let mut temp_file = String::new();
+    let mut temp_file = PathBuf::new();
 
     let mut first_run = true;
     let mut subtitles_data = vec![];
@@ -110,19 +111,16 @@ pub fn download_subtitle_stream(
                 bail!("could'nt determine subtitle codec.");
             }
 
-            temp_file = stream
-                .file_path(directory, &ext)
-                .to_string_lossy()
-                .to_string();
+            temp_file = stream.file_path(directory, &ext);
             temp_files.push(Stream {
-                file_path: temp_file.clone(),
                 language: stream.language.clone(),
                 media_type: stream.media_type.clone(),
+                path: temp_file.clone(),
             });
             pb.write(format!(
                 "{} stream to {}",
                 "Downloading".colorize("bold green"),
-                temp_file.colorize("cyan")
+                temp_file.to_string_lossy().colorize("cyan")
             ))?;
         }
 

@@ -22,3 +22,9 @@ pub fn should_mux(streams: &[MediaPlaylist], output: Option<&PathBuf>) -> bool {
 
     should_mux
 }
+
+pub struct Stream {
+    pub language: Option<String>,
+    pub media_type: MediaType,
+    pub path: PathBuf,
+}
