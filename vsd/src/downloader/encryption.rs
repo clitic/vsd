@@ -110,20 +110,20 @@ pub enum EncryptionType {
 
 #[derive(Clone)]
 pub enum Decrypter {
-    Aes([u8; 16], [u8; 16], EncryptionType),
-    ClearKey(HashMap<String, String>),
+    HlsAes([u8; 16], [u8; 16], EncryptionType),
+    Mp4Decrypt(HashMap<String, String>),
     None,
 }
 
 impl Decrypter {
-    pub fn new_aes(key: [u8; 16], iv: [u8; 16], method: &KeyMethod) -> Result<Self> {
+    pub fn new_hls_aes(key: [u8; 16], iv: [u8; 16], method: &KeyMethod) -> Result<Self> {
         let enc_type = match method {
             KeyMethod::Aes128 => EncryptionType::Aes128,
             KeyMethod::SampleAes => EncryptionType::SampleAes,
             _ => panic!("trying to create a non aes decrypter."),
         };
 
-        Ok(Self::Aes(key, iv, enc_type))
+        Ok(Self::HlsAes(key, iv, enc_type))
     }
 
     pub fn is_none(&self) -> bool {
@@ -131,14 +131,14 @@ impl Decrypter {
     }
 
     pub fn increment_iv(&mut self) {
-        if let Self::Aes(_, iv, _) = self {
+        if let Self::HlsAes(_, iv, _) = self {
             *iv = (u128::from_be_bytes(*iv) + 1).to_be_bytes();
         }
     }
 
     pub fn decrypt(&self, mut data: Vec<u8>) -> Result<Vec<u8>> {
         Ok(match self {
-            Decrypter::Aes(key, iv, enc_type) => match enc_type {
+            Decrypter::HlsAes(key, iv, enc_type) => match enc_type {
                 EncryptionType::Aes128 => Aes128CbcDec::new(key.into(), iv.into())
                     .decrypt_padded_mut::<Pkcs7>(&mut data)
                     .map(|x| x.to_vec())
@@ -150,7 +150,7 @@ impl Decrypter {
                     writer
                 }
             },
-            Decrypter::ClearKey(kid_key_pairs) => {
+            Decrypter::Mp4Decrypt(kid_key_pairs) => {
                 mp4decrypt::mp4decrypt(&data, kid_key_pairs, None).map_err(|x| anyhow!(x))?
             }
             Decrypter::None => data,

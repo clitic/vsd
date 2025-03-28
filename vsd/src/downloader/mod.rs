@@ -380,7 +380,7 @@ pub(crate) fn download(
                             if let Some(uri) = &key.uri {
                                 let bytes =
                                     client.get(stream_base_url.join(uri)?).send()?.bytes()?;
-                                decrypter = Decrypter::new_aes(
+                                decrypter = Decrypter::new_hls_aes(
                                     key.key(&bytes)?,
                                     key.iv(stream.media_sequence + (i as u64))?,
                                     &key.method,
@@ -434,7 +434,7 @@ pub(crate) fn download(
                                 ))?;
                             }
 
-                            decrypter = Decrypter::ClearKey(decryption_keys);
+                            decrypter = Decrypter::Mp4Decrypt(decryption_keys);
                         }
                         _ => decrypter = Decrypter::None,
                     }
