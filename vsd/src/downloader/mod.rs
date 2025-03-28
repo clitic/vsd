@@ -389,7 +389,7 @@ pub(crate) fn download(
                                 bail!("uri cannot be none when key method is AES-128/SAMPLE-AES");
                             }
                         }
-                        KeyMethod::ClearKey => {
+                        KeyMethod::Mp4Decrypt => {
                             let default_kid = stream.default_kid();
                             let mut decryption_keys = HashMap::new();
 

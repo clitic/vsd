@@ -20,7 +20,7 @@ pub fn check_unsupported_encryptions(streams: &Vec<MediaPlaylist>) -> Result<()>
                 _ => (),
             }
 
-            if stream.is_hls() {
+            if stream.is_hls() && x.is_key_format_unknown() {
                 if let Some(key_format) = &x.key_format {
                     bail!(
                         "{} key format is not supported. Use {} flag to download encrypted streams.",

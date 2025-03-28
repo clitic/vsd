@@ -187,19 +187,20 @@ pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playli
                     m3u8_rs::KeyMethod::None => playlist::KeyMethod::None, // This should never match according to hls specifications.
                     m3u8_rs::KeyMethod::SampleAES => playlist::KeyMethod::SampleAes,
                     m3u8_rs::KeyMethod::Other(x)
-                        if x == "SAMPLE-AES-CTR" || x == "SAMPLE-AES-CENC" =>
+                        if x == "SAMPLE-AES-CENC" || x == "SAMPLE-AES-CTR" =>
                     {
-                        // cenc | cbc1 (pattern-based)
-                        playlist::KeyMethod::ClearKey
+                        playlist::KeyMethod::Mp4Decrypt
                     }
                     m3u8_rs::KeyMethod::Other(x) => playlist::KeyMethod::Other(x.to_owned()),
                 };
 
                 if let Some(keyformat) = keyformat {
                     method = match keyformat.as_str() {
-                        "urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"
-                        | "com.apple.streamingkeydelivery"
-                        | "com.microsoft.playready" => playlist::KeyMethod::ClearKey, // cbcs (pattern-based) | cbc1
+                        "com.apple.streamingkeydelivery"
+                        | "com.microsoft.playready"
+                        | "urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed" => {
+                            playlist::KeyMethod::Mp4Decrypt
+                        }
                         _ => method,
                     };
                 }

@@ -6,7 +6,6 @@
     2. https://github.com/streamlink/streamlink/blob/781ef1fc92f215d0f3ec9a272fbe9f2cac122f08/src/streamlink/stream/dash_manifest.py
     2. https://github.com/nilaoda/N_m3u8DL-RE/blob/7bba10aa0d7adf7e79e0feec7327039681cb7bd4/src/N_m3u8DL-RE.Parser/Extractor/DASHExtractor2.cs
 
-
 */
 
 use super::{DashUrl, Template};
@@ -456,11 +455,11 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                                 default_kid = content_protection.default_KID.clone();
                             }
 
-                            // content_protection.value = "cenc" | "cbcs"
+                            // content_protection.value = "cenc" | "cbcs" | "cens" | "cbc1"
                             if encryption_type == KeyMethod::None
                                 && content_protection.value.is_some()
                             {
-                                encryption_type = KeyMethod::ClearKey;
+                                encryption_type = KeyMethod::Mp4Decrypt;
                             }
                         }
 
@@ -474,7 +473,7 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                                 if encryption_type == KeyMethod::None
                                     && content_protection.value.is_some()
                                 {
-                                    encryption_type = KeyMethod::ClearKey;
+                                    encryption_type = KeyMethod::Mp4Decrypt;
                                 }
                             }
                         }

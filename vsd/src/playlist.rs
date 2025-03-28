@@ -16,14 +16,14 @@ use serde::Serialize;
 use std::{fmt::Display, io::Write, path::PathBuf};
 
 #[derive(Serialize)]
-pub(crate) struct MasterPlaylist {
-    pub(crate) playlist_type: PlaylistType,
-    pub(crate) uri: String,
-    pub(crate) streams: Vec<MediaPlaylist>,
+pub struct MasterPlaylist {
+    pub playlist_type: PlaylistType,
+    pub uri: String,
+    pub streams: Vec<MediaPlaylist>,
 }
 
 impl MasterPlaylist {
-    pub(crate) fn sort_streams(
+    pub fn sort_streams(
         mut self,
         prefer_audio_lang: Option<String>,
         prefer_subs_lang: Option<String>,
@@ -151,7 +151,7 @@ impl MasterPlaylist {
         has_resolution.or(has_height)
     }
 
-    pub(crate) fn select_streams(
+    pub fn select_streams(
         self,
         quality: Quality,
         skip_prompts: bool,
@@ -361,29 +361,29 @@ impl MasterPlaylist {
 }
 
 #[derive(Default, Serialize)]
-pub(crate) struct MediaPlaylist {
-    pub(crate) bandwidth: Option<u64>,
-    pub(crate) channels: Option<f32>,
-    pub(crate) codecs: Option<String>,
-    pub(crate) extension: Option<String>,
-    pub(crate) frame_rate: Option<f32>,
-    pub(crate) i_frame: bool,
-    pub(crate) language: Option<String>,
-    pub(crate) live: bool,
-    pub(crate) media_sequence: u64,
-    pub(crate) media_type: MediaType,
-    pub(crate) playlist_type: PlaylistType,
-    pub(crate) resolution: Option<(u64, u64)>,
-    pub(crate) segments: Vec<Segment>,
-    pub(crate) uri: String,
+pub struct MediaPlaylist {
+    pub bandwidth: Option<u64>,
+    pub channels: Option<f32>,
+    pub codecs: Option<String>,
+    pub extension: Option<String>,
+    pub frame_rate: Option<f32>,
+    pub i_frame: bool,
+    pub language: Option<String>,
+    pub live: bool,
+    pub media_sequence: u64,
+    pub media_type: MediaType,
+    pub playlist_type: PlaylistType,
+    pub resolution: Option<(u64, u64)>,
+    pub segments: Vec<Segment>,
+    pub uri: String,
 }
 
 impl MediaPlaylist {
-    pub(crate) fn is_hls(&self) -> bool {
+    pub fn is_hls(&self) -> bool {
         matches!(&self.playlist_type, PlaylistType::Hls)
     }
 
-    pub(crate) fn default_kid(&self) -> Option<String> {
+    pub fn default_kid(&self) -> Option<String> {
         if let Some(segment) = self.segments.first() {
             if let Some(Key {
                 default_kid: Some(x),
@@ -397,7 +397,7 @@ impl MediaPlaylist {
         None
     }
 
-    pub(crate) fn extension(&self) -> String {
+    pub fn extension(&self) -> String {
         if let Some(ext) = &self.extension {
             return ext.to_owned();
         }
@@ -422,7 +422,7 @@ impl MediaPlaylist {
         ext.to_owned()
     }
 
-    pub(crate) fn file_path(&self, directory: &Option<PathBuf>, ext: &str) -> PathBuf {
+    pub fn file_path(&self, directory: &Option<PathBuf>, ext: &str) -> PathBuf {
         let mut filename = self
             .uri
             .split('?')
@@ -477,7 +477,7 @@ impl MediaPlaylist {
         path
     }
 
-    pub(crate) fn display_stream(&self) -> String {
+    pub fn display_stream(&self) -> String {
         match self.media_type {
             MediaType::Audio => self.display_audio_stream(),
             MediaType::Subtitles => self.display_subtitle_stream(),
@@ -567,7 +567,7 @@ impl MediaPlaylist {
         extra
     }
 
-    pub(crate) fn display_subtitle_stream(&self) -> String {
+    pub fn display_subtitle_stream(&self) -> String {
         let mut extra = format!(
             "language: {}",
             self.language.as_ref().unwrap_or(&"?".to_owned())
@@ -580,7 +580,7 @@ impl MediaPlaylist {
         extra
     }
 
-    pub(crate) fn add_query(&mut self, query: &str) {
+    pub fn add_query(&mut self, query: &str) {
         for segment in &mut self.segments {
             if let Some(map) = &mut segment.map {
                 let mut uri = map.uri.clone();
@@ -610,14 +610,14 @@ impl MediaPlaylist {
 }
 
 #[derive(Default, Serialize)]
-pub(crate) enum PlaylistType {
+pub enum PlaylistType {
     Dash,
     #[default]
     Hls,
 }
 
 #[derive(Clone, Default, PartialEq, Serialize)]
-pub(crate) enum MediaType {
+pub enum MediaType {
     Audio,
     Subtitles,
     #[default]
@@ -641,52 +641,43 @@ impl Display for MediaType {
 }
 
 #[derive(Clone, PartialEq, Serialize)]
-pub(crate) enum KeyMethod {
+pub enum KeyMethod {
     Aes128,
-    ClearKey,
+    Mp4Decrypt,
     None,
     Other(String),
     SampleAes,
 }
 
 #[derive(Clone, Serialize)]
-pub(crate) struct Range {
-    pub(crate) start: u64,
-    pub(crate) end: u64,
+pub struct Range {
+    pub start: u64,
+    pub end: u64,
 }
 
 impl Range {
-    pub(crate) fn as_header_value(&self) -> HeaderValue {
+    pub fn as_header_value(&self) -> HeaderValue {
         HeaderValue::from_str(&format!("bytes={}-{}", self.start, self.end)).unwrap()
     }
 }
 
 #[derive(Clone, Serialize)]
-pub(crate) struct Map {
-    pub(crate) uri: String,
-    pub(crate) range: Option<Range>,
+pub struct Map {
+    pub uri: String,
+    pub range: Option<Range>,
 }
 
-/*
-
-.mpd (with encryption) converted to .m3u8
-
-#EXT-X-KEY:METHOD=SAMPLE-AES,URI="data:text/plain;base64,AAAAXHBzc2gAAAAA7e+LqXnWSs6jyCfc1R0h7QAAADwSEDAvgN1BHkiGvKW7H4AYoCQSEDAvgN1BHkiGvKW7H4AYoCQSEDAvgN1BHkiGvKW7H4AYoCRI88aJmwY=",KEYID=0x302F80DD411E4886BCA5BB1F8018A024,IV=0x77FD1889AAF4143B085548B3C0F95B9A,KEYFORMATVERSIONS="1",KEYFORMAT="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"
-#EXT-X-KEY:METHOD=SAMPLE-AES,URI="skd://302f80dd-411e-4886-bca5-bb1f8018a024:77FD1889AAF4143B085548B3C0F95B9A",KEYFORMATVERSIONS="1",KEYFORMAT="com.apple.streamingkeydelivery"
-#EXT-X-KEY:METHOD=SAMPLE-AES-CTR,KEYFORMAT="com.microsoft.playready",KEYFORMATVERSIONS="1",URI="data:text/plain;charset=UTF-16;base64,xAEAAAEAAQC6ATwAVwBSAE0ASABFAEEARABFAFIAIAB4AG0AbABuAHMAPQAiAGgAdAB0AHAAOgAvAC8AcwBjAGgAZQBtAGEAcwAuAG0AaQBjAHIAbwBzAG8AZgB0AC4AYwBvAG0ALwBEAFIATQAvADIAMAAwADcALwAwADMALwBQAGwAYQB5AFIAZQBhAGQAeQBIAGUAYQBkAGUAcgAiACAAdgBlAHIAcwBpAG8AbgA9ACIANAAuADAALgAwAC4AMAAiAD4APABEAEEAVABBAD4APABQAFIATwBUAEUAQwBUAEkATgBGAE8APgA8AEsARQBZAEwARQBOAD4AMQA2ADwALwBLAEUAWQBMAEUATgA+ADwAQQBMAEcASQBEAD4AQQBFAFMAQwBUAFIAPAAvAEEATABHAEkARAA+ADwALwBQAFIATwBUAEUAQwBUAEkATgBGAE8APgA8AEsASQBEAD4AOQBmAEIAMQAxAEsAMQB0AC8ARQBtAFEANABYAEMATQBjAEoANgBnAEkAZwA9AD0APAAvAEsASQBEAD4APAAvAEQAQQBUAEEAPgA8AC8AVwBSAE0ASABFAEEARABFAFIAPgA="
-
-*/
 #[derive(Clone, Serialize)]
-pub(crate) struct Key {
-    pub(crate) default_kid: Option<String>,
-    pub(crate) iv: Option<String>,
-    pub(crate) key_format: Option<String>,
-    pub(crate) method: KeyMethod,
-    pub(crate) uri: Option<String>,
+pub struct Key {
+    pub default_kid: Option<String>,
+    pub iv: Option<String>,
+    pub key_format: Option<String>,
+    pub method: KeyMethod,
+    pub uri: Option<String>,
 }
 
 impl Key {
-    pub(crate) fn key(&self, bytes: &[u8]) -> Result<[u8; 16]> {
+    pub fn key(&self, bytes: &[u8]) -> Result<[u8; 16]> {
         if bytes.len() != 16 {
             bail!("invalid key size.");
         }
@@ -696,7 +687,7 @@ impl Key {
         Ok(key)
     }
 
-    pub(crate) fn iv(&self, sequence: u64) -> Result<[u8; 16]> {
+    pub fn iv(&self, sequence: u64) -> Result<[u8; 16]> {
         Ok(if let Some(iv) = self.iv.as_ref() {
             let iv = if iv.starts_with("0x") { &iv[2..] } else { iv };
             u128::from_str_radix(iv, 16)
@@ -706,13 +697,35 @@ impl Key {
             (sequence as u128).to_be_bytes()
         })
     }
+
+    /*
+        .mpd (with encryption) converted to .m3u8
+
+        #EXT-X-KEY:METHOD=SAMPLE-AES,URI="skd://302f80dd-411e-4886-bca5-bb1f8018a024:77FD1889AAF4143B085548B3C0F95B9A",KEYFORMATVERSIONS="1",KEYFORMAT="com.apple.streamingkeydelivery"
+        #EXT-X-KEY:METHOD=SAMPLE-AES-CTR,KEYFORMAT="com.microsoft.playready",KEYFORMATVERSIONS="1",URI="data:text/plain;charset=UTF-16;base64,xAEAAAEAAQC6ATwAVwBSAE0ASABFAEEARABFAFIAIAB4AG0AbABuAHMAPQAiAGgAdAB0AHAAOgAvAC8AcwBjAGgAZQBtAGEAcwAuAG0AaQBjAHIAbwBzAG8AZgB0AC4AYwBvAG0ALwBEAFIATQAvADIAMAAwADcALwAwADMALwBQAGwAYQB5AFIAZQBhAGQAeQBIAGUAYQBkAGUAcgAiACAAdgBlAHIAcwBpAG8AbgA9ACIANAAuADAALgAwAC4AMAAiAD4APABEAEEAVABBAD4APABQAFIATwBUAEUAQwBUAEkATgBGAE8APgA8AEsARQBZAEwARQBOAD4AMQA2ADwALwBLAEUAWQBMAEUATgA+ADwAQQBMAEcASQBEAD4AQQBFAFMAQwBUAFIAPAAvAEEATABHAEkARAA+ADwALwBQAFIATwBUAEUAQwBUAEkATgBGAE8APgA8AEsASQBEAD4AOQBmAEIAMQAxAEsAMQB0AC8ARQBtAFEANABYAEMATQBjAEoANgBnAEkAZwA9AD0APAAvAEsASQBEAD4APAAvAEQAQQBUAEEAPgA8AC8AVwBSAE0ASABFAEEARABFAFIAPgA="
+        #EXT-X-KEY:METHOD=SAMPLE-AES,URI="data:text/plain;base64,AAAAXHBzc2gAAAAA7e+LqXnWSs6jyCfc1R0h7QAAADwSEDAvgN1BHkiGvKW7H4AYoCQSEDAvgN1BHkiGvKW7H4AYoCQSEDAvgN1BHkiGvKW7H4AYoCRI88aJmwY=",KEYID=0x302F80DD411E4886BCA5BB1F8018A024,IV=0x77FD1889AAF4143B085548B3C0F95B9A,KEYFORMATVERSIONS="1",KEYFORMAT="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"
+
+        https://dashif.org/identifiers/content_protection
+    */
+    pub fn is_key_format_unknown(&self) -> bool {
+        if let Some(key_format) = &self.key_format {
+            return match key_format.as_str() {
+                "com.apple.streamingkeydelivery"
+                | "com.microsoft.playready"
+                | "urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed" => false,
+                _ => true,
+            };
+        }
+
+        false
+    }
 }
 
 #[derive(Clone, Default, Serialize)]
-pub(crate) struct Segment {
-    pub(crate) range: Option<Range>,
-    pub(crate) duration: f32, // consider changing it to f64
-    pub(crate) key: Option<Key>,
-    pub(crate) map: Option<Map>,
-    pub(crate) uri: String,
+pub struct Segment {
+    pub range: Option<Range>,
+    pub duration: f32, // consider changing it to f64
+    pub key: Option<Key>,
+    pub map: Option<Map>,
+    pub uri: String,
 }

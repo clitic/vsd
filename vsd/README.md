@@ -43,7 +43,7 @@
 - [x] Capturing network requests and collecting .m3u8, .mpd and subtitles from websites and save them locally.
 - [x] Muxing streams to single video container using ffmpeg.
 - [x] Singular progress bar for complete download process like an normal file download with realtime file size estimations.
-- [x] Supports `AES-128`, `SAMPLE-AES` and `CENC` playlists decryption.
+- [x] Supports `AES-128`, `SAMPLE-AES`, `CENC`, `CBCS`, `CENS` and `CBC1` playlists decryption.
 - [x] Supports HLS and DASH
 - [x] Supports downloading in multiple threads.
 - [ ] GUI (wip)
