@@ -11,23 +11,12 @@ type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 pub fn check_unsupported_encryptions(streams: &Vec<MediaPlaylist>) -> Result<()> {
     for stream in streams {
         if let Some(Segment { key: Some(x), .. }) = stream.segments.first() {
-            match &x.method {
-                KeyMethod::Other(x) => bail!(
+            if let KeyMethod::Other(x) = &x.method {
+                bail!(
                     "{} decryption is not supported. Use {} flag to download encrypted streams.",
                     x,
                     "--no-decrypt".colorize("bold green")
-                ),
-                _ => (),
-            }
-
-            if stream.is_hls() && x.is_key_format_unknown() {
-                if let Some(key_format) = &x.key_format {
-                    bail!(
-                        "{} key format is not supported. Use {} flag to download encrypted streams.",
-                        key_format,
-                        "--no-decrypt".colorize("bold green")
-                    );
-                }
+                );
             }
         }
     }

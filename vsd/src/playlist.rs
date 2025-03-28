@@ -379,9 +379,9 @@ pub struct MediaPlaylist {
 }
 
 impl MediaPlaylist {
-    pub fn is_hls(&self) -> bool {
-        matches!(&self.playlist_type, PlaylistType::Hls)
-    }
+    // pub fn is_hls(&self) -> bool {
+    //     matches!(&self.playlist_type, PlaylistType::Hls)
+    // }
 
     pub fn default_kid(&self) -> Option<String> {
         if let Some(segment) = self.segments.first() {
@@ -688,36 +688,18 @@ impl Key {
     }
 
     pub fn iv(&self, sequence: u64) -> Result<[u8; 16]> {
-        Ok(if let Some(iv) = self.iv.as_ref() {
-            let iv = if iv.starts_with("0x") { &iv[2..] } else { iv };
+        Ok(if let Some(actual_iv) = self.iv.as_ref() {
+            let iv = if let Some(stripped_iv) = actual_iv.strip_prefix("0x") {
+                stripped_iv
+            } else {
+                actual_iv
+            };
             u128::from_str_radix(iv, 16)
                 .map_err(|_| anyhow!("invalid iv size."))?
                 .to_be_bytes()
         } else {
             (sequence as u128).to_be_bytes()
         })
-    }
-
-    /*
-        .mpd (with encryption) converted to .m3u8
-
-        #EXT-X-KEY:METHOD=SAMPLE-AES,URI="skd://302f80dd-411e-4886-bca5-bb1f8018a024:77FD1889AAF4143B085548B3C0F95B9A",KEYFORMATVERSIONS="1",KEYFORMAT="com.apple.streamingkeydelivery"
-        #EXT-X-KEY:METHOD=SAMPLE-AES-CTR,KEYFORMAT="com.microsoft.playready",KEYFORMATVERSIONS="1",URI="data:text/plain;charset=UTF-16;base64,xAEAAAEAAQC6ATwAVwBSAE0ASABFAEEARABFAFIAIAB4AG0AbABuAHMAPQAiAGgAdAB0AHAAOgAvAC8AcwBjAGgAZQBtAGEAcwAuAG0AaQBjAHIAbwBzAG8AZgB0AC4AYwBvAG0ALwBEAFIATQAvADIAMAAwADcALwAwADMALwBQAGwAYQB5AFIAZQBhAGQAeQBIAGUAYQBkAGUAcgAiACAAdgBlAHIAcwBpAG8AbgA9ACIANAAuADAALgAwAC4AMAAiAD4APABEAEEAVABBAD4APABQAFIATwBUAEUAQwBUAEkATgBGAE8APgA8AEsARQBZAEwARQBOAD4AMQA2ADwALwBLAEUAWQBMAEUATgA+ADwAQQBMAEcASQBEAD4AQQBFAFMAQwBUAFIAPAAvAEEATABHAEkARAA+ADwALwBQAFIATwBUAEUAQwBUAEkATgBGAE8APgA8AEsASQBEAD4AOQBmAEIAMQAxAEsAMQB0AC8ARQBtAFEANABYAEMATQBjAEoANgBnAEkAZwA9AD0APAAvAEsASQBEAD4APAAvAEQAQQBUAEEAPgA8AC8AVwBSAE0ASABFAEEARABFAFIAPgA="
-        #EXT-X-KEY:METHOD=SAMPLE-AES,URI="data:text/plain;base64,AAAAXHBzc2gAAAAA7e+LqXnWSs6jyCfc1R0h7QAAADwSEDAvgN1BHkiGvKW7H4AYoCQSEDAvgN1BHkiGvKW7H4AYoCQSEDAvgN1BHkiGvKW7H4AYoCRI88aJmwY=",KEYID=0x302F80DD411E4886BCA5BB1F8018A024,IV=0x77FD1889AAF4143B085548B3C0F95B9A,KEYFORMATVERSIONS="1",KEYFORMAT="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"
-
-        https://dashif.org/identifiers/content_protection
-    */
-    pub fn is_key_format_unknown(&self) -> bool {
-        if let Some(key_format) = &self.key_format {
-            return match key_format.as_str() {
-                "com.apple.streamingkeydelivery"
-                | "com.microsoft.playready"
-                | "urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed" => false,
-                _ => true,
-            };
-        }
-
-        false
     }
 }
 
