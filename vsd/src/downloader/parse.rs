@@ -1,8 +1,8 @@
 use crate::{
     commands::Quality,
-    downloader::{InputMetadata, Prompts, SelectedPlaylists},
+    downloader::{InputMetadata, Prompts},
     playlist::{MasterPlaylist, MediaPlaylist, PlaylistType},
-    utils
+    utils,
 };
 use anyhow::{anyhow, bail, Result};
 use reqwest::{blocking::Client, Url};
@@ -46,7 +46,10 @@ pub fn parse_all_streams(
                         .to_string();
 
                     let text;
-                    if let Some(bs) = stream.uri.strip_prefix("data:application/x-mpegurl;base64,") {
+                    if let Some(bs) = stream
+                        .uri
+                        .strip_prefix("data:application/x-mpegurl;base64,")
+                    {
                         let decoded = utils::decode_base64(bs)?;
                         text = String::from_utf8(decoded)?;
                     } else {
@@ -99,7 +102,7 @@ pub fn parse_selected_streams(
     prefer_subs_lang: Option<String>,
     prompts: &Prompts,
     quality: Quality,
-) -> Result<SelectedPlaylists> {
+) -> Result<Vec<MediaPlaylist>> {
     match meta.pl_type {
         Some(PlaylistType::Dash) => {
             let mpd = dash_mpd::parse(&meta.text).map_err(|x| {
@@ -109,15 +112,11 @@ pub fn parse_selected_streams(
                     meta.text
                 )
             })?;
-            let (mut video_audio_streams, mut subtitle_streams) =
-                crate::dash::parse_as_master(&mpd, meta.url.as_ref())
-                    .sort_streams(prefer_audio_lang, prefer_subs_lang)
-                    .select_streams(quality, prompts.skip, prompts.raw)?;
+            let mut streams = crate::dash::parse_as_master(&mpd, meta.url.as_ref())
+                .sort_streams(prefer_audio_lang, prefer_subs_lang)
+                .select_streams(quality, prompts.skip, prompts.raw)?;
 
-            for stream in video_audio_streams
-                .iter_mut()
-                .chain(subtitle_streams.iter_mut())
-            {
+            for stream in &mut streams {
                 crate::dash::push_segments(
                     &mpd,
                     stream,
@@ -126,19 +125,15 @@ pub fn parse_selected_streams(
                 stream.uri = meta.url.as_ref().to_owned();
             }
 
-            Ok((video_audio_streams, subtitle_streams))
+            Ok(streams)
         }
         Some(PlaylistType::Hls) => match m3u8_rs::parse_playlist_res(meta.text.as_bytes()) {
             Ok(m3u8_rs::Playlist::MasterPlaylist(m3u8)) => {
-                let (mut video_audio_streams, mut subtitle_streams) =
-                    crate::hls::parse_as_master(&m3u8, meta.url.as_str())
-                        .sort_streams(prefer_audio_lang, prefer_subs_lang)
-                        .select_streams(quality, prompts.skip, prompts.raw)?;
+                let mut streams = crate::hls::parse_as_master(&m3u8, meta.url.as_str())
+                    .sort_streams(prefer_audio_lang, prefer_subs_lang)
+                    .select_streams(quality, prompts.skip, prompts.raw)?;
 
-                for stream in video_audio_streams
-                    .iter_mut()
-                    .chain(subtitle_streams.iter_mut())
-                {
+                for stream in &mut streams {
                     stream.uri = base_url
                         .as_ref()
                         .unwrap_or(&meta.url)
@@ -146,7 +141,10 @@ pub fn parse_selected_streams(
                         .to_string();
 
                     let text;
-                    if let Some(bs) = stream.uri.strip_prefix("data:application/x-mpegurl;base64,") {
+                    if let Some(bs) = stream
+                        .uri
+                        .strip_prefix("data:application/x-mpegurl;base64,")
+                    {
                         let decoded = utils::decode_base64(bs)?;
                         text = String::from_utf8(decoded)?;
                     } else {
@@ -166,7 +164,7 @@ pub fn parse_selected_streams(
                     crate::hls::push_segments(&media_playlist, stream);
                 }
 
-                Ok((video_audio_streams, subtitle_streams))
+                Ok(streams)
             }
             Ok(m3u8_rs::Playlist::MediaPlaylist(m3u8)) => {
                 let mut media_playlist = MediaPlaylist {
@@ -174,7 +172,7 @@ pub fn parse_selected_streams(
                     ..Default::default()
                 };
                 crate::hls::push_segments(&m3u8, &mut media_playlist);
-                Ok((vec![media_playlist], vec![]))
+                Ok(vec![media_playlist])
             }
             Err(x) => bail!(
                 "couldn't parse response as hls playlist (failed with {}).\n\n{}\n\n{}",

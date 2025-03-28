@@ -1,5 +1,6 @@
 mod encryption;
 mod fetch;
+mod mux;
 mod parse;
 mod subtitle;
 
@@ -27,8 +28,6 @@ use std::{
     time::Instant,
 };
 
-pub type SelectedPlaylists = (Vec<MediaPlaylist>, Vec<MediaPlaylist>);
-
 pub struct Prompts {
     pub skip: bool,
     pub raw: bool,
@@ -49,38 +48,36 @@ pub(crate) fn download(
     keys: Vec<(Option<String>, String)>,
     no_decrypt: bool,
     no_merge: bool,
-    output: Option<String>,
-    selected_playlists: SelectedPlaylists,
+    output: Option<PathBuf>,
+    streams: Vec<MediaPlaylist>,
     retry_count: u8,
     threads: u8,
 ) -> Result<()> {
-    let (mut video_audio_streams, subtitle_streams) = selected_playlists;
-
-    let one_stream = (video_audio_streams.len() == 1) && subtitle_streams.is_empty();
-    let mut should_mux = !no_decrypt && !no_merge;
-
-    if let Some(output) = &output {
-        if one_stream
-            && output.ends_with(&format!(
-                ".{}",
-                video_audio_streams.first().unwrap().extension()
-            ))
-        {
-            should_mux = false;
-        }
-    }
-
-    let video_streams_count = video_audio_streams
-        .iter()
-        .filter(|x| x.media_type == MediaType::Video)
-        .count();
-
-    if video_streams_count > 1 {
-        should_mux = false;
-    }
+    let should_mux = mux::should_mux(&streams, output.as_ref());
 
     if should_mux && utils::find_ffmpeg().is_none() {
         bail!("ffmpeg couldn't be found, it is required to continue further.");
+    }
+
+    // temporary type fix
+
+    let one_stream = streams
+    .iter()
+    .filter(|x| x.media_type == MediaType::Video)
+    .count()
+    == 1;
+
+    let output = output.map(|x| x.to_str().unwrap().to_owned());
+
+    let mut video_audio_streams = vec![];
+    let mut subtitle_streams = vec![];
+
+    for stream in streams {
+        match stream.media_type {
+            MediaType::Audio | MediaType::Video => video_audio_streams.push(stream),
+            MediaType::Subtitles => subtitle_streams.push(stream),
+            MediaType::Undefined => (),
+        }
     }
 
     // -----------------------------------------------------------------------------------------

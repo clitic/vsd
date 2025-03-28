@@ -40,7 +40,7 @@ pub struct Save {
     /// Mux all downloaded streams to a video container (.mp4, .mkv, etc.) using ffmpeg.
     /// Note that existing files will be overwritten and downloaded streams will be deleted.
     #[arg(short, long)]
-    pub output: Option<String>,
+    pub output: Option<PathBuf>,
 
     /// Parse playlist and returns it in json format.
     /// Note that `--output` flag is ignored when this flag is used.
@@ -324,7 +324,7 @@ impl Save {
             let playlist = downloader::parse_all_streams(self.base_url.clone(), &client, &meta)?;
             serde_json::to_writer(std::io::stdout(), &playlist)?;
         } else {
-            let mut selected_playlists = downloader::parse_selected_streams(
+            let mut streams = downloader::parse_selected_streams(
                 self.base_url.clone(),
                 &client,
                 &meta,
@@ -341,19 +341,7 @@ impl Save {
                     }
                 }
 
-                selected_playlists.0.iter_mut().for_each(|x| {
-                    if let Some(query) = self.query.clone().or(x
-                        .uri
-                        .parse::<Url>()
-                        .unwrap()
-                        .query()
-                        .map(|y| y.to_owned()))
-                    {
-                        x.add_query(&query);
-                    }
-                });
-
-                selected_playlists.1.iter_mut().for_each(|x| {
+                streams.iter_mut().for_each(|x| {
                     if let Some(query) = self.query.clone().or(x
                         .uri
                         .parse::<Url>()
@@ -375,7 +363,7 @@ impl Save {
                 self.no_decrypt,
                 self.no_merge,
                 self.output,
-                selected_playlists,
+                streams,
                 self.retry_count,
                 self.threads,
             )?;

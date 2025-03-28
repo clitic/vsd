@@ -156,7 +156,7 @@ impl MasterPlaylist {
         quality: Quality,
         skip_prompts: bool,
         raw_prompts: bool,
-    ) -> Result<(Vec<MediaPlaylist>, Vec<MediaPlaylist>)> {
+    ) -> Result<Vec<MediaPlaylist>> {
         let default_video_stream_index = self.select_video_stream(&quality);
 
         if let Some(default_video_stream_index) = default_video_stream_index {
@@ -273,7 +273,6 @@ impl MasterPlaylist {
                 }
 
                 let mut selected_streams = vec![];
-                let mut selected_subtitle_streams = vec![];
                 let mut video_streams_offset = 1;
                 let mut audio_streams_offset = video_streams_offset + video_streams.len();
                 let mut subtitle_streams_offset = audio_streams_offset + audio_streams.len();
@@ -304,12 +303,12 @@ impl MasterPlaylist {
                             "Selected".colorize("bold green"),
                             stream.display_stream()
                         );
-                        selected_subtitle_streams.push(stream);
+                        selected_streams.push(stream);
                         subtitle_streams_offset += 1;
                     }
                 }
 
-                Ok((selected_streams, selected_subtitle_streams))
+                Ok(selected_streams)
             } else {
                 let question = requestty::Question::multi_select("streams")
                     .should_loop(false)
@@ -330,7 +329,6 @@ impl MasterPlaylist {
                 let answer = requestty::prompt_one(question)?;
 
                 let mut selected_streams = vec![];
-                let mut selected_subtitle_streams = vec![];
                 let mut video_streams_offset = 1;
                 let mut audio_streams_offset = video_streams_offset + video_streams.len() + 1;
                 let mut subtitle_streams_offset = audio_streams_offset + audio_streams.len() + 1;
@@ -345,14 +343,14 @@ impl MasterPlaylist {
                             .push(audio_streams.remove(selected_item.index - audio_streams_offset));
                         audio_streams_offset += 1;
                     } else if choices_with_default_ranges[2].contains(&selected_item.index) {
-                        selected_subtitle_streams.push(
+                        selected_streams.push(
                             subtitle_streams.remove(selected_item.index - subtitle_streams_offset),
                         );
                         subtitle_streams_offset += 1;
                     }
                 }
 
-                Ok((selected_streams, selected_subtitle_streams))
+                Ok(selected_streams)
             }
         } else {
             bail!("playlist doesn't contain pre-selected video quality stream.")
