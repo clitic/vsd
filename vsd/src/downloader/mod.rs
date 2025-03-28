@@ -12,7 +12,7 @@ pub use subtitle::download_subtitle_streams;
 
 use crate::{
     merger::Merger,
-    playlist::{KeyMethod, MediaPlaylist, MediaType, Range, Segment},
+    playlist::{KeyMethod, MediaPlaylist, MediaType},
     utils,
 };
 use anyhow::{bail, Result};
@@ -33,7 +33,6 @@ pub struct Prompts {
     pub skip: bool,
     pub raw: bool,
 }
-
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn download(
@@ -58,10 +57,10 @@ pub(crate) fn download(
     // temporary type fix
 
     let one_stream = streams
-    .iter()
-    .filter(|x| x.media_type == MediaType::Video)
-    .count()
-    == 1;
+        .iter()
+        .filter(|x| x.media_type == MediaType::Video)
+        .count()
+        == 1;
 
     // let output = output.map(|x| x.to_str().unwrap().to_owned());
 
@@ -190,74 +189,9 @@ pub(crate) fn download(
     let mut downloaded_bytes = 0;
     let mut relative_sizes = VecDeque::new();
 
-    for stream in video_audio_streams.iter_mut() {
-        let stream_base_url = base_url
-            .clone()
-            .unwrap_or(stream.uri.parse::<Url>().unwrap());
-
-        let total_segments = stream.segments.len();
-        let buffer_size = 1024 * 1024 * 2; // 2 MiB
-        let mut ranges = None;
-
-        if let Some(segment) = stream.segments.first() {
-            let url = stream_base_url.join(&segment.uri)?;
-            let mut request = client.head(url.clone());
-
-            if total_segments == 1 {
-                let response = request.send()?;
-                let content_length = response
-                    .headers()
-                    .get(header::CONTENT_LENGTH)
-                    .map(|x| x.to_str().unwrap().parse::<usize>().unwrap())
-                    .unwrap_or(0);
-
-                if content_length == 0 {
-                    bail!(
-                        "cannot download a single segment ({}) of unknown content length.",
-                        url
-                    );
-                } else {
-                    ranges = Some(PartialRangeIter {
-                        start: 0,
-                        end: content_length as u64 - 1,
-                        buffer_size,
-                    });
-                    relative_sizes.push_back(content_length);
-                }
-            } else {
-                if let Some(range) = &segment.range {
-                    request = request.header(header::RANGE, range.as_header_value());
-                }
-
-                let response = request.send()?;
-                let content_length = response
-                    .headers()
-                    .get(header::CONTENT_LENGTH)
-                    .map(|x| x.to_str().unwrap().parse::<usize>().unwrap())
-                    .unwrap_or(0);
-
-                relative_sizes.push_back(total_segments * content_length);
-            }
-        }
-
-        if let Some(ranges) = ranges {
-            let segment = stream.segments.remove(0);
-
-            for (i, range) in ranges.enumerate() {
-                if i == 0 {
-                    let mut segment_copy = segment.clone();
-                    segment_copy.range = Some(range);
-                    stream.segments.push(segment_copy);
-                } else {
-                    stream.segments.push(Segment {
-                        range: Some(range),
-                        duration: segment.duration,
-                        uri: segment.uri.clone(),
-                        ..Default::default()
-                    });
-                }
-            }
-        }
+    for stream in &mut video_audio_streams {
+        relative_sizes.push_back(stream.estimate_size(&base_url, &client)?);
+        stream.split_segment(&base_url, &client)?;
     }
 
     // -----------------------------------------------------------------------------------------
@@ -301,9 +235,7 @@ pub(crate) fn download(
             continue;
         }
 
-        let mut temp_file = stream
-            .file_path(&directory, &stream.extension())
-            ;
+        let mut temp_file = stream.file_path(&directory, &stream.extension());
 
         if let Some(output) = &output {
             if one_stream && output.ends_with(&format!(".{}", stream.extension())) {
@@ -605,7 +537,11 @@ pub(crate) fn download(
             );
 
             if output.exists() {
-                println!("   {} {}", "Deleting".colorize("bold red"), output.to_string_lossy());
+                println!(
+                    "   {} {}",
+                    "Deleting".colorize("bold red"),
+                    output.to_string_lossy()
+                );
                 std::fs::remove_file(output)?;
             }
 
@@ -644,29 +580,6 @@ pub(crate) fn download(
     Ok(())
 }
 
-// https://rust-lang-nursery.github.io/rust-cookbook/web/clients/download.html#make-a-partial-download-with-http-range-headers
-struct PartialRangeIter {
-    start: u64,
-    end: u64,
-    buffer_size: u32,
-}
-
-impl Iterator for PartialRangeIter {
-    type Item = Range;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.start > self.end {
-            None
-        } else {
-            let prev_start = self.start;
-            self.start += std::cmp::min(self.buffer_size as u64, self.end - self.start + 1);
-            Some(Range {
-                start: prev_start,
-                end: self.start - 1,
-            })
-        }
-    }
-}
 struct ThreadData {
     downloaded_bytes: usize,
     index: usize,

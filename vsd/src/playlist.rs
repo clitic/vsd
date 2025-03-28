@@ -8,10 +8,14 @@
 */
 
 use crate::commands::Quality;
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Ok, Result};
 use kdam::term::Colorizer;
 use requestty::prompt::style::Stylize;
-use reqwest::header::HeaderValue;
+use reqwest::{
+    blocking::Client,
+    header::{self, HeaderValue},
+    Url,
+};
 use serde::Serialize;
 use std::{fmt::Display, io::Write, path::PathBuf};
 
@@ -605,6 +609,81 @@ impl MediaPlaylist {
             segment.uri = uri;
         }
     }
+
+    pub fn estimate_size(&self, base_url: &Option<Url>, client: &Client) -> Result<usize> {
+        let base_url = base_url.clone().unwrap_or(self.uri.parse::<Url>().unwrap());
+        let total_segments = self.segments.len();
+
+        if let Some(segment) = self.segments.first() {
+            let url = base_url.join(&segment.uri)?;
+            let mut request = client.head(url.clone());
+
+            if total_segments > 1 {
+                if let Some(range) = &segment.range {
+                    request = request.header(header::RANGE, range.as_header_value());
+                }
+            }
+
+            let response = request.send()?;
+            let content_length = response
+                .headers()
+                .get(header::CONTENT_LENGTH)
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .parse::<usize>()
+                .unwrap();
+
+            if total_segments > 1 {
+                return Ok(total_segments * content_length);
+            } else {
+                return Ok(content_length);
+            }
+        }
+
+        Ok(0)
+    }
+
+    pub fn split_segment(&mut self, base_url: &Option<Url>, client: &Client) -> Result<()> {
+        if self.segments.len() > 1 {
+            return Ok(());
+        }
+
+        let base_url = base_url.clone().unwrap_or(self.uri.parse::<Url>().unwrap());
+        let segment = self.segments.remove(0);
+        let url = base_url.join(&segment.uri)?;
+        let response = client.head(url).send()?;
+        let content_length = response
+            .headers()
+            .get(header::CONTENT_LENGTH)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .parse::<usize>()
+            .unwrap();
+
+        let ranges = PartialRangeIter {
+            end: content_length as u64 - 1, // content_length should never be 0.
+            start: 0,
+        };
+
+        for (i, range) in ranges.enumerate() {
+            if i == 0 {
+                let mut segment_copy = segment.clone();
+                segment_copy.range = Some(range);
+                self.segments.push(segment_copy);
+            } else {
+                self.segments.push(Segment {
+                    duration: segment.duration,
+                    range: Some(range),
+                    uri: segment.uri.clone(),
+                    ..Default::default()
+                });
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Default, Serialize)]
@@ -708,4 +787,29 @@ pub struct Segment {
     pub key: Option<Key>,
     pub map: Option<Map>,
     pub uri: String,
+}
+
+const BUFFER_SIZE: u64 = 1024 * 1024 * 2; // 2 MiB
+
+/// https://rust-lang-nursery.github.io/rust-cookbook/web/clients/download.html#make-a-partial-download-with-http-range-headers
+struct PartialRangeIter {
+    end: u64,
+    start: u64,
+}
+
+impl Iterator for PartialRangeIter {
+    type Item = Range;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start > self.end {
+            None
+        } else {
+            let prev_start = self.start;
+            self.start += std::cmp::min(BUFFER_SIZE, self.end - self.start + 1);
+            Some(Range {
+                start: prev_start,
+                end: self.start - 1,
+            })
+        }
+    }
 }
