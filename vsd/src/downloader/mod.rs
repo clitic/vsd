@@ -61,27 +61,14 @@ pub fn download(
         .count()
         == 1;
 
-    // let output = output.map(|x| x.to_str().unwrap().to_owned());
-
-    let mut video_audio_streams = vec![];
-    let mut subtitle_streams = vec![];
-
-    for stream in streams {
-        match stream.media_type {
-            MediaType::Audio | MediaType::Video => video_audio_streams.push(stream),
-            MediaType::Subtitles => subtitle_streams.push(stream),
-            MediaType::Undefined => (),
-        }
-    }
-
     // -----------------------------------------------------------------------------------------
     // Parse Key Ids
     // -----------------------------------------------------------------------------------------
 
     if !no_decrypt {
-        encryption::check_unsupported_encryptions(&video_audio_streams)?;
+        encryption::check_unsupported_encryptions(&streams)?;
         let default_kids =
-            encryption::extract_default_kids(&base_url, &client, &video_audio_streams)?;
+            encryption::extract_default_kids(&base_url, &client, &streams)?;
         encryption::check_key_exists_for_kid(&keys, &default_kids)?;
     }
 
@@ -126,10 +113,12 @@ pub fn download(
         &base_url,
         &client,
         &directory,
-        &subtitle_streams,
+        &streams,
         &mut pb,
         &mut temp_files,
     )?;
+
+    let mut streams = streams.into_iter().filter(|x| x.media_type != MediaType::Subtitles).collect::<Vec<_>>();
 
     // -----------------------------------------------------------------------------------------
     // Estimation
@@ -138,7 +127,7 @@ pub fn download(
     let mut downloaded_bytes = 0;
     let mut relative_sizes = VecDeque::new();
 
-    for stream in &mut video_audio_streams {
+    for stream in &mut streams {
         relative_sizes.push_back(stream.estimate_size(&base_url, &client)?);
         stream.split_segment(&base_url, &client)?;
     }
@@ -153,7 +142,7 @@ pub fn download(
         Column::Text("[yellow]?".to_owned()),
     ]);
     pb.pb.reset(Some(
-        video_audio_streams.iter().map(|x| x.segments.len()).sum(),
+        streams.iter().map(|x| x.segments.len()).sum(),
     ));
     let pb = Arc::new(Mutex::new(pb));
 
@@ -166,7 +155,7 @@ pub fn download(
         .build()
         .unwrap();
 
-    for stream in video_audio_streams {
+    for stream in streams {
         pb.lock().unwrap().write(format!(
             " {} {} stream {}",
             "Processing".colorize("bold green"),

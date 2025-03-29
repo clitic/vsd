@@ -1,5 +1,5 @@
 use super::mux::Stream;
-use crate::{playlist::MediaPlaylist, utils};
+use crate::{playlist::{MediaPlaylist, MediaType}, utils};
 use anyhow::{anyhow, bail, Result};
 use kdam::{term::Colorizer, BarExt, Column, RichProgress};
 use reqwest::{blocking::Client, header, Url};
@@ -15,7 +15,7 @@ enum SubtitleType {
 }
 
 pub fn download_subtitle_stream(
-    base_url: Option<Url>,
+    base_url: &Option<Url>,
     client: &Client,
     directory: &Option<PathBuf>,
     stream: &MediaPlaylist,
@@ -188,12 +188,14 @@ pub fn download_subtitle_streams(
     base_url: &Option<Url>,
     client: &Client,
     directory: &Option<PathBuf>,
-    subtitle_streams: &Vec<MediaPlaylist>,
+    streams: &[MediaPlaylist],
     pb: &mut RichProgress,
     temp_files: &mut Vec<Stream>,
 ) -> Result<()> {
-    for stream in subtitle_streams {
-        download_subtitle_stream(base_url.clone(), client, directory, stream, pb, temp_files)?;
+    for stream in streams {
+        if stream.media_type == MediaType::Subtitles {
+            download_subtitle_stream(base_url, client, directory, stream, pb, temp_files)?;
+        }
     }
 
     Ok(())

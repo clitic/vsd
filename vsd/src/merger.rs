@@ -50,16 +50,14 @@ impl Merger {
                 file.write_all(buf)?;
                 file.flush()?;
                 self.pos += 1;
-                let size = buf.len();
-                self.stored_bytes += size;
+                self.stored_bytes += buf.len();
             }
             MergerType::File((file, buffers)) => {
                 if pos == 0 || (self.pos != 0 && self.pos == pos) {
                     file.write_all(buf)?;
                     file.flush()?;
                     self.pos += 1;
-                    let size = buf.len();
-                    self.stored_bytes += size;
+                    self.stored_bytes += buf.len();
                 } else {
                     buffers.insert(pos, buf.to_vec());
                     self.stored_bytes += buf.len();
