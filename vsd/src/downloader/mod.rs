@@ -53,22 +53,13 @@ pub fn download(
         bail!("ffmpeg couldn't be found, it is required to continue further.");
     }
 
-    // temporary type fix
-
-    let one_stream = streams
-        .iter()
-        .filter(|x| x.media_type == MediaType::Video)
-        .count()
-        == 1;
-
     // -----------------------------------------------------------------------------------------
     // Parse Key Ids
     // -----------------------------------------------------------------------------------------
 
     if !no_decrypt {
         encryption::check_unsupported_encryptions(&streams)?;
-        let default_kids =
-            encryption::extract_default_kids(&base_url, &client, &streams)?;
+        let default_kids = encryption::extract_default_kids(&base_url, &client, &streams)?;
         encryption::check_key_exists_for_kid(&keys, &default_kids)?;
     }
 
@@ -118,7 +109,10 @@ pub fn download(
         &mut temp_files,
     )?;
 
-    let mut streams = streams.into_iter().filter(|x| x.media_type != MediaType::Subtitles).collect::<Vec<_>>();
+    let mut streams = streams
+        .into_iter()
+        .filter(|x| x.media_type != MediaType::Subtitles)
+        .collect::<Vec<_>>();
 
     // -----------------------------------------------------------------------------------------
     // Estimation
@@ -141,9 +135,8 @@ pub fn download(
         Column::Text("•".to_owned()),
         Column::Text("[yellow]?".to_owned()),
     ]);
-    pb.pb.reset(Some(
-        streams.iter().map(|x| x.segments.len()).sum(),
-    ));
+    pb.pb
+        .reset(Some(streams.iter().map(|x| x.segments.len()).sum()));
     let pb = Arc::new(Mutex::new(pb));
 
     // -----------------------------------------------------------------------------------------
@@ -154,6 +147,8 @@ pub fn download(
         .num_threads(threads as usize)
         .build()
         .unwrap();
+
+    let one_stream = streams.len() == 1;
 
     for stream in streams {
         pb.lock().unwrap().write(format!(
@@ -176,7 +171,7 @@ pub fn download(
         let mut temp_file = stream.file_path(&directory, &stream.extension());
 
         if let Some(output) = &output {
-            if one_stream && output.ends_with(format!(".{}", stream.extension())) {
+            if one_stream && output.extension() == Some(stream.extension()) {
                 temp_file = output.to_owned();
             }
         }

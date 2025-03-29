@@ -17,7 +17,7 @@ use reqwest::{
     Url,
 };
 use serde::Serialize;
-use std::{fmt::Display, io::Write, path::PathBuf};
+use std::{ffi::OsStr, fmt::Display, io::Write, path::PathBuf};
 
 #[derive(Serialize)]
 pub struct MasterPlaylist {
@@ -399,9 +399,9 @@ impl MediaPlaylist {
         None
     }
 
-    pub fn extension(&self) -> String {
+    pub fn extension(&self) -> &OsStr {
         if let Some(ext) = &self.extension {
-            return ext.to_owned();
+            return OsStr::new(ext);
         }
 
         let mut ext = match &self.playlist_type {
@@ -421,10 +421,10 @@ impl MediaPlaylist {
             }
         }
 
-        ext.to_owned()
+        OsStr::new(ext)
     }
 
-    pub fn file_path(&self, directory: &Option<PathBuf>, ext: &str) -> PathBuf {
+    pub fn file_path(&self, directory: &Option<PathBuf>, ext: &OsStr) -> PathBuf {
         let mut filename = self
             .uri
             .split('?')
@@ -454,7 +454,12 @@ impl MediaPlaylist {
             MediaType::Video => "vsd_video",
         };
 
-        let mut path = PathBuf::from(format!("{}_{}.{}", prefix, filename.to_string_lossy(), ext));
+        let mut path = PathBuf::from(format!(
+            "{}_{}.{}",
+            prefix,
+            filename.to_string_lossy(),
+            ext.to_string_lossy()
+        ));
 
         if let Some(directory) = directory {
             path = directory.join(path);
@@ -467,7 +472,7 @@ impl MediaPlaylist {
                     prefix,
                     filename.to_string_lossy(),
                     i,
-                    ext
+                    ext.to_string_lossy()
                 ));
 
                 if !path.exists() {

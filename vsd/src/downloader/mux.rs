@@ -51,7 +51,7 @@ pub fn should_mux(
     let output = output.unwrap();
 
     // Check if output file extension matches with actual stream file extension.
-    if streams.len() == 1 && output.extension() == Some(OsStr::new(&streams.first().unwrap().extension())) {
+    if streams.len() == 1 && output.extension() == Some(streams.first().unwrap().extension()) {
         return false;
     }
 

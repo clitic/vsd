@@ -1,9 +1,12 @@
 use super::mux::Stream;
-use crate::{playlist::{MediaPlaylist, MediaType}, utils};
+use crate::{
+    playlist::{MediaPlaylist, MediaType},
+    utils,
+};
 use anyhow::{anyhow, bail, Result};
 use kdam::{term::Colorizer, BarExt, Column, RichProgress};
 use reqwest::{blocking::Client, header, Url};
-use std::{fs::File, io::Write, path::PathBuf};
+use std::{ffi::OsStr, fs::File, io::Write, path::PathBuf};
 use vsd_mp4::text::{ttml_text_parser, Mp4TtmlParser, Mp4VttParser};
 
 enum SubtitleType {
@@ -47,15 +50,15 @@ pub fn download_subtitle_stream(
     if let Some(codecs) = &stream.codecs {
         match codecs.as_str() {
             "vtt" => {
-                ext = "vtt".to_owned();
+                ext = OsStr::new("vtt");
                 codec = Some(SubtitleType::VttText);
             }
             "wvtt" => {
-                ext = "vtt".to_owned();
+                ext = OsStr::new("vtt");
                 codec = Some(SubtitleType::Mp4Vtt);
             }
             "stpp" | "stpp.ttml" | "stpp.ttml.im1t" | "stpp.TTML.im1t" => {
-                ext = "srt".to_owned();
+                ext = OsStr::new("srt");
                 codec = Some(SubtitleType::Mp4Ttml);
             }
             _ => (),
@@ -99,13 +102,13 @@ pub fn download_subtitle_stream(
             first_run = false;
 
             if subtitles_data.starts_with(b"WEBVTT") {
-                ext = "vtt".to_owned();
+                ext = OsStr::new("vtt");
                 codec = Some(SubtitleType::VttText);
             } else if subtitles_data.starts_with(b"1") {
-                ext = "srt".to_owned();
+                ext = OsStr::new("srt");
                 codec = Some(SubtitleType::SrtText);
             } else if subtitles_data.starts_with(b"<?xml") || subtitles_data.starts_with(b"<tt") {
-                ext = "srt".to_owned();
+                ext = OsStr::new("srt");
                 codec = Some(SubtitleType::TtmlText);
             } else if codec.is_none() {
                 bail!("could'nt determine subtitle codec.");
