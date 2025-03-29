@@ -185,7 +185,7 @@ pub fn download_subtitle_stream(
 }
 
 pub fn download_subtitle_streams(
-    base_url: Option<Url>,
+    base_url: &Option<Url>,
     client: &Client,
     directory: &Option<PathBuf>,
     subtitle_streams: &Vec<MediaPlaylist>,

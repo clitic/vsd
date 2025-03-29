@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Support for HLS `SAMPLE-AES` stream decrytion.
 
+### Fixed
+
+- Mux commands for solo streams.
+
 ## [0.3.3] - 2025-03-14
 
 ### Added

@@ -23,36 +23,80 @@ pub fn should_mux(
     streams: &[MediaPlaylist],
     output: Option<&PathBuf>,
 ) -> bool {
-    if output.is_none() || no_decrypt || no_merge {
+    if output.is_none() {
+        return false;
+    }
+
+    if no_decrypt {
+        println!(
+            "    {} --output is ignored when --no-decrypt is used",
+            "Warning".colorize("bold yellow")
+        );
+        return false;
+    }
+
+    let subtitle_streams = streams
+        .iter()
+        .filter(|x| x.media_type == MediaType::Subtitles)
+        .collect::<Vec<_>>();
+
+    if no_merge && subtitle_streams.is_empty() {
+        println!(
+            "    {} --output is ignored when --no-merge is used",
+            "Warning".colorize("bold yellow")
+        );
         return false;
     }
 
     let output = output.unwrap();
-    let mut should_mux = true;
 
     // Check if output file extension matches with actual stream file extension.
     if streams.len() == 1 {
         if output.extension() == Some(OsStr::new(&streams.first().unwrap().extension())) {
-            should_mux = false;
+            return false;
         }
     }
 
-    if streams
+    let video_streams = streams
         .iter()
         .filter(|x| x.media_type == MediaType::Video)
-        .count()
-        > 1
-    {
-        should_mux = false;
+        .collect::<Vec<_>>();
+    let audio_streams = streams
+        .iter()
+        .filter(|x| x.media_type == MediaType::Audio)
+        .collect::<Vec<_>>();
+
+    if video_streams.len() > 1 {
+        println!(
+            "    {} --output flag is ignored when multiple video streams are selected",
+            "Warning".colorize("bold yellow")
+        );
+        return false;
     }
 
-    should_mux
+    if video_streams.len() == 0
+        && (audio_streams.len() > 1
+            || subtitle_streams.len() > 1
+            || (audio_streams.len() != 0 && !subtitle_streams.is_empty()))
+    {
+        println!(
+            "    {} --output is ignored when no video streams are selected but multiple audio/subtitle streams are selected",
+            "Warning".colorize("bold yellow")
+        );
+        return false;
+    }
+
+    if no_merge && !subtitle_streams.is_empty() {
+        println!(
+            "    {} subtitle streams are always merged even if --no-merge is used",
+            "Warning".colorize("bold yellow")
+        );
+    }
+
+    true
 }
 
-pub fn ffmpeg(
-    output: Option<&PathBuf>,
-    temp_files: &[Stream],
-) -> Result<()> {
+pub fn ffmpeg(output: Option<&PathBuf>, temp_files: &[Stream]) -> Result<()> {
     let output = output.unwrap();
 
     let sub_streams_present = temp_files
@@ -84,7 +128,12 @@ pub fn ffmpeg(
 
     if args.len() == 2 {
         // Working on single stream
-        args.extend_from_slice(&["-c".to_owned(), "copy".to_owned()]); // TODO - Re consider this copy
+        args.extend_from_slice(&[
+            "-c:v".to_owned(),
+            "copy".to_owned(),
+            "-c:a".to_owned(),
+            "copy".to_owned(),
+        ]);
     } else {
         // Working on multiple streams
         for i in 0..temp_files.len() {
@@ -128,10 +177,24 @@ pub fn ffmpeg(
             args.extend_from_slice(&["-c:s".to_owned(), "mov_text".to_owned()]);
         }
 
-        args.extend_from_slice(&["-c".to_owned(), "copy".to_owned()]);
+        args.extend_from_slice(&[
+            "-c:v".to_owned(),
+            "copy".to_owned(),
+            "-c:a".to_owned(),
+            "copy".to_owned(),
+        ]);
     }
 
     args.push(output.to_string_lossy().into());
+
+    if output.exists() {
+        println!(
+            "   {} {}",
+            "Deleting".colorize("bold red"),
+            output.to_string_lossy()
+        );
+        fs::remove_file(output)?;
+    }
 
     println!(
         "  {} ffmpeg {}",
@@ -145,15 +208,6 @@ pub fn ffmpeg(
             .collect::<Vec<_>>()
             .join(" ")
     );
-
-    if output.exists() {
-        println!(
-            "   {} {}",
-            "Deleting".colorize("bold red"),
-            output.to_string_lossy()
-        );
-        fs::remove_file(output)?;
-    }
 
     let code = Command::new(utils::find_ffmpeg().unwrap())
         .args(args)

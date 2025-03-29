@@ -34,7 +34,7 @@ pub struct Prompts {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn download(
+pub fn download(
     all_keys: bool,
     base_url: Option<Url>,
     client: Client,
@@ -116,56 +116,6 @@ pub(crate) fn download(
         }
     }
 
-    if output.is_some() {
-        let video_streams_count = video_audio_streams
-            .iter()
-            .filter(|x| x.media_type == MediaType::Video)
-            .count();
-        let audio_streams_count = video_audio_streams
-            .iter()
-            .filter(|x| x.media_type == MediaType::Audio)
-            .count();
-
-        if video_streams_count > 1 {
-            println!(
-                "    {} --output is ignored when multiple video streams are selected",
-                "Warning".colorize("bold yellow")
-            );
-        }
-
-        if video_streams_count == 0
-            && (audio_streams_count > 1
-                || subtitle_streams.len() > 1
-                || (audio_streams_count != 0 && !subtitle_streams.is_empty()))
-        {
-            println!(
-                "    {} --output is ignored when no video streams is selected but multiple audio/subtitle streams are selected",
-                "Warning".colorize("bold yellow")
-            );
-        }
-
-        if no_decrypt {
-            println!(
-                "    {} --output is ignored when --no-decrypt is used",
-                "Warning".colorize("bold yellow")
-            );
-        }
-
-        if no_merge {
-            println!(
-                "    {} --output is ignored when --no-merge is used",
-                "Warning".colorize("bold yellow")
-            );
-        }
-    }
-
-    if !subtitle_streams.is_empty() && no_merge {
-        println!(
-            "    {} subtitle streams are always merged even if --no-merge is used",
-            "Warning".colorize("bold yellow")
-        );
-    }
-
     let mut temp_files = vec![];
 
     // -----------------------------------------------------------------------------------------
@@ -173,7 +123,7 @@ pub(crate) fn download(
     // -----------------------------------------------------------------------------------------
 
     download_subtitle_streams(
-        base_url.clone(),
+        &base_url,
         &client,
         &directory,
         &subtitle_streams,
