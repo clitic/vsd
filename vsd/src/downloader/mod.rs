@@ -24,7 +24,6 @@ use reqwest::{
 use std::{
     collections::{HashMap, VecDeque},
     path::PathBuf,
-    process::{Command, Stdio},
     sync::{Arc, Mutex},
     time::Instant,
 };
@@ -48,7 +47,7 @@ pub(crate) fn download(
     retry_count: u8,
     threads: u8,
 ) -> Result<()> {
-    let should_mux = mux::should_mux(&streams, output.as_ref());
+    let should_mux = mux::should_mux(no_decrypt, no_merge, &streams, output.as_ref());
 
     if should_mux && utils::find_ffmpeg().is_none() {
         bail!("ffmpeg couldn't be found, it is required to continue further.");
@@ -429,152 +428,9 @@ pub(crate) fn download(
     // Mux Downloaded Streams
     // -----------------------------------------------------------------------------------------
 
-    let video_temp_files = temp_files
-        .iter()
-        .filter(|x| (x.media_type == MediaType::Video) || (x.media_type == MediaType::Undefined))
-        .collect::<Vec<_>>();
-    let video_streams_count = video_temp_files.len();
-    let audio_streams_count = temp_files
-        .iter()
-        .filter(|x| x.media_type == MediaType::Audio)
-        .count();
-    let subtitle_streams_count = temp_files
-        .iter()
-        .filter(|x| x.media_type == MediaType::Subtitles)
-        .count();
-
-    if should_mux
-        && (video_streams_count == 1 || audio_streams_count == 1 || subtitle_streams_count == 1)
-    {
-        if let Some(output) = &output {
-            let all_temp_files = temp_files
-                .iter()
-                .filter(|x| {
-                    (x.media_type == MediaType::Video) || (x.media_type == MediaType::Undefined)
-                })
-                .chain(
-                    temp_files
-                        .iter()
-                        .filter(|x| x.media_type == MediaType::Audio),
-                )
-                .chain(
-                    temp_files
-                        .iter()
-                        .filter(|x| x.media_type == MediaType::Subtitles),
-                )
-                .collect::<Vec<_>>();
-
-            let mut args = vec![];
-
-            for temp_file in &all_temp_files {
-                args.extend_from_slice(&["-i".to_owned(), temp_file.path.to_string_lossy().into()]);
-            }
-
-            if (video_streams_count == 1)
-                || (audio_streams_count == 1)
-                || (subtitle_streams_count == 1)
-            {
-                // TODO - Re-consider this copy
-                args.extend_from_slice(&["-c".to_owned(), "copy".to_owned()]);
-            } else {
-                args.extend_from_slice(&["-c".to_owned(), "copy".to_owned()]);
-
-                if subtitle_streams_count > 0 && output.ends_with(".mp4") {
-                    args.extend_from_slice(&["-c:s".to_owned(), "mov_text".to_owned()]);
-                }
-
-                for i in 0..all_temp_files.len() {
-                    args.extend_from_slice(&["-map".to_owned(), i.to_string()]);
-                }
-
-                let mut audio_index = 0;
-                let mut subtitle_index = 0;
-
-                for temp_file in &all_temp_files {
-                    match temp_file.media_type {
-                        MediaType::Audio => {
-                            if let Some(language) = &temp_file.language {
-                                args.extend_from_slice(&[
-                                    format!("-metadata:s:a:{}", audio_index),
-                                    format!("language={}", language),
-                                ]);
-                            }
-
-                            audio_index += 1;
-                        }
-                        MediaType::Subtitles => {
-                            if let Some(language) = &temp_file.language {
-                                args.extend_from_slice(&[
-                                    format!("-metadata:s:s:{}", subtitle_index),
-                                    format!("language={}", language),
-                                ]);
-                            }
-
-                            subtitle_index += 1;
-                        }
-                        _ => (),
-                    }
-                }
-
-                if subtitle_streams_count > 0 {
-                    args.extend_from_slice(&["-disposition:s:0".to_owned(), "default".to_owned()]);
-                }
-            }
-
-            args.push(output.to_string_lossy().into());
-
-            println!(
-                "  {} ffmpeg {}",
-                "Executing".colorize("bold cyan"),
-                args.iter()
-                    .map(|x| if x.contains(' ') {
-                        format!("\"{}\"", x)
-                    } else {
-                        x.to_owned()
-                    })
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            );
-
-            if output.exists() {
-                println!(
-                    "   {} {}",
-                    "Deleting".colorize("bold red"),
-                    output.to_string_lossy()
-                );
-                std::fs::remove_file(output)?;
-            }
-
-            let code = Command::new(utils::find_ffmpeg().unwrap())
-                .args(args)
-                .stderr(Stdio::null())
-                .spawn()?
-                .wait()?;
-
-            if !code.success() {
-                bail!("ffmpeg exited with code {}", code.code().unwrap_or(1))
-            }
-
-            for temp_file in &all_temp_files {
-                println!(
-                    "   {} {}",
-                    "Deleting".colorize("bold red"),
-                    temp_file.path.to_string_lossy()
-                );
-                std::fs::remove_file(&temp_file.path)?;
-            }
-
-            if let Some(directory) = &directory {
-                if std::fs::read_dir(directory)?.next().is_none() {
-                    println!(
-                        "   {} {}",
-                        "Deleting".colorize("bold red"),
-                        directory.to_string_lossy()
-                    );
-                    std::fs::remove_dir(directory)?;
-                }
-            }
-        }
+    if should_mux {
+        mux::ffmpeg(output.as_ref(), &temp_files)?;
+        mux::delete_temp_files(directory.as_ref(), &temp_files)?;
     }
 
     Ok(())

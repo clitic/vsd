@@ -1,8 +1,8 @@
 use anyhow::Result;
 use base64::Engine;
-use std::{env, path::Path};
+use std::{env, path::PathBuf};
 
-pub(super) fn format_bytes(bytesval: usize, precision: usize) -> (String, String, String) {
+pub fn format_bytes(bytesval: usize, precision: usize) -> (String, String, String) {
     let mut val = bytesval as f32;
 
     for unit in ["bytes", "KiB", "MiB", "GiB", "TiB"] {
@@ -24,7 +24,7 @@ pub(super) fn format_bytes(bytesval: usize, precision: usize) -> (String, String
     )
 }
 
-pub(super) fn format_download_bytes(downloaded: usize, total: usize) -> String {
+pub fn format_download_bytes(downloaded: usize, total: usize) -> String {
     let downloaded = format_bytes(downloaded, 2);
     let mut total = format_bytes(total, 2);
 
@@ -39,27 +39,42 @@ pub(super) fn format_download_bytes(downloaded: usize, total: usize) -> String {
     }
 }
 
-pub(super) fn decode_base64<T: AsRef<[u8]>>(input: T) -> Result<Vec<u8>> {
+pub fn decode_base64<T: AsRef<[u8]>>(input: T) -> Result<Vec<u8>> {
     base64::engine::general_purpose::STANDARD
         .decode(input)
         .map_err(|x| x.into())
 }
 
-// pub(super) fn encode_base64<T: AsRef<[u8]>>(input: T) -> String {
+// pub fn encode_base64<T: AsRef<[u8]>>(input: T) -> String {
 //     base64::engine::general_purpose::STANDARD.encode(input)
 // }
 
-pub(super) fn find_ffmpeg() -> Option<String> {
+pub fn find_ffmpeg() -> Option<PathBuf> {
     let bin = if cfg!(target_os = "windows") {
         "ffmpeg.exe"
     } else {
         "ffmpeg"
     };
 
-    if Path::new(bin).exists() {
-        return Some(bin.to_owned());
+    // Search in current directory
+    let exe = PathBuf::from(bin);
+
+    if exe.exists() {
+        return Some(exe);
     }
 
+    // Search in executable directory
+    if let Some(exe) = env::current_exe()
+        .ok()
+        .map(|x| x.parent().map(|y| y.join(bin)))
+        .flatten()
+    {
+        if exe.exists() {
+            return Some(exe);
+        }
+    }
+
+    // Search in PATH
     env::var("PATH")
         .ok()?
         .split(if cfg!(target_os = "windows") {
@@ -68,10 +83,9 @@ pub(super) fn find_ffmpeg() -> Option<String> {
             ':'
         })
         .find_map(|s| {
-            let x = Path::new(s).join(bin);
-
-            if x.exists() {
-                Some(x.to_str().unwrap().to_owned())
+            let exe = PathBuf::from(s).join(bin);
+            if exe.exists() {
+                Some(exe)
             } else {
                 None
             }
