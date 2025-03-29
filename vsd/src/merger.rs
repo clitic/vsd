@@ -28,7 +28,7 @@ impl Merger {
 
     pub fn with_directory(size: usize, directory: &PathBuf) -> Result<Self> {
         if !directory.exists() {
-            fs::create_dir_all(&directory)?;
+            fs::create_dir_all(directory)?;
         }
 
         Ok(Self {

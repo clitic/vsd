@@ -51,10 +51,8 @@ pub fn should_mux(
     let output = output.unwrap();
 
     // Check if output file extension matches with actual stream file extension.
-    if streams.len() == 1 {
-        if output.extension() == Some(OsStr::new(&streams.first().unwrap().extension())) {
-            return false;
-        }
+    if streams.len() == 1 && output.extension() == Some(OsStr::new(&streams.first().unwrap().extension())) {
+        return false;
     }
 
     let video_streams = streams
@@ -74,10 +72,10 @@ pub fn should_mux(
         return false;
     }
 
-    if video_streams.len() == 0
+    if video_streams.is_empty()
         && (audio_streams.len() > 1
             || subtitle_streams.len() > 1
-            || (audio_streams.len() != 0 && !subtitle_streams.is_empty()))
+            || (!audio_streams.is_empty() && !subtitle_streams.is_empty()))
     {
         println!(
             "    {} --output is ignored when no video streams are selected but multiple audio/subtitle streams are selected",

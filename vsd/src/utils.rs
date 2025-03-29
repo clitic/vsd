@@ -66,8 +66,7 @@ pub fn find_ffmpeg() -> Option<PathBuf> {
     // Search in executable directory
     if let Some(exe) = env::current_exe()
         .ok()
-        .map(|x| x.parent().map(|y| y.join(bin)))
-        .flatten()
+        .and_then(|x| x.parent().map(|y| y.join(bin)))
     {
         if exe.exists() {
             return Some(exe);

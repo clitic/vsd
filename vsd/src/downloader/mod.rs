@@ -187,7 +187,7 @@ pub fn download(
         let mut temp_file = stream.file_path(&directory, &stream.extension());
 
         if let Some(output) = &output {
-            if one_stream && output.ends_with(&format!(".{}", stream.extension())) {
+            if one_stream && output.ends_with(format!(".{}", stream.extension())) {
                 temp_file = output.to_owned();
             }
         }
