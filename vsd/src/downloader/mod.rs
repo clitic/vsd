@@ -204,9 +204,9 @@ pub fn download(
         ))?;
 
         let merger = Arc::new(Mutex::new(if no_merge {
-            Merger::with_directory(stream.segments.len(), &temp_file)?
+            Merger::new_directory(stream.segments.len(), &temp_file)?
         } else {
-            Merger::new(stream.segments.len(), &temp_file)?
+            Merger::new_file(stream.segments.len(), &temp_file)?
         }));
         let timer = Arc::new(Instant::now());
 

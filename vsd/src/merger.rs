@@ -1,100 +1,98 @@
 use anyhow::Result;
-use std::{collections::HashMap, fs, fs::File, io::Write, path::PathBuf};
+use std::{collections::HashMap, fs, io::Write, path::PathBuf};
+
+enum MergerType {
+    Directory(PathBuf),
+    File((fs::File, HashMap<usize, Vec<u8>>)),
+}
 
 pub struct Merger {
-    size: usize,
-    file: File,
-    pos: usize,
-    buffers: HashMap<usize, Vec<u8>>,
-    stored_bytes: usize,
-    flushed_bytes: usize,
     indexed: usize,
-    directory: Option<PathBuf>,
+    merger_type: MergerType,
+    pos: usize,
+    size: usize,
+    stored_bytes: usize,
 }
 
 impl Merger {
-    pub fn new(size: usize, filename: &PathBuf) -> Result<Self> {
+    pub fn new_file(size: usize, path: &PathBuf) -> Result<Self> {
         Ok(Self {
-            size: size - 1,
-            file: File::create(filename)?,
-            pos: 0,
-            buffers: HashMap::new(),
-            stored_bytes: 0,
-            flushed_bytes: 0,
             indexed: 0,
-            directory: None,
+            merger_type: MergerType::File((fs::File::create(path)?, HashMap::new())),
+            pos: 0,
+            size: size - 1,
+            stored_bytes: 0,
         })
     }
 
-    pub fn with_directory(size: usize, directory: &PathBuf) -> Result<Self> {
-        if !directory.exists() {
-            fs::create_dir_all(directory)?;
+    pub fn new_directory(size: usize, path: &PathBuf) -> Result<Self> {
+        if !path.exists() {
+            fs::create_dir_all(path)?;
         }
 
         Ok(Self {
-            size: size - 1,
-            file: File::create(directory.join(format!(
-                "0.{}",
-                directory.extension().unwrap().to_string_lossy()
-            )))?,
-            pos: 0,
-            buffers: HashMap::new(),
-            stored_bytes: 0,
-            flushed_bytes: 0,
             indexed: 0,
-            directory: Some(directory.to_owned()),
+            merger_type: MergerType::Directory(path.to_owned()),
+            pos: 0,
+            stored_bytes: 0,
+            size: size - 1,
         })
     }
 
     pub fn write(&mut self, pos: usize, buf: &[u8]) -> Result<()> {
-        if let Some(directory) = &self.directory {
-            self.file = File::create(directory.join(format!(
-                "{}.{}",
-                pos,
-                directory.extension().unwrap().to_string_lossy()
-            )))?;
-        }
-
-        if self.directory.is_some() || (pos == 0 || (self.pos != 0 && self.pos == pos)) {
-            self.file.write_all(buf)?;
-            self.file.flush()?;
-            self.pos += 1;
-            let size = buf.len();
-            self.stored_bytes += size;
-            self.flushed_bytes += size;
-        } else {
-            self.buffers.insert(pos, buf.to_vec());
-            self.stored_bytes += buf.len();
-        }
+        match &mut self.merger_type {
+            MergerType::Directory(path) => {
+                let mut file = fs::File::create(path.join(format!(
+                    "{}.{}",
+                    pos,
+                    path.extension().unwrap().to_string_lossy()
+                )))?;
+                file.write_all(buf)?;
+                file.flush()?;
+                self.pos += 1;
+                let size = buf.len();
+                self.stored_bytes += size;
+            }
+            MergerType::File((file, buffers)) => {
+                if pos == 0 || (self.pos != 0 && self.pos == pos) {
+                    file.write_all(buf)?;
+                    file.flush()?;
+                    self.pos += 1;
+                    let size = buf.len();
+                    self.stored_bytes += size;
+                } else {
+                    buffers.insert(pos, buf.to_vec());
+                    self.stored_bytes += buf.len();
+                }
+            }
+        };
 
         self.indexed += 1;
         Ok(())
     }
 
     pub fn flush(&mut self) -> Result<()> {
-        while self.pos <= self.size {
-            let op_buf = self.buffers.remove(&self.pos);
-
-            if let Some(buf) = op_buf {
-                self.file.write_all(&buf)?;
-                self.file.flush()?;
-                self.pos += 1;
-                self.flushed_bytes += buf.len();
-                // self.update()?;
-            } else {
-                break;
+        if let MergerType::File((file, buffers)) = &mut self.merger_type {
+            while self.pos <= self.size {
+                if let Some(buf) = buffers.remove(&self.pos) {
+                    file.write_all(&buf)?;
+                    file.flush()?;
+                    self.pos += 1;
+                } else {
+                    break;
+                }
             }
         }
 
         Ok(())
     }
 
-    // pub fn position(&self) -> usize {
-    //     self.pos
-    // }
-
     pub fn buffered(&self) -> bool {
-        self.buffers.is_empty() && self.pos >= (self.size + 1)
+        let buffers_empty = match &self.merger_type {
+            MergerType::Directory(_) => true,
+            MergerType::File((_, buffers)) => buffers.is_empty(),
+        };
+        buffers_empty && self.pos >= (self.size + 1)
     }
 
     pub fn stored(&self) -> usize {
