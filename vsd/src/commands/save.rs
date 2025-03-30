@@ -1,18 +1,19 @@
 use crate::{
     cookie::{CookieJar, CookieParam},
-    downloader::{self, Prompts},
-    utils,
+    downloader::{self, encryption::Decrypter, Prompts},
 };
 use anyhow::Result;
 use clap::Args;
 use cookie::Cookie;
 use kdam::term::Colorizer;
 use reqwest::{
-    Proxy, Url,
     blocking::Client,
     header::{HeaderMap, HeaderName, HeaderValue},
+    Proxy, Url,
 };
 use std::{
+    collections::HashMap,
+    fs,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -116,18 +117,11 @@ pub struct Save {
     )]
     pub user_agent: String,
 
-    /// Use all supplied keys for decryption instead of using keys which matches with default kid only.
-    #[arg(long, help_heading = "Decrypt Options")]
-    pub all_keys: bool,
-
-    /// Keys for decrypting encrypted cenc streams.
-    /// If streams are encrypted with a single key then there is no need to specify key id
-    /// else specify decryption key in format KID:KEY.
-    /// KID should be specified in hex format.
-    /// KEY value can be specified in base64, file or hex format.
-    /// This option can be used multiple times.
-    #[arg(short, long, help_heading = "Decrypt Options", value_name = "(base64=|file=|hex=)KEY | [kid=]KID:(base64=|file=|hex=)KEY", value_parser = key_parser)]
-    pub key: Vec<(Option<String>, String)>,
+    /// Keys for decrypting encrypted streams.
+    /// KID:KEY should be specified in hex format.
+    /// While a single KEY should be specified as file path.
+    #[arg(short, long, help_heading = "Decrypt Options", value_name = "KEY | KID:KEY;KID:KEY...", default_value_t = Decrypter::None, value_parser = keys_parser)]
+    pub keys: Decrypter,
 
     /// Download encrypted streams without decrypting them.
     /// Note that --output flag is ignored if this flag is used.
@@ -211,40 +205,37 @@ fn quality_parser(s: &str) -> Result<Quality, String> {
     })
 }
 
-// fn is_valid_kid_key_pair(kid: &str, key: &str) -> bool {
-//     kid.len() == 32
-//         && key.len() == 32
-//         && kid.chars().all(|c| c.is_ascii_hexdigit())
-//         && key.chars().all(|c| c.is_ascii_hexdigit())
-// }
-fn key_parser(s: &str) -> Result<(Option<String>, String), String> {
-    let (kid, mut key) = if let Some((kid, key)) = s.split_once(':') {
-        (
-            Some(
-                kid.to_lowercase()
-                    .trim_start_matches("kid=")
-                    .replace('-', ""),
-            ),
-            key.to_owned(),
-        )
-    } else {
-        (None, s.to_owned())
-    };
+fn keys_parser(s: &str) -> Result<Decrypter, String> {
+    if Path::new(s).exists() {
+        let bytes = fs::read(s).map_err(|_| "could'nt read key file.")?;
 
-    if key.starts_with("base64=") {
-        key = hex::encode(
-            utils::decode_base64(&key[7..])
-                .map_err(|_| format!("key `{}` could not be decoded.", key))?,
-        );
-    } else if let Some(key) = key.strip_prefix("file=") {
-        std::fs::read(key).map_err(|_| format!("key `{}` couldn't be read.", key))?;
-    } else if key.starts_with("hex=") {
-        key = key[4..].to_owned();
+        if bytes.len() != 16 {
+            return Err("invalid key size.".to_owned());
+        }
+
+        let mut key = [0_u8; 16];
+        key.copy_from_slice(&bytes);
+
+        Ok(Decrypter::new_hls_aes(key, [0_u8; 16]))
     } else {
-        return Err("please specify key format.".to_owned());
+        let mut kid_key_pairs = HashMap::new();
+
+        for pair in s.split(';') {
+            if let Some((kid, key)) = pair.split_once(':') {
+                if kid.len() == 32
+                    && key.len() == 32
+                    && kid.chars().all(|c| c.is_ascii_hexdigit())
+                    && key.chars().all(|c| c.is_ascii_hexdigit())
+                {
+                    kid_key_pairs.insert(kid.to_owned(), key.to_owned());
+                } else {
+                    return Err("invalid kid key format used.".to_owned());
+                }
+            }
+        }
+
+        Ok(Decrypter::Mp4Decrypt(kid_key_pairs))
     }
-
-    Ok((kid, key))
 }
 
 fn cookie_parser(s: &str) -> Result<CookieParams, String> {
@@ -355,11 +346,10 @@ impl Save {
             }
 
             downloader::download(
-                self.all_keys,
                 self.base_url,
                 client,
                 self.directory,
-                self.key,
+                self.keys,
                 self.no_decrypt,
                 self.no_merge,
                 self.output,

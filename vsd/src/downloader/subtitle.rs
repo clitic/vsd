@@ -17,10 +17,10 @@ enum SubtitleType {
     VttText,
 }
 
-pub fn download_subtitle_stream(
+fn download_subtitle_stream(
     base_url: &Option<Url>,
     client: &Client,
-    directory: &Option<PathBuf>,
+    directory: Option<&PathBuf>,
     stream: &MediaPlaylist,
     pb: &mut RichProgress,
     temp_files: &mut Vec<Stream>,
@@ -64,8 +64,8 @@ pub fn download_subtitle_stream(
             _ => (),
         }
     }
-    let mut temp_file = PathBuf::new();
 
+    let mut temp_file = PathBuf::new();
     let mut first_run = true;
     let mut subtitles_data = vec![];
 
@@ -190,7 +190,7 @@ pub fn download_subtitle_stream(
 pub fn download_subtitle_streams(
     base_url: &Option<Url>,
     client: &Client,
-    directory: &Option<PathBuf>,
+    directory: Option<&PathBuf>,
     streams: &[MediaPlaylist],
     pb: &mut RichProgress,
     temp_files: &mut Vec<Stream>,

@@ -25,13 +25,19 @@ pub fn check_unsupported_encryptions(streams: &Vec<MediaPlaylist>) -> Result<()>
 }
 
 pub fn check_key_exists_for_kid(
-    keys: &[(Option<String>, String)],
+    decrypter: &Decrypter,
     default_kids: &HashSet<String>,
 ) -> Result<()> {
-    let user_kids = keys.iter().flat_map(|x| x.0.as_ref());
+    let user_kids = match decrypter {
+        Decrypter::Mp4Decrypt(kid_key_pairs) => kid_key_pairs
+            .keys()
+            .map(|x| x.to_owned())
+            .collect::<Vec<String>>(),
+        _ => Vec::new(),
+    };
 
     for kid in default_kids {
-        if !user_kids.clone().any(|x| x == kid) {
+        if !user_kids.iter().any(|x| x == kid) {
             bail!(
                 "use {} flag to specify content decryption keys for at least * pre-fixed key ids.",
                 "--key".colorize("bold green")
@@ -102,32 +108,46 @@ pub fn extract_default_kids(
     Ok(default_kids)
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum EncryptionType {
     Aes128,
     SampleAes,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Decrypter {
     HlsAes([u8; 16], [u8; 16], EncryptionType),
     Mp4Decrypt(HashMap<String, String>),
     None,
 }
 
-impl Decrypter {
-    pub fn new_hls_aes(key: [u8; 16], iv: [u8; 16], method: &KeyMethod) -> Result<Self> {
-        let enc_type = match method {
-            KeyMethod::Aes128 => EncryptionType::Aes128,
-            KeyMethod::SampleAes => EncryptionType::SampleAes,
-            _ => panic!("trying to create a non aes decrypter."),
-        };
+impl std::fmt::Display for Decrypter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::HlsAes(_, _, _) => write!(f, "hls-aes"),
+            Self::Mp4Decrypt(_) => write!(f, "mp4decrypt"),
+            Self::None => write!(f, "none"),
+        }
+    }
+}
 
-        Ok(Self::HlsAes(key, iv, enc_type))
+impl Decrypter {
+    pub fn new_hls_aes(key: [u8; 16], iv: [u8; 16]) -> Self {
+        Self::HlsAes(key, iv, EncryptionType::Aes128)
     }
 
     pub fn is_none(&self) -> bool {
         matches!(self, Self::None)
+    }
+
+    pub fn update_enc_type(&mut self, method: &KeyMethod) {
+        if let Self::HlsAes(_, _, enc_type) = self {
+            *enc_type = match method {
+                KeyMethod::Aes128 => EncryptionType::Aes128,
+                KeyMethod::SampleAes => EncryptionType::SampleAes,
+                _ => panic!("trying to create a non aes decrypter."),
+            };
+        }
     }
 
     pub fn increment_iv(&mut self) {
@@ -135,6 +155,23 @@ impl Decrypter {
             *iv = (u128::from_be_bytes(*iv) + 1).to_be_bytes();
         }
     }
+
+    pub fn update_iv(&mut self, sequence: u64) {
+        if let Self::HlsAes(_, iv, _) = self {
+            *iv = (sequence as u128).to_be_bytes();
+        }
+    }
+
+    pub fn key_matches(&self, bytes: &[u8]) -> bool {
+        if let Self::HlsAes(key, _, _) = self {
+            let mut oth_key = [0_u8; 16];
+            oth_key.copy_from_slice(bytes);
+            return &oth_key == key;
+        }
+
+        false
+    }
+
 
     pub fn decrypt(&self, mut data: Vec<u8>) -> Result<Vec<u8>> {
         Ok(match self {

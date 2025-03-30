@@ -424,7 +424,7 @@ impl MediaPlaylist {
         OsStr::new(ext)
     }
 
-    pub fn file_path(&self, directory: &Option<PathBuf>, ext: &OsStr) -> PathBuf {
+    pub fn file_path(&self, directory: Option<&PathBuf>, ext: &OsStr) -> PathBuf {
         let mut filename = self
             .uri
             .split('?')

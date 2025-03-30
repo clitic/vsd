@@ -48,7 +48,6 @@ impl Merger {
                     path.extension().unwrap().to_string_lossy()
                 )))?;
                 file.write_all(buf)?;
-                file.flush()?;
                 self.pos += 1;
                 self.stored_bytes += buf.len();
             }
