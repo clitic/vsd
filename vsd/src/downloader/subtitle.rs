@@ -114,7 +114,7 @@ fn download_subtitle_stream(
                 bail!("could'nt determine subtitle codec.");
             }
 
-            temp_file = stream.file_path(directory, &ext);
+            temp_file = stream.file_path(directory, ext);
             temp_files.push(Stream {
                 language: stream.language.clone(),
                 media_type: stream.media_type.clone(),

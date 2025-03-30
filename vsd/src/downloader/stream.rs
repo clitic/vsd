@@ -129,6 +129,7 @@ fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn download_stream(
     base_url: &Option<Url>,
     client: &Client,
@@ -158,9 +159,9 @@ fn download_stream(
     let mut download_threads = Vec::with_capacity(stream.segments.len());
     let mut iv_present = false;
     let merger = Arc::new(Mutex::new(if no_merge {
-        Merger::new_directory(stream.segments.len(), &temp_file)?
+        Merger::new_directory(stream.segments.len(), temp_file)?
     } else {
-        Merger::new_file(stream.segments.len(), &temp_file)?
+        Merger::new_file(stream.segments.len(), temp_file)?
     }));
     let mut previous_map = None;
     let stream_base_url = base_url
@@ -286,6 +287,7 @@ fn download_stream(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn download_streams(
     base_url: &Option<Url>,
     client: &Client,
@@ -303,14 +305,14 @@ pub fn download_streams(
     let mut relative_sizes = VecDeque::new();
 
     for stream in &streams {
-        relative_sizes.push_back(stream.estimate_size(&base_url, &client)?);
+        relative_sizes.push_back(stream.estimate_size(base_url, client)?);
     }
 
     let mut temp_file = None;
 
     if streams.len() == 1 {
         if let Some(output) = output {
-            if output.extension() == Some(streams.iter().next().unwrap().extension()) {
+            if output.extension() == Some(streams.first().unwrap().extension()) {
                 temp_file = Some(output.to_owned());
             }
         }
@@ -326,7 +328,7 @@ pub fn download_streams(
     for stream in streams {
         let temp_file = temp_file
             .clone()
-            .unwrap_or(stream.file_path(directory, &stream.extension()));
+            .unwrap_or(stream.file_path(directory, stream.extension()));
 
         temp_files.push(Stream {
             language: stream.language.clone(),
@@ -338,8 +340,8 @@ pub fn download_streams(
         let relative_size = relative_sizes.iter().sum::<usize>();
 
         download_stream(
-            &base_url,
-            &client,
+            base_url,
+            client,
             &mut downloaded_bytes,
             decrypter.clone(),
             no_decrypt,
