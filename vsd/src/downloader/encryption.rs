@@ -111,6 +111,7 @@ pub fn extract_default_kids(
 #[derive(Clone, Debug)]
 pub enum EncryptionType {
     Aes128,
+    NotDefined,
     SampleAes,
 }
 
@@ -132,8 +133,22 @@ impl std::fmt::Display for Decrypter {
 }
 
 impl Decrypter {
-    pub fn new_hls_aes(key: [u8; 16], iv: [u8; 16]) -> Self {
-        Self::HlsAes(key, iv, EncryptionType::Aes128)
+    pub fn new_hls_aes(key: [u8; 16], iv: [u8; 16], enc_type: &KeyMethod) -> Self {
+        let enc_type = match enc_type {
+            KeyMethod::Aes128 => EncryptionType::Aes128,
+            KeyMethod::SampleAes => EncryptionType::SampleAes,
+            _ => EncryptionType::NotDefined,
+        };
+
+        Self::HlsAes(key, iv, enc_type)
+    }
+
+    pub fn is_hls_aes_and_not_defined(&self) -> bool {
+        if let Self::HlsAes(_, _, enc_type) = self {
+            matches!(enc_type, EncryptionType::NotDefined)
+        } else {
+            false
+        }
     }
 
     pub fn is_none(&self) -> bool {
@@ -145,7 +160,7 @@ impl Decrypter {
             *enc_type = match method {
                 KeyMethod::Aes128 => EncryptionType::Aes128,
                 KeyMethod::SampleAes => EncryptionType::SampleAes,
-                _ => panic!("trying to create a non aes decrypter."),
+                _ => panic!("trying to create a non aes hls decrypter."),
             };
         }
     }
@@ -162,17 +177,6 @@ impl Decrypter {
         }
     }
 
-    pub fn key_matches(&self, bytes: &[u8]) -> bool {
-        if let Self::HlsAes(key, _, _) = self {
-            let mut oth_key = [0_u8; 16];
-            oth_key.copy_from_slice(bytes);
-            return &oth_key == key;
-        }
-
-        false
-    }
-
-
     pub fn decrypt(&self, mut data: Vec<u8>) -> Result<Vec<u8>> {
         Ok(match self {
             Decrypter::HlsAes(key, iv, enc_type) => match enc_type {
@@ -180,6 +184,7 @@ impl Decrypter {
                     .decrypt_padded_mut::<Pkcs7>(&mut data)
                     .map(|x| x.to_vec())
                     .map_err(|x| anyhow!("{}", x))?,
+                EncryptionType::NotDefined => data,
                 EncryptionType::SampleAes => {
                     let mut reader = std::io::Cursor::new(data);
                     let mut writer = Vec::new();

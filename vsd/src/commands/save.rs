@@ -1,6 +1,7 @@
 use crate::{
     cookie::{CookieJar, CookieParam},
     downloader::{self, encryption::Decrypter, Prompts},
+    playlist::KeyMethod,
 };
 use anyhow::Result;
 use clap::Args;
@@ -216,7 +217,7 @@ fn keys_parser(s: &str) -> Result<Decrypter, String> {
         let mut key = [0_u8; 16];
         key.copy_from_slice(&bytes);
 
-        Ok(Decrypter::new_hls_aes(key, [0_u8; 16]))
+        Ok(Decrypter::new_hls_aes(key, [0_u8; 16], &KeyMethod::None))
     } else {
         let mut kid_key_pairs = HashMap::new();
 

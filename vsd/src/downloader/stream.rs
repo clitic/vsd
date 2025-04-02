@@ -157,21 +157,22 @@ fn download_stream(
     ))?;
 
     let mut download_threads = Vec::with_capacity(stream.segments.len());
-    let mut iv_present = false;
+    let mut init_segment = None;
+    let hls_custom_key = decrypter.is_hls_aes_and_not_defined();
     let merger = Arc::new(Mutex::new(if no_merge {
         Merger::new_directory(stream.segments.len(), temp_file)?
     } else {
         Merger::new_file(stream.segments.len(), temp_file)?
     }));
-    let mut previous_map = None;
-    let stream_base_url = base_url
+    let mut no_iv = false;
+    let base_url = base_url
         .clone()
         .unwrap_or(stream.uri.parse::<Url>().unwrap());
     let timer = Arc::new(Instant::now());
 
     for (i, segment) in stream.segments.iter().enumerate() {
         if let Some(map) = &segment.map {
-            let url = stream_base_url.join(&map.uri)?;
+            let url = base_url.join(&map.uri)?;
             let mut request = client.get(url);
 
             if let Some(range) = &map.range {
@@ -180,31 +181,37 @@ fn download_stream(
 
             let response = request.send()?;
             let bytes = response.bytes()?;
-            previous_map = Some(bytes.to_vec())
+            init_segment = Some(bytes.to_vec())
         }
 
         if !no_decrypt {
-            if !iv_present {
+            if i == 0 && hls_custom_key {
+                decrypter.update_enc_type(&KeyMethod::Aes128);
+                decrypter.update_iv(stream.media_sequence);
+                no_iv = true;
+            }
+
+            if no_iv {
                 decrypter.increment_iv();
             }
 
             if let Some(key) = &segment.key {
                 match key.method {
                     KeyMethod::Aes128 | KeyMethod::SampleAes => {
-                        let uri = key.uri.as_ref().unwrap();
-                        let bytes = client.get(stream_base_url.join(uri)?).send()?.bytes()?;
+                        if hls_custom_key {
+                            decrypter.update_enc_type(&key.method);
+                        } else {
+                            let url = base_url.join(key.uri.as_ref().unwrap())?;
+                            let bytes = client.get(url).send()?.bytes()?;
 
-                        if !decrypter.key_matches(&bytes) {
                             decrypter = Decrypter::new_hls_aes(
                                 key.key(&bytes)?,
                                 key.iv(stream.media_sequence)?,
+                                &key.method,
                             );
-                        } else {
-                            decrypter.update_enc_type(&key.method);
-                            decrypter.update_iv(stream.media_sequence);
-                        }
 
-                        iv_present = key.iv.is_some();
+                            no_iv = key.iv.is_none();
+                        }
                     }
                     KeyMethod::Mp4Decrypt => {
                         if let Decrypter::Mp4Decrypt(kid_key_pairs) = &decrypter {
@@ -227,7 +234,7 @@ fn download_stream(
             }
         }
 
-        let url = stream_base_url.join(&segment.uri)?;
+        let url = base_url.join(&segment.uri)?;
         let mut request = client.get(url);
 
         if let Some(range) = &segment.range {
@@ -238,7 +245,7 @@ fn download_stream(
             downloaded_bytes: *downloaded_bytes,
             index: i,
             decrypter: decrypter.clone(),
-            map: previous_map.clone(),
+            map: init_segment.clone(),
             merger: merger.clone(),
             pb: pb.clone(),
             relative_size,
@@ -248,7 +255,7 @@ fn download_stream(
         };
 
         if decrypter.is_none() {
-            previous_map = None;
+            init_segment = None;
         }
 
         download_threads.push(thread_data);
