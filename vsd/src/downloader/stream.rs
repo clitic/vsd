@@ -18,115 +18,75 @@ use std::{
     time::Instant,
 };
 
-struct ThreadData {
-    downloaded_bytes: usize,
-    index: usize,
+#[allow(clippy::too_many_arguments)]
+pub fn download_streams(
+    base_url: &Option<Url>,
+    client: &Client,
     decrypter: Decrypter,
-    map: Option<Vec<u8>>,
-    merger: Arc<Mutex<Merger>>,
-    pb: Arc<Mutex<RichProgress>>,
-    relative_size: usize,
-    request: RequestBuilder,
-    timer: Arc<Instant>,
-    total_retries: u8,
-}
+    directory: Option<&PathBuf>,
+    no_decrypt: bool,
+    no_merge: bool,
+    output: Option<&PathBuf>,
+    pb: RichProgress,
+    retry_count: u8,
+    streams: Vec<MediaPlaylist>,
+    threads: u8,
+    temp_files: &mut Vec<Stream>,
+) -> Result<()> {
+    let mut estimated_bytes = VecDeque::new();
 
-impl ThreadData {
-    fn execute(&self) -> Result<()> {
-        let mut segment = self.map.clone().unwrap_or_default();
-        segment.append(&mut self.download_segment()?);
-
-        segment = self.decrypter.decrypt(segment)?;
-
-        let mut merger = self.merger.lock().unwrap();
-        merger.write(self.index, &segment)?;
-        merger.flush()?;
-
-        self.notify(merger.stored(), merger.estimate())?;
-        Ok(())
+    for stream in &streams {
+        estimated_bytes.push_back(stream.estimate_size(base_url, client)?);
     }
 
-    fn download_segment(&self) -> Result<Vec<u8>> {
-        for _ in 0..self.total_retries {
-            let response = match self.request.try_clone().unwrap().send() {
-                Ok(response) => response,
-                Err(error) => {
-                    self.pb
-                        .lock()
-                        .unwrap()
-                        .write(check_reqwest_error(&error)?)?;
-                    continue;
-                }
-            };
+    let mut temp_file = None;
 
-            let status = response.status();
-
-            if status.is_client_error() || status.is_server_error() {
-                bail!("failed to fetch segments");
+    if streams.len() == 1 {
+        if let Some(output) = output {
+            if output.extension() == Some(streams.first().unwrap().extension()) {
+                temp_file = Some(output.to_owned());
             }
-
-            let data = response.bytes()?.to_vec();
-            let elapsed_time = self.timer.elapsed().as_secs() as usize;
-
-            if elapsed_time != 0 {
-                let stored = self.merger.lock().unwrap().stored() + data.len();
-                self.pb.lock().unwrap().replace(
-                    12,
-                    Column::Text(format!(
-                        "[yellow]{}/s",
-                        utils::format_bytes(stored / elapsed_time, 2).2
-                    )),
-                );
-            }
-
-            return Ok(data);
         }
-
-        bail!("reached maximum number of retries to download a segment");
     }
 
-    fn notify(&self, stored: usize, estimate: usize) -> Result<()> {
-        let mut pb = self.pb.lock().unwrap();
-        pb.replace(
-            0,
-            Column::Text(format!(
-                "[bold blue]{}",
-                utils::format_download_bytes(
-                    self.downloaded_bytes + stored,
-                    self.downloaded_bytes + estimate + self.relative_size,
-                ),
-            )),
-        );
-        pb.update(1).unwrap();
-        Ok(())
-    }
-}
+    let mut downloaded_bytes = 0;
+    let pb = Arc::new(Mutex::new(pb));
+    let pool = ThreadPoolBuilder::new()
+        .num_threads(threads as usize)
+        .build()
+        .unwrap();
 
-fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
-    let request = "Request".colorize("bold yellow");
-    let url = error.url().unwrap();
+    for stream in streams {
+        let temp_file = temp_file
+            .clone()
+            .unwrap_or(stream.file_path(directory, stream.extension()));
 
-    if error.is_timeout() {
-        return Ok(format!("    {} {} (timeout)", request, url));
-    } else if error.is_connect() {
-        return Ok(format!("    {} {} (connection error)", request, url));
+        temp_files.push(Stream {
+            language: stream.language.clone(),
+            media_type: stream.media_type.clone(),
+            path: temp_file.clone(),
+        });
+
+        let _ = estimated_bytes.pop_front();
+
+        download_stream(
+            base_url,
+            client,
+            &mut downloaded_bytes,
+            decrypter.clone(),
+            estimated_bytes.iter().sum::<usize>(),
+            no_decrypt,
+            no_merge,
+            pb.clone(),
+            &pool,
+            retry_count,
+            stream,
+            &temp_file,
+        )?;
     }
 
-    if let Some(status) = error.status() {
-        match status {
-            StatusCode::REQUEST_TIMEOUT => Ok(format!("    {} {} (timeout)", request, url)),
-            StatusCode::TOO_MANY_REQUESTS => {
-                Ok(format!("    {} {} (too many requests)", request, url))
-            }
-            StatusCode::SERVICE_UNAVAILABLE => {
-                Ok(format!("    {} {} (service unavailable)", request, url))
-            }
-            StatusCode::GATEWAY_TIMEOUT => Ok(format!("    {} {} (gateway timeout)", request, url)),
-            _ => bail!("download failed {} (HTTP {})", url, status),
-        }
-    } else {
-        bail!("download failed {}", url)
-    }
+    eprintln!();
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -135,11 +95,11 @@ fn download_stream(
     client: &Client,
     downloaded_bytes: &mut usize,
     mut decrypter: Decrypter,
+    estimated_bytes: usize,
     no_decrypt: bool,
     no_merge: bool,
     pb: Arc<Mutex<RichProgress>>,
     pool: &ThreadPool,
-    relative_size: usize,
     retry_count: u8,
     stream: MediaPlaylist,
     temp_file: &PathBuf,
@@ -241,32 +201,31 @@ fn download_stream(
             request = request.header(header::RANGE, range.as_header_value());
         }
 
-        let thread_data = ThreadData {
-            downloaded_bytes: *downloaded_bytes,
-            index: i,
+        download_threads.push(ThreadData {
             decrypter: decrypter.clone(),
-            map: init_segment.clone(),
+            downloaded_bytes: *downloaded_bytes,
+            estimated_bytes,
+            index: i,
+            init_segment: init_segment.clone(),
             merger: merger.clone(),
             pb: pb.clone(),
-            relative_size,
             request,
+            retries: retry_count,
             timer: timer.clone(),
-            total_retries: retry_count,
-        };
+        });
 
         if decrypter.is_none() {
             init_segment = None;
         }
-
-        download_threads.push(thread_data);
     }
 
     pool.scope_fifo(|s| {
-        for thread_data in download_threads {
+        for mut thread_data in download_threads {
             s.spawn_fifo(move |_| {
                 if let Err(e) = thread_data.execute() {
                     let _lock = thread_data.pb.lock().unwrap();
                     println!("\n{}: {}", "error".colorize("bold red"), e);
+                    // TODO - Add resume support
                     std::process::exit(1);
                 }
             });
@@ -278,8 +237,7 @@ fn download_stream(
 
     if !merger.buffered() {
         bail!(
-            "failed to download {} stream to {}",
-            stream.display_stream().colorize("cyan"),
+            "failed to download stream to {}",
             temp_file.to_string_lossy()
         );
     }
@@ -294,74 +252,118 @@ fn download_stream(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn download_streams(
-    base_url: &Option<Url>,
-    client: &Client,
+struct ThreadData {
     decrypter: Decrypter,
-    directory: Option<&PathBuf>,
-    no_decrypt: bool,
-    no_merge: bool,
-    output: Option<&PathBuf>,
-    pb: RichProgress,
-    retry_count: u8,
-    streams: Vec<MediaPlaylist>,
-    threads: u8,
-    temp_files: &mut Vec<Stream>,
-) -> Result<()> {
-    let mut relative_sizes = VecDeque::new();
+    downloaded_bytes: usize,
+    estimated_bytes: usize,
+    index: usize,
+    init_segment: Option<Vec<u8>>,
+    merger: Arc<Mutex<Merger>>,
+    pb: Arc<Mutex<RichProgress>>,
+    request: RequestBuilder,
+    retries: u8,
+    timer: Arc<Instant>,
+}
 
-    for stream in &streams {
-        relative_sizes.push_back(stream.estimate_size(base_url, client)?);
-    }
+impl ThreadData {
+    fn execute(&mut self) -> Result<()> {
+        let mut segment = Vec::new();
 
-    let mut temp_file = None;
-
-    if streams.len() == 1 {
-        if let Some(output) = output {
-            if output.extension() == Some(streams.first().unwrap().extension()) {
-                temp_file = Some(output.to_owned());
-            }
+        if let Some(init_segment) = &mut self.init_segment {
+            segment.append(init_segment);
         }
+
+        segment.append(&mut self.segment()?);
+        segment = self.decrypter.decrypt(segment)?;
+
+        let mut merger = self.merger.lock().unwrap();
+        merger.write(self.index, &segment)?;
+        merger.flush()?;
+
+        self.notify(merger.stored(), merger.estimate())?;
+        Ok(())
     }
 
-    let mut downloaded_bytes = 0;
-    let pb = Arc::new(Mutex::new(pb));
-    let pool = ThreadPoolBuilder::new()
-        .num_threads(threads as usize)
-        .build()
-        .unwrap();
-
-    for stream in streams {
-        let temp_file = temp_file
-            .clone()
-            .unwrap_or(stream.file_path(directory, stream.extension()));
-
-        temp_files.push(Stream {
-            language: stream.language.clone(),
-            media_type: stream.media_type.clone(),
-            path: temp_file.clone(),
-        });
-
-        let _ = relative_sizes.pop_front();
-        let relative_size = relative_sizes.iter().sum::<usize>();
-
-        download_stream(
-            base_url,
-            client,
-            &mut downloaded_bytes,
-            decrypter.clone(),
-            no_decrypt,
-            no_merge,
-            pb.clone(),
-            &pool,
-            relative_size,
-            retry_count,
-            stream,
-            &temp_file,
-        )?;
+    fn notify(&self, stored: usize, estimate: usize) -> Result<()> {
+        let mut pb = self.pb.lock().unwrap();
+        pb.replace(
+            0,
+            Column::Text(format!(
+                "[bold blue]{}",
+                utils::format_download_bytes(
+                    self.downloaded_bytes + stored,
+                    self.downloaded_bytes + estimate + self.estimated_bytes,
+                ),
+            )),
+        );
+        pb.update(1)?;
+        Ok(())
     }
 
-    eprintln!();
-    Ok(())
+    fn segment(&self) -> Result<Vec<u8>> {
+        for _ in 0..self.retries {
+            let response = match self.request.try_clone().unwrap().send() {
+                Ok(response) => response,
+                Err(error) => {
+                    // TODO - Only print this info on verbose logging
+                    self.pb
+                        .lock()
+                        .unwrap()
+                        .write(check_reqwest_error(&error)?)?;
+                    continue;
+                }
+            };
+
+            let status = response.status();
+
+            if status.is_client_error() || status.is_server_error() {
+                bail!("failed to fetch segments.");
+            }
+
+            let data = response.bytes()?.to_vec();
+            let elapsed_time = self.timer.elapsed().as_secs() as usize;
+
+            if elapsed_time != 0 {
+                let stored = self.merger.lock().unwrap().stored() + data.len();
+                self.pb.lock().unwrap().replace(
+                    12,
+                    Column::Text(format!(
+                        "[yellow]{}/s",
+                        utils::format_bytes(stored / elapsed_time, 2).2
+                    )),
+                );
+            }
+
+            return Ok(data);
+        }
+
+        bail!("reached maximum number of retries to download a segment.");
+    }
+}
+
+fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
+    let request = "Request".colorize("bold yellow");
+    let url = error.url().unwrap();
+
+    if error.is_connect() {
+        return Ok(format!("    {} {} (connection error)", request, url));
+    } else if error.is_timeout() {
+        return Ok(format!("    {} {} (timeout)", request, url));
+    }
+
+    if let Some(status) = error.status() {
+        match status {
+            StatusCode::GATEWAY_TIMEOUT => Ok(format!("    {} {} (gateway timeout)", request, url)),
+            StatusCode::REQUEST_TIMEOUT => Ok(format!("    {} {} (timeout)", request, url)),
+            StatusCode::SERVICE_UNAVAILABLE => {
+                Ok(format!("    {} {} (service unavailable)", request, url))
+            }
+            StatusCode::TOO_MANY_REQUESTS => {
+                Ok(format!("    {} {} (too many requests)", request, url))
+            }
+            _ => bail!("download failed {} (HTTP {})", url, status),
+        }
+    } else {
+        bail!("download failed {}", url)
+    }
 }
