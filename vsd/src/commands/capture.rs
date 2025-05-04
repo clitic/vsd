@@ -62,6 +62,10 @@ pub struct Capture {
     #[arg(long)]
     headless: bool,
 
+    /// Launch browser with a proxy.
+    #[arg(long)]
+    proxy: Option<String>,
+
     /// List of resource types to be filter out.
     /// This option can be used multiple times.
     #[arg(short, long, value_enum, default_values_t = [ResourceTypeCopy::Xhr, ResourceTypeCopy::Fetch])]
@@ -157,6 +161,7 @@ impl Capture {
         let browser = Browser::new(
             LaunchOptionsBuilder::default()
                 .headless(self.headless)
+                .proxy_server(self.proxy.as_deref())
                 .build()?,
         )?;
         let tab = browser.new_tab()?;

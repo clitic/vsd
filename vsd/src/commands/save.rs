@@ -223,12 +223,15 @@ fn keys_parser(s: &str) -> Result<Decrypter, String> {
 
         for pair in s.split(';') {
             if let Some((kid, key)) = pair.split_once(':') {
+                let kid = kid.replace('-', "").to_ascii_lowercase();
+                let key = key.replace('-', "").to_ascii_lowercase();
+
                 if kid.len() == 32
                     && key.len() == 32
                     && kid.chars().all(|c| c.is_ascii_hexdigit())
                     && key.chars().all(|c| c.is_ascii_hexdigit())
                 {
-                    kid_key_pairs.insert(kid.to_owned(), key.to_owned());
+                    kid_key_pairs.insert(kid, key);
                 } else {
                     return Err("invalid kid key format used.".to_owned());
                 }
