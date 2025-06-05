@@ -64,7 +64,6 @@ pub struct CookieParam {
     #[serde(rename = "sourcePort")]
     pub source_port: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
     #[serde(rename = "partitionKey")]
     pub partition_key: Option<String>,
 }

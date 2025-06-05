@@ -19,8 +19,6 @@ use std::{
     sync::Arc,
 };
 
-type CookieParams = Vec<CookieParam>;
-
 /// Download DASH and HLS playlists.
 #[derive(Debug, Clone, Args)]
 pub struct Save {
@@ -80,7 +78,7 @@ pub struct Save {
     /// Fill request client with some existing cookies value.
     /// Cookies value can be same as document.cookie or in json format same as puppeteer.
     #[arg(long, help_heading = "Client Options", default_value = "[]", hide_default_value = true, value_parser = cookie_parser)]
-    pub cookies: CookieParams,
+    pub cookies: Vec<CookieParam>,
 
     /// Custom headers for requests.
     /// This option can be used multiple times.
@@ -249,13 +247,13 @@ impl Save {
     }
 }
 
-fn cookie_parser(s: &str) -> Result<CookieParams, String> {
+fn cookie_parser(s: &str) -> Result<Vec<CookieParam>, String> {
     if Path::new(s).exists() {
-        Ok(serde_json::from_slice::<CookieParams>(
+        Ok(serde_json::from_slice::<Vec<CookieParam>>(
             &std::fs::read(s).map_err(|_| format!("could not read {}.", s))?,
         )
         .map_err(|_| "could not deserialize cookies from json file.")?)
-    } else if let Ok(cookies) = serde_json::from_str::<CookieParams>(s) {
+    } else if let Ok(cookies) = serde_json::from_str::<Vec<CookieParam>>(s) {
         Ok(cookies)
     } else {
         let mut cookies = vec![];
