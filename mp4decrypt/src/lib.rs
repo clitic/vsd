@@ -56,11 +56,11 @@ extern "C" fn decrypt_callback(decrypted_stream: *mut Vec<u8>, data: *const c_uc
 ///
 /// * `data` - Encrypted data stream.
 /// * `kid_key_pairs` - Hashmap of kid key pairs for decrypting data stream.
-///            Hashmap `key` is either a track ID in decimal or a 128-bit KID in hex.
-///            Hashmap `value` is a 128-bit key in hex. <br>
-///            1. For dcf files, use 1 as the track index <br>
-///            2. For Marlin IPMP/ACGK, use 0 as the track ID <br>
-///            3. KIDs are only applicable to some encryption methods like MPEG-CENC <br>
+///   Hashmap `key` is either a track ID in decimal or a 128-bit KID in hex.
+///   Hashmap `value` is a 128-bit key in hex. <br>
+///   1. For dcf files, use 1 as the track index <br>
+///   2. For Marlin IPMP/ACGK, use 0 as the track ID <br>
+///   3. KIDs are only applicable to some encryption methods like MPEG-CENC <br>
 /// * `fragments_info` (optional) - Decrypt the fragments read from data stream, with track info read from this stream.
 ///
 /// # Example
