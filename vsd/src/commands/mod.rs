@@ -7,7 +7,7 @@ mod capture;
 
 pub use extract::Extract;
 pub use merge::Merge;
-pub use save::{Quality, Save};
+pub use save::Save;
 
 #[cfg(feature = "browser")]
 pub use capture::Capture;

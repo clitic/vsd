@@ -1,7 +1,6 @@
 use crate::{
-    commands::Quality,
     downloader::{InputMetadata, Prompts},
-    playlist::{MasterPlaylist, MediaPlaylist, PlaylistType},
+    playlist::{MasterPlaylist, MediaPlaylist, PlaylistType, Quality},
     utils,
 };
 use anyhow::{anyhow, bail, Result};

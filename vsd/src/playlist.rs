@@ -7,7 +7,6 @@
 
 */
 
-use crate::commands::Quality;
 use anyhow::{anyhow, bail, Ok, Result};
 use kdam::term::Colorizer;
 use requestty::prompt::style::Stylize;
@@ -817,4 +816,22 @@ impl Iterator for PartialRangeIter {
             })
         }
     }
+}
+
+
+#[derive(Debug, Clone)]
+pub enum Quality {
+    Lowest,
+    Highest,
+    Resolution(u16, u16),
+    Youtube144p,
+    Youtube240p,
+    Youtube360p,
+    Youtube480p,
+    Youtube720p,
+    Youtube1080p,
+    Youtube2k,
+    Youtube1440p,
+    Youtube4k,
+    Youtube8k,
 }

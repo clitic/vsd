@@ -1,7 +1,7 @@
 use crate::{
     cookie::{CookieJar, CookieParam},
     downloader::{self, encryption::Decrypter, Prompts},
-    playlist::KeyMethod,
+    playlist::{KeyMethod, Quality},
 };
 use anyhow::Result;
 use clap::Args;
@@ -114,7 +114,7 @@ pub struct Save {
     #[arg(
         long,
         help_heading = "Client Options",
-        default_value = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36"
+        default_value = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"
     )]
     pub user_agent: String,
 
@@ -144,134 +144,12 @@ pub struct Save {
     pub threads: u8,
 }
 
-#[derive(Debug, Clone)]
-pub enum Quality {
-    Lowest,
-    Highest,
-    Resolution(u16, u16),
-    Youtube144p,
-    Youtube240p,
-    Youtube360p,
-    Youtube480p,
-    Youtube720p,
-    Youtube1080p,
-    Youtube2k,
-    Youtube1440p,
-    Youtube4k,
-    Youtube8k,
-}
-
-fn quality_parser(s: &str) -> Result<Quality, String> {
-    Ok(match s.to_lowercase().as_str() {
-        "lowest" | "min" => Quality::Lowest,
-        "144p" => Quality::Youtube144p,
-        "240p" => Quality::Youtube240p,
-        "360p" => Quality::Youtube360p,
-        "480p" => Quality::Youtube480p,
-        "720p" | "hd" => Quality::Youtube720p,
-        "1080p" | "fhd" => Quality::Youtube1080p,
-        "2k" => Quality::Youtube2k,
-        "1440p" | "qhd" => Quality::Youtube1440p,
-        "4k" => Quality::Youtube4k,
-        "8k" => Quality::Youtube8k,
-        "highest" | "max" => Quality::Highest,
-        x if x.ends_with('p') => Quality::Resolution(
-            0,
-            x.trim_end_matches('p')
-                .parse::<u16>()
-                .map_err(|_| "could not parse resolution HEIGHT.".to_owned())?,
-        ),
-        x => {
-            if let Some((w, h)) = x.split_once('x') {
-                Quality::Resolution(
-                    w.parse::<u16>()
-                        .map_err(|_| "could not parse resolution WIDTH.".to_owned())?,
-                    h.parse::<u16>()
-                        .map_err(|_| "could not parse resolution HEIGHT.".to_owned())?,
-                )
-            } else {
-                Err(format!(
-                    "could not parse resolution WIDTHxHEIGHT. comman values: [{}]",
-                    [
-                        "lowest", "min", "144p", "240p", "360p", "480p", "720p", "hd", "1080p",
-                        "fhd", "2k", "1440p", "qhd", "4k", "8k", "highest", "max"
-                    ]
-                    .iter()
-                    .map(|x| x.colorize("green"))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                ))?
-            }
-        }
-    })
-}
-
-fn keys_parser(s: &str) -> Result<Decrypter, String> {
-    if Path::new(s).exists() {
-        let bytes = fs::read(s).map_err(|_| "could'nt read key file.")?;
-
-        if bytes.len() != 16 {
-            return Err("invalid key size.".to_owned());
-        }
-
-        let mut key = [0_u8; 16];
-        key.copy_from_slice(&bytes);
-
-        Ok(Decrypter::new_hls_aes(key, [0_u8; 16], &KeyMethod::None))
-    } else {
-        let mut kid_key_pairs = HashMap::new();
-
-        for pair in s.split(';') {
-            if let Some((kid, key)) = pair.split_once(':') {
-                let kid = kid.replace('-', "").to_ascii_lowercase();
-                let key = key.replace('-', "").to_ascii_lowercase();
-
-                if kid.len() == 32
-                    && key.len() == 32
-                    && kid.chars().all(|c| c.is_ascii_hexdigit())
-                    && key.chars().all(|c| c.is_ascii_hexdigit())
-                {
-                    kid_key_pairs.insert(kid, key);
-                } else {
-                    return Err("invalid kid key format used.".to_owned());
-                }
-            }
-        }
-
-        Ok(Decrypter::Mp4Decrypt(kid_key_pairs))
-    }
-}
-
-fn cookie_parser(s: &str) -> Result<CookieParams, String> {
-    if Path::new(s).exists() {
-        Ok(serde_json::from_slice::<CookieParams>(
-            &std::fs::read(s).map_err(|_| format!("could not read {}.", s))?,
-        )
-        .map_err(|x| format!("could not deserialize cookies from json file. {}", x))?)
-    } else if let Ok(cookies) = serde_json::from_str::<CookieParams>(s) {
-        Ok(cookies)
-    } else {
-        let mut cookies = vec![];
-        for cookie in Cookie::split_parse(s) {
-            match cookie {
-                Ok(x) => cookies.push(CookieParam::new(x.name(), x.value())),
-                Err(e) => return Err(format!("could not split parse cookies. {}", e)),
-            }
-        }
-        Ok(cookies)
-    }
-}
-
-fn proxy_address_parser(s: &str) -> Result<Proxy, String> {
-    Proxy::all(s).map_err(|x| x.to_string())
-}
-
 impl Save {
-    pub fn execute(mut self) -> Result<()> {
+    fn client(&self) -> Result<Client> {
         let mut client_builder = Client::builder()
+            .cookie_store(true)
             .danger_accept_invalid_certs(self.no_certificate_checks)
-            .user_agent(self.user_agent)
-            .cookie_store(true);
+            .user_agent(&self.user_agent);
 
         if !self.header.is_empty() {
             let mut headers = HeaderMap::new();
@@ -286,8 +164,8 @@ impl Save {
             client_builder = client_builder.default_headers(headers);
         }
 
-        if let Some(proxy) = self.proxy {
-            client_builder = client_builder.proxy(proxy);
+        if let Some(proxy) = &self.proxy {
+            client_builder = client_builder.proxy(proxy.clone());
         }
 
         let mut jar = CookieJar::new();
@@ -298,7 +176,7 @@ impl Save {
             }
         }
 
-        for cookie in self.cookies {
+        for cookie in &self.cookies {
             if let Some(url) = &cookie.url {
                 jar.add_cookie_str(&format!("{}", cookie.as_cookie()), &url.parse::<Url>()?);
             } else {
@@ -307,7 +185,11 @@ impl Save {
         }
 
         let client = client_builder.cookie_provider(Arc::new(jar)).build()?;
+        Ok(client)
+    }
 
+    pub fn execute(mut self) -> Result<()> {
+        let client = self.client()?;
         let prompts = Prompts {
             skip: self.skip_prompts,
             raw: self.raw_prompts,
@@ -365,4 +247,109 @@ impl Save {
 
         Ok(())
     }
+}
+
+fn cookie_parser(s: &str) -> Result<CookieParams, String> {
+    if Path::new(s).exists() {
+        Ok(serde_json::from_slice::<CookieParams>(
+            &std::fs::read(s).map_err(|_| format!("could not read {}.", s))?,
+        )
+        .map_err(|_| "could not deserialize cookies from json file.")?)
+    } else if let Ok(cookies) = serde_json::from_str::<CookieParams>(s) {
+        Ok(cookies)
+    } else {
+        let mut cookies = vec![];
+        for cookie in Cookie::split_parse(s) {
+            match cookie {
+                Ok(x) => cookies.push(CookieParam::new(x.name(), x.value())),
+                Err(_) => return Err("could not split parse cookies.".to_owned()),
+            }
+        }
+        Ok(cookies)
+    }
+}
+
+fn keys_parser(s: &str) -> Result<Decrypter, String> {
+    if Path::new(s).exists() {
+        let bytes = fs::read(s).map_err(|_| "could'nt read key file.")?;
+
+        if bytes.len() != 16 {
+            return Err("invalid key size.".to_owned());
+        }
+
+        let mut key = [0_u8; 16];
+        key.copy_from_slice(&bytes);
+
+        Ok(Decrypter::new_hls_aes(key, [0_u8; 16], &KeyMethod::None))
+    } else {
+        let mut kid_key_pairs = HashMap::new();
+
+        for pair in s.split(';') {
+            if let Some((kid, key)) = pair.split_once(':') {
+                let kid = kid.replace('-', "").to_ascii_lowercase();
+                let key = key.replace('-', "").to_ascii_lowercase();
+
+                if kid.len() == 32
+                    && key.len() == 32
+                    && kid.chars().all(|c| c.is_ascii_hexdigit())
+                    && key.chars().all(|c| c.is_ascii_hexdigit())
+                {
+                    kid_key_pairs.insert(kid, key);
+                } else {
+                    return Err("invalid kid key format used.".to_owned());
+                }
+            }
+        }
+
+        Ok(Decrypter::Mp4Decrypt(kid_key_pairs))
+    }
+}
+
+fn proxy_address_parser(s: &str) -> Result<Proxy, String> {
+    Proxy::all(s).map_err(|x| x.to_string())
+}
+
+fn quality_parser(s: &str) -> Result<Quality, String> {
+    Ok(match s.to_lowercase().as_str() {
+        "lowest" | "min" => Quality::Lowest,
+        "144p" => Quality::Youtube144p,
+        "240p" => Quality::Youtube240p,
+        "360p" => Quality::Youtube360p,
+        "480p" => Quality::Youtube480p,
+        "720p" | "hd" => Quality::Youtube720p,
+        "1080p" | "fhd" => Quality::Youtube1080p,
+        "2k" => Quality::Youtube2k,
+        "1440p" | "qhd" => Quality::Youtube1440p,
+        "4k" => Quality::Youtube4k,
+        "8k" => Quality::Youtube8k,
+        "highest" | "max" => Quality::Highest,
+        x if x.ends_with('p') => Quality::Resolution(
+            0,
+            x.trim_end_matches('p')
+                .parse::<u16>()
+                .map_err(|_| "could not parse resolution HEIGHT.".to_owned())?,
+        ),
+        x => {
+            if let Some((w, h)) = x.split_once('x') {
+                Quality::Resolution(
+                    w.parse::<u16>()
+                        .map_err(|_| "could not parse resolution WIDTH.".to_owned())?,
+                    h.parse::<u16>()
+                        .map_err(|_| "could not parse resolution HEIGHT.".to_owned())?,
+                )
+            } else {
+                Err(format!(
+                    "could not parse resolution WIDTHxHEIGHT. comman values: [{}]",
+                    [
+                        "lowest", "min", "144p", "240p", "360p", "480p", "720p", "hd", "1080p",
+                        "fhd", "2k", "1440p", "qhd", "4k", "8k", "highest", "max"
+                    ]
+                    .iter()
+                    .map(|x| x.colorize("green"))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                ))?
+            }
+        }
+    })
 }
