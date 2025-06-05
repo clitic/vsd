@@ -6,7 +6,7 @@ use crate::{
 use anyhow::{anyhow, bail, Result};
 use kdam::{term::Colorizer, BarExt, Column, RichProgress};
 use reqwest::{blocking::Client, header, Url};
-use std::{ffi::OsStr, fs::File, io::Write, path::PathBuf};
+use std::{collections::HashMap, ffi::OsStr, fs::File, io::Write, path::PathBuf};
 use vsd_mp4::text::{ttml_text_parser, Mp4TtmlParser, Mp4VttParser};
 
 enum SubtitleType {
@@ -23,6 +23,7 @@ fn download_subtitle_stream(
     directory: Option<&PathBuf>,
     stream: &MediaPlaylist,
     pb: &mut RichProgress,
+    query: &HashMap<String, String>,
     temp_files: &mut Vec<Stream>,
 ) -> Result<()> {
     pb.write(format!(
@@ -76,7 +77,7 @@ fn download_subtitle_stream(
     for segment in &stream.segments {
         if let Some(map) = &segment.map {
             let url = stream_base_url.join(&map.uri)?;
-            let mut request = client.get(url);
+            let mut request = client.get(url).query(query);
 
             if let Some(range) = &map.range {
                 request = request.header(header::RANGE, range.as_header_value());
@@ -88,7 +89,7 @@ fn download_subtitle_stream(
         }
 
         let url = stream_base_url.join(&segment.uri)?;
-        let mut request = client.get(url);
+        let mut request = client.get(url).query(query);
 
         if let Some(range) = &segment.range {
             request = request.header(header::RANGE, range.as_header_value());
@@ -193,11 +194,12 @@ pub fn download_subtitle_streams(
     directory: Option<&PathBuf>,
     streams: &[MediaPlaylist],
     pb: &mut RichProgress,
+    query: &HashMap<String, String>,
     temp_files: &mut Vec<Stream>,
 ) -> Result<()> {
     for stream in streams {
         if stream.media_type == MediaType::Subtitles {
-            download_subtitle_stream(base_url, client, directory, stream, pb, temp_files)?;
+            download_subtitle_stream(base_url, client, directory, stream, pb, query, temp_files)?;
         }
     }
 

@@ -6,7 +6,7 @@ mod stream;
 mod subtitle;
 
 use encryption::Decrypter;
-pub use fetch::{fetch_playlist, InputMetadata};
+pub use fetch::fetch_playlist;
 pub use parse::{parse_all_streams, parse_selected_streams};
 pub use subtitle::download_subtitle_streams;
 
@@ -17,12 +17,7 @@ use crate::{
 use anyhow::{bail, Result};
 use kdam::{tqdm, BarExt, Column, RichProgress};
 use reqwest::{blocking::Client, Url};
-use std::{fs, path::PathBuf};
-
-pub struct Prompts {
-    pub skip: bool,
-    pub raw: bool,
-}
+use std::{collections::HashMap, fs, path::PathBuf};
 
 #[allow(clippy::too_many_arguments)]
 pub fn download(
@@ -33,6 +28,7 @@ pub fn download(
     no_decrypt: bool,
     no_merge: bool,
     output: Option<PathBuf>,
+    query: &HashMap<String, String>,
     streams: Vec<MediaPlaylist>,
     retry_count: u8,
     threads: u8,
@@ -65,7 +61,7 @@ pub fn download(
 
     if !no_decrypt {
         encryption::check_unsupported_encryptions(&streams)?;
-        let default_kids = encryption::extract_default_kids(&base_url, &client, &streams)?;
+        let default_kids = encryption::extract_default_kids(&base_url, &client, &streams, query)?;
         encryption::check_key_exists_for_kid(&decrypter, &default_kids)?;
     }
 
@@ -112,6 +108,7 @@ pub fn download(
         directory.as_ref(),
         &streams,
         &mut pb,
+        query,
         &mut temp_files,
     )?;
 
@@ -125,7 +122,7 @@ pub fn download(
     // -----------------------------------------------------------------------------------------
 
     for stream in &mut streams {
-        stream.split_segment(&base_url, &client)?;
+        stream.split_segment(&base_url, &client, query)?;
     }
 
     // -----------------------------------------------------------------------------------------
@@ -153,6 +150,7 @@ pub fn download(
         no_merge,
         output.as_ref(),
         pb,
+        query,
         retry_count,
         streams,
         threads,

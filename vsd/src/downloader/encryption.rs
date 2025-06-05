@@ -52,6 +52,7 @@ pub fn extract_default_kids(
     base_url: &Option<Url>,
     client: &Client,
     streams: &Vec<MediaPlaylist>,
+    query: &HashMap<String, String>,
 ) -> Result<HashSet<String>> {
     let mut default_kids = HashSet::new();
 
@@ -77,7 +78,7 @@ pub fn extract_default_kids(
 
         if let Some(Segment { map: Some(x), .. }) = stream.segments.first() {
             let url = stream_base_url.join(&x.uri)?;
-            let mut request = client.get(url);
+            let mut request = client.get(url).query(query);
 
             if let Some(range) = &x.range {
                 request = request.header(header::RANGE, range.as_header_value());

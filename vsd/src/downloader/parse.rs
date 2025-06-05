@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
+use super::fetch::Metadata;
 use crate::{
-    downloader::{InputMetadata, Prompts},
-    playlist::{MasterPlaylist, MediaPlaylist, PlaylistType, Quality},
+    playlist::{MasterPlaylist, MediaPlaylist, PlaylistType, Prompts, Quality},
     utils,
 };
 use anyhow::{anyhow, bail, Result};
@@ -9,7 +11,8 @@ use reqwest::{blocking::Client, Url};
 pub fn parse_all_streams(
     base_url: Option<Url>,
     client: &Client,
-    meta: &InputMetadata,
+    meta: &Metadata,
+    query: &HashMap<String, String>,
 ) -> Result<MasterPlaylist> {
     match meta.pl_type {
         Some(PlaylistType::Dash) => {
@@ -52,7 +55,7 @@ pub fn parse_all_streams(
                         let decoded = utils::decode_base64(bs)?;
                         text = String::from_utf8(decoded)?;
                     } else {
-                        let response = client.get(&stream.uri).send()?;
+                        let response = client.get(&stream.uri).query(query).send()?;
                         text = response.text()?;
                     }
 
@@ -96,11 +99,12 @@ pub fn parse_all_streams(
 pub fn parse_selected_streams(
     base_url: Option<Url>,
     client: &Client,
-    meta: &InputMetadata,
+    meta: &Metadata,
     prefer_audio_lang: Option<String>,
     prefer_subs_lang: Option<String>,
     prompts: &Prompts,
     quality: Quality,
+    query: &HashMap<String, String>,
 ) -> Result<Vec<MediaPlaylist>> {
     match meta.pl_type {
         Some(PlaylistType::Dash) => {
@@ -147,7 +151,7 @@ pub fn parse_selected_streams(
                         let decoded = utils::decode_base64(bs)?;
                         text = String::from_utf8(decoded)?;
                     } else {
-                        let response = client.get(&stream.uri).send()?;
+                        let response = client.get(&stream.uri).query(query).send()?;
                         text = response.text()?;
                     }
 

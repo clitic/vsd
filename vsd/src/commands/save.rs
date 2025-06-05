@@ -1,7 +1,7 @@
 use crate::{
     cookie::{CookieJar, CookieParam},
-    downloader::{self, encryption::Decrypter, Prompts},
-    playlist::{KeyMethod, Quality},
+    downloader::{self, encryption::Decrypter},
+    playlist::{KeyMethod, Prompts, Quality},
 };
 use anyhow::Result;
 use clap::Args;
@@ -18,6 +18,8 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
+
+type CookieParams = Vec<CookieParam>;
 
 /// Download DASH and HLS playlists.
 #[derive(Debug, Clone, Args)]
@@ -78,7 +80,7 @@ pub struct Save {
     /// Fill request client with some existing cookies value.
     /// Cookies value can be same as document.cookie or in json format same as puppeteer.
     #[arg(long, help_heading = "Client Options", default_value = "[]", hide_default_value = true, value_parser = cookie_parser)]
-    pub cookies: Vec<CookieParam>,
+    pub cookies: CookieParams,
 
     /// Custom headers for requests.
     /// This option can be used multiple times.
@@ -98,8 +100,8 @@ pub struct Save {
     pub proxy: Option<Proxy>,
 
     /// Set query parameters for requests.
-    #[arg(long, help_heading = "Client Options")]
-    pub query: Option<String>,
+    #[arg(long, help_heading = "Client Options", default_value = "", hide_default_value = true, value_parser = query_parser)]
+    pub query: HashMap<String, String>,
 
     /// Fill request client with some existing cookies per domain.
     /// First value for this option is set-cookie header and second value is url which was requested to send this set-cookie header.
@@ -186,20 +188,26 @@ impl Save {
         Ok(client)
     }
 
-    pub fn execute(mut self) -> Result<()> {
-        let client = self.client()?;
+    pub fn execute(self) -> Result<()> {
         let prompts = Prompts {
             skip: self.skip_prompts,
             raw: self.raw_prompts,
         };
-        let meta =
-            downloader::fetch_playlist(self.base_url.clone(), &client, &self.input, &prompts)?;
+        let client = self.client()?;
+        let meta = downloader::fetch_playlist(
+            self.base_url.clone(),
+            &client,
+            &self.input,
+            &prompts,
+            &self.query,
+        )?;
 
         if self.parse {
-            let playlist = downloader::parse_all_streams(self.base_url.clone(), &client, &meta)?;
+            let playlist =
+                downloader::parse_all_streams(self.base_url.clone(), &client, &meta, &self.query)?;
             serde_json::to_writer(std::io::stdout(), &playlist)?;
         } else {
-            let mut streams = downloader::parse_selected_streams(
+            let streams = downloader::parse_selected_streams(
                 self.base_url.clone(),
                 &client,
                 &meta,
@@ -207,27 +215,8 @@ impl Save {
                 self.prefer_subs_lang,
                 &prompts,
                 self.quality,
+                &self.query,
             )?;
-
-            if !self.no_query_pass {
-                if let Some(query) = self.query.as_mut() {
-                    if query.starts_with('&') {
-                        *query = query.trim_start_matches('&').to_owned();
-                    }
-                }
-
-                streams.iter_mut().for_each(|x| {
-                    if let Some(query) = self.query.clone().or(x
-                        .uri
-                        .parse::<Url>()
-                        .unwrap()
-                        .query()
-                        .map(|y| y.to_owned()))
-                    {
-                        x.add_query(&query);
-                    }
-                });
-            }
 
             downloader::download(
                 self.base_url,
@@ -237,6 +226,7 @@ impl Save {
                 self.no_decrypt,
                 self.no_merge,
                 self.output,
+                &self.query,
                 streams,
                 self.retry_count,
                 self.threads,
@@ -247,13 +237,13 @@ impl Save {
     }
 }
 
-fn cookie_parser(s: &str) -> Result<Vec<CookieParam>, String> {
+fn cookie_parser(s: &str) -> Result<CookieParams, String> {
     if Path::new(s).exists() {
-        Ok(serde_json::from_slice::<Vec<CookieParam>>(
+        Ok(serde_json::from_slice::<CookieParams>(
             &std::fs::read(s).map_err(|_| format!("could not read {}.", s))?,
         )
         .map_err(|_| "could not deserialize cookies from json file.")?)
-    } else if let Ok(cookies) = serde_json::from_str::<Vec<CookieParam>>(s) {
+    } else if let Ok(cookies) = serde_json::from_str::<CookieParams>(s) {
         Ok(cookies)
     } else {
         let mut cookies = vec![];
@@ -350,4 +340,17 @@ fn quality_parser(s: &str) -> Result<Quality, String> {
             }
         }
     })
+}
+
+fn query_parser(s: &str) -> Result<HashMap<String, String>, String> {
+    let mut queries = HashMap::new();
+
+    for pair in s.split('&') {
+        let mut parts = pair.splitn(2, '=');
+        if let (Some(key), Some(value)) = (parts.next(), parts.next()) {
+            queries.insert(key.to_owned(), value.to_owned());
+        }
+    }
+
+    Ok(queries)
 }

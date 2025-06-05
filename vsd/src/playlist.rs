@@ -16,7 +16,7 @@ use reqwest::{
     Url,
 };
 use serde::Serialize;
-use std::{ffi::OsStr, fmt::Display, io::Write, path::PathBuf};
+use std::{collections::HashMap, ffi::OsStr, fmt::Display, io::Write, path::PathBuf};
 
 #[derive(Serialize)]
 pub struct MasterPlaylist {
@@ -586,41 +586,18 @@ impl MediaPlaylist {
         extra
     }
 
-    pub fn add_query(&mut self, query: &str) {
-        for segment in &mut self.segments {
-            if let Some(map) = &mut segment.map {
-                let mut uri = map.uri.clone();
-
-                if uri.ends_with("??") || !uri.contains('?') {
-                    uri += "?";
-                } else if (uri.ends_with("&&") || !uri.ends_with('&')) && !uri.ends_with('?') {
-                    uri += "&";
-                }
-
-                uri += query;
-                map.uri = uri;
-            }
-
-            let mut uri = segment.uri.clone();
-
-            if uri.ends_with("??") || !uri.contains('?') {
-                uri += "?";
-            } else if (uri.ends_with("&&") || !uri.ends_with('&')) && !uri.ends_with('?') {
-                uri += "&";
-            }
-
-            uri += query;
-            segment.uri = uri;
-        }
-    }
-
-    pub fn estimate_size(&self, base_url: &Option<Url>, client: &Client) -> Result<usize> {
+    pub fn estimate_size(
+        &self,
+        base_url: &Option<Url>,
+        client: &Client,
+        query: &HashMap<String, String>,
+    ) -> Result<usize> {
         let base_url = base_url.clone().unwrap_or(self.uri.parse::<Url>().unwrap());
         let total_segments = self.segments.len();
 
         if let Some(segment) = self.segments.first() {
             let url = base_url.join(&segment.uri)?;
-            let mut request = client.head(url.clone());
+            let mut request = client.head(url.clone()).query(query);
 
             if total_segments > 1 {
                 if let Some(range) = &segment.range {
@@ -648,7 +625,12 @@ impl MediaPlaylist {
         Ok(0)
     }
 
-    pub fn split_segment(&mut self, base_url: &Option<Url>, client: &Client) -> Result<()> {
+    pub fn split_segment(
+        &mut self,
+        base_url: &Option<Url>,
+        client: &Client,
+        query: &HashMap<String, String>,
+    ) -> Result<()> {
         if self.segments.len() > 1 {
             return Ok(());
         }
@@ -656,7 +638,7 @@ impl MediaPlaylist {
         let base_url = base_url.clone().unwrap_or(self.uri.parse::<Url>().unwrap());
         let segment = self.segments.remove(0);
         let url = base_url.join(&segment.uri)?;
-        let response = client.head(url).send()?;
+        let response = client.head(url).query(query).send()?;
         let content_length = response
             .headers()
             .get(header::CONTENT_LENGTH)
@@ -818,7 +800,6 @@ impl Iterator for PartialRangeIter {
     }
 }
 
-
 #[derive(Debug, Clone)]
 pub enum Quality {
     Lowest,
@@ -834,4 +815,9 @@ pub enum Quality {
     Youtube1440p,
     Youtube4k,
     Youtube8k,
+}
+
+pub struct Prompts {
+    pub skip: bool,
+    pub raw: bool,
 }

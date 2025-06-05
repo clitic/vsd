@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Mux commands for solo streams.
+- Query support.
 
 ## [0.3.3] - 2025-03-14
 

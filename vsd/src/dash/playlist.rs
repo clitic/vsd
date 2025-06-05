@@ -73,11 +73,13 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
                 streams.push(MediaPlaylist {
                     bandwidth: representation.bandwidth,
                     channels: representation
-                        .AudioChannelConfiguration.first()
+                        .AudioChannelConfiguration
+                        .first()
                         .and_then(|x| x.value.as_ref().map(|y| y.parse::<f32>().ok()))
                         .flatten()
                         .or(adaptation_set
-                            .AudioChannelConfiguration.first()
+                            .AudioChannelConfiguration
+                            .first()
                             .and_then(|x| x.value.as_ref().map(|y| y.parse::<f32>().ok()))
                             .flatten()),
                     codecs,

@@ -12,7 +12,7 @@ use reqwest::{
     header, StatusCode, Url,
 };
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     path::PathBuf,
     sync::{Arc, Mutex},
     time::Instant,
@@ -28,6 +28,7 @@ pub fn download_streams(
     no_merge: bool,
     output: Option<&PathBuf>,
     pb: RichProgress,
+    query: &HashMap<String, String>,
     retry_count: u8,
     streams: Vec<MediaPlaylist>,
     threads: u8,
@@ -36,7 +37,7 @@ pub fn download_streams(
     let mut estimated_bytes = VecDeque::new();
 
     for stream in &streams {
-        estimated_bytes.push_back(stream.estimate_size(base_url, client)?);
+        estimated_bytes.push_back(stream.estimate_size(base_url, client, query)?);
     }
 
     let mut temp_file = None;
@@ -79,6 +80,7 @@ pub fn download_streams(
             no_merge,
             pb.clone(),
             &pool,
+            query,
             retry_count,
             stream,
             &temp_file,
@@ -100,6 +102,7 @@ fn download_stream(
     no_merge: bool,
     pb: Arc<Mutex<RichProgress>>,
     pool: &ThreadPool,
+    query: &HashMap<String, String>,
     retry_count: u8,
     stream: MediaPlaylist,
     temp_file: &PathBuf,
@@ -133,7 +136,7 @@ fn download_stream(
     for (i, segment) in stream.segments.iter().enumerate() {
         if let Some(map) = &segment.map {
             let url = base_url.join(&map.uri)?;
-            let mut request = client.get(url);
+            let mut request = client.get(url).query(query);
 
             if let Some(range) = &map.range {
                 request = request.header(header::RANGE, range.as_header_value());
@@ -162,7 +165,7 @@ fn download_stream(
                             decrypter.update_enc_type(&key.method);
                         } else {
                             let url = base_url.join(key.uri.as_ref().unwrap())?;
-                            let bytes = client.get(url).send()?.bytes()?;
+                            let bytes = client.get(url).query(query).send()?.bytes()?;
 
                             decrypter = Decrypter::new_hls_aes(
                                 key.key(&bytes)?,

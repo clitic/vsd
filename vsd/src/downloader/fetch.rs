@@ -1,19 +1,23 @@
-use crate::{downloader::Prompts, playlist::PlaylistType};
+use crate::playlist::{PlaylistType, Prompts};
 use anyhow::{anyhow, bail, Result};
 use kdam::term::Colorizer;
 use regex::Regex;
 use reqwest::{blocking::Client, header, Url};
-use std::{collections::HashSet, io::Write, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    io::Write,
+    path::Path,
+};
 
-pub struct InputMetadata {
+pub struct Metadata {
     pub pl_type: Option<PlaylistType>,
     pub text: String,
     pub url: Url,
 }
 
-impl InputMetadata {
-    fn fetch(&mut self, client: &Client) -> Result<()> {
-        let response = client.get(self.url.as_ref()).send()?;
+impl Metadata {
+    fn fetch(&mut self, client: &Client, query: &HashMap<String, String>) -> Result<()> {
+        let response = client.get(self.url.as_ref()).query(query).send()?;
         self.url = response.url().to_owned();
 
         if let Some(content_type) = response.headers().get(header::CONTENT_TYPE) {
@@ -49,8 +53,9 @@ pub fn fetch_playlist(
     client: &Client,
     input: &str,
     prompts: &Prompts,
-) -> Result<InputMetadata> {
-    let mut meta = InputMetadata {
+    query: &HashMap<String, String>,
+) -> Result<Metadata> {
+    let mut meta = Metadata {
         pl_type: None,
         text: String::new(),
         url: base_url
@@ -81,17 +86,22 @@ pub fn fetch_playlist(
     } else {
         meta.url = input.parse::<Url>().unwrap();
         // TODO - We can add site specific parsers here
-        meta.fetch(client)?;
+        meta.fetch(client, query)?;
 
         if meta.pl_type.is_none() {
-            fetch_from_website(client, &mut meta, prompts)?;
+            fetch_from_website(client, &mut meta, prompts, query)?;
         }
     }
 
     Ok(meta)
 }
 
-fn fetch_from_website(client: &Client, meta: &mut InputMetadata, prompts: &Prompts) -> Result<()> {
+fn fetch_from_website(
+    client: &Client,
+    meta: &mut Metadata,
+    prompts: &Prompts,
+    query: &HashMap<String, String>,
+) -> Result<()> {
     println!(
         "   {} website for DASH and HLS playlists",
         "Scraping".colorize("bold cyan")
@@ -155,7 +165,7 @@ fn fetch_from_website(client: &Client, meta: &mut InputMetadata, prompts: &Promp
         }
     }
 
-    meta.fetch(client)?;
+    meta.fetch(client, query)?;
     Ok(())
 }
 
