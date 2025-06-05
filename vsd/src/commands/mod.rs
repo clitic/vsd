@@ -43,5 +43,5 @@ pub enum Commands {
     Capture(Capture),
     Extract(Extract),
     Merge(Merge),
-    Save(Save),
+    Save(Box<Save>),
 }

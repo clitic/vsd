@@ -243,10 +243,10 @@ pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playli
             .next()
             .unwrap()
             .split('/')
-            .last()
+            .next_back()
             .and_then(|x| {
                 if x.contains('.') {
-                    x.split('.').last()
+                    x.split('.').next_back()
                 } else {
                     Some("mp4")
                 }

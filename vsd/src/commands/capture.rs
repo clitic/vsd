@@ -347,7 +347,7 @@ fn file_path(url: &str, directory: &Option<PathBuf>) -> PathBuf {
             .next()
             .unwrap()
             .split('/')
-            .last()
+            .next_back()
             .unwrap_or("undefined")
             .chars()
             .map(|x| match x {

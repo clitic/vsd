@@ -96,6 +96,7 @@ pub fn parse_all_streams(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn parse_selected_streams(
     base_url: Option<Url>,
     client: &Client,
