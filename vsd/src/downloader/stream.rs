@@ -108,15 +108,15 @@ fn download_stream(
     temp_file: &PathBuf,
 ) -> Result<()> {
     pb.lock().unwrap().write(format!(
-        " {} {} stream {}",
-        "Processing".colorize("bold green"),
-        stream.media_type,
-        stream.display_stream().colorize("cyan"),
+        " {} [{:>5}] stream {}",
+        "Processing".colorize("cyan"),
+        stream.media_type.to_string(),
+        stream.display_stream(),
     ))?;
     pb.lock().unwrap().write(format!(
-        "{} stream to {}",
+        "{} {}",
         "Downloading".colorize("bold green"),
-        temp_file.to_string_lossy().colorize("cyan"),
+        temp_file.to_string_lossy(),
     ))?;
 
     let mut download_threads = Vec::with_capacity(stream.segments.len());
@@ -181,7 +181,7 @@ fn download_stream(
                             if let Some(default_kid) = stream.default_kid() {
                                 pb.lock().unwrap().write(format!(
                                     "        {} {}:{}",
-                                    "Key".colorize("bold green"),
+                                    "Key".colorize("bold red"),
                                     default_kid,
                                     kid_key_pairs.get(&default_kid).unwrap(), // We already checked this before hand
                                 ))?;

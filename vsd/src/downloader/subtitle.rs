@@ -27,10 +27,10 @@ fn download_subtitle_stream(
     temp_files: &mut Vec<Stream>,
 ) -> Result<()> {
     pb.write(format!(
-        " {} {} stream {}",
-        "Processing".colorize("bold green"),
-        stream.media_type,
-        stream.display_stream().colorize("cyan"),
+        " {} [{:>5}] stream {}",
+        "Processing".colorize("cyan"),
+        stream.media_type.to_string(),
+        stream.display_stream(),
     ))?;
 
     let length = stream.segments.len();
@@ -122,9 +122,9 @@ fn download_subtitle_stream(
                 path: temp_file.clone(),
             });
             pb.write(format!(
-                "{} stream to {}",
+                "{} {}",
                 "Downloading".colorize("bold green"),
-                temp_file.to_string_lossy().colorize("cyan")
+                temp_file.to_string_lossy()
             ))?;
         }
 
@@ -142,7 +142,7 @@ fn download_subtitle_stream(
         Some(SubtitleType::Mp4Vtt) => {
             pb.write(format!(
                 " {} wvtt subtitles",
-                "Extracting".colorize("bold cyan"),
+                "Extracting".colorize("cyan"),
             ))?;
 
             let vtt = Mp4VttParser::parse_init(&subtitles_data)?;
@@ -152,7 +152,7 @@ fn download_subtitle_stream(
         Some(SubtitleType::Mp4Ttml) => {
             pb.write(format!(
                 " {} stpp subtitles",
-                "Extracting".colorize("bold cyan"),
+                "Extracting".colorize("cyan"),
             ))?;
 
             let ttml = Mp4TtmlParser::parse_init(&subtitles_data)?;
@@ -162,7 +162,7 @@ fn download_subtitle_stream(
         Some(SubtitleType::TtmlText) => {
             pb.write(format!(
                 " {} ttml+xml subtitles",
-                "Extracting".colorize("bold cyan"),
+                "Extracting".colorize("cyan"),
             ))?;
 
             let xml = String::from_utf8(subtitles_data)

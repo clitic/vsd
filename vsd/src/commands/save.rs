@@ -53,8 +53,7 @@ pub struct Save {
     /// Must be in RFC 5646 format (eg. fr or en-AU).
     /// If a preference is not specified and multiple audio streams are present,
     /// the first one listed in the manifest will be downloaded.
-    /// This option can be used mutiplle times.
-    #[arg(long, help_heading = "Automation Options")]
+    #[arg(long, help_heading = "Automation Options", value_delimiter = ',')]
     pub audio_lang: Vec<String>,
 
     /// Prompt for custom streams selection with modern style input prompts. By default proceed with defaults.
@@ -72,12 +71,12 @@ pub struct Save {
     /// Automatic selection of some standard resolution streams with highest bandwidth stream variant from playlist.
     /// If matching resolution of WIDTHxHEIGHT is not found then only resolution HEIGHT would be considered for selection.
     /// comman values: [lowest, min, 144p, 240p, 360p, 480p, 720p, hd, 1080p, fhd, 2k, 1440p, qhd, 4k, 8k, highest, max]
-    #[arg(short, long, help_heading = "Automation Options", default_value = "highest", value_name = "WIDTHxHEIGHT|HEIGHTp", value_parser = quality_parser)]
+    #[arg(long, help_heading = "Automation Options", default_value = "highest", value_name = "WIDTHxHEIGHT|HEIGHTp", value_parser = quality_parser)]
     pub quality: Quality,
 
     /// Select streams to download by their ids obtained by --list-streams flag.
     #[arg(long, help_heading = "Automation Options", value_delimiter = ',')]
-    pub select_streams: Vec<u8>,
+    pub select_streams: Vec<usize>,
 
     /// Skip default audio stream selection.
     #[arg(long, help_heading = "Automation Options")]
@@ -95,8 +94,7 @@ pub struct Save {
     /// Must be in RFC 5646 format (eg. fr or en-AU).
     /// If a preference is not specified and multiple subtitles streams are present,
     /// the first one listed in the manifest will be downloaded.
-    /// This option can be used mutiplle times.
-    #[arg(long, help_heading = "Automation Options")]
+    #[arg(long, help_heading = "Automation Options", value_delimiter = ',')]
     pub subs_lang: Vec<String>,
 
     /// Fill request client with some existing cookies value.
@@ -212,7 +210,7 @@ impl Save {
             audio_lang: self.audio_lang,
             interactive: self.interactive,
             interactive_raw: self.interactive_raw,
-            ids: self.select_streams,
+            select_streams: self.select_streams,
             skip_audio: self.skip_audio,
             skip_video: self.skip_video,
             skip_subs: self.skip_subs,

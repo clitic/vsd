@@ -91,15 +91,15 @@ pub fn extract_default_kids(
                 if !parsed_kids.contains(&kid.value) {
                     parsed_kids.insert(kid.value.clone());
                     println!(
-                        "      {} {} {} ({})",
-                        "KeyId".colorize("bold green"),
-                        if default_kids.contains(&kid.value) {
-                            "*"
-                        } else {
-                            " "
-                        },
+                        "      {} [{:>9}] {} {}",
+                        "KeyId".colorize("bold red"),
+                        kid.system_type.to_string(),
                         kid.uuid(),
-                        kid.system_type,
+                        if default_kids.contains(&kid.value) {
+                            "(required)"
+                        } else {
+                            ""
+                        },
                     );
                 }
             }

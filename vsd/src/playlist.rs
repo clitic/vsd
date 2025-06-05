@@ -97,252 +97,318 @@ impl MasterPlaylist {
         println!("{}", "------------------------------".colorize("cyan"));
     }
 
-    fn select_video_stream(&self, quality: &Quality) -> Option<usize> {
-        let video_streams = self
-            .streams
-            .iter()
-            .filter(|x| x.media_type == MediaType::Video)
-            .enumerate();
-
-        let mut has_resolution = None;
-        let mut has_height = None;
-
-        let (w, h) = match quality {
-            Quality::Lowest => return Some(video_streams.count() - 1),
-            Quality::Highest => return Some(0),
-            Quality::Resolution(w, h) => (*w as u64, *h as u64),
-            Quality::Youtube144p => (256, 144),
-            Quality::Youtube240p => (426, 240),
-            Quality::Youtube360p => (640, 360),
-            Quality::Youtube480p => (854, 480),
-            Quality::Youtube720p => (1280, 720),
-            Quality::Youtube1080p => (1920, 1080),
-            Quality::Youtube2k => (2048, 1080),
-            Quality::Youtube1440p => (2560, 1440),
-            Quality::Youtube4k => (3840, 2160),
-            Quality::Youtube8k => (7680, 4320),
-        };
-
-        for (i, stream) in video_streams {
-            if has_resolution.is_some() && has_height.is_some() {
-                break;
-            }
-
-            if let Some((video_w, video_h)) = &stream.resolution {
-                if h == *video_h {
-                    has_height = Some(i);
-
-                    if w == *video_w {
-                        has_resolution = Some(i);
-                    }
-                }
+    pub fn select_streams(self, auto_opts: &AutomationOptions) -> Result<Vec<MediaPlaylist>> {
+        if !auto_opts.interactive && !auto_opts.interactive_raw {
+            for stream in &self.streams {
+                println!(
+                    "     {} [{:>5}] {}",
+                    "Stream".colorize("cyan"),
+                    stream.media_type.to_string(),
+                    stream.display_stream()
+                );
             }
         }
 
-        has_resolution.or(has_height)
-    }
+        let mut video_streams = vec![];
+        let mut audio_streams = vec![];
+        let mut subtitle_streams = vec![];
+        // TODO - Add support for downloading undefined streams
+        let mut undefined_streams = vec![];
 
-    pub fn select_streams(self, auto_opts: &AutomationOptions) -> Result<Vec<MediaPlaylist>> {
-        let default_video_stream_index = self.select_video_stream(&auto_opts.quality);
+        for stream in self.streams.into_iter().enumerate() {
+            match stream.1.media_type {
+                MediaType::Audio => audio_streams.push(stream),
+                MediaType::Subtitles => subtitle_streams.push(stream),
+                MediaType::Undefined => undefined_streams.push(stream),
+                MediaType::Video => video_streams.push(stream),
+            }
+        }
 
-        if let Some(default_video_stream_index) = default_video_stream_index {
-            let mut video_streams = vec![];
-            let mut audio_streams = vec![];
-            let mut subtitle_streams = vec![];
-            // TODO - Add support for downloading undefined streams
-            let mut undefined_streams = vec![];
+        let mut select_streams = auto_opts.select_streams.clone();
 
-            for stream in self.streams {
-                match stream.media_type {
-                    MediaType::Audio => audio_streams.push(stream),
-                    MediaType::Subtitles => subtitle_streams.push(stream),
-                    MediaType::Undefined => undefined_streams.push(stream),
-                    MediaType::Video => video_streams.push(stream),
+        if select_streams.is_empty() {
+            if !auto_opts.skip_video {
+                match &auto_opts.quality {
+                    Quality::Lowest => {
+                        select_streams.push(video_streams.len() - 1);
+                    }
+                    Quality::Highest => {
+                        select_streams.push(0);
+                    }
+                    _ => {
+                        let mut has_resolution = None;
+                        let mut has_height = None;
+
+                        let (w, h) = match &auto_opts.quality {
+                            Quality::Resolution(w, h) => (*w as u64, *h as u64),
+                            Quality::Youtube144p => (256, 144),
+                            Quality::Youtube240p => (426, 240),
+                            Quality::Youtube360p => (640, 360),
+                            Quality::Youtube480p => (854, 480),
+                            Quality::Youtube720p => (1280, 720),
+                            Quality::Youtube1080p => (1920, 1080),
+                            Quality::Youtube2k => (2048, 1080),
+                            Quality::Youtube1440p => (2560, 1440),
+                            Quality::Youtube4k => (3840, 2160),
+                            Quality::Youtube8k => (7680, 4320),
+                            _ => unreachable!(),
+                        };
+
+                        for (i, stream) in &video_streams {
+                            if has_resolution.is_some() && has_height.is_some() {
+                                break;
+                            }
+
+                            if let Some((video_w, video_h)) = &stream.resolution {
+                                if h == *video_h {
+                                    has_height = Some(i);
+
+                                    if w == *video_w {
+                                        has_resolution = Some(i);
+                                    }
+                                }
+                            }
+                        }
+
+                        if let Some(i) = has_resolution.or(has_height) {
+                            select_streams.push(*i);
+                        }
+                    }
                 }
             }
 
-            let mut choices_with_default = vec![];
-            let mut choices_with_default_ranges: [std::ops::Range<usize>; 4] =
-                [(0..0), (0..0), (0..0), (0..0)];
-
-            choices_with_default.push(requestty::Separator(
-                "─────── Video Streams ────────".to_owned(),
-            ));
-            choices_with_default.extend(video_streams.iter().enumerate().map(|(i, x)| {
-                requestty::Choice((x.display_video_stream(), i == default_video_stream_index))
-            }));
-            choices_with_default_ranges[0] = 1..choices_with_default.len();
-            choices_with_default.push(requestty::Separator(
-                "─────── Audio Streams ────────".to_owned(),
-            ));
-            choices_with_default.extend(
-                audio_streams
-                    .iter()
-                    .enumerate()
-                    .map(|(i, x)| requestty::Choice((x.display_audio_stream(), i == 0))),
-            );
-
-            let skip_prompts = false;
-            let raw_prompts = false;
-
-            if skip_prompts || raw_prompts {
-                choices_with_default_ranges[1] =
-                    choices_with_default_ranges[0].end..(choices_with_default.len() - 1);
-            } else {
-                choices_with_default_ranges[1] =
-                    (choices_with_default_ranges[0].end + 1)..choices_with_default.len();
-            }
-
-            choices_with_default.push(requestty::Separator(
-                "────── Subtitle Streams ──────".to_owned(),
-            ));
-            choices_with_default.extend(
-                subtitle_streams
-                    .iter()
-                    .enumerate()
-                    .map(|(i, x)| requestty::Choice((x.display_subtitle_stream(), i == 0))),
-            );
-
-            if skip_prompts || raw_prompts {
-                choices_with_default_ranges[2] =
-                    choices_with_default_ranges[1].end..(choices_with_default.len() - 2);
-            } else {
-                choices_with_default_ranges[2] =
-                    (choices_with_default_ranges[1].end + 1)..choices_with_default.len();
-            }
-
-            // println!("{:?}", choices_with_default_ranges);
-
-            if skip_prompts || raw_prompts {
-                println!("Select streams to download:");
-                let mut selected_choices_index = vec![];
-                let mut index = 1;
-
-                for choice in choices_with_default {
-                    if let requestty::Separator(seperator) = choice {
-                        println!("{}", seperator.replace('─', "-"));
-                    } else {
-                        let (message, selected) = choice.unwrap_choice();
-
-                        if selected {
-                            selected_choices_index.push(index);
+            if !auto_opts.skip_audio {
+                if auto_opts.audio_lang.is_empty() {
+                    if let Some(stream) = audio_streams.first() {
+                        select_streams.push(stream.0);
+                    }
+                } else {
+                    for stream in &audio_streams {
+                        if let Some(lang) = &stream.1.language {
+                            if auto_opts.audio_lang.iter().any(|x| {
+                                x.to_lowercase().get(0..2) == lang.to_lowercase().get(0..2)
+                            }) {
+                                select_streams.push(stream.0);
+                            }
                         }
+                    }
+                }
+            }
 
+            if !auto_opts.skip_subs {
+                if auto_opts.subs_lang.is_empty() {
+                    if let Some(stream) = subtitle_streams.first() {
+                        select_streams.push(stream.0);
+                    }
+                } else {
+                    for stream in &subtitle_streams {
+                        if let Some(lang) = &stream.1.language {
+                            if auto_opts.subs_lang.iter().any(|x| {
+                                x.to_lowercase().get(0..2) == lang.to_lowercase().get(0..2)
+                            }) {
+                                select_streams.push(stream.0);
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // BUG - Panics when user inputs 0 
+            select_streams = select_streams.iter().map(|x| x - 1).collect();
+        }
+
+        let mut choices_with_default = vec![];
+        let mut choices_with_default_ranges: [std::ops::Range<usize>; 4] =
+            [(0..0), (0..0), (0..0), (0..0)];
+
+        choices_with_default.push(requestty::Separator(
+            "─────── Video Streams ────────".to_owned(),
+        ));
+        choices_with_default.extend(video_streams.iter().map(|(i, x)| {
+            requestty::Choice((x.display_video_stream(), select_streams.contains(i)))
+        }));
+        choices_with_default_ranges[0] = 1..choices_with_default.len();
+        choices_with_default.push(requestty::Separator(
+            "─────── Audio Streams ────────".to_owned(),
+        ));
+        choices_with_default.extend(audio_streams.iter().map(|(i, x)| {
+            requestty::Choice((x.display_audio_stream(), select_streams.contains(i)))
+        }));
+
+        if auto_opts.interactive {
+            choices_with_default_ranges[1] =
+                (choices_with_default_ranges[0].end + 1)..choices_with_default.len();
+        } else {
+            choices_with_default_ranges[1] =
+                choices_with_default_ranges[0].end..(choices_with_default.len() - 1);
+        }
+
+        choices_with_default.push(requestty::Separator(
+            "────── Subtitle Streams ──────".to_owned(),
+        ));
+        choices_with_default.extend(subtitle_streams.iter().map(|(i, x)| {
+            requestty::Choice((x.display_subtitle_stream(), select_streams.contains(i)))
+        }));
+
+        if auto_opts.interactive {
+            choices_with_default_ranges[2] =
+                (choices_with_default_ranges[1].end + 1)..choices_with_default.len();
+        } else {
+            choices_with_default_ranges[2] =
+                choices_with_default_ranges[1].end..(choices_with_default.len() - 2);
+        }
+
+        if auto_opts.interactive {
+            let question = requestty::Question::multi_select("streams")
+                .should_loop(false)
+                .message("Select streams to download")
+                .choices_with_default(choices_with_default)
+                .transform(|choices, _, backend| {
+                    backend.write_styled(
+                        &choices
+                            .iter()
+                            .map(|x| x.text.split_whitespace().collect::<Vec<_>>().join(" "))
+                            .collect::<Vec<_>>()
+                            .join(" | ")
+                            .cyan(),
+                    )
+                })
+                .build();
+
+            let answer = requestty::prompt_one(question)?;
+
+            let mut selected_streams = vec![];
+            let mut video_streams_offset = 1;
+            let mut audio_streams_offset = video_streams_offset + video_streams.len() + 1;
+            let mut subtitle_streams_offset = audio_streams_offset + audio_streams.len() + 1;
+
+            for selected_item in answer.as_list_items().unwrap() {
+                if choices_with_default_ranges[0].contains(&selected_item.index) {
+                    selected_streams.push(
+                        video_streams
+                            .remove(selected_item.index - video_streams_offset)
+                            .1,
+                    );
+                    video_streams_offset += 1;
+                } else if choices_with_default_ranges[1].contains(&selected_item.index) {
+                    selected_streams.push(
+                        audio_streams
+                            .remove(selected_item.index - audio_streams_offset)
+                            .1,
+                    );
+                    audio_streams_offset += 1;
+                } else if choices_with_default_ranges[2].contains(&selected_item.index) {
+                    selected_streams.push(
+                        subtitle_streams
+                            .remove(selected_item.index - subtitle_streams_offset)
+                            .1,
+                    );
+                    subtitle_streams_offset += 1;
+                }
+            }
+
+            Ok(selected_streams)
+        } else {
+            if auto_opts.interactive_raw {
+                println!("Select streams to download:");
+            }
+
+            let mut selected_choices_index = vec![];
+            let mut index = 1;
+
+            for choice in choices_with_default {
+                if let requestty::Separator(seperator) = choice {
+                    if auto_opts.interactive_raw {
+                        println!("{}", seperator.replace('─', "-").colorize("cyan"));
+                    }
+                } else {
+                    let (message, selected) = choice.unwrap_choice();
+
+                    if selected {
+                        selected_choices_index.push(index);
+                    }
+
+                    if auto_opts.interactive_raw {
                         println!(
                             "{:2}) [{}] {}",
                             index,
-                            if selected { 'x' } else { ' ' },
+                            if selected {
+                                "x".colorize("green")
+                            } else {
+                                " ".to_owned()
+                            },
                             message
                         );
-                        index += 1;
                     }
+                    index += 1;
                 }
-
-                println!("------------------------------");
-
-                if raw_prompts && !skip_prompts {
-                    print!(
-                        "Press enter to proceed with defaults.\n\
-                        Or select streams to download (1, 2, etc.): "
-                    );
-                    std::io::stdout().flush()?;
-                    let mut input = String::new();
-                    std::io::stdin().read_line(&mut input)?;
-
-                    println!("------------------------------");
-
-                    let input = input.trim();
-
-                    if !input.is_empty() {
-                        selected_choices_index = input
-                            .split(',')
-                            .filter_map(|x| x.trim().parse::<usize>().ok())
-                            .collect::<Vec<usize>>();
-                    }
-                }
-
-                let mut selected_streams = vec![];
-                let mut video_streams_offset = 1;
-                let mut audio_streams_offset = video_streams_offset + video_streams.len();
-                let mut subtitle_streams_offset = audio_streams_offset + audio_streams.len();
-
-                for i in selected_choices_index {
-                    if choices_with_default_ranges[0].contains(&i) {
-                        let stream = video_streams.remove(i - video_streams_offset);
-                        println!(
-                            "   {} {}",
-                            "Selected".colorize("bold green"),
-                            stream.display_stream()
-                        );
-                        selected_streams.push(stream);
-                        video_streams_offset += 1;
-                    } else if choices_with_default_ranges[1].contains(&i) {
-                        let stream = audio_streams.remove(i - audio_streams_offset);
-                        println!(
-                            "   {} {}",
-                            "Selected".colorize("bold green"),
-                            stream.display_stream()
-                        );
-                        selected_streams.push(stream);
-                        audio_streams_offset += 1;
-                    } else if choices_with_default_ranges[2].contains(&i) {
-                        let stream = subtitle_streams.remove(i - subtitle_streams_offset);
-                        println!(
-                            "   {} {}",
-                            "Selected".colorize("bold green"),
-                            stream.display_stream()
-                        );
-                        selected_streams.push(stream);
-                        subtitle_streams_offset += 1;
-                    }
-                }
-
-                Ok(selected_streams)
-            } else {
-                let question = requestty::Question::multi_select("streams")
-                    .should_loop(false)
-                    .message("Select streams to download")
-                    .choices_with_default(choices_with_default)
-                    .transform(|choices, _, backend| {
-                        backend.write_styled(
-                            &choices
-                                .iter()
-                                .map(|x| x.text.split_whitespace().collect::<Vec<_>>().join(" "))
-                                .collect::<Vec<_>>()
-                                .join(" | ")
-                                .cyan(),
-                        )
-                    })
-                    .build();
-
-                let answer = requestty::prompt_one(question)?;
-
-                let mut selected_streams = vec![];
-                let mut video_streams_offset = 1;
-                let mut audio_streams_offset = video_streams_offset + video_streams.len() + 1;
-                let mut subtitle_streams_offset = audio_streams_offset + audio_streams.len() + 1;
-
-                for selected_item in answer.as_list_items().unwrap() {
-                    if choices_with_default_ranges[0].contains(&selected_item.index) {
-                        selected_streams
-                            .push(video_streams.remove(selected_item.index - video_streams_offset));
-                        video_streams_offset += 1;
-                    } else if choices_with_default_ranges[1].contains(&selected_item.index) {
-                        selected_streams
-                            .push(audio_streams.remove(selected_item.index - audio_streams_offset));
-                        audio_streams_offset += 1;
-                    } else if choices_with_default_ranges[2].contains(&selected_item.index) {
-                        selected_streams.push(
-                            subtitle_streams.remove(selected_item.index - subtitle_streams_offset),
-                        );
-                        subtitle_streams_offset += 1;
-                    }
-                }
-
-                Ok(selected_streams)
             }
-        } else {
-            bail!("playlist doesn't contain pre-selected video quality stream.")
+
+            if auto_opts.interactive_raw {
+                println!("{}", "------------------------------".colorize("cyan"));
+            }
+
+            if auto_opts.interactive_raw {
+                print!(
+                    "Press enter to proceed with defaults.\n\
+                        Or select streams to download (1, 2, etc.): "
+                );
+                std::io::stdout().flush()?;
+                let mut input = String::new();
+                std::io::stdin().read_line(&mut input)?;
+
+                println!("{}", "------------------------------".colorize("cyan"));
+
+                let input = input.trim();
+
+                if !input.is_empty() {
+                    selected_choices_index = input
+                        .split(',')
+                        .filter_map(|x| x.trim().parse::<usize>().ok())
+                        .collect::<Vec<usize>>();
+                }
+            }
+
+            let mut selected_streams = vec![];
+            let mut video_streams_offset = 1;
+            let mut audio_streams_offset = video_streams_offset + video_streams.len();
+            let mut subtitle_streams_offset = audio_streams_offset + audio_streams.len();
+
+            for i in selected_choices_index {
+                if choices_with_default_ranges[0].contains(&i) {
+                    let stream = video_streams.remove(i - video_streams_offset).1;
+                    println!(
+                        "   {} [{:>5}] {}",
+                        "Selected".colorize("bold green"),
+                        stream.media_type.to_string(),
+                        stream.display_stream()
+                    );
+                    selected_streams.push(stream);
+                    video_streams_offset += 1;
+                } else if choices_with_default_ranges[1].contains(&i) {
+                    let stream = audio_streams.remove(i - audio_streams_offset).1;
+                    println!(
+                        "   {} [{:>5}] {}",
+                        "Selected".colorize("bold green"),
+                        stream.media_type.to_string(),
+                        stream.display_stream()
+                    );
+                    selected_streams.push(stream);
+                    audio_streams_offset += 1;
+                } else if choices_with_default_ranges[2].contains(&i) {
+                    let stream = subtitle_streams.remove(i - subtitle_streams_offset).1;
+                    println!(
+                        "   {} [{:>5}] {}",
+                        "Selected".colorize("bold green"),
+                        stream.media_type.to_string(),
+                        stream.display_stream()
+                    );
+                    selected_streams.push(stream);
+                    subtitle_streams_offset += 1;
+                }
+            }
+
+            Ok(selected_streams)
         }
     }
 }
@@ -681,8 +747,8 @@ impl Display for MediaType {
             "{}",
             match self {
                 Self::Audio => "audio",
-                Self::Subtitles => "subtitles",
-                Self::Undefined => "undefined",
+                Self::Subtitles => "subs",
+                Self::Undefined => "und",
                 Self::Video => "video",
             }
         )
@@ -807,7 +873,7 @@ pub struct AutomationOptions {
     pub audio_lang: Vec<String>,
     pub interactive: bool,
     pub interactive_raw: bool,
-    pub ids: Vec<u8>,
+    pub select_streams: Vec<usize>,
     pub skip_audio: bool,
     pub skip_video: bool,
     pub skip_subs: bool,

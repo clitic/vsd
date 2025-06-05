@@ -12,10 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `capture`
   - Support for proxy server.
 - `save`
+  - New and improved automation support.
   - Support for HLS `SAMPLE-AES` stream decrytion.
 
 ### Changed
 
+- Now by default vsd proceeds with default stream selections. The old behaviour can still be used using `-i, --interactive` and `--interactive-raw` flags.
 - Removed `--no-query-pass` flag.
 
 ### Fixed
