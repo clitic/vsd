@@ -7,7 +7,7 @@ mod subtitle;
 
 use encryption::Decrypter;
 pub use fetch::fetch_playlist;
-pub use parse::{parse_all_streams, parse_selected_streams};
+pub use parse::{parse_all_streams, parse_selected_streams, list_all_streams};
 pub use subtitle::download_subtitle_streams;
 
 use crate::{

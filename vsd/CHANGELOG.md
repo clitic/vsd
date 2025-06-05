@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `save`
   - Support for HLS `SAMPLE-AES` stream decrytion.
 
+### Changed
+
+- Removed `--no-query-pass` flag.
+
 ### Fixed
 
 - Mux commands for solo streams.

@@ -2,11 +2,35 @@ use std::collections::HashMap;
 
 use super::fetch::Metadata;
 use crate::{
-    playlist::{MasterPlaylist, MediaPlaylist, PlaylistType, Prompts, Quality},
+    playlist::{AutomationOptions, MasterPlaylist, MediaPlaylist, PlaylistType},
     utils,
 };
 use anyhow::{anyhow, bail, Result};
+use kdam::term::Colorizer;
 use reqwest::{blocking::Client, Url};
+
+pub fn list_all_streams(meta: &Metadata) -> Result<()> {
+    match meta.pl_type {
+        Some(PlaylistType::Dash) => {
+            let mpd = dash_mpd::parse(&meta.text)
+                .map_err(|_| anyhow!("couldn't parse response ({}) as dash playlist.", meta.url))?;
+            crate::dash::parse_as_master(&mpd, meta.url.as_ref()).sort_streams().list_streams();
+        }
+        Some(PlaylistType::Hls) => match m3u8_rs::parse_playlist_res(meta.text.as_bytes()) {
+            Ok(m3u8_rs::Playlist::MasterPlaylist(m3u8)) => {
+                crate::hls::parse_as_master(&m3u8, meta.url.as_ref()).sort_streams().list_streams()
+            }
+
+            Ok(m3u8_rs::Playlist::MediaPlaylist(_)) => {
+                println!("------ {} ------", "Undefined Streams".colorize("cyan"));
+                println!(" 1) {}", meta.url);
+            }
+            Err(_) => bail!("couldn't parse response ({}) as hls playlist.", meta.url),
+        },
+        _ => bail!("couldn't determine playlist type, only DASH and HLS playlists are supported."),
+    }
+    Ok(())
+}
 
 pub fn parse_all_streams(
     base_url: Option<Url>,
@@ -16,13 +40,8 @@ pub fn parse_all_streams(
 ) -> Result<MasterPlaylist> {
     match meta.pl_type {
         Some(PlaylistType::Dash) => {
-            let mpd = dash_mpd::parse(&meta.text).map_err(|x| {
-                anyhow!(
-                    "couldn't parse response as dash playlist (failed with {}).\n\n{}",
-                    x,
-                    meta.text
-                )
-            })?;
+            let mpd = dash_mpd::parse(&meta.text)
+                .map_err(|_| anyhow!("couldn't parse response ({}) as dash playlist.", meta.url))?;
             let mut playlist = crate::dash::parse_as_master(&mpd, meta.url.as_ref());
 
             for stream in playlist.streams.iter_mut() {
@@ -60,13 +79,8 @@ pub fn parse_all_streams(
                     }
 
                     let media_playlist = m3u8_rs::parse_media_playlist_res(text.as_bytes())
-                        .map_err(|x| {
-                            anyhow!(
-                                "couldn't parse response as hls playlist (failed with {}).\n\n{}\n\n{}",
-                                x,
-                                stream.uri,
-                                text
-                            )
+                        .map_err(|_| {
+                            anyhow!("couldn't parse response ({}) as hls playlist.", meta.url)
                         })?;
                     crate::hls::push_segments(&media_playlist, stream);
                 }
@@ -96,29 +110,20 @@ pub fn parse_all_streams(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn parse_selected_streams(
+    auto_opts: &AutomationOptions,
     base_url: Option<Url>,
     client: &Client,
     meta: &Metadata,
-    prefer_audio_lang: Option<String>,
-    prefer_subs_lang: Option<String>,
-    prompts: &Prompts,
-    quality: Quality,
     query: &HashMap<String, String>,
 ) -> Result<Vec<MediaPlaylist>> {
     match meta.pl_type {
         Some(PlaylistType::Dash) => {
-            let mpd = dash_mpd::parse(&meta.text).map_err(|x| {
-                anyhow!(
-                    "couldn't parse response as dash playlist (failed with {}).\n\n{}",
-                    x,
-                    meta.text
-                )
-            })?;
+            let mpd = dash_mpd::parse(&meta.text)
+                .map_err(|_| anyhow!("couldn't parse response ({}) as dash playlist.", meta.url))?;
             let mut streams = crate::dash::parse_as_master(&mpd, meta.url.as_ref())
-                .sort_streams(prefer_audio_lang, prefer_subs_lang)
-                .select_streams(quality, prompts.skip, prompts.raw)?;
+                .sort_streams()
+                .select_streams(auto_opts)?;
 
             for stream in &mut streams {
                 crate::dash::push_segments(
@@ -134,8 +139,8 @@ pub fn parse_selected_streams(
         Some(PlaylistType::Hls) => match m3u8_rs::parse_playlist_res(meta.text.as_bytes()) {
             Ok(m3u8_rs::Playlist::MasterPlaylist(m3u8)) => {
                 let mut streams = crate::hls::parse_as_master(&m3u8, meta.url.as_str())
-                    .sort_streams(prefer_audio_lang, prefer_subs_lang)
-                    .select_streams(quality, prompts.skip, prompts.raw)?;
+                    .sort_streams()
+                    .select_streams(auto_opts)?;
 
                 for stream in &mut streams {
                     stream.uri = base_url
@@ -178,12 +183,7 @@ pub fn parse_selected_streams(
                 crate::hls::push_segments(&m3u8, &mut media_playlist);
                 Ok(vec![media_playlist])
             }
-            Err(x) => bail!(
-                "couldn't parse response as hls playlist (failed with {}).\n\n{}\n\n{}",
-                x,
-                meta.url,
-                meta.text
-            ),
+            Err(_) => bail!("couldn't parse response ({}) as hls playlist.", meta.url),
         },
         _ => bail!("couldn't determine playlist type, only DASH and HLS playlists are supported."),
     }

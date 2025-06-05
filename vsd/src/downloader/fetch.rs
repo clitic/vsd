@@ -1,4 +1,4 @@
-use crate::playlist::{PlaylistType, Prompts};
+use crate::playlist::{PlaylistType, AutomationOptions};
 use anyhow::{anyhow, bail, Result};
 use kdam::term::Colorizer;
 use regex::Regex;
@@ -49,10 +49,10 @@ impl Metadata {
 }
 
 pub fn fetch_playlist(
+    auto_opts: &AutomationOptions,
     base_url: Option<Url>,
     client: &Client,
     input: &str,
-    prompts: &Prompts,
     query: &HashMap<String, String>,
 ) -> Result<Metadata> {
     let mut meta = Metadata {
@@ -89,7 +89,7 @@ pub fn fetch_playlist(
         meta.fetch(client, query)?;
 
         if meta.pl_type.is_none() {
-            fetch_from_website(client, &mut meta, prompts, query)?;
+            fetch_from_website(auto_opts, client, &mut meta, query)?;
         }
     }
 
@@ -97,26 +97,35 @@ pub fn fetch_playlist(
 }
 
 fn fetch_from_website(
+    auto_opts: &AutomationOptions,
     client: &Client,
     meta: &mut Metadata,
-    prompts: &Prompts,
     query: &HashMap<String, String>,
 ) -> Result<()> {
     println!(
-        "   {} website for DASH and HLS playlists",
+        "   {} [generic-regex] website for DASH and HLS playlists",
         "Scraping".colorize("bold cyan")
     );
 
     let links = scrape_playlist_links(&meta.text);
 
     match links.len() {
-        0 => bail!("No playlists were found in website source."),
+        0 => bail!("no playlists were found in website source."),
         1 => {
-            println!("      {} {}", "Found".colorize("bold green"), &links[0]);
+            println!("            {}", &links[0]);
+            println!("   {} {}", "Selected".colorize("bold green"), &links[0]);
             meta.url = links[0].parse::<Url>()?;
         }
         _ => {
-            if prompts.skip || prompts.raw {
+            if auto_opts.interactive {
+                let question = requestty::Question::select("scraped-link")
+                    .message("Select one playlist")
+                    .should_loop(false)
+                    .choices(links)
+                    .build();
+                let answer = requestty::prompt_one(question)?;
+                meta.url = answer.as_list_item().unwrap().text.parse::<Url>()?;
+            } else if auto_opts.interactive_raw {
                 println!("Select one playlist:");
 
                 for (i, link) in links.iter().enumerate() {
@@ -124,28 +133,25 @@ fn fetch_from_website(
                 }
 
                 println!("------------------------------");
+                print!(
+                    "Press enter to proceed with defaults.\n\
+                    Or select playlist to download (1, 2, etc.): "
+                );
 
+                std::io::stdout().flush()?;
+                let mut input = String::new();
+                std::io::stdin().read_line(&mut input)?;
+
+                println!("------------------------------");
+
+                let input = input.trim();
                 let mut index = 0;
 
-                if prompts.raw && !prompts.skip {
-                    print!(
-                        "Press enter to proceed with defaults.\n\
-                    Or select playlist to download (1, 2, etc.): "
-                    );
-                    std::io::stdout().flush()?;
-                    let mut input = String::new();
-                    std::io::stdin().read_line(&mut input)?;
-
-                    println!("------------------------------");
-
-                    let input = input.trim();
-
-                    if !input.is_empty() {
-                        index = input
-                            .parse::<usize>()
-                            .map_err(|_| anyhow!("input is not a valid positive number."))?
-                            - 1;
-                    }
+                if !input.is_empty() {
+                    index = input
+                        .parse::<usize>()
+                        .map_err(|_| anyhow!("input is not a valid positive number."))?
+                        - 1;
                 }
 
                 meta.url = links
@@ -154,13 +160,12 @@ fn fetch_from_website(
                     .parse::<Url>()?;
                 println!("   {} {}", "Selected".colorize("bold green"), meta.url);
             } else {
-                let question = requestty::Question::select("scraped-link")
-                    .message("Select one playlist")
-                    .should_loop(false)
-                    .choices(links)
-                    .build();
-                let answer = requestty::prompt_one(question)?;
-                meta.url = answer.as_list_item().unwrap().text.parse::<Url>()?;
+                for link in &links {
+                    println!("            {}", link);
+                }
+                
+                println!("   {} {}", "Selected".colorize("bold green"), &links[0]);
+                meta.url = links[0].parse::<Url>()?;
             }
         }
     }

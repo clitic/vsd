@@ -26,87 +26,75 @@ pub struct MasterPlaylist {
 }
 
 impl MasterPlaylist {
-    pub fn sort_streams(
-        mut self,
-        prefer_audio_lang: Option<String>,
-        prefer_subs_lang: Option<String>,
-    ) -> Self {
-        let prefer_audio_lang = prefer_audio_lang.map(|x| x.to_lowercase());
-        let prefer_subs_lang = prefer_subs_lang.map(|x| x.to_lowercase());
-
+    pub fn sort_streams(mut self) -> Self {
         let mut video_streams = vec![];
         let mut audio_streams = vec![];
-        let mut subtitle_streams = vec![];
+        let subtitle_streams = vec![];
         let mut undefined_streams = vec![];
 
         for stream in self.streams {
             match stream.media_type {
                 MediaType::Audio => {
-                    let mut language_factor = 0;
-
-                    if let Some(playlist_lang) = &stream.language.as_ref().map(|x| x.to_lowercase())
-                    {
-                        if let Some(prefer_lang) = &prefer_audio_lang {
-                            if playlist_lang == prefer_lang {
-                                language_factor = 2;
-                            } else if playlist_lang.get(0..2) == prefer_lang.get(0..2) {
-                                language_factor = 1;
-                            }
-                        }
-                    }
-
-                    let channels = stream.channels.unwrap_or(0.0);
                     let bandwidth = stream.bandwidth.unwrap_or(0);
-
-                    audio_streams.push((stream, language_factor, channels, bandwidth));
+                    let channels = stream.channels.unwrap_or(0.0);
+                    audio_streams.push((stream, bandwidth, channels));
                 }
-                MediaType::Subtitles => {
-                    let mut language_factor = 0;
-
-                    if let Some(playlist_lang) = &stream.language.as_ref().map(|x| x.to_lowercase())
-                    {
-                        if let Some(prefer_lang) = &prefer_subs_lang {
-                            if playlist_lang == prefer_lang {
-                                language_factor = 2;
-                            } else if playlist_lang.get(0..2) == prefer_lang.get(0..2) {
-                                language_factor = 1;
-                            }
-                        }
-                    }
-
-                    subtitle_streams.push((stream, language_factor));
-                }
+                MediaType::Subtitles => undefined_streams.push(stream),
                 MediaType::Undefined => undefined_streams.push(stream),
                 MediaType::Video => {
+                    let bandwidth = stream.bandwidth.unwrap_or(0);
                     let pixels = if let Some((w, h)) = &stream.resolution {
                         w * h
                     } else {
                         0
                     };
-
-                    let bandwidth = stream.bandwidth.unwrap_or(0);
-
-                    video_streams.push((stream, pixels, bandwidth));
+                    video_streams.push((stream, bandwidth, pixels));
                 }
             }
         }
 
-        video_streams.sort_by(|x, y| y.2.cmp(&x.2));
         video_streams.sort_by(|x, y| y.1.cmp(&x.1));
-        audio_streams.sort_by(|x, y| y.3.cmp(&x.3));
-        audio_streams.sort_by(|x, y| y.2.total_cmp(&x.2));
+        video_streams.sort_by(|x, y| y.2.cmp(&x.2));
         audio_streams.sort_by(|x, y| y.1.cmp(&x.1));
-        subtitle_streams.sort_by(|x, y| y.1.cmp(&x.1));
+        audio_streams.sort_by(|x, y| y.2.total_cmp(&x.2));
 
         self.streams = video_streams
             .into_iter()
             .map(|x| x.0)
             .chain(audio_streams.into_iter().map(|x| x.0))
-            .chain(subtitle_streams.into_iter().map(|x| x.0))
+            .chain(subtitle_streams)
             .chain(undefined_streams)
             .collect::<Vec<_>>();
 
         self
+    }
+
+    pub fn list_streams(&self) {
+        println!("{}", "------- Video Streams --------".colorize("cyan"));
+
+        for (i, stream) in self.streams.iter().enumerate() {
+            if stream.media_type == MediaType::Video {
+                println!("{:>2}) {}", i + 1, stream.display_video_stream());
+            }
+        }
+
+        println!("{}", "------- Audio Streams --------".colorize("cyan"));
+
+        for (i, stream) in self.streams.iter().enumerate() {
+            if stream.media_type == MediaType::Audio {
+                println!("{:>2}) {}", i + 1, stream.display_audio_stream());
+            }
+        }
+
+        println!("{}", "------ Subtitle Streams ------".colorize("cyan"));
+
+        for (i, stream) in self.streams.iter().enumerate() {
+            if stream.media_type == MediaType::Subtitles {
+                println!("{:>2}) {}", i + 1, stream.display_subtitle_stream());
+            }
+        }
+
+        println!("{}", "------------------------------".colorize("cyan"));
     }
 
     fn select_video_stream(&self, quality: &Quality) -> Option<usize> {
@@ -154,13 +142,8 @@ impl MasterPlaylist {
         has_resolution.or(has_height)
     }
 
-    pub fn select_streams(
-        self,
-        quality: Quality,
-        skip_prompts: bool,
-        raw_prompts: bool,
-    ) -> Result<Vec<MediaPlaylist>> {
-        let default_video_stream_index = self.select_video_stream(&quality);
+    pub fn select_streams(self, auto_opts: &AutomationOptions) -> Result<Vec<MediaPlaylist>> {
+        let default_video_stream_index = self.select_video_stream(&auto_opts.quality);
 
         if let Some(default_video_stream_index) = default_video_stream_index {
             let mut video_streams = vec![];
@@ -198,6 +181,9 @@ impl MasterPlaylist {
                     .enumerate()
                     .map(|(i, x)| requestty::Choice((x.display_audio_stream(), i == 0))),
             );
+
+            let skip_prompts = false;
+            let raw_prompts = false;
 
             if skip_prompts || raw_prompts {
                 choices_with_default_ranges[1] =
@@ -817,7 +803,14 @@ pub enum Quality {
     Youtube8k,
 }
 
-pub struct Prompts {
-    pub skip: bool,
-    pub raw: bool,
+pub struct AutomationOptions {
+    pub audio_lang: Vec<String>,
+    pub interactive: bool,
+    pub interactive_raw: bool,
+    pub ids: Vec<u8>,
+    pub skip_audio: bool,
+    pub skip_video: bool,
+    pub skip_subs: bool,
+    pub subs_lang: Vec<String>,
+    pub quality: Quality,
 }

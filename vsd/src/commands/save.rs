@@ -1,7 +1,7 @@
 use crate::{
     cookie::{CookieJar, CookieParam},
     downloader::{self, encryption::Decrypter},
-    playlist::{KeyMethod, Prompts, Quality},
+    playlist::{AutomationOptions, KeyMethod, Quality},
 };
 use anyhow::Result;
 use clap::Args;
@@ -49,23 +49,25 @@ pub struct Save {
     #[arg(long)]
     pub parse: bool,
 
-    /// Raw style input prompts for old and unsupported terminals.
-    #[arg(long)]
-    pub raw_prompts: bool,
-
-    /// Preferred language when multiple audio streams with different languages are available.
+    /// Preferred languages when multiple audio streams with different languages are available.
     /// Must be in RFC 5646 format (eg. fr or en-AU).
     /// If a preference is not specified and multiple audio streams are present,
     /// the first one listed in the manifest will be downloaded.
+    /// This option can be used mutiplle times.
     #[arg(long, help_heading = "Automation Options")]
-    pub prefer_audio_lang: Option<String>,
+    pub audio_lang: Vec<String>,
 
-    /// Preferred language when multiple subtitles streams with different languages are available.
-    /// Must be in RFC 5646 format (eg. fr or en-AU).
-    /// If a preference is not specified and multiple subtitles streams are present,
-    /// the first one listed in the manifest will be downloaded.
+    /// Prompt for custom streams selection with modern style input prompts. By default proceed with defaults.
+    #[arg(short, long, help_heading = "Automation Options")]
+    pub interactive: bool,
+
+    /// Prompt for custom streams selection with raw style input prompts. By default proceed with defaults.
     #[arg(long, help_heading = "Automation Options")]
-    pub prefer_subs_lang: Option<String>,
+    pub interactive_raw: bool,
+
+    /// List all the streams present inside the playlist.
+    #[arg(short, long, help_heading = "Automation Options")]
+    pub list_streams: bool,
 
     /// Automatic selection of some standard resolution streams with highest bandwidth stream variant from playlist.
     /// If matching resolution of WIDTHxHEIGHT is not found then only resolution HEIGHT would be considered for selection.
@@ -73,9 +75,29 @@ pub struct Save {
     #[arg(short, long, help_heading = "Automation Options", default_value = "highest", value_name = "WIDTHxHEIGHT|HEIGHTp", value_parser = quality_parser)]
     pub quality: Quality,
 
-    /// Skip user input prompts and proceed with defaults.
+    /// Select streams to download by their ids obtained by --list-streams flag.
+    #[arg(long, help_heading = "Automation Options", value_delimiter = ',')]
+    pub select_streams: Vec<u8>,
+
+    /// Skip default audio stream selection.
     #[arg(long, help_heading = "Automation Options")]
-    pub skip_prompts: bool,
+    pub skip_audio: bool,
+
+    /// Skip default video stream selection.
+    #[arg(long, help_heading = "Automation Options")]
+    pub skip_video: bool,
+
+    /// Skip default subtitle stream selection.
+    #[arg(long, help_heading = "Automation Options")]
+    pub skip_subs: bool,
+
+    /// Preferred languages when multiple subtitles streams with different languages are available.
+    /// Must be in RFC 5646 format (eg. fr or en-AU).
+    /// If a preference is not specified and multiple subtitles streams are present,
+    /// the first one listed in the manifest will be downloaded.
+    /// This option can be used mutiplle times.
+    #[arg(long, help_heading = "Automation Options")]
+    pub subs_lang: Vec<String>,
 
     /// Fill request client with some existing cookies value.
     /// Cookies value can be same as document.cookie or in json format same as puppeteer.
@@ -90,10 +112,6 @@ pub struct Save {
     /// Skip checking and validation of site certificates.
     #[arg(long, help_heading = "Client Options")]
     pub no_certificate_checks: bool,
-
-    /// Skip passing query parameters where not needed.
-    #[arg(long, help_heading = "Client Options")]
-    pub no_query_pass: bool,
 
     /// Set http(s) / socks proxy address for requests.
     #[arg(long, help_heading = "Client Options", value_parser = proxy_address_parser)]
@@ -189,32 +207,38 @@ impl Save {
     }
 
     pub fn execute(self) -> Result<()> {
-        let prompts = Prompts {
-            skip: self.skip_prompts,
-            raw: self.raw_prompts,
-        };
         let client = self.client()?;
+        let auto_opts = AutomationOptions {
+            audio_lang: self.audio_lang,
+            interactive: self.interactive,
+            interactive_raw: self.interactive_raw,
+            ids: self.select_streams,
+            skip_audio: self.skip_audio,
+            skip_video: self.skip_video,
+            skip_subs: self.skip_subs,
+            subs_lang: self.subs_lang,
+            quality: self.quality,
+        };
         let meta = downloader::fetch_playlist(
+            &auto_opts,
             self.base_url.clone(),
             &client,
             &self.input,
-            &prompts,
             &self.query,
         )?;
 
-        if self.parse {
+        if self.list_streams {
+            downloader::list_all_streams(&meta)?;
+        } else if self.parse {
             let playlist =
                 downloader::parse_all_streams(self.base_url.clone(), &client, &meta, &self.query)?;
             serde_json::to_writer(std::io::stdout(), &playlist)?;
         } else {
             let streams = downloader::parse_selected_streams(
+                &auto_opts,
                 self.base_url.clone(),
                 &client,
                 &meta,
-                self.prefer_audio_lang,
-                self.prefer_subs_lang,
-                &prompts,
-                self.quality,
                 &self.query,
             )?;
 
