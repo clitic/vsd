@@ -2,7 +2,7 @@
     REFERENCES
     ----------
 
-    1. https://docs.rs/headless_chrome/1.0.10/headless_chrome/protocol/cdp/Network/struct.CookieParam.html
+    1. https://docs.rs/headless_chrome/1.0.17/headless_chrome/protocol/cdp/Network/struct.CookieParam.html
 
 */
 
@@ -69,16 +69,6 @@ pub struct CookieParam {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-pub enum CookieSameSite {
-    #[serde(rename = "Strict")]
-    Strict,
-    #[serde(rename = "Lax")]
-    Lax,
-    #[serde(rename = "None")]
-    None,
-}
-
-#[derive(Clone, Debug, Deserialize)]
 pub enum CookiePriority {
     #[serde(rename = "Low")]
     Low,
@@ -86,6 +76,16 @@ pub enum CookiePriority {
     Medium,
     #[serde(rename = "High")]
     High,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub enum CookieSameSite {
+    #[serde(rename = "Strict")]
+    Strict,
+    #[serde(rename = "Lax")]
+    Lax,
+    #[serde(rename = "None")]
+    None,
 }
 
 #[derive(Clone, Debug, Deserialize)]
