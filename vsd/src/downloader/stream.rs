@@ -108,7 +108,7 @@ fn download_stream(
     temp_file: &PathBuf,
 ) -> Result<()> {
     pb.lock().unwrap().write(format!(
-        " {} [{:>5}] stream {}",
+        " {} [{:>5}] {}",
         "Processing".colorize("cyan"),
         stream.media_type.to_string(),
         stream.display_stream(),

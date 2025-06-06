@@ -129,10 +129,10 @@ fn fetch_from_website(
                 println!("Select one playlist:");
 
                 for (i, link) in links.iter().enumerate() {
-                    println!("{:2}) [{}] {}", i + 1, if i == 0 { 'x' } else { ' ' }, link);
+                    println!("{:2}) [{}] {}", i + 1, if i == 0 { "x".colorize("green") } else { " ".to_owned() }, link);
                 }
 
-                println!("------------------------------");
+                println!("{}", "------------------------------".colorize("cyan"));
                 print!(
                     "Press enter to proceed with defaults.\n\
                     Or select playlist to download (1, 2, etc.): "
@@ -142,7 +142,7 @@ fn fetch_from_website(
                 let mut input = String::new();
                 std::io::stdin().read_line(&mut input)?;
 
-                println!("------------------------------");
+                println!("{}", "------------------------------".colorize("cyan"));
 
                 let input = input.trim();
                 let mut index = 0;
