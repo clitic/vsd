@@ -346,9 +346,6 @@ impl MasterPlaylist {
 
             if auto_opts.interactive_raw {
                 println!("{}", "------------------------------".colorize("cyan"));
-            }
-
-            if auto_opts.interactive_raw {
                 print!(
                     "Press enter to proceed with defaults.\n\
                         Or select streams to download (1, 2, etc.): "
@@ -420,6 +417,7 @@ pub struct MediaPlaylist {
     pub codecs: Option<String>,
     pub extension: Option<String>,
     pub frame_rate: Option<f32>,
+    pub id: String,
     pub i_frame: bool,
     pub language: Option<String>,
     pub live: bool,
@@ -476,39 +474,17 @@ impl MediaPlaylist {
     }
 
     pub fn file_path(&self, directory: Option<&PathBuf>, ext: &OsStr) -> PathBuf {
-        let mut filename = self
-            .uri
-            .split('?')
-            .next()
-            .unwrap()
-            .split('/')
-            .next_back()
-            .unwrap_or("undefined")
-            .chars()
-            .map(|x| match x {
-                '/' | '\\' | '?' | '%' | '*' | ':' | '|' | '"' | '<' | '>' | '.' | ';' | '='
-                | ' ' => '_',
-                _ => x,
-            })
-            .collect::<String>();
-
-        if filename.len() > 128 {
-            filename = filename[..128].to_owned();
-        }
-
-        let filename = PathBuf::from(filename).with_extension("");
-
         let prefix = match &self.media_type {
-            MediaType::Audio => "vsd_audio",
-            MediaType::Subtitles => "vsd_subtitles",
-            MediaType::Undefined => "vsd_undefined",
-            MediaType::Video => "vsd_video",
+            MediaType::Audio => "vsd-audio",
+            MediaType::Subtitles => "vsd-subtitles",
+            MediaType::Undefined => "vsd-undefined",
+            MediaType::Video => "vsd-video",
         };
 
         let mut path = PathBuf::from(format!(
-            "{}_{}.{}",
+            "{}-{}.{}",
             prefix,
-            filename.to_string_lossy(),
+            self.id,
             ext.to_string_lossy()
         ));
 
@@ -519,9 +495,9 @@ impl MediaPlaylist {
         if path.exists() {
             for i in 1.. {
                 path.set_file_name(format!(
-                    "{}_{}_({}).{}",
+                    "{}-{}-{}.{}",
                     prefix,
-                    filename.to_string_lossy(),
+                    self.id,
                     i,
                     ext.to_string_lossy()
                 ));

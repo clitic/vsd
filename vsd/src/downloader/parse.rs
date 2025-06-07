@@ -14,11 +14,15 @@ pub fn list_all_streams(meta: &Metadata) -> Result<()> {
         Some(PlaylistType::Dash) => {
             let mpd = dash_mpd::parse(&meta.text)
                 .map_err(|_| anyhow!("couldn't parse response ({}) as dash playlist.", meta.url))?;
-            crate::dash::parse_as_master(&mpd, meta.url.as_ref()).sort_streams().list_streams();
+            crate::dash::parse_as_master(&mpd, meta.url.as_ref())
+                .sort_streams()
+                .list_streams();
         }
         Some(PlaylistType::Hls) => match m3u8_rs::parse_playlist_res(meta.text.as_bytes()) {
             Ok(m3u8_rs::Playlist::MasterPlaylist(m3u8)) => {
-                crate::hls::parse_as_master(&m3u8, meta.url.as_ref()).sort_streams().list_streams()
+                crate::hls::parse_as_master(&m3u8, meta.url.as_ref())
+                    .sort_streams()
+                    .list_streams()
             }
 
             Ok(m3u8_rs::Playlist::MediaPlaylist(_)) => {
@@ -50,6 +54,9 @@ pub fn parse_all_streams(
                     stream,
                     base_url.as_ref().unwrap_or(&meta.url).as_str(),
                 )?;
+                stream.id = blake3::hash((meta.url.as_ref().to_owned() + &stream.uri).as_bytes())
+                    .to_hex()[..7]
+                    .to_owned();
                 stream.uri = meta.url.as_ref().to_owned();
             }
 
@@ -65,6 +72,7 @@ pub fn parse_all_streams(
                         .unwrap_or(&meta.url)
                         .join(&stream.uri)?
                         .to_string();
+                    stream.id = blake3::hash(stream.uri.as_bytes()).to_hex()[..7].to_owned();
 
                     let text;
                     if let Some(bs) = stream
@@ -89,6 +97,7 @@ pub fn parse_all_streams(
             }
             Ok(m3u8_rs::Playlist::MediaPlaylist(m3u8)) => {
                 let mut media_playlist = crate::playlist::MediaPlaylist {
+                    id: blake3::hash(meta.url.as_ref().as_bytes()).to_hex()[..7].to_owned(),
                     uri: meta.url.as_ref().to_owned(),
                     ..Default::default()
                 };
@@ -131,6 +140,9 @@ pub fn parse_selected_streams(
                     stream,
                     base_url.as_ref().unwrap_or(&meta.url).as_str(),
                 )?;
+                stream.id = blake3::hash((meta.url.as_ref().to_owned() + &stream.uri).as_bytes())
+                    .to_hex()[..7]
+                    .to_owned();
                 stream.uri = meta.url.as_ref().to_owned();
             }
 
@@ -148,6 +160,7 @@ pub fn parse_selected_streams(
                         .unwrap_or(&meta.url)
                         .join(&stream.uri)?
                         .to_string();
+                    stream.id = blake3::hash(stream.uri.as_bytes()).to_hex()[..7].to_owned();
 
                     let text;
                     if let Some(bs) = stream
@@ -177,6 +190,7 @@ pub fn parse_selected_streams(
             }
             Ok(m3u8_rs::Playlist::MediaPlaylist(m3u8)) => {
                 let mut media_playlist = MediaPlaylist {
+                    id: blake3::hash(meta.url.as_ref().as_bytes()).to_hex()[..7].to_owned(),
                     uri: meta.url.as_ref().to_owned(),
                     ..Default::default()
                 };

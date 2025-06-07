@@ -93,7 +93,8 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
                     } else {
                         None
                     },
-                    i_frame: false, // Cannot be comment here
+                    id: String::new(), // Cannot be comment here
+                    i_frame: false,    // Cannot be comment here
                     language: adaptation_set.lang.clone(),
                     live: if let Some(mpdtype) = &mpd.mpdtype {
                         mpdtype == "dynamic"

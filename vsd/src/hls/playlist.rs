@@ -13,6 +13,7 @@ pub(crate) fn parse_as_master(
             codecs: video_stream.codecs.to_owned(),
             extension: Some("ts".to_owned()), // Cannot be comment here
             frame_rate: video_stream.frame_rate.map(|x| x as f32),
+            id: String::new(), // Cannot be comment here
             i_frame: video_stream.is_i_frame,
             language: None,
             live: false, // Cannot be comment here
@@ -39,6 +40,7 @@ pub(crate) fn parse_as_master(
                     codecs: None,                     // Cannot be comment here
                     extension: Some("ts".to_owned()), // Cannot be comment here
                     frame_rate: None,                 // Cannot be comment here
+                    id: String::new(),                // Cannot be comment here
                     i_frame: false,                   // Cannot be comment here
                     language: None,
                     live: false, // Cannot be comment here
@@ -59,6 +61,7 @@ pub(crate) fn parse_as_master(
                     codecs: None,                     // Cannot be comment here
                     extension: Some("ts".to_owned()), // Cannot be comment here
                     frame_rate: None,
+                    id: String::new(), // Cannot be comment here
                     i_frame: false,
                     language: alternative_stream
                         .language
@@ -81,6 +84,7 @@ pub(crate) fn parse_as_master(
                         codecs: None,                      // Cannot be comment here
                         extension: Some("vtt".to_owned()), // Cannot be comment here
                         frame_rate: None,
+                        id: String::new(), // Cannot be comment here
                         i_frame: false,
                         language: alternative_stream
                             .language
@@ -102,10 +106,11 @@ pub(crate) fn parse_as_master(
                         .channels
                         .as_ref()
                         .map(|x| x.parse::<f32>().unwrap()),
-                    codecs: None,     // Cannot be comment here
-                    extension: None,  // Cannot be comment here
-                    frame_rate: None, // Cannot be comment here
-                    i_frame: false,   // Cannot be comment here
+                    codecs: None,      // Cannot be comment here
+                    extension: None,   // Cannot be comment here
+                    frame_rate: None,  // Cannot be comment here
+                    id: String::new(), // Cannot be comment here
+                    i_frame: false,    // Cannot be comment here
                     language: alternative_stream
                         .language
                         .to_owned()

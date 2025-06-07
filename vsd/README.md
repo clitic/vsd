@@ -78,8 +78,6 @@ cargo install vsd
 
 Build instructions can be found [here](https://github.com/clitic/vsd/blob/main/vsd/BUILD.md) and changelog [here](https://github.com/clitic/vsd/blob/main/vsd/CHANGELOG.md).
 
-Additionally, you can also install third party [gui](https://github.com/theRealCataclysm/VSD-GUI) frontend created by [theRealCataclysm](https://github.com/theRealCataclysm).
-
 ## Usage
 
 - Downloading and saving HLS and DASH playlists to disk.
