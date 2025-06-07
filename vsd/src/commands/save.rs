@@ -137,7 +137,7 @@ pub struct Save {
     /// Keys for decrypting encrypted streams.
     /// KID:KEY should be specified in hex format.
     /// While a single KEY should be specified as file path.
-    #[arg(short, long, help_heading = "Decrypt Options", value_name = "KEY | KID:KEY;KID:KEY...", default_value_t = Decrypter::None, value_parser = keys_parser)]
+    #[arg(short, long, help_heading = "Decrypt Options", value_name = "KEY | KID:KEY;KID:KEY...", default_value = "", hide_default_value = true, value_parser = keys_parser)]
     pub keys: Decrypter,
 
     /// Download encrypted streams without decrypting them.
@@ -280,7 +280,9 @@ fn cookie_parser(s: &str) -> Result<CookieParams, String> {
 }
 
 fn keys_parser(s: &str) -> Result<Decrypter, String> {
-    if Path::new(s).exists() {
+    if s.is_empty() {
+        Ok(Decrypter::None)
+    } else if Path::new(s).exists() {
         let bytes = fs::read(s).map_err(|_| "could'nt read key file.")?;
 
         if bytes.len() != 16 {
