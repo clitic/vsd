@@ -27,7 +27,7 @@ fn download_subtitle_stream(
     temp_files: &mut Vec<Stream>,
 ) -> Result<()> {
     pb.write(format!(
-        " {} [{:>5}] stream {}",
+        " {} [{:>5}] {}",
         "Processing".colorize("cyan"),
         stream.media_type.to_string(),
         stream.display_stream(),

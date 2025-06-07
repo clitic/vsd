@@ -196,7 +196,7 @@ pub fn ffmpeg(output: Option<&PathBuf>, temp_files: &[Stream]) -> Result<()> {
 
     println!(
         "  {} ffmpeg {}",
-        "Executing".colorize("bold cyan"),
+        "Executing".colorize("cyan"),
         args.iter()
             .map(|x| if x.contains(' ') {
                 format!("\"{}\"", x)
