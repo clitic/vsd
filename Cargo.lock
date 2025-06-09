@@ -2560,7 +2560,7 @@ dependencies = [
 
 [[package]]
 name = "mp4decrypt"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "bento4-src",
 ]
