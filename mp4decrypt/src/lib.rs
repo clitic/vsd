@@ -20,7 +20,7 @@ use core::ffi::{c_char, c_int, c_uchar, c_uint};
 use std::collections::HashMap;
 use std::ffi::CString;
 
-extern "C" {
+unsafe extern "C" {
     fn decrypt_in_memory(
         data: *const c_uchar,
         data_size: c_uint,

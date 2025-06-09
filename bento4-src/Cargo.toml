@@ -2,7 +2,7 @@
 authors = ["clitic <clitic21@gmail.com>"]
 description = "Source of bento4 and logic to build it."
 documentation = "https://docs.rs/bento4-src"
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 include = [
     "Bento4/Documents/LICENSE.txt",
