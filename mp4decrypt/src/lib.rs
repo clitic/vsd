@@ -16,9 +16,12 @@
 
 #![allow(improper_ctypes)]
 
+mod error;
+
+pub use error::{Error, ErrorType};
+
 use core::ffi::{c_char, c_int, c_uchar, c_uint};
-use std::collections::HashMap;
-use std::ffi::CString;
+use std::{collections::HashMap, ffi::CString};
 
 unsafe extern "C" {
     fn decrypt_in_memory(
@@ -79,9 +82,12 @@ pub fn mp4decrypt(
     data: &[u8],
     keys: &HashMap<String, String>,
     fragments_info: Option<&[u8]>,
-) -> Result<Vec<u8>, String> {
+) -> Result<Vec<u8>, Error> {
     let mut data = data.to_vec();
-    let data_size = u32::try_from(data.len()).map_err(|_| "data stream is too large".to_owned())?;
+    let data_size = u32::try_from(data.len()).map_err(|_| Error {
+        msg: "mp4decrypt-error: the input data stream is too large.".to_owned(),
+        err_type: ErrorType::DataTooLarge,
+    })?;
 
     let mut c_kids_holder = vec![];
     let mut c_keys_holder = vec![];
@@ -99,8 +105,12 @@ pub fn mp4decrypt(
 
     let result = unsafe {
         if let Some(fragments_info_data) = fragments_info {
-            let fragments_info_data_size = u32::try_from(fragments_info_data.len())
-                .map_err(|_| "fragments info is too large".to_owned())?;
+            let fragments_info_data_size =
+                u32::try_from(fragments_info_data.len()).map_err(|_| Error {
+                    msg: "mp4decrypt-error: the fragments info data stream is too large."
+                        .to_owned(),
+                    err_type: ErrorType::DataTooLarge,
+                })?;
 
             decrypt_in_memory_with_fragments_info(
                 data.as_mut_ptr(),
@@ -130,10 +140,25 @@ pub fn mp4decrypt(
         Ok(*decrypted_data)
     } else {
         Err(match result {
-            100 => "invalid hex format for key id".to_owned(),
-            101 => "invalid key id".to_owned(),
-            102 => "invalid hex format for key".to_owned(),
-            x => format!("failed to decrypt data with error code {}", x),
+            100 => Error {
+                msg: "mp4decrypt-error: invalid hex format for key id.".to_owned(),
+                err_type: ErrorType::InvalidFormat,
+            },
+            101 => Error {
+                msg: "mp4decrypt-error: invalid key id.".to_owned(),
+                err_type: ErrorType::InvalidFormat,
+            },
+            102 => Error {
+                msg: "mp4decrypt-error: invalid hex format for key.".to_owned(),
+                err_type: ErrorType::InvalidFormat,
+            },
+            x => Error {
+                msg: format!(
+                    "mp4decrypt-error: failed to decrypt data with error code {}.",
+                    x
+                ),
+                err_type: ErrorType::Failed(x),
+            },
         })
     }
 }
