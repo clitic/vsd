@@ -22,7 +22,7 @@ chrono = "0.4"
 clap = { version = "4", features = ["derive", "wrap_help"] }
 cookie = "0.18"
 ctrlc = "3"
-dash-mpd = { version = "0.16.6", default-features = false }
+dash-mpd = { version = "0.18", default-features = false }
 glob = "0.3"
 headless_chrome = { version = "1.0.10", optional = true }
 hex = "0.4"

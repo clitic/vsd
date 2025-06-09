@@ -421,7 +421,7 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                         // https://github.com/shaka-project/shaka-player/blob/main/lib/dash/segment_base.js
                         // https://github.com/shaka-project/shaka-player/blob/main/lib/media/mp4_segment_index_parser.js
 
-                        if let Some(initialization) = &segment_base.initialization {
+                        if let Some(initialization) = &segment_base.Initialization {
                             let byte_range = parse_range(&initialization.range);
 
                             if let Some(source_url) = &initialization.sourceURL {
