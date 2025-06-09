@@ -1,62 +1,48 @@
-/// The Errors that may occur when parsing data.
+/// The returned error type.
 #[derive(Debug)]
 pub struct Error {
-    read_err: bool,
-    reason: String,
-    decode_err: bool,
+    pub msg: String,
+    pub err_type: ErrorType,
+}
+
+/// The type of error which can occur during parsing data.
+#[derive(Debug)]
+pub enum ErrorType {
+    Decode,
+    Generic,
+    Read,
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let prefix_reason = if self.read_err {
-            "Cannot read "
-        } else if self.decode_err {
-            "Cannot decode "
-        } else {
-            ""
-        };
-
-        write!(f, "{}{}.", prefix_reason, self.reason)
+        write!(f, "vsd-mp4-error: {}", self.msg)
     }
 }
 
 impl std::error::Error for Error {}
 
 impl Error {
-    /// Create a new uncategorized error.
-    pub fn new<T: Into<String>>(reason: T) -> Self {
+    /// Create a new generic error.
+    pub fn new<T: Into<String>>(msg: T) -> Self {
         Self {
-            read_err: false,
-            reason: reason.into(),
-            decode_err: false,
-        }
-    }
-
-    /// Create a new read error.
-    pub fn new_read_err<T: Into<String>>(reason: T) -> Self {
-        Self {
-            read_err: true,
-            reason: reason.into(),
-            decode_err: false,
+            err_type: ErrorType::Generic,
+            msg: msg.into(),
         }
     }
 
     /// Create a new decode error.
-    pub fn new_decode_err<T: Into<String>>(reason: T) -> Self {
+    pub fn new_decode<T: Into<String>>(msg: T) -> Self {
         Self {
-            read_err: false,
-            reason: reason.into(),
-            decode_err: true,
+            err_type: ErrorType::Decode,
+            msg: format!("cannot decode {}", msg.into()),
         }
     }
 
-    /// Returns true if the error is a read error.
-    pub fn is_read_err(&self) -> bool {
-        self.read_err
-    }
-
-    /// Returns true if the error is a decode error.
-    pub fn is_decode_err(&self) -> bool {
-        self.decode_err
+    /// Create a new read error.
+    pub fn new_read<T: Into<String>>(msg: T) -> Self {
+        Self {
+            err_type: ErrorType::Read,
+            msg: format!("cannot read {}", msg.into()),
+        }
     }
 }

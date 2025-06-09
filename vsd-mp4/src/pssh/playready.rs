@@ -15,28 +15,28 @@ pub(super) fn parse(data: &[u8]) -> Result<impl IntoIterator<Item = KeyId>> {
     let mut reader = Reader::new(data, true);
     let size = reader
         .read_u32()
-        .map_err(|_| Error::new_read_err("PSSH box playready object size (u32)"))?;
+        .map_err(|_| Error::new_read("PSSH box playready object size (u32)."))?;
 
     if size as usize != data.len() {
-        return Err(Error::new("Invalid length of PSSH box playready object"));
+        return Err(Error::new("invalid length of PSSH box playready object."));
     }
 
     let count = reader
         .read_u16()
-        .map_err(|_| Error::new_read_err("PSSH box playready object record count (u16)"))?;
+        .map_err(|_| Error::new_read("PSSH box playready object record count (u16)."))?;
 
     let mut kids = vec![];
 
     for _ in 0..count {
         let record_type = reader
             .read_u16()
-            .map_err(|_| Error::new_read_err("PSSH box playready object record type (u16)"))?;
+            .map_err(|_| Error::new_read("PSSH box playready object record type (u16)."))?;
         let record_len = reader
             .read_u16()
-            .map_err(|_| Error::new_read_err("PSSH box playready object record size (u16)"))?;
+            .map_err(|_| Error::new_read("PSSH box playready object record size (u16)."))?;
         let record_data = reader.read_bytes_u16(record_len as usize).map_err(|_| {
-            Error::new_read_err(format!(
-                "PSSH box playready object record data ({} bytes)",
+            Error::new_read(format!(
+                "PSSH box playready object record data ({} bytes).",
                 record_len
             ))
         })?;
@@ -44,12 +44,12 @@ pub(super) fn parse(data: &[u8]) -> Result<impl IntoIterator<Item = KeyId>> {
         match record_type {
             1 => {
                 let xml = String::from_utf16(&record_data).map_err(|_| {
-                    Error::new_decode_err(
-                    "PSSH box playready object record data as valid utf-16 data (little endian)"
+                    Error::new_decode(
+                    "PSSH box playready object record data as valid utf-16 data (little endian)."
                 )
                 })?;
                 let wrm_header = quick_xml::de::from_str::<WrmHeader>(&xml).map_err(|x| {
-                    Error::new_decode_err(format!(
+                    Error::new_decode(format!(
                         "PSSH box playready object record data i.e. {}\n\n{:#?}",
                         xml, x
                     ))
@@ -59,7 +59,7 @@ pub(super) fn parse(data: &[u8]) -> Result<impl IntoIterator<Item = KeyId>> {
             2 | 3 => (),
             _ => {
                 return Err(Error::new(format!(
-                    "Invalid PSSH box playready object record type {}",
+                    "invalid PSSH box playready object record type {}.",
                     record_type
                 )));
             }
@@ -67,8 +67,8 @@ pub(super) fn parse(data: &[u8]) -> Result<impl IntoIterator<Item = KeyId>> {
     }
 
     if reader.has_more_data() {
-        return Err(Error::new_read_err(
-            "PSSH box extra data after playready object records",
+        return Err(Error::new_read(
+            "PSSH box extra data after playready object records.",
         ));
     }
 
@@ -154,7 +154,7 @@ impl WrmHeader {
 
             x => {
                 return Err(Error::new(format!(
-                    "Unsupported PSSH box playready object header version v{}",
+                    "unsupported PSSH box playready object header version v{}.",
                     x
                 )))
             }

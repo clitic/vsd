@@ -6,7 +6,7 @@ include!(concat!(env!("OUT_DIR"), "/widevine.rs"));
 
 pub(super) fn parse(data: &[u8]) -> Result<impl IntoIterator<Item = KeyId>> {
     let wv = WidevinePsshData::decode(data).map_err(|x| {
-        Error::new_decode_err(format!("PSSH box data as valid widevine data.\n\n{:#?}", x))
+        Error::new_decode(format!("PSSH box data as valid widevine data.\n\n{:#?}", x))
     })?;
 
     // let protection_scheme = String::from_utf8(wv.protection_scheme().to_be_bytes().to_vec())

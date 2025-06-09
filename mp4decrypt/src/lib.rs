@@ -85,7 +85,7 @@ pub fn mp4decrypt(
 ) -> Result<Vec<u8>, Error> {
     let mut data = data.to_vec();
     let data_size = u32::try_from(data.len()).map_err(|_| Error {
-        msg: "mp4decrypt-error: the input data stream is too large.".to_owned(),
+        msg: "the input data stream is too large.".to_owned(),
         err_type: ErrorType::DataTooLarge,
     })?;
 
@@ -107,7 +107,7 @@ pub fn mp4decrypt(
         if let Some(fragments_info_data) = fragments_info {
             let fragments_info_data_size =
                 u32::try_from(fragments_info_data.len()).map_err(|_| Error {
-                    msg: "mp4decrypt-error: the fragments info data stream is too large."
+                    msg: "the fragments info data stream is too large."
                         .to_owned(),
                     err_type: ErrorType::DataTooLarge,
                 })?;
@@ -141,20 +141,20 @@ pub fn mp4decrypt(
     } else {
         Err(match result {
             100 => Error {
-                msg: "mp4decrypt-error: invalid hex format for key id.".to_owned(),
+                msg: "invalid hex format for key id.".to_owned(),
                 err_type: ErrorType::InvalidFormat,
             },
             101 => Error {
-                msg: "mp4decrypt-error: invalid key id.".to_owned(),
+                msg: "invalid key id.".to_owned(),
                 err_type: ErrorType::InvalidFormat,
             },
             102 => Error {
-                msg: "mp4decrypt-error: invalid hex format for key.".to_owned(),
+                msg: "invalid hex format for key.".to_owned(),
                 err_type: ErrorType::InvalidFormat,
             },
             x => Error {
                 msg: format!(
-                    "mp4decrypt-error: failed to decrypt data with error code {}.",
+                    "failed to decrypt data with error code {}.",
                     x
                 ),
                 err_type: ErrorType::Failed(x),

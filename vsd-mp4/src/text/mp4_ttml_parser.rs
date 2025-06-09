@@ -39,7 +39,7 @@ impl Mp4TtmlParser {
         let saw_stpp = *saw_stpp.lock().unwrap();
 
         if !saw_stpp {
-            return Err(Error::new("STPP box not found"));
+            return Err(Error::new("STPP box not found."));
         }
 
         Ok(Self)
@@ -61,12 +61,12 @@ impl Mp4TtmlParser {
                     // Join this to any previous payload, in case the mp4 has multiple
                     // mdats.
                     let xml = String::from_utf8(data).map_err(|_| {
-                        Error::new_decode_err("MDAT box payload as valid utf-8 data")
+                        Error::new_decode("MDAT box payload as valid utf-8 data.")
                     })?;
                     cues_c.lock().unwrap().append(
                         &mut ttml_text_parser::parse(&xml)
                             .map_err(|x| {
-                                Error::new_decode_err(format!(
+                                Error::new_decode(format!(
                                     "xml string as ttml content.\n\n{}\n\n{:#?}",
                                     xml, x
                                 ))
@@ -81,7 +81,7 @@ impl Mp4TtmlParser {
         let saw_mdat = *saw_mdat.lock().unwrap();
 
         if !saw_mdat {
-            return Err(Error::new("MDAT box not found"));
+            return Err(Error::new("MDAT box not found."));
         }
 
         let cues = cues.lock().unwrap().clone();

@@ -107,13 +107,13 @@ impl Pssh {
     fn parse_pssh_box(&mut self, _box: &mut ParsedBox) -> Result<()> {
         if _box.version.is_none() {
             return Err(Error::new(
-                "PSSH boxes are full boxes and must have a valid version",
+                "PSSH boxes are full boxes and must have a valid version.",
             ));
         }
 
         if _box.flags.is_none() {
             return Err(Error::new(
-                "PSSH boxes are full boxes and must have a valid flag",
+                "PSSH boxes are full boxes and must have a valid flag.",
             ));
         }
 
@@ -136,20 +136,20 @@ impl Pssh {
         let system_id = hex::encode(
             _box.reader
                 .read_bytes_u8(16)
-                .map_err(|_| Error::new_read_err("PSSH box system id (16 bytes)"))?,
+                .map_err(|_| Error::new_read("PSSH box system id (16 bytes)."))?,
         );
 
         if _box_version > 0 {
             let num_key_ids = _box
                 .reader
                 .read_u32()
-                .map_err(|_| Error::new_read_err("PSSH box number of key ids (u32)"))?;
+                .map_err(|_| Error::new_read("PSSH box number of key ids (u32)."))?;
 
             for _ in 0..num_key_ids {
                 let key_id = hex::encode(
                     _box.reader
                         .read_bytes_u8(16)
-                        .map_err(|_| Error::new_read_err("PSSH box key id (16 bytes)"))?,
+                        .map_err(|_| Error::new_read("PSSH box key id (16 bytes)."))?,
                 );
                 self.key_ids.push(KeyId {
                     value: key_id,
@@ -165,12 +165,12 @@ impl Pssh {
         let pssh_data_size = _box
             .reader
             .read_u32()
-            .map_err(|_| Error::new_read_err("PSSH box data size (u32)"))?;
+            .map_err(|_| Error::new_read("PSSH box data size (u32)."))?;
         let pssh_data = _box
             .reader
             .read_bytes_u8(pssh_data_size as usize)
             .map_err(|_| {
-                Error::new_read_err(format!("PSSH box data ({} bytes)", pssh_data_size))
+                Error::new_read(format!("PSSH box data ({} bytes).", pssh_data_size))
             })?;
 
         match system_id.as_str() {

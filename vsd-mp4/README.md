@@ -23,7 +23,7 @@ Add this to your Cargo.toml file.
 
 ```toml
 [dependencies]
-vsd-mp4 = "0.1.0"
+vsd-mp4 = "0.1.2"
 ```
 
 Or add from command line.
