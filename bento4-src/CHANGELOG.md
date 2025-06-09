@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2025-06-09
+
+### Changed
+
+- Rust edition 2021 -> 2024
+
 ## [0.1.3] - 2024-07-24
 
 ### Changed
@@ -23,7 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.0] - 2022-05-10
 
-[Unreleased]: https://github.com/clitic/vsd/compare/bento4-src-0.1.3...HEAD
+[Unreleased]: https://github.com/clitic/vsd/compare/bento4-src-0.1.4...HEAD
+[0.1.4]: https://github.com/clitic/vsd/compare/bento4-src-0.1.3...bento4-src-0.1.4
 [0.1.3]: https://github.com/clitic/vsd/compare/bento4-src-v0.1.2...bento4-src-0.1.3
 [0.1.2]: https://github.com/clitic/vsd/compare/bento4-src-v0.1.1...bento4-src-v0.1.2
 [0.1.1]: https://github.com/clitic/vsd/compare/bento4-src-v0.1.0...bento4-src-v0.1.1

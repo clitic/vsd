@@ -565,7 +565,7 @@ dependencies = [
 
 [[package]]
 name = "bento4-src"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "cc",
 ]
