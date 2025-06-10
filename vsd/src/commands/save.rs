@@ -8,9 +8,9 @@ use clap::Args;
 use cookie::Cookie;
 use kdam::term::Colorizer;
 use reqwest::{
+    Proxy, Url,
     blocking::Client,
     header::{HeaderMap, HeaderName, HeaderValue},
-    Proxy, Url,
 };
 use std::{
     collections::HashMap,
@@ -49,10 +49,15 @@ pub struct Save {
     #[arg(long)]
     pub parse: bool,
 
+    /// Download all streams with --skip-audio, --skip-video and --skip-subs filters kept in mind.
+    #[arg(long, help_heading = "Automation Options")]
+    pub all_streams: bool,
+
     /// Preferred languages when multiple audio streams with different languages are available.
     /// Must be in RFC 5646 format (eg. fr or en-AU).
     /// If a preference is not specified and multiple audio streams are present,
     /// the first one listed in the manifest will be downloaded.
+    /// The values should be seperated by comma.
     #[arg(long, help_heading = "Automation Options", value_delimiter = ',')]
     pub audio_lang: Vec<String>,
 
@@ -68,14 +73,21 @@ pub struct Save {
     #[arg(short, long, help_heading = "Automation Options")]
     pub list_streams: bool,
 
-    /// Automatic selection of some standard resolution streams with highest bandwidth stream variant from playlist.
+    /// Automatic selection of some standard resolution video stream with highest bandwidth stream variant from playlist.
     /// If matching resolution of WIDTHxHEIGHT is not found then only resolution HEIGHT would be considered for selection.
     /// comman values: [lowest, min, 144p, 240p, 360p, 480p, 720p, hd, 1080p, fhd, 2k, 1440p, qhd, 4k, 8k, highest, max]
     #[arg(long, help_heading = "Automation Options", default_value = "highest", value_name = "WIDTHxHEIGHT|HEIGHTp", value_parser = quality_parser)]
     pub quality: Quality,
 
     /// Select streams to download by their ids obtained by --list-streams flag.
-    #[arg(long, help_heading = "Automation Options", value_delimiter = ',')]
+    /// It has the highest priority among the rest of filters.
+    /// The values should be seperated by comma.
+    #[arg(
+        short,
+        long,
+        help_heading = "Automation Options",
+        value_delimiter = ','
+    )]
     pub select_streams: Vec<usize>,
 
     /// Skip default audio stream selection.
@@ -94,6 +106,7 @@ pub struct Save {
     /// Must be in RFC 5646 format (eg. fr or en-AU).
     /// If a preference is not specified and multiple subtitles streams are present,
     /// the first one listed in the manifest will be downloaded.
+    /// The values should be seperated by comma.
     #[arg(long, help_heading = "Automation Options", value_delimiter = ',')]
     pub subs_lang: Vec<String>,
 
@@ -121,7 +134,7 @@ pub struct Save {
 
     /// Fill request client with some existing cookies per domain.
     /// First value for this option is set-cookie header and second value is url which was requested to send this set-cookie header.
-    /// Example `--set-cookie "foo=bar; Domain=yolo.local" https://yolo.local`.
+    /// Example: --set-cookie "foo=bar; Domain=yolo.local" https://yolo.local.
     /// This option can be used multiple times.
     #[arg(long, help_heading = "Client Options", num_args = 2, value_names = &["SET_COOKIE", "URL"])]
     pub set_cookie: Vec<String>, // Vec<(String, String)> not supported
@@ -137,7 +150,7 @@ pub struct Save {
     /// Keys for decrypting encrypted streams.
     /// KID:KEY should be specified in hex format.
     /// While a single KEY should be specified as file path.
-    #[arg(short, long, help_heading = "Decrypt Options", value_name = "KEY | KID:KEY;KID:KEY...", default_value = "", hide_default_value = true, value_parser = keys_parser)]
+    #[arg(long, help_heading = "Decrypt Options", value_name = "KEY | KID:KEY;KID:KEY...", default_value = "", hide_default_value = true, value_parser = keys_parser)]
     pub keys: Decrypter,
 
     /// Download encrypted streams without decrypting them.
@@ -147,7 +160,7 @@ pub struct Save {
 
     /// Maximum number of retries to download an individual segment.
     #[arg(long, help_heading = "Download Options", default_value_t = 15)]
-    pub retry_count: u8,
+    pub retries: u8,
 
     /// Download streams without merging them.
     /// Note that --output flag is ignored if this flag is used.
@@ -207,6 +220,7 @@ impl Save {
     pub fn execute(self) -> Result<()> {
         let client = self.client()?;
         let auto_opts = AutomationOptions {
+            all_streams: self.all_streams,
             audio_lang: self.audio_lang,
             interactive: self.interactive,
             interactive_raw: self.interactive_raw,
@@ -250,7 +264,7 @@ impl Save {
                 self.output,
                 &self.query,
                 streams,
-                self.retry_count,
+                self.retries,
                 self.threads,
             )?;
         }
@@ -368,6 +382,10 @@ fn quality_parser(s: &str) -> Result<Quality, String> {
 
 fn query_parser(s: &str) -> Result<HashMap<String, String>, String> {
     let mut queries = HashMap::new();
+
+    if s.is_empty() {
+        return Ok(queries);
+    }
 
     for pair in s.split('&') {
         let mut parts = pair.splitn(2, '=');

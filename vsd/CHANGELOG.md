@@ -18,13 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Now by default vsd proceeds with default stream selections. The old behaviour can still be used using `-i, --interactive` and `--interactive-raw` flags.
-- Removed `--no-query-pass` flag.
+- `save`
+  - Now by default vsd proceeds with default stream selections. The old behaviour can still be used using `-i, --interactive` and `--interactive-raw` flags.
+  - Removed `--no-query-pass` flag.
+  - Renamed `--retry-count` to `--retries` flag.
 
 ### Fixed
 
-- Mux commands for solo streams.
-- Query support.
+- `save`
+  - Mux commands for solo streams.
+  - Query support.
 
 ## [0.3.3] - 2025-03-14
 

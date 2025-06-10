@@ -30,7 +30,7 @@ pub fn download(
     output: Option<PathBuf>,
     query: &HashMap<String, String>,
     streams: Vec<MediaPlaylist>,
-    retry_count: u8,
+    retries: u8,
     threads: u8,
 ) -> Result<()> {
     // let mut streams = streams
@@ -151,7 +151,7 @@ pub fn download(
         output.as_ref(),
         pb,
         query,
-        retry_count,
+        retries,
         streams,
         threads,
         &mut temp_files,

@@ -29,7 +29,7 @@ pub fn download_streams(
     output: Option<&PathBuf>,
     pb: RichProgress,
     query: &HashMap<String, String>,
-    retry_count: u8,
+    retries: u8,
     streams: Vec<MediaPlaylist>,
     threads: u8,
     temp_files: &mut Vec<Stream>,
@@ -81,7 +81,7 @@ pub fn download_streams(
             pb.clone(),
             &pool,
             query,
-            retry_count,
+            retries,
             stream,
             &temp_file,
         )?;
@@ -103,7 +103,7 @@ fn download_stream(
     pb: Arc<Mutex<RichProgress>>,
     pool: &ThreadPool,
     query: &HashMap<String, String>,
-    retry_count: u8,
+    retries: u8,
     stream: MediaPlaylist,
     temp_file: &PathBuf,
 ) -> Result<()> {
@@ -213,7 +213,7 @@ fn download_stream(
             merger: merger.clone(),
             pb: pb.clone(),
             request,
-            retries: retry_count,
+            retries,
             timer: timer.clone(),
         });
 

@@ -7,13 +7,13 @@
 
 */
 
-use anyhow::{anyhow, bail, Ok, Result};
+use anyhow::{Ok, Result, anyhow, bail};
 use kdam::term::Colorizer;
 use requestty::prompt::style::Stylize;
 use reqwest::{
+    Url,
     blocking::Client,
     header::{self, HeaderValue},
-    Url,
 };
 use serde::Serialize;
 use std::{collections::HashMap, ffi::OsStr, fmt::Display, io::Write, path::PathBuf};
@@ -128,67 +128,79 @@ impl MasterPlaylist {
 
         if select_streams.is_empty() {
             if !auto_opts.skip_video {
-                match &auto_opts.quality {
-                    Quality::Lowest => {
-                        select_streams.push(video_streams.len() - 1);
+                if auto_opts.all_streams {
+                    for (i, _) in &video_streams {
+                        select_streams.push(*i);
                     }
-                    Quality::Highest => {
-                        select_streams.push(0);
-                    }
-                    _ => {
-                        let mut has_resolution = None;
-                        let mut has_height = None;
+                } else {
+                    match &auto_opts.quality {
+                        Quality::Lowest => {
+                            select_streams.push(video_streams.len() - 1);
+                        }
+                        Quality::Highest => {
+                            select_streams.push(0);
+                        }
+                        _ => {
+                            let mut has_resolution = None;
+                            let mut has_height = None;
 
-                        let (w, h) = match &auto_opts.quality {
-                            Quality::Resolution(w, h) => (*w as u64, *h as u64),
-                            Quality::Youtube144p => (256, 144),
-                            Quality::Youtube240p => (426, 240),
-                            Quality::Youtube360p => (640, 360),
-                            Quality::Youtube480p => (854, 480),
-                            Quality::Youtube720p => (1280, 720),
-                            Quality::Youtube1080p => (1920, 1080),
-                            Quality::Youtube2k => (2048, 1080),
-                            Quality::Youtube1440p => (2560, 1440),
-                            Quality::Youtube4k => (3840, 2160),
-                            Quality::Youtube8k => (7680, 4320),
-                            _ => unreachable!(),
-                        };
+                            let (w, h) = match &auto_opts.quality {
+                                Quality::Resolution(w, h) => (*w as u64, *h as u64),
+                                Quality::Youtube144p => (256, 144),
+                                Quality::Youtube240p => (426, 240),
+                                Quality::Youtube360p => (640, 360),
+                                Quality::Youtube480p => (854, 480),
+                                Quality::Youtube720p => (1280, 720),
+                                Quality::Youtube1080p => (1920, 1080),
+                                Quality::Youtube2k => (2048, 1080),
+                                Quality::Youtube1440p => (2560, 1440),
+                                Quality::Youtube4k => (3840, 2160),
+                                Quality::Youtube8k => (7680, 4320),
+                                _ => unreachable!(),
+                            };
 
-                        for (i, stream) in &video_streams {
-                            if has_resolution.is_some() && has_height.is_some() {
-                                break;
-                            }
+                            for (i, stream) in &video_streams {
+                                if has_resolution.is_some() && has_height.is_some() {
+                                    break;
+                                }
 
-                            if let Some((video_w, video_h)) = &stream.resolution {
-                                if h == *video_h {
-                                    has_height = Some(i);
+                                if let Some((video_w, video_h)) = &stream.resolution {
+                                    if h == *video_h {
+                                        has_height = Some(i);
 
-                                    if w == *video_w {
-                                        has_resolution = Some(i);
+                                        if w == *video_w {
+                                            has_resolution = Some(i);
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        if let Some(i) = has_resolution.or(has_height) {
-                            select_streams.push(*i);
+                            if let Some(i) = has_resolution.or(has_height) {
+                                select_streams.push(*i);
+                            }
                         }
                     }
                 }
             }
 
             if !auto_opts.skip_audio {
-                if auto_opts.audio_lang.is_empty() {
-                    if let Some(stream) = audio_streams.first() {
-                        select_streams.push(stream.0);
+                if auto_opts.all_streams {
+                    for (i, _) in &audio_streams {
+                        select_streams.push(*i);
                     }
                 } else {
-                    for stream in &audio_streams {
-                        if let Some(lang) = &stream.1.language {
-                            if auto_opts.audio_lang.iter().any(|x| {
-                                x.to_lowercase().get(0..2) == lang.to_lowercase().get(0..2)
-                            }) {
-                                select_streams.push(stream.0);
+                    if auto_opts.audio_lang.is_empty() {
+                        if let Some(stream) = audio_streams.first() {
+                            select_streams.push(stream.0);
+                        }
+                    } else {
+                        for stream in &audio_streams {
+                            if let Some(lang) = &stream.1.language {
+                                if auto_opts.audio_lang.iter().any(|x| {
+                                    x.to_lowercase().get(0..2) == lang.to_lowercase().get(0..2)
+                                }) {
+                                    select_streams.push(stream.0);
+                                }
                             }
                         }
                     }
@@ -196,24 +208,30 @@ impl MasterPlaylist {
             }
 
             if !auto_opts.skip_subs {
-                if auto_opts.subs_lang.is_empty() {
-                    if let Some(stream) = subtitle_streams.first() {
-                        select_streams.push(stream.0);
+                if auto_opts.all_streams {
+                    for (i, _) in &subtitle_streams {
+                        select_streams.push(*i);
                     }
                 } else {
-                    for stream in &subtitle_streams {
-                        if let Some(lang) = &stream.1.language {
-                            if auto_opts.subs_lang.iter().any(|x| {
-                                x.to_lowercase().get(0..2) == lang.to_lowercase().get(0..2)
-                            }) {
-                                select_streams.push(stream.0);
+                    if auto_opts.subs_lang.is_empty() {
+                        if let Some(stream) = subtitle_streams.first() {
+                            select_streams.push(stream.0);
+                        }
+                    } else {
+                        for stream in &subtitle_streams {
+                            if let Some(lang) = &stream.1.language {
+                                if auto_opts.subs_lang.iter().any(|x| {
+                                    x.to_lowercase().get(0..2) == lang.to_lowercase().get(0..2)
+                                }) {
+                                    select_streams.push(stream.0);
+                                }
                             }
                         }
                     }
                 }
             }
         } else {
-            // BUG - Panics when user inputs 0 
+            // BUG - Panics when user inputs 0
             select_streams = select_streams.iter().map(|x| x - 1).collect();
         }
 
@@ -481,12 +499,7 @@ impl MediaPlaylist {
             MediaType::Video => "vsd-video",
         };
 
-        let mut path = PathBuf::from(format!(
-            "{}-{}.{}",
-            prefix,
-            self.id,
-            ext.to_string_lossy()
-        ));
+        let mut path = PathBuf::from(format!("{}-{}.{}", prefix, self.id, ext.to_string_lossy()));
 
         if let Some(directory) = directory {
             path = directory.join(path);
@@ -846,6 +859,7 @@ pub enum Quality {
 }
 
 pub struct AutomationOptions {
+    pub all_streams: bool,
     pub audio_lang: Vec<String>,
     pub interactive: bool,
     pub interactive_raw: bool,
