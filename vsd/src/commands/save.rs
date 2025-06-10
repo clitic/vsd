@@ -45,7 +45,7 @@ pub struct Save {
     pub output: Option<PathBuf>,
 
     /// Parse playlist and returns it in json format.
-    /// Note that `--output` flag is ignored when this flag is used.
+    /// Note that --output flag is ignored when this flag is used.
     #[arg(long)]
     pub parse: bool,
 

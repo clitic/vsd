@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `capture`
+  - Support for downloading session cookies.
   - Support for proxy server.
 - `save`
   - New and improved automation support.

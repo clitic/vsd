@@ -3,15 +3,14 @@ use anyhow::Result;
 use clap::{Args, ValueEnum};
 use cookie::Cookie;
 use headless_chrome::{
-    protocol::cdp::Network::{
-        events::ResponseReceivedEventParams, CookieParam, GetResponseBodyReturnObject, ResourceType,
-    },
     Browser, LaunchOptionsBuilder,
+    protocol::cdp::Network::{
+        CookieParam, GetResponseBodyReturnObject, ResourceType, events::ResponseReceivedEventParams,
+    },
 };
 use kdam::term::Colorizer;
 use std::{
-    fs,
-    fs::File,
+    fs::{self, File},
     io::Write,
     path::{Path, PathBuf},
     sync::mpsc,
@@ -20,14 +19,14 @@ use std::{
 type CookieParams = Vec<CookieParam>;
 
 /// Capture playlists and subtitles from a website.
-#[derive(Debug, Clone, Args)]
+#[derive(Args, Clone, Debug)]
 #[clap(long_about = "Capture playlists and subtitles from a website.\n\n\
 Requires any one of these browser to be installed:\n\
 1. chrome - https://www.google.com/chrome\n\
 2. chromium - https://www.chromium.org/getting-involved/download-chromium\n\n\
-Launches browser and capture files based on extension matching. \
-It is same as doing these steps: Inspect > Network > Fetch/XHR > filter extension and viewing url. \
-It uses response handling for capturing request information, no requests are intercepted. \
+Launches browser and capture files based on extension matching.\n\
+It is same as doing these steps: Inspect > Network > Fetch/XHR > filter extension and viewing url.\n\
+It uses response handling for capturing request information, no requests are intercepted.\n\
 Note that this might not work always as expected on every website.")]
 pub struct Capture {
     /// http(s)://
@@ -36,25 +35,25 @@ pub struct Capture {
 
     /// Fill browser with some existing cookies value.
     /// Cookies value can be same as document.cookie or in json format same as puppeteer.
-    #[arg(long, default_value = "[]", hide_default_value = true, value_parser = cookie_parser)]
+    #[arg(long, default_value = "", hide_default_value = true, value_parser = cookie_parser)]
     cookies: CookieParams,
 
-    /// Change directory path for saved files.
+    /// Change directory path for downloaded files.
     /// By default current working directory is used.
     #[arg(short, long)]
     directory: Option<PathBuf>,
 
-    /// List of file extensions to be filter out.
-    /// This option can be used multiple times.
+    /// List of file extensions to be filter out seperated by comma.
     #[arg(
-        short, long,
+        long,
         default_values_t = [
             "m3u".to_owned(),
             "m3u8".to_owned(),
             "mpd".to_owned(),
             "vtt".to_owned(),
             "srt".to_owned(),
-        ]
+        ],
+        value_delimiter = ','
     )]
     extensions: Vec<String>,
 
@@ -66,73 +65,17 @@ pub struct Capture {
     #[arg(long)]
     proxy: Option<String>,
 
-    /// List of resource types to be filter out.
-    /// This option can be used multiple times.
-    #[arg(short, long, value_enum, default_values_t = [ResourceTypeCopy::Xhr, ResourceTypeCopy::Fetch])]
+    /// List of resource types to be filter out seperated by commas.
+    #[arg(long, value_enum, default_values_t = [ResourceTypeCopy::Xhr, ResourceTypeCopy::Fetch], value_delimiter = ',')]
     resource_types: Vec<ResourceTypeCopy>,
 
     /// Save captured requests responses locally.
-    #[arg(short, long)]
+    #[arg(long)]
     save: bool,
-}
 
-#[derive(Debug, Clone, ValueEnum)]
-enum ResourceTypeCopy {
-    All,
-    Document,
-    Stylesheet,
-    Image,
-    Media,
-    Font,
-    Script,
-    TextTrack,
-    Xhr,
-    Fetch,
-    EventSource,
-    WebSocket,
-    Manifest,
-    SignedExchange,
-    Ping,
-    CspViolationReport,
-    Preflight,
-    Other,
-}
-
-fn cookie_parser(s: &str) -> Result<CookieParams, String> {
-    if Path::new(s).exists() {
-        Ok(serde_json::from_slice::<CookieParams>(
-            &fs::read(s).map_err(|_| format!("could not read {}.", s))?,
-        )
-        .map_err(|x| format!("could not deserialize cookies from json file. {}", x))?)
-    } else if let Ok(cookies) = serde_json::from_str::<CookieParams>(s) {
-        Ok(cookies)
-    } else {
-        let mut cookies = vec![];
-
-        for cookie in Cookie::split_parse(s) {
-            match cookie {
-                Ok(x) => cookies.push(CookieParam {
-                    name: x.name().to_owned(),
-                    value: x.value().to_owned(),
-                    url: None,
-                    domain: None,
-                    path: None,
-                    secure: None,
-                    http_only: None,
-                    same_site: None,
-                    expires: None,
-                    priority: None,
-                    same_party: None,
-                    source_scheme: None,
-                    source_port: None,
-                    partition_key: None,
-                }),
-                Err(e) => return Err(format!("could not split parse cookies. {}", e)),
-            }
-        }
-
-        Ok(cookies)
-    }
+    /// Save session cookies in json format locally.
+    #[arg(long)]
+    save_cookies: bool,
 }
 
 impl Capture {
@@ -144,13 +87,13 @@ impl Capture {
         })?;
 
         println!(
-            "    {} sometimes video starts playing but links are not detected",
-            "INFO".colorize("bold cyan")
+            "       {} sometimes video starts playing but links are not detected",
+            "Note".colorize("cyan")
         );
 
         println!(
-            " {} launching in {} mode",
-            "Browser".colorize("bold cyan"),
+            "    {} launching in {} mode",
+            "Browser".colorize("cyan"),
             if self.headless {
                 "headless (no window)"
             } else {
@@ -166,135 +109,135 @@ impl Capture {
         )?;
         let tab = browser.new_tab()?;
 
-        println!(" {} setting cookies", "Browser".colorize("bold cyan"));
+        println!("    {} setting cookies", "Browser".colorize("cyan"));
         tab.set_cookies(self.cookies)?;
 
-        let filters = Filters {
-            extensions: self.extensions,
-            resource_types: self.resource_types,
-        };
         let directory = if self.save {
             self.directory.clone()
         } else {
             None
         };
+        let filters = Filters {
+            extensions: self.extensions,
+            resource_types: self.resource_types,
+        };
         let save = self.save;
 
         println!(
-            " {} registering response listener",
-            "Browser".colorize("bold cyan")
+            "    {} registering response listener",
+            "Browser".colorize("cyan")
         );
         tab.register_response_handling(
-            "vsd_capture",
+            "vsd-capture",
             Box::new(move |params, get_response_body| {
-                handler(params, get_response_body, &filters, &directory, save);
+                handler(
+                    directory.as_ref(),
+                    &filters,
+                    get_response_body,
+                    params,
+                    save,
+                );
             }),
         )?;
 
-        if let Some(directory) = &self.directory {
-            if !directory.exists() {
-                fs::create_dir_all(directory)?;
-            }
-        };
-
         println!(
-            " {} navigating to {}",
-            "Browser".colorize("bold cyan"),
+            "    {} navigating to {}",
+            "Browser".colorize("cyan"),
             self.url
         );
         tab.navigate_to(&self.url)?;
 
         println!(
-            "    {} waiting for CTRL+C signal",
-            "INFO".colorize("bold cyan")
+            "       {} waiting for CTRL+C signal",
+            "Note".colorize("cyan")
         );
         rx.recv()?;
         println!(
-            " {} deregistering response listener and closing browser",
-            "Browser".colorize("bold cyan")
+            "    {} deregistering response listener and closing browser",
+            "Browser".colorize("cyan")
         );
-        let _ = tab.deregister_response_handling("vsd_capture")?;
+        let _ = tab.deregister_response_handling("vsd-capture")?;
 
-        if let Some(directory) = &self.directory {
-            if fs::read_dir(directory)?.next().is_none() {
-                println!(
-                    "{} {}",
-                    "Deleting".colorize("bold red"),
-                    directory.to_string_lossy()
-                );
-                fs::remove_dir(directory)?;
+        if self.save_cookies {
+            println!("{} session cookies", "Downloading".colorize("bold green"));
+
+            if let Some(directory) = &self.directory {
+                if !directory.exists() {
+                    fs::create_dir_all(directory).unwrap();
+                }
+            };
+
+            let mut path = PathBuf::from("cookies.json");
+
+            if let Some(directory) = &self.directory {
+                path = directory.join(path);
             }
-        }
 
+            let file = File::create(path)?;
+            serde_json::to_writer(file, &tab.get_cookies()?)?;
+        }
         Ok(())
     }
 }
 
 fn handler(
-    params: ResponseReceivedEventParams,
-    get_response_body: &dyn Fn() -> Result<GetResponseBodyReturnObject>,
+    directory: Option<&PathBuf>,
     filters: &Filters,
-    directory: &Option<PathBuf>,
+    get_response_body: &dyn Fn() -> Result<GetResponseBodyReturnObject>,
+    params: ResponseReceivedEventParams,
     save: bool,
 ) {
-    if !filters.pass(&params.response.url, &params.Type) {
+    if !filters.pass(&params.Type, &params.response.url) {
         return;
     }
 
-    if !save {
+    if save {
         println!(
             "{} {}",
-            "Detected".colorize("bold green"),
+            "Downloading".colorize("bold green"),
             params.response.url,
         );
-        return;
-    }
 
-    let path = file_path(&params.response.url, directory);
-    println!(
-        "  {} {} response to {}",
-        "Saving".colorize("bold green"),
-        params.response.url,
-        path.to_string_lossy()
-    );
-
-    if let Ok(body) = get_response_body() {
-        if let Ok(mut file) = File::create(&path) {
-            if body.base_64_encoded {
-                let decoded_body = utils::decode_base64(&body.body);
-                if file
-                    .write_all(
-                        decoded_body
-                            .as_ref()
-                            .map(|x| x.as_slice())
-                            .unwrap_or(body.body.as_bytes()),
-                    )
-                    .is_err()
-                {
-                    println!(
-                        "  {} could'nt write response all bytes to {}",
-                        "Saving".colorize("bold red"),
-                        path.to_string_lossy(),
-                    );
+        if let Ok(body) = get_response_body() {
+            if let Some(directory) = directory {
+                if !directory.exists() {
+                    fs::create_dir_all(directory).unwrap();
                 }
-            } else if file.write_all(body.body.as_bytes()).is_err() {
-                println!(
-                    "  {} could'nt write response all bytes to {}",
-                    "Saving".colorize("bold red"),
-                    path.to_string_lossy(),
-                );
-            }
-        } else {
-            println!(
-                "  {} could'nt create {} file",
-                "Saving".colorize("bold red"),
-                path.to_string_lossy(),
+            };
+
+            let mut path = PathBuf::from(
+                params
+                    .response
+                    .url
+                    .split('?')
+                    .next()
+                    .unwrap()
+                    .split('/')
+                    .next_back()
+                    .unwrap_or("und"),
             );
+
+            if path.extension().is_none() {
+                path.set_extension("txt");
+            }
+
+            if let Some(directory) = directory {
+                path = directory.join(path);
+            }
+
+            let mut file = File::create(path).unwrap();
+
+            if body.base_64_encoded {
+                file.write_all(&utils::decode_base64(&body.body).unwrap())
+                    .unwrap();
+            } else {
+                file.write_all(body.body.as_bytes()).unwrap();
+            }
         }
     } else {
         println!(
-            "  {} could'nt read response body for {}",
-            "Saving".colorize("bold red"),
+            "   {} {}",
+            "Detected".colorize("bold green"),
             params.response.url,
         );
     }
@@ -306,7 +249,7 @@ struct Filters {
 }
 
 impl Filters {
-    fn pass(&self, url: &str, resource_type: &ResourceType) -> bool {
+    fn pass(&self, resource_type: &ResourceType, url: &str) -> bool {
         let splitted_url = url.split('?').next().unwrap();
         let extension_matched = self
             .extensions
@@ -341,51 +284,61 @@ impl Filters {
     }
 }
 
-fn file_path(url: &str, directory: &Option<PathBuf>) -> PathBuf {
-    let mut filename = PathBuf::from(
-        url.split('?')
-            .next()
-            .unwrap()
-            .split('/')
-            .next_back()
-            .unwrap_or("undefined")
-            .chars()
-            .map(|x| match x {
-                '<' | '>' | ':' | '\"' | '\\' | '|' | '?' => '_',
-                _ => x,
-            })
-            .collect::<String>(),
-    );
+#[derive(Clone, Debug, ValueEnum)]
+enum ResourceTypeCopy {
+    All,
+    Document,
+    Stylesheet,
+    Image,
+    Media,
+    Font,
+    Script,
+    TextTrack,
+    Xhr,
+    Fetch,
+    EventSource,
+    WebSocket,
+    Manifest,
+    SignedExchange,
+    Ping,
+    CspViolationReport,
+    Preflight,
+    Other,
+}
 
-    let ext = filename
-        .extension()
-        .and_then(|x| x.to_str())
-        .unwrap_or("undefined")
-        .to_owned();
-    filename.set_extension("");
-    let prefix = "vsd_collect";
+fn cookie_parser(s: &str) -> Result<CookieParams, String> {
+    if s.is_empty() {
+        Ok(Vec::new())
+    } else if Path::new(s).exists() {
+        Ok(serde_json::from_slice::<CookieParams>(
+            &fs::read(s).map_err(|_| format!("could not read {}.", s))?,
+        )
+        .map_err(|_| format!("could not deserialize cookies from {}.", s))?)
+    } else {
+        let mut cookies = vec![];
 
-    let mut path = PathBuf::from(format!("{}_{}.{}", prefix, filename.to_string_lossy(), ext));
-
-    if let Some(directory) = directory {
-        path = directory.join(path);
-    }
-
-    if path.exists() {
-        for i in 1.. {
-            path.set_file_name(format!(
-                "{}_{}_({}).{}",
-                prefix,
-                filename.to_string_lossy(),
-                i,
-                ext
-            ));
-
-            if !path.exists() {
-                return path;
+        for cookie in Cookie::split_parse(s) {
+            match cookie {
+                Ok(x) => cookies.push(CookieParam {
+                    name: x.name().to_owned(),
+                    value: x.value().to_owned(),
+                    url: None,
+                    domain: None,
+                    path: None,
+                    secure: None,
+                    http_only: None,
+                    same_site: None,
+                    expires: None,
+                    priority: None,
+                    same_party: None,
+                    source_scheme: None,
+                    source_port: None,
+                    partition_key: None,
+                }),
+                Err(_) => return Err("could not split parse cookies.".to_owned()),
             }
         }
-    }
 
-    path
+        Ok(cookies)
+    }
 }
