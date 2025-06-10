@@ -8,7 +8,7 @@ use std::{
 };
 
 /// Merge multiple segments to a single file.
-#[derive(Debug, Clone, Args)]
+#[derive(Args, Clone, Debug)]
 pub struct Merge {
     /// List of files (at least 2) to merge together e.g. *.ts, *.m4s etc. .
     #[arg(required = true)]
@@ -24,7 +24,7 @@ pub struct Merge {
 }
 
 #[derive(Debug, Clone, ValueEnum)]
-pub enum MergeType {
+enum MergeType {
     Binary,
     Ffmpeg,
 }

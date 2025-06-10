@@ -4,11 +4,11 @@ use std::path::PathBuf;
 use vsd_mp4::text::{Mp4TtmlParser, Mp4VttParser};
 
 /// Extract subtitles from mp4 boxes.
-#[derive(Debug, Clone, Args)]
+#[derive(Args, Clone, Debug)]
 pub struct Extract {
     /// Path of mp4 file which either contains WVTT or STPP box.
     /// If there are multiple fragments of same mp4 file,
-    /// then merge them using `merge` sub-command.
+    /// then merge them using merge sub-command.
     #[arg(required = true)]
     input: PathBuf,
 
@@ -17,7 +17,7 @@ pub struct Extract {
     codec: Codec,
 }
 
-#[derive(Debug, Clone, ValueEnum)]
+#[derive(Clone, Debug, ValueEnum)]
 pub enum Codec {
     Subrip,
     Webvtt,
@@ -33,7 +33,7 @@ impl Extract {
         } else if let Ok(ttml) = Mp4TtmlParser::parse_init(&data) {
             subtitles = ttml.parse_media(&data)?;
         } else {
-            bail!("Cannot determine subtitles codec because neither WVTT nor STPP box is found.");
+            bail!("cannot determine subtitles codec because neither WVTT nor STPP box is found.");
         }
 
         print!(
