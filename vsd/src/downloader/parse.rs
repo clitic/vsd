@@ -1,13 +1,12 @@
-use std::collections::HashMap;
-
 use super::fetch::Metadata;
 use crate::{
     playlist::{AutomationOptions, MasterPlaylist, MediaPlaylist, PlaylistType},
     utils,
 };
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use kdam::term::Colorizer;
-use reqwest::{blocking::Client, Url};
+use reqwest::{Url, blocking::Client};
+use std::collections::HashMap;
 
 pub fn list_all_streams(meta: &Metadata) -> Result<()> {
     match meta.pl_type {

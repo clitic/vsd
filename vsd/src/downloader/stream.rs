@@ -59,6 +59,21 @@ pub fn download_streams(
         .unwrap();
 
     for stream in streams {
+        pb.lock().unwrap().write(format!(
+            " {} [{:>5}] {}",
+            "Processing".colorize("cyan"),
+            stream.media_type.to_string(),
+            stream.display_stream(),
+        ))?;
+
+        if stream.segments.is_empty() {
+            pb.lock().unwrap().write(format!(
+                "    {} skipping stream (no segments)",
+                "Warning".colorize("yellow"),
+            ))?;
+            continue;
+        }
+
         let temp_file = temp_file
             .clone()
             .unwrap_or(stream.path(directory, stream.extension()));
@@ -71,6 +86,11 @@ pub fn download_streams(
 
         let _ = estimated_bytes.pop_front();
 
+        pb.lock().unwrap().write(format!(
+            "{} {}",
+            "Downloading".colorize("bold green"),
+            temp_file.to_string_lossy(),
+        ))?;
         download_stream(
             base_url,
             client,
@@ -108,24 +128,6 @@ fn download_stream(
     stream: MediaPlaylist,
     temp_file: &PathBuf,
 ) -> Result<()> {
-    pb.lock().unwrap().write(format!(
-        " {} [{:>5}] {}",
-        "Processing".colorize("cyan"),
-        stream.media_type.to_string(),
-        stream.display_stream(),
-    ))?;
-    // if stream.segments.len() == 0 {
-    //     pb.lock().unwrap().write(format!(
-    //         "    {} skipping stream (no segments)",
-    //         "Warning".colorize("yellow"),
-    //     ))?;
-    // }
-    pb.lock().unwrap().write(format!(
-        "{} {}",
-        "Downloading".colorize("bold green"),
-        temp_file.to_string_lossy(),
-    ))?;
-
     let mut download_threads = Vec::with_capacity(stream.segments.len());
     let mut init_segment = None;
     let hls_custom_key = decrypter.is_hls_aes_and_not_defined();
