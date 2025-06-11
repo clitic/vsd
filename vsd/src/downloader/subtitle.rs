@@ -38,7 +38,7 @@ fn download_subtitle_stream(
     if length == 0 {
         pb.write(format!(
             "    {} skipping stream (no segments)",
-            "Warning".colorize("bold yellow"),
+            "Warning".colorize("yellow"),
         ))?;
         return Ok(());
     }

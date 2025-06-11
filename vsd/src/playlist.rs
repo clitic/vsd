@@ -1,12 +1,3 @@
-/*
-    REFERENCES
-    ----------
-
-    1.https://en.wikipedia.org/wiki/Filename#Reserved_characters_and_words
-    2. https://en.wikipedia.org/wiki/Comparison_of_file_systems#Limits
-
-*/
-
 use anyhow::{Result, anyhow, bail};
 use kdam::term::Colorizer;
 use requestty::prompt::style::Stylize;

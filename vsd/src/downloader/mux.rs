@@ -2,7 +2,7 @@ use crate::{
     playlist::{MediaPlaylist, MediaType},
     utils,
 };
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use kdam::term::Colorizer;
 use std::{
     ffi::OsStr,
@@ -15,83 +15,6 @@ pub struct Stream {
     pub language: Option<String>,
     pub media_type: MediaType,
     pub path: PathBuf,
-}
-
-pub fn should_mux(
-    no_decrypt: bool,
-    no_merge: bool,
-    streams: &[MediaPlaylist],
-    output: Option<&PathBuf>,
-) -> bool {
-    if output.is_none() {
-        return false;
-    }
-
-    if no_decrypt {
-        println!(
-            "    {} --output is ignored when --no-decrypt is used",
-            "Warning".colorize("bold yellow")
-        );
-        return false;
-    }
-
-    let subtitle_streams = streams
-        .iter()
-        .filter(|x| x.media_type == MediaType::Subtitles)
-        .collect::<Vec<_>>();
-
-    if no_merge && subtitle_streams.is_empty() {
-        println!(
-            "    {} --output is ignored when --no-merge is used",
-            "Warning".colorize("bold yellow")
-        );
-        return false;
-    }
-
-    let output = output.unwrap();
-
-    // Check if output file extension matches with actual stream file extension.
-    if streams.len() == 1 && output.extension() == Some(streams.first().unwrap().extension()) {
-        return false;
-    }
-
-    let video_streams = streams
-        .iter()
-        .filter(|x| x.media_type == MediaType::Video)
-        .collect::<Vec<_>>();
-    let audio_streams = streams
-        .iter()
-        .filter(|x| x.media_type == MediaType::Audio)
-        .collect::<Vec<_>>();
-
-    if video_streams.len() > 1 {
-        println!(
-            "    {} --output flag is ignored when multiple video streams are selected",
-            "Warning".colorize("bold yellow")
-        );
-        return false;
-    }
-
-    if video_streams.is_empty()
-        && (audio_streams.len() > 1
-            || subtitle_streams.len() > 1
-            || (!audio_streams.is_empty() && !subtitle_streams.is_empty()))
-    {
-        println!(
-            "    {} --output is ignored when no video streams are selected but multiple audio/subtitle streams are selected",
-            "Warning".colorize("bold yellow")
-        );
-        return false;
-    }
-
-    if no_merge && !subtitle_streams.is_empty() {
-        println!(
-            "    {} subtitle streams are always merged even if --no-merge is used",
-            "Warning".colorize("bold yellow")
-        );
-    }
-
-    true
 }
 
 pub fn ffmpeg(output: Option<&PathBuf>, temp_files: &[Stream]) -> Result<()> {
@@ -242,4 +165,81 @@ pub fn delete_temp_files(directory: Option<&PathBuf>, temp_files: &[Stream]) -> 
     }
 
     Ok(())
+}
+
+pub fn should_mux(
+    no_decrypt: bool,
+    no_merge: bool,
+    output: Option<&PathBuf>,
+    streams: &[MediaPlaylist],
+) -> bool {
+    if output.is_none() {
+        return false;
+    }
+
+    if no_decrypt {
+        println!(
+            "    {} --output is ignored when --no-decrypt is used",
+            "Warning".colorize("yellow")
+        );
+        return false;
+    }
+
+    let subtitle_streams = streams
+        .iter()
+        .filter(|x| x.media_type == MediaType::Subtitles)
+        .collect::<Vec<_>>();
+
+    if no_merge && subtitle_streams.is_empty() {
+        println!(
+            "    {} --output is ignored when --no-merge is used",
+            "Warning".colorize("yellow")
+        );
+        return false;
+    }
+
+    let output = output.unwrap();
+
+    // Check if output file extension matches with actual stream file extension.
+    if streams.len() == 1 && output.extension() == Some(streams.first().unwrap().extension()) {
+        return false;
+    }
+
+    let video_streams = streams
+        .iter()
+        .filter(|x| x.media_type == MediaType::Video)
+        .collect::<Vec<_>>();
+    let audio_streams = streams
+        .iter()
+        .filter(|x| x.media_type == MediaType::Audio)
+        .collect::<Vec<_>>();
+
+    if video_streams.len() > 1 {
+        println!(
+            "    {} --output flag is ignored when multiple video streams are selected",
+            "Warning".colorize("yellow")
+        );
+        return false;
+    }
+
+    if video_streams.is_empty()
+        && (audio_streams.len() > 1
+            || subtitle_streams.len() > 1
+            || (!audio_streams.is_empty() && !subtitle_streams.is_empty()))
+    {
+        println!(
+            "    {} --output is ignored when no video streams are selected but multiple audio/subtitle streams are selected",
+            "Warning".colorize("yellow")
+        );
+        return false;
+    }
+
+    if no_merge && !subtitle_streams.is_empty() {
+        println!(
+            "    {} subtitle streams are always merged even if --no-merge is used",
+            "Warning".colorize("yellow")
+        );
+    }
+
+    true
 }

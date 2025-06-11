@@ -1,10 +1,11 @@
-use crate::playlist::{PlaylistType, AutomationOptions};
-use anyhow::{anyhow, bail, Result};
+use crate::playlist::{AutomationOptions, PlaylistType};
+use anyhow::{Result, anyhow, bail};
 use kdam::term::Colorizer;
 use regex::Regex;
-use reqwest::{blocking::Client, header, Url};
+use reqwest::{Url, blocking::Client, header};
 use std::{
     collections::{HashMap, HashSet},
+    fs,
     io::Write,
     path::Path,
 };
@@ -58,22 +59,18 @@ pub fn fetch_playlist(
     let mut meta = Metadata {
         pl_type: None,
         text: String::new(),
-        url: base_url
-            .clone()
-            .unwrap_or_else(|| "https://example.com".parse::<Url>().unwrap()),
+        url: input
+            .parse::<Url>()
+            .unwrap_or("https://example.com".parse::<Url>().unwrap()),
     };
     let path = Path::new(input);
 
     if path.exists() {
         if base_url.is_none() {
-            println!(
-                "    {} base url is not set",
-                "Warning".colorize("bold yellow")
-            );
+            println!("    {} base url is not set", "Warning".colorize("yellow"));
         }
 
         if let Some(ext) = path.extension() {
-            let ext = ext.to_string_lossy();
             if ext == "mpd" {
                 meta.pl_type = Some(PlaylistType::Dash);
             } else if ext == "m3u" || ext == "m3u8" {
@@ -81,10 +78,9 @@ pub fn fetch_playlist(
             }
         }
 
-        meta.text = std::fs::read_to_string(path)?;
+        meta.text = fs::read_to_string(path)?;
         meta.update_pl_type_from_text();
     } else {
-        meta.url = input.parse::<Url>().unwrap();
         // TODO - We can add site specific parsers here
         meta.fetch(client, query)?;
 
@@ -129,7 +125,16 @@ fn fetch_from_website(
                 println!("Select one playlist:");
 
                 for (i, link) in links.iter().enumerate() {
-                    println!("{:2}) [{}] {}", i + 1, if i == 0 { "x".colorize("green") } else { " ".to_owned() }, link);
+                    println!(
+                        "{:2}) [{}] {}",
+                        i + 1,
+                        if i == 0 {
+                            "x".colorize("green")
+                        } else {
+                            " ".to_owned()
+                        },
+                        link
+                    );
                 }
 
                 println!("{}", "------------------------------".colorize("cyan"));
@@ -163,7 +168,7 @@ fn fetch_from_website(
                 for link in &links {
                     println!("            {}", link);
                 }
-                
+
                 println!("   {} {}", "Selected".colorize("bold green"), &links[0]);
                 meta.url = links[0].parse::<Url>()?;
             }

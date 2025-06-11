@@ -4,12 +4,13 @@ use crate::{
     playlist::{KeyMethod, MediaPlaylist},
     utils,
 };
-use anyhow::{bail, Result};
-use kdam::{term::Colorizer, BarExt, Column, RichProgress};
+use anyhow::{Result, bail};
+use kdam::{BarExt, Column, RichProgress, term::Colorizer};
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use reqwest::{
+    StatusCode, Url,
     blocking::{Client, RequestBuilder},
-    header, StatusCode, Url,
+    header,
 };
 use std::{
     collections::{HashMap, VecDeque},
@@ -113,6 +114,12 @@ fn download_stream(
         stream.media_type.to_string(),
         stream.display_stream(),
     ))?;
+    // if stream.segments.len() == 0 {
+    //     pb.lock().unwrap().write(format!(
+    //         "    {} skipping stream (no segments)",
+    //         "Warning".colorize("yellow"),
+    //     ))?;
+    // }
     pb.lock().unwrap().write(format!(
         "{} {}",
         "Downloading".colorize("bold green"),
@@ -345,7 +352,7 @@ impl ThreadData {
 }
 
 fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
-    let request = "Request".colorize("bold yellow");
+    let request = "Request".colorize("yellow");
     let url = error.url().unwrap();
 
     if error.is_connect() {

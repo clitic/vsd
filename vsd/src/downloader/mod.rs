@@ -1,30 +1,30 @@
-pub mod encryption;
+mod encryption;
 mod fetch;
 mod mux;
 mod parse;
 mod stream;
 mod subtitle;
 
-use encryption::Decrypter;
+pub use encryption::Decrypter;
 pub use fetch::fetch_playlist;
-pub use parse::{parse_all_streams, parse_selected_streams, list_all_streams};
+pub use parse::{list_all_streams, parse_all_streams, parse_selected_streams};
 pub use subtitle::download_subtitle_streams;
 
 use crate::{
     playlist::{MediaPlaylist, MediaType},
     utils,
 };
-use anyhow::{bail, Result};
-use kdam::{tqdm, BarExt, Column, RichProgress};
-use reqwest::{blocking::Client, Url};
+use anyhow::{Result, bail};
+use kdam::{BarExt, Column, RichProgress, tqdm};
+use reqwest::{Url, blocking::Client};
 use std::{collections::HashMap, fs, path::PathBuf};
 
 #[allow(clippy::too_many_arguments)]
 pub fn download(
     base_url: Option<Url>,
     client: Client,
-    directory: Option<PathBuf>,
     decrypter: Decrypter,
+    directory: Option<PathBuf>,
     no_decrypt: bool,
     no_merge: bool,
     output: Option<PathBuf>,
@@ -33,23 +33,11 @@ pub fn download(
     retries: u8,
     threads: u8,
 ) -> Result<()> {
-    // let mut streams = streams
-    // .into_iter()
-    // .filter(|x| x.segments.len() >= 1)
-    // .collect::<Vec<_>>();
-
-    // if stream.segments.len() == 0 {
-    //     pb.lock().unwrap().write(format!(
-    //         "    {} skipping stream (no segments)",
-    //         "Warning".colorize("bold yellow"),
-    //     ))?;
-    // }
-
     // -----------------------------------------------------------------------------------------
     // Decide Whether To Mux Streams
     // -----------------------------------------------------------------------------------------
 
-    let should_mux = mux::should_mux(no_decrypt, no_merge, &streams, output.as_ref());
+    let should_mux = mux::should_mux(no_decrypt, no_merge, output.as_ref(), &streams);
 
     if should_mux && utils::find_ffmpeg().is_none() {
         bail!("ffmpeg couldn't be found, it is required to continue further.");

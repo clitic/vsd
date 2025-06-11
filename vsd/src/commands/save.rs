@@ -1,6 +1,6 @@
 use crate::{
     cookie::{CookieJar, CookieParam},
-    downloader::{self, encryption::Decrypter},
+    downloader::{self, Decrypter},
     playlist::{AutomationOptions, KeyMethod, Quality},
 };
 use anyhow::Result;
@@ -257,8 +257,8 @@ impl Save {
             downloader::download(
                 self.base_url,
                 client,
-                self.directory,
                 self.keys,
+                self.directory,
                 self.no_decrypt,
                 self.no_merge,
                 self.output,
