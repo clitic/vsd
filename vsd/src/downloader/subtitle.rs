@@ -119,22 +119,24 @@ fn download_subtitle_stream(
         if first_run {
             first_run = false;
 
-            if subs_data.starts_with(b"WEBVTT") {
-                ext = OsStr::new("vtt");
-                codec = Some(SubtitleType::VttText);
-            } else if subs_data.starts_with(b"1") {
-                ext = OsStr::new("srt");
-                codec = Some(SubtitleType::SrtText);
-            } else if subs_data.starts_with(b"<?xml") || subs_data.starts_with(b"<tt") {
-                ext = OsStr::new("srt");
-                codec = Some(SubtitleType::TtmlText);
-            } else if codec.is_none() {
-                pb.write(format!(
-                    "    {} unknown subtitle codec used",
-                    "Warning".colorize("yellow"),
-                ))?;
-                ext = OsStr::new("txt");
-                codec = Some(SubtitleType::Unknown);
+            if codec.is_none() {
+                if subs_data.starts_with(b"WEBVTT") {
+                    ext = OsStr::new("vtt");
+                    codec = Some(SubtitleType::VttText);
+                } else if subs_data.starts_with(b"1") {
+                    ext = OsStr::new("srt");
+                    codec = Some(SubtitleType::SrtText);
+                } else if subs_data.starts_with(b"<?xml") || subs_data.starts_with(b"<tt") {
+                    ext = OsStr::new("srt");
+                    codec = Some(SubtitleType::TtmlText);
+                } else {
+                    pb.write(format!(
+                        "    {} unknown subtitle codec used",
+                        "Warning".colorize("yellow"),
+                    ))?;
+                    ext = OsStr::new("txt");
+                    codec = Some(SubtitleType::Unknown);
+                }
             }
 
             temp_file = stream.path(directory, ext);
@@ -162,19 +164,19 @@ fn download_subtitle_stream(
 
     match codec {
         Some(SubtitleType::Mp4Vtt) => {
-            pb.write(format!(" {} wvtt subs", "Extracting".colorize("cyan"),))?;
+            pb.write(format!(" {} wvtt subs", "Extracting".colorize("cyan")))?;
             let vtt = Mp4VttParser::parse_init(&subs_data)?;
             let subs = vtt.parse_media(&subs_data, None)?;
             File::create(&temp_file)?.write_all(subs.as_vtt().as_bytes())?;
         }
         Some(SubtitleType::Mp4Ttml) => {
-            pb.write(format!(" {} stpp subs", "Extracting".colorize("cyan"),))?;
+            pb.write(format!(" {} stpp subs", "Extracting".colorize("cyan")))?;
             let ttml = Mp4TtmlParser::parse_init(&subs_data)?;
             let subs = ttml.parse_media(&subs_data)?;
             File::create(&temp_file)?.write_all(subs.as_srt().as_bytes())?;
         }
         Some(SubtitleType::TtmlText) => {
-            pb.write(format!(" {} ttml+xml subs", "Extracting".colorize("cyan"),))?;
+            pb.write(format!(" {} ttml+xml subs", "Extracting".colorize("cyan")))?;
             let xml = String::from_utf8(subs_data)
                 .map_err(|_| anyhow!("cannot decode subs as valid utf-8 data."))?;
             let ttml = ttml_text_parser::parse(&xml).map_err(|x| {

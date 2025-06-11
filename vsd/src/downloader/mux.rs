@@ -17,6 +17,30 @@ pub struct Stream {
     pub path: PathBuf,
 }
 
+pub fn delete_temp_files(directory: Option<&PathBuf>, temp_files: &[Stream]) -> Result<()> {
+    for temp_file in temp_files {
+        println!(
+            "   {} {}",
+            "Deleting".colorize("bold red"),
+            temp_file.path.to_string_lossy()
+        );
+        fs::remove_file(&temp_file.path)?;
+    }
+
+    if let Some(directory) = directory {
+        if directory.read_dir()?.next().is_none() {
+            println!(
+                "   {} {}",
+                "Deleting".colorize("bold red"),
+                directory.to_string_lossy()
+            );
+            fs::remove_dir(directory)?;
+        }
+    }
+
+    Ok(())
+}
+
 pub fn ffmpeg(output: Option<&PathBuf>, temp_files: &[Stream]) -> Result<()> {
     let output = output.unwrap();
 
@@ -138,30 +162,6 @@ pub fn ffmpeg(output: Option<&PathBuf>, temp_files: &[Stream]) -> Result<()> {
 
     if !code.success() {
         bail!("ffmpeg exited with code {}", code.code().unwrap_or(1));
-    }
-
-    Ok(())
-}
-
-pub fn delete_temp_files(directory: Option<&PathBuf>, temp_files: &[Stream]) -> Result<()> {
-    for temp_file in temp_files {
-        println!(
-            "   {} {}",
-            "Deleting".colorize("bold red"),
-            temp_file.path.to_string_lossy()
-        );
-        fs::remove_file(&temp_file.path)?;
-    }
-
-    if let Some(directory) = directory {
-        if directory.read_dir()?.next().is_none() {
-            println!(
-                "   {} {}",
-                "Deleting".colorize("bold red"),
-                directory.to_string_lossy()
-            );
-            fs::remove_dir(directory)?;
-        }
     }
 
     Ok(())

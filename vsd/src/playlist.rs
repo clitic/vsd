@@ -283,19 +283,17 @@ impl MasterPlaylist {
                     for (i, _) in &audio_streams {
                         select_streams.push(*i);
                     }
+                } else if auto_opts.audio_lang.is_empty() {
+                    if let Some(stream) = audio_streams.first() {
+                        select_streams.push(stream.0);
+                    }
                 } else {
-                    if auto_opts.audio_lang.is_empty() {
-                        if let Some(stream) = audio_streams.first() {
-                            select_streams.push(stream.0);
-                        }
-                    } else {
-                        for stream in &audio_streams {
-                            if let Some(lang) = &stream.1.language {
-                                if auto_opts.audio_lang.iter().any(|x| {
-                                    x.to_lowercase().get(0..2) == lang.to_lowercase().get(0..2)
-                                }) {
-                                    select_streams.push(stream.0);
-                                }
+                    for stream in &audio_streams {
+                        if let Some(lang) = &stream.1.language {
+                            if auto_opts.audio_lang.iter().any(|x| {
+                                x.to_lowercase().get(0..2) == lang.to_lowercase().get(0..2)
+                            }) {
+                                select_streams.push(stream.0);
                             }
                         }
                     }
@@ -307,19 +305,17 @@ impl MasterPlaylist {
                     for (i, _) in &subtitle_streams {
                         select_streams.push(*i);
                     }
+                } else if auto_opts.subs_lang.is_empty() {
+                    if let Some(stream) = subtitle_streams.first() {
+                        select_streams.push(stream.0);
+                    }
                 } else {
-                    if auto_opts.subs_lang.is_empty() {
-                        if let Some(stream) = subtitle_streams.first() {
-                            select_streams.push(stream.0);
-                        }
-                    } else {
-                        for stream in &subtitle_streams {
-                            if let Some(lang) = &stream.1.language {
-                                if auto_opts.subs_lang.iter().any(|x| {
-                                    x.to_lowercase().get(0..2) == lang.to_lowercase().get(0..2)
-                                }) {
-                                    select_streams.push(stream.0);
-                                }
+                    for stream in &subtitle_streams {
+                        if let Some(lang) = &stream.1.language {
+                            if auto_opts.subs_lang.iter().any(|x| {
+                                x.to_lowercase().get(0..2) == lang.to_lowercase().get(0..2)
+                            }) {
+                                select_streams.push(stream.0);
                             }
                         }
                     }
