@@ -60,7 +60,7 @@ pub fn download_streams(
     for stream in streams {
         let temp_file = temp_file
             .clone()
-            .unwrap_or(stream.file_path(directory, stream.extension()));
+            .unwrap_or(stream.path(directory, stream.extension()));
 
         temp_files.push(Stream {
             language: stream.language.clone(),

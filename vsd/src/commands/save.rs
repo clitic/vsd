@@ -22,7 +22,7 @@ use std::{
 type CookieParams = Vec<CookieParam>;
 
 /// Download DASH and HLS playlists.
-#[derive(Debug, Clone, Args)]
+#[derive(Args, Clone, Debug)]
 pub struct Save {
     /// http(s):// | .mpd | .xml | .m3u8
     #[arg(required = true)]
@@ -94,13 +94,13 @@ pub struct Save {
     #[arg(long, help_heading = "Automation Options")]
     pub skip_audio: bool,
 
-    /// Skip default video stream selection.
-    #[arg(long, help_heading = "Automation Options")]
-    pub skip_video: bool,
-
     /// Skip default subtitle stream selection.
     #[arg(long, help_heading = "Automation Options")]
     pub skip_subs: bool,
+    
+    /// Skip default video stream selection.
+    #[arg(long, help_heading = "Automation Options")]
+    pub skip_video: bool,
 
     /// Preferred languages when multiple subtitles streams with different languages are available.
     /// Must be in RFC 5646 format (eg. fr or en-AU).

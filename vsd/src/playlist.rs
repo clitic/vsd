@@ -7,7 +7,7 @@
 
 */
 
-use anyhow::{Ok, Result, anyhow, bail};
+use anyhow::{Result, anyhow, bail};
 use kdam::term::Colorizer;
 use requestty::prompt::style::Stylize;
 use reqwest::{
@@ -23,6 +23,110 @@ pub struct MasterPlaylist {
     pub playlist_type: PlaylistType,
     pub uri: String,
     pub streams: Vec<MediaPlaylist>,
+}
+
+#[derive(Default, Serialize)]
+pub struct MediaPlaylist {
+    pub bandwidth: Option<u64>,
+    pub channels: Option<f32>,
+    pub codecs: Option<String>,
+    pub extension: Option<String>,
+    pub frame_rate: Option<f32>,
+    pub id: String,
+    pub i_frame: bool,
+    pub language: Option<String>,
+    pub live: bool,
+    pub media_sequence: u64,
+    pub media_type: MediaType,
+    pub playlist_type: PlaylistType,
+    pub resolution: Option<(u64, u64)>,
+    pub segments: Vec<Segment>,
+    pub uri: String,
+}
+
+#[derive(Default, Serialize)]
+pub enum PlaylistType {
+    Dash,
+    #[default]
+    Hls,
+}
+
+#[derive(Clone, Default, PartialEq, Serialize)]
+pub enum MediaType {
+    Audio,
+    Subtitles,
+    #[default]
+    Undefined,
+    Video,
+}
+
+#[derive(Clone, Default, Serialize)]
+pub struct Segment {
+    pub range: Option<Range>,
+    pub duration: f32, // consider changing it to f64
+    pub key: Option<Key>,
+    pub map: Option<Map>,
+    pub uri: String,
+}
+
+#[derive(Clone, Serialize)]
+pub struct Range {
+    pub start: u64,
+    pub end: u64,
+}
+
+#[derive(Clone, Serialize)]
+pub struct Key {
+    pub default_kid: Option<String>,
+    pub iv: Option<String>,
+    pub key_format: Option<String>,
+    pub method: KeyMethod,
+    pub uri: Option<String>,
+}
+
+#[derive(Clone, PartialEq, Serialize)]
+pub enum KeyMethod {
+    Aes128,
+    Mp4Decrypt,
+    None,
+    Other(String),
+    SampleAes,
+}
+
+#[derive(Clone, Serialize)]
+pub struct Map {
+    pub uri: String,
+    pub range: Option<Range>,
+}
+
+pub struct AutomationOptions {
+    pub all_streams: bool,
+    pub audio_lang: Vec<String>,
+    pub interactive: bool,
+    pub interactive_raw: bool,
+    pub select_streams: Vec<usize>,
+    pub skip_audio: bool,
+    pub skip_subs: bool,
+    pub skip_video: bool,
+    pub subs_lang: Vec<String>,
+    pub quality: Quality,
+}
+
+#[derive(Debug, Clone)]
+pub enum Quality {
+    Lowest,
+    Highest,
+    Resolution(u16, u16),
+    Youtube144p,
+    Youtube240p,
+    Youtube360p,
+    Youtube480p,
+    Youtube720p,
+    Youtube1080p,
+    Youtube2k,
+    Youtube1440p,
+    Youtube4k,
+    Youtube8k,
 }
 
 impl MasterPlaylist {
@@ -90,7 +194,7 @@ impl MasterPlaylist {
 
         for (i, stream) in self.streams.iter().enumerate() {
             if stream.media_type == MediaType::Subtitles {
-                println!("{:>2}) {}", i + 1, stream.display_subtitle_stream());
+                println!("{:>2}) {}", i + 1, stream.display_subs_stream());
             }
         }
 
@@ -265,7 +369,7 @@ impl MasterPlaylist {
             "────── Subtitle Streams ──────".to_owned(),
         ));
         choices_with_default.extend(subtitle_streams.iter().map(|(i, x)| {
-            requestty::Choice((x.display_subtitle_stream(), select_streams.contains(i)))
+            requestty::Choice((x.display_subs_stream(), select_streams.contains(i)))
         }));
 
         if auto_opts.interactive {
@@ -428,30 +532,7 @@ impl MasterPlaylist {
     }
 }
 
-#[derive(Default, Serialize)]
-pub struct MediaPlaylist {
-    pub bandwidth: Option<u64>,
-    pub channels: Option<f32>,
-    pub codecs: Option<String>,
-    pub extension: Option<String>,
-    pub frame_rate: Option<f32>,
-    pub id: String,
-    pub i_frame: bool,
-    pub language: Option<String>,
-    pub live: bool,
-    pub media_sequence: u64,
-    pub media_type: MediaType,
-    pub playlist_type: PlaylistType,
-    pub resolution: Option<(u64, u64)>,
-    pub segments: Vec<Segment>,
-    pub uri: String,
-}
-
 impl MediaPlaylist {
-    // pub fn is_hls(&self) -> bool {
-    //     matches!(&self.playlist_type, PlaylistType::Hls)
-    // }
-
     pub fn default_kid(&self) -> Option<String> {
         if let Some(segment) = self.segments.first() {
             if let Some(Key {
@@ -466,74 +547,45 @@ impl MediaPlaylist {
         None
     }
 
-    pub fn extension(&self) -> &OsStr {
-        if let Some(ext) = &self.extension {
-            return OsStr::new(ext);
+    fn display_audio_stream(&self) -> String {
+        let mut extra = format!(
+            "language: {}",
+            self.language.as_ref().unwrap_or(&"?".to_owned())
+        );
+
+        if let Some(codecs) = &self.codecs {
+            extra += &format!(", codecs: {}", codecs);
         }
 
-        let mut ext = match &self.playlist_type {
-            PlaylistType::Hls => "ts",
-            PlaylistType::Dash => "m4s",
-        };
-
-        if let Some(segment) = self.segments.first() {
-            if let Some(init) = &segment.map {
-                if init.uri.ends_with(".mp4") {
-                    ext = "mp4";
-                }
-            }
-
-            if segment.uri.ends_with(".mp4") {
-                ext = "mp4";
-            }
+        if let Some(bandwidth) = self.bandwidth {
+            extra += &format!(
+                ", bandwidth: {}/s",
+                crate::utils::format_bytes(bandwidth as usize, 2).2
+            );
         }
 
-        OsStr::new(ext)
+        if let Some(channels) = self.channels {
+            extra += &format!(", channels: {}", channels);
+        }
+
+        if self.live {
+            extra += ", live";
+        }
+
+        extra
     }
 
-    pub fn file_path(&self, directory: Option<&PathBuf>, ext: &OsStr) -> PathBuf {
-        let prefix = match &self.media_type {
-            MediaType::Audio => "vsd-audio",
-            MediaType::Subtitles => "vsd-subtitles",
-            MediaType::Undefined => "vsd-undefined",
-            MediaType::Video => "vsd-video",
-        };
+    fn display_subs_stream(&self) -> String {
+        let mut extra = format!(
+            "language: {}",
+            self.language.as_ref().unwrap_or(&"?".to_owned())
+        );
 
-        let mut path = PathBuf::from(format!("{}-{}.{}", prefix, self.id, ext.to_string_lossy()));
-
-        if let Some(directory) = directory {
-            path = directory.join(path);
+        if let Some(codecs) = &self.codecs {
+            extra += &format!(", codecs: {}", codecs);
         }
 
-        if path.exists() {
-            for i in 1.. {
-                path.set_file_name(format!(
-                    "{}-{}-{}.{}",
-                    prefix,
-                    self.id,
-                    i,
-                    ext.to_string_lossy()
-                ));
-
-                if !path.exists() {
-                    return path;
-                }
-            }
-        }
-
-        path
-    }
-
-    pub fn display_stream(&self) -> String {
-        match self.media_type {
-            MediaType::Audio => self.display_audio_stream(),
-            MediaType::Subtitles => self.display_subtitle_stream(),
-            MediaType::Undefined => "".to_owned(),
-            MediaType::Video => self.display_video_stream(),
-        }
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
+        extra
     }
 
     fn display_video_stream(&self) -> String {
@@ -586,45 +638,16 @@ impl MediaPlaylist {
         )
     }
 
-    fn display_audio_stream(&self) -> String {
-        let mut extra = format!(
-            "language: {}",
-            self.language.as_ref().unwrap_or(&"?".to_owned())
-        );
-
-        if let Some(codecs) = &self.codecs {
-            extra += &format!(", codecs: {}", codecs);
+    pub fn display_stream(&self) -> String {
+        match self.media_type {
+            MediaType::Audio => self.display_audio_stream(),
+            MediaType::Subtitles => self.display_subs_stream(),
+            MediaType::Undefined => "".to_owned(),
+            MediaType::Video => self.display_video_stream(),
         }
-
-        if let Some(bandwidth) = self.bandwidth {
-            extra += &format!(
-                ", bandwidth: {}/s",
-                crate::utils::format_bytes(bandwidth as usize, 2).2
-            );
-        }
-
-        if let Some(channels) = self.channels {
-            extra += &format!(", channels: {}", channels);
-        }
-
-        if self.live {
-            extra += ", live";
-        }
-
-        extra
-    }
-
-    pub fn display_subtitle_stream(&self) -> String {
-        let mut extra = format!(
-            "language: {}",
-            self.language.as_ref().unwrap_or(&"?".to_owned())
-        );
-
-        if let Some(codecs) = &self.codecs {
-            extra += &format!(", codecs: {}", codecs);
-        }
-
-        extra
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
     }
 
     pub fn estimate_size(
@@ -664,6 +687,64 @@ impl MediaPlaylist {
         }
 
         Ok(0)
+    }
+
+    pub fn extension(&self) -> &OsStr {
+        if let Some(ext) = &self.extension {
+            return OsStr::new(ext);
+        }
+
+        let mut ext = match &self.playlist_type {
+            PlaylistType::Hls => "ts",
+            PlaylistType::Dash => "m4s",
+        };
+
+        if let Some(segment) = self.segments.first() {
+            if let Some(init) = &segment.map {
+                if init.uri.ends_with(".mp4") {
+                    ext = "mp4";
+                }
+            }
+
+            if segment.uri.ends_with(".mp4") {
+                ext = "mp4";
+            }
+        }
+
+        OsStr::new(ext)
+    }
+
+    pub fn path(&self, directory: Option<&PathBuf>, ext: &OsStr) -> PathBuf {
+        let prefix = match &self.media_type {
+            MediaType::Audio => "vsd-audio",
+            MediaType::Subtitles => "vsd-subtitles",
+            MediaType::Undefined => "vsd-undefined",
+            MediaType::Video => "vsd-video",
+        };
+
+        let mut path = PathBuf::from(format!("{}-{}.{}", prefix, self.id, ext.to_string_lossy()));
+
+        if let Some(directory) = directory {
+            path = directory.join(path);
+        }
+
+        if path.exists() {
+            for i in 1.. {
+                path.set_file_name(format!(
+                    "{}-{}-{}.{}",
+                    prefix,
+                    self.id,
+                    i,
+                    ext.to_string_lossy()
+                ));
+
+                if !path.exists() {
+                    return path;
+                }
+            }
+        }
+
+        path
     }
 
     pub fn split_segment(
@@ -713,22 +794,6 @@ impl MediaPlaylist {
     }
 }
 
-#[derive(Default, Serialize)]
-pub enum PlaylistType {
-    Dash,
-    #[default]
-    Hls,
-}
-
-#[derive(Clone, Default, PartialEq, Serialize)]
-pub enum MediaType {
-    Audio,
-    Subtitles,
-    #[default]
-    Undefined,
-    Video,
-}
-
 impl Display for MediaType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -744,40 +809,10 @@ impl Display for MediaType {
     }
 }
 
-#[derive(Clone, PartialEq, Serialize)]
-pub enum KeyMethod {
-    Aes128,
-    Mp4Decrypt,
-    None,
-    Other(String),
-    SampleAes,
-}
-
-#[derive(Clone, Serialize)]
-pub struct Range {
-    pub start: u64,
-    pub end: u64,
-}
-
 impl Range {
     pub fn as_header_value(&self) -> HeaderValue {
         HeaderValue::from_str(&format!("bytes={}-{}", self.start, self.end)).unwrap()
     }
-}
-
-#[derive(Clone, Serialize)]
-pub struct Map {
-    pub uri: String,
-    pub range: Option<Range>,
-}
-
-#[derive(Clone, Serialize)]
-pub struct Key {
-    pub default_kid: Option<String>,
-    pub iv: Option<String>,
-    pub key_format: Option<String>,
-    pub method: KeyMethod,
-    pub uri: Option<String>,
 }
 
 impl Key {
@@ -807,15 +842,6 @@ impl Key {
     }
 }
 
-#[derive(Clone, Default, Serialize)]
-pub struct Segment {
-    pub range: Option<Range>,
-    pub duration: f32, // consider changing it to f64
-    pub key: Option<Key>,
-    pub map: Option<Map>,
-    pub uri: String,
-}
-
 const BUFFER_SIZE: u64 = 1024 * 1024 * 2; // 2 MiB
 
 /// https://rust-lang-nursery.github.io/rust-cookbook/web/clients/download.html#make-a-partial-download-with-http-range-headers
@@ -839,34 +865,4 @@ impl Iterator for PartialRangeIter {
             })
         }
     }
-}
-
-#[derive(Debug, Clone)]
-pub enum Quality {
-    Lowest,
-    Highest,
-    Resolution(u16, u16),
-    Youtube144p,
-    Youtube240p,
-    Youtube360p,
-    Youtube480p,
-    Youtube720p,
-    Youtube1080p,
-    Youtube2k,
-    Youtube1440p,
-    Youtube4k,
-    Youtube8k,
-}
-
-pub struct AutomationOptions {
-    pub all_streams: bool,
-    pub audio_lang: Vec<String>,
-    pub interactive: bool,
-    pub interactive_raw: bool,
-    pub select_streams: Vec<usize>,
-    pub skip_audio: bool,
-    pub skip_video: bool,
-    pub skip_subs: bool,
-    pub subs_lang: Vec<String>,
-    pub quality: Quality,
 }

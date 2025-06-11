@@ -134,10 +134,10 @@ pub(crate) fn parse_as_master(
     }
 }
 
-pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playlist::MediaPlaylist) {
-    playlist.i_frame = m3u8.i_frames_only;
-    playlist.live = !m3u8.end_list;
-    playlist.media_sequence = m3u8.media_sequence;
+pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, stream: &mut playlist::MediaPlaylist) {
+    stream.i_frame = m3u8.i_frames_only;
+    stream.live = !m3u8.end_list;
+    stream.media_sequence = m3u8.media_sequence;
 
     let mut previous_byterange_end = 0;
 
@@ -177,7 +177,7 @@ pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playli
             playlist::Range { start, end }
         });
 
-        playlist.segments.push(playlist::Segment {
+        stream.segments.push(playlist::Segment {
             duration: segment.duration,
             key: if let Some(m3u8_rs::Key {
                 iv,
@@ -235,29 +235,17 @@ pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, playlist: &mut playli
         });
     }
 
-    if let Some(segment) = playlist.segments.first() {
+    if let Some(segment) = stream.segments.first() {
         if let Some(init) = &segment.map {
             if init.uri.split('?').next().unwrap().ends_with(".mp4") {
-                playlist.extension = Some("m4s".to_owned());
+                stream.extension = Some("m4s".to_owned());
             }
         }
 
-        if let Some(extension) = segment
-            .uri
-            .split('?')
-            .next()
-            .unwrap()
-            .split('/')
-            .next_back()
-            .and_then(|x| {
-                if x.contains('.') {
-                    x.split('.').next_back()
-                } else {
-                    Some("mp4")
-                }
-            })
-        {
-            playlist.extension = Some(extension.to_owned());
+        let uri = segment.uri.split('?').next().unwrap();
+
+        if uri.ends_with(".mp4") || uri.ends_with(".m4s") {
+            stream.extension = Some("m4s".to_owned());
         }
     }
 }

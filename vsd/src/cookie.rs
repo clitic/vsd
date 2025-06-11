@@ -99,7 +99,7 @@ pub enum CookieSourceScheme {
 }
 
 impl CookieParam {
-    pub(super) fn new(name: &str, value: &str) -> Self {
+    pub fn new(name: &str, value: &str) -> Self {
         Self {
             name: name.to_owned(),
             value: value.to_owned(),
@@ -107,7 +107,7 @@ impl CookieParam {
         }
     }
 
-    pub(super) fn as_cookie(&self) -> Cookie {
+    pub fn as_cookie(&self) -> Cookie {
         if self.url.is_some() {
             let mut cookie = Cookie::new(&self.name, &self.value);
 
@@ -143,26 +143,27 @@ impl CookieParam {
     }
 }
 
-pub(super) struct CookieJar {
+pub struct CookieJar {
     document_cookie: String,
     inner: Jar,
 }
 
 impl CookieJar {
-    pub(super) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             document_cookie: "".to_owned(),
             inner: Jar::default(),
         }
     }
 
-    pub(super) fn add_cookie_str(&self, cookie: &str, url: &Url) {
+    pub fn add_cookie(&mut self, cookie: Cookie) {
+        self.document_cookie += &format!("{}; ", cookie.stripped());
+    }
+
+    pub fn add_cookie_str(&self, cookie: &str, url: &Url) {
         self.inner.add_cookie_str(cookie, url)
     }
 
-    pub(super) fn add_cookie(&mut self, cookie: Cookie) {
-        self.document_cookie += &format!("{}; ", cookie.stripped());
-    }
 }
 
 impl CookieStore for CookieJar {

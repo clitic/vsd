@@ -1,17 +1,17 @@
 use anyhow::Result;
 use std::{collections::HashMap, fs, io::Write, path::PathBuf};
 
-enum MergerType {
-    Directory(PathBuf),
-    File((fs::File, HashMap<usize, Vec<u8>>)),
-}
-
 pub struct Merger {
     indexed: usize,
     merger_type: MergerType,
     pos: usize,
     size: usize,
     stored_bytes: usize,
+}
+
+enum MergerType {
+    Directory(PathBuf),
+    File((fs::File, HashMap<usize, Vec<u8>>)),
 }
 
 impl Merger {
@@ -37,6 +37,42 @@ impl Merger {
             stored_bytes: 0,
             size: size - 1,
         })
+    }
+
+    pub fn buffered(&self) -> bool {
+        let buffers_empty = match &self.merger_type {
+            MergerType::Directory(_) => true,
+            MergerType::File((_, buffers)) => buffers.is_empty(),
+        };
+        buffers_empty && self.pos >= (self.size + 1)
+    }
+
+    pub fn flush(&mut self) -> Result<()> {
+        if let MergerType::File((file, buffers)) = &mut self.merger_type {
+            while self.pos <= self.size {
+                if let Some(buf) = buffers.remove(&self.pos) {
+                    file.write_all(&buf)?;
+                    file.flush()?;
+                    self.pos += 1;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn estimate(&self) -> usize {
+        if self.indexed == 0 {
+            0
+        } else {
+            (self.stored_bytes / self.indexed) * (self.size + 1)
+        }
+    }
+
+    pub fn stored(&self) -> usize {
+        self.stored_bytes
     }
 
     pub fn write(&mut self, pos: usize, buf: &[u8]) -> Result<()> {
@@ -66,41 +102,5 @@ impl Merger {
 
         self.indexed += 1;
         Ok(())
-    }
-
-    pub fn flush(&mut self) -> Result<()> {
-        if let MergerType::File((file, buffers)) = &mut self.merger_type {
-            while self.pos <= self.size {
-                if let Some(buf) = buffers.remove(&self.pos) {
-                    file.write_all(&buf)?;
-                    file.flush()?;
-                    self.pos += 1;
-                } else {
-                    break;
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn buffered(&self) -> bool {
-        let buffers_empty = match &self.merger_type {
-            MergerType::Directory(_) => true,
-            MergerType::File((_, buffers)) => buffers.is_empty(),
-        };
-        buffers_empty && self.pos >= (self.size + 1)
-    }
-
-    pub fn stored(&self) -> usize {
-        self.stored_bytes
-    }
-
-    pub fn estimate(&self) -> usize {
-        if self.indexed == 0 {
-            0
-        } else {
-            (self.stored_bytes / self.indexed) * (self.size + 1)
-        }
     }
 }
