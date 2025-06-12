@@ -1,7 +1,7 @@
 use crate::{
     downloader::{encryption::Decrypter, mux::Stream},
     merger::Merger,
-    playlist::{KeyMethod, MediaPlaylist},
+    playlist::{KeyMethod, MediaPlaylist, MediaType},
     utils,
 };
 use anyhow::{Result, bail};
@@ -27,31 +27,29 @@ pub fn download_streams(
     directory: Option<&PathBuf>,
     no_decrypt: bool,
     no_merge: bool,
-    output: Option<&PathBuf>,
-    pb: RichProgress,
+    mut pb: RichProgress,
     query: &HashMap<String, String>,
     retries: u8,
     streams: Vec<MediaPlaylist>,
     threads: u8,
     temp_files: &mut Vec<Stream>,
 ) -> Result<()> {
+    let mut streams = streams
+        .into_iter()
+        .filter(|x| x.media_type != MediaType::Subtitles)
+        .collect::<Vec<_>>();
+
+    let mut downloaded_bytes = 0;
     let mut estimated_bytes = VecDeque::new();
 
-    for stream in &streams {
+    for stream in &mut streams {
         estimated_bytes.push_back(stream.estimate_size(base_url, client, query)?);
     }
 
-    let mut temp_file = None;
-
-    if streams.len() == 1 {
-        if let Some(output) = output {
-            if output.extension() == Some(streams.first().unwrap().extension()) {
-                temp_file = Some(output.to_owned());
-            }
-        }
-    }
-
-    let mut downloaded_bytes = 0;
+    pb.columns.extend_from_slice(&[
+        Column::Text("•".to_owned()),
+        Column::Text("[yellow]?".to_owned()), // download speed
+    ]);
     let pb = Arc::new(Mutex::new(pb));
     let pool = ThreadPoolBuilder::new()
         .num_threads(threads as usize)
@@ -74,9 +72,7 @@ pub fn download_streams(
             continue;
         }
 
-        let temp_file = temp_file
-            .clone()
-            .unwrap_or(stream.path(directory, stream.extension()));
+        let temp_file = stream.path(directory, stream.extension());
 
         temp_files.push(Stream {
             language: stream.language.clone(),
@@ -237,7 +233,6 @@ fn download_stream(
                 if let Err(e) = thread_data.execute() {
                     let _lock = thread_data.pb.lock().unwrap();
                     println!("\n{}: {}", "error".colorize("bold red"), e);
-                    // TODO - Add resume support
                     std::process::exit(1);
                 }
             });
@@ -247,11 +242,9 @@ fn download_stream(
     let mut merger = merger.lock().unwrap();
     merger.flush()?;
 
+    println!("{}", merger.buffered());
     if !merger.buffered() {
-        bail!(
-            "failed to download stream to {}",
-            temp_file.to_string_lossy()
-        );
+        bail!("failed to download stream.",);
     }
 
     *downloaded_bytes += merger.stored();

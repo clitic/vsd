@@ -15,7 +15,7 @@ use crate::{
     utils,
 };
 use anyhow::{Result, bail};
-use kdam::{BarExt, Column, RichProgress, tqdm};
+use kdam::{Column, RichProgress, tqdm};
 use reqwest::{Url, blocking::Client};
 use std::{collections::HashMap, fs, path::PathBuf};
 
@@ -29,13 +29,13 @@ pub fn download(
     no_merge: bool,
     output: Option<PathBuf>,
     query: &HashMap<String, String>,
-    streams: Vec<MediaPlaylist>,
+    mut streams: Vec<MediaPlaylist>,
     retries: u8,
     threads: u8,
 ) -> Result<()> {
-    // -----------------------------------------------------------------------------------------
-    // Decide Whether To Mux Streams
-    // -----------------------------------------------------------------------------------------
+    // if streams.len() == 1 && output.extension() == Some(streams.first().unwrap().extension()) {
+    //     return false;
+    // }
 
     let should_mux = mux::should_mux(no_decrypt, no_merge, output.as_ref(), &streams);
 
@@ -43,19 +43,11 @@ pub fn download(
         bail!("ffmpeg couldn't be found, it is required to continue further.");
     }
 
-    // -----------------------------------------------------------------------------------------
-    // Parse Key Ids From Initialization Vector
-    // -----------------------------------------------------------------------------------------
-
     if !no_decrypt {
         encryption::check_unsupported_encryptions(&streams)?;
         let default_kids = encryption::extract_default_kids(&base_url, &client, &streams, query)?;
         encryption::check_key_exists_for_kid(&decrypter, &default_kids)?;
     }
-
-    // -----------------------------------------------------------------------------------------
-    // Prepare Download Directory & Store Streams Download Paths
-    // -----------------------------------------------------------------------------------------
 
     let mut temp_files = vec![];
 
@@ -65,12 +57,18 @@ pub fn download(
         }
     }
 
-    // -----------------------------------------------------------------------------------------
-    // Prepare Progress Bar
-    // -----------------------------------------------------------------------------------------
+    for stream in &mut streams {
+        if stream.media_type != MediaType::Subtitles {
+            stream.split_segment(&base_url, &client, query)?;
+        }
+    }
 
     let mut pb = RichProgress::new(
-        tqdm!(unit = " SEG".to_owned(), dynamic_ncols = true),
+        tqdm!(
+            dynamic_ncols = true,
+            total = streams.iter().map(|x| x.segments.len()).sum(),
+            unit = " SEG"
+        ),
         vec![
             Column::Text("[bold blue]?".to_owned()), // downladed bytes / estimated bytes
             Column::Animation,
@@ -79,16 +77,12 @@ pub fn download(
             Column::CountTotal, // downloaded segments / total segments
             Column::Text("•".to_owned()),
             Column::ElapsedTime,
-            Column::Text("[cyan]>".to_owned()),
+            Column::Text(">".to_owned()),
             Column::RemainingTime,
             Column::Text("•".to_owned()),
             Column::Rate,
         ],
     );
-
-    // -----------------------------------------------------------------------------------------
-    // Download Subtitle Streams
-    // -----------------------------------------------------------------------------------------
 
     download_subtitle_streams(
         &base_url,
@@ -100,35 +94,6 @@ pub fn download(
         &mut temp_files,
     )?;
 
-    let mut streams = streams
-        .into_iter()
-        .filter(|x| x.media_type != MediaType::Subtitles)
-        .collect::<Vec<_>>();
-
-    // -----------------------------------------------------------------------------------------
-    // Segment Splitting
-    // -----------------------------------------------------------------------------------------
-
-    for stream in &mut streams {
-        stream.split_segment(&base_url, &client, query)?;
-    }
-
-    // -----------------------------------------------------------------------------------------
-    // Prepare Progress Bar
-    // -----------------------------------------------------------------------------------------
-
-    pb.replace(2, Column::Percentage(2));
-    pb.columns.extend_from_slice(&[
-        Column::Text("•".to_owned()),
-        Column::Text("[yellow]?".to_owned()), // download speed
-    ]);
-    pb.pb
-        .reset(Some(streams.iter().map(|x| x.segments.len()).sum())); // sum up all segments
-
-    // -----------------------------------------------------------------------------------------
-    // Download Video & Audio Streams
-    // -----------------------------------------------------------------------------------------
-
     stream::download_streams(
         &base_url,
         &client,
@@ -136,7 +101,6 @@ pub fn download(
         directory.as_ref(),
         no_decrypt,
         no_merge,
-        output.as_ref(),
         pb,
         query,
         retries,
@@ -144,10 +108,6 @@ pub fn download(
         threads,
         &mut temp_files,
     )?;
-
-    // -----------------------------------------------------------------------------------------
-    // Mux Downloaded Streams
-    // -----------------------------------------------------------------------------------------
 
     if should_mux {
         mux::ffmpeg(output.as_ref(), &temp_files)?;

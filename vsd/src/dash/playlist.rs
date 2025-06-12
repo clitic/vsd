@@ -4,7 +4,7 @@
 
     1. https://github.com/emarsden/dash-mpd-rs/blob/d468503320dcb2387efee3b5395768408f24efcb/src/fetch.rs
     2. https://github.com/streamlink/streamlink/blob/781ef1fc92f215d0f3ec9a272fbe9f2cac122f08/src/streamlink/stream/dash_manifest.py
-    2. https://github.com/nilaoda/N_m3u8DL-RE/blob/7bba10aa0d7adf7e79e0feec7327039681cb7bd4/src/N_m3u8DL-RE.Parser/Extractor/DASHExtractor2.cs
+    3. https://github.com/nilaoda/N_m3u8DL-RE/blob/7bba10aa0d7adf7e79e0feec7327039681cb7bd4/src/N_m3u8DL-RE.Parser/Extractor/DASHExtractor2.cs
 
 */
 

@@ -60,8 +60,6 @@ fn download_subtitle_stream(
         return Ok(());
     }
 
-    pb.pb.total = stream.segments.len();
-
     let mut ext = stream.extension();
     let mut codec = None;
 
@@ -195,7 +193,5 @@ fn download_subtitle_stream(
         " {} stream successfully",
         "Downloaded".colorize("bold green"),
     ))?;
-    eprintln!();
-    pb.reset(Some(0));
     Ok(())
 }
