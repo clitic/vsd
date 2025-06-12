@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Support for downloading session cookies.
   - Support for proxy server.
 - `save`
+  - More robust subtitles codec detection.
   - New and improved automation support.
   - Support for HLS `SAMPLE-AES` stream decrytion.
 
