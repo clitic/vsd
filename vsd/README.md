@@ -27,7 +27,7 @@
 **V**ideo **S**tream **D**ownloader is a powerful command-line utility that enables users to download video content streamed over HTTP from websites. It supports both [DASH (Dynamic Adaptive Streaming over HTTP)](https://en.wikipedia.org/wiki/Dynamic_Adaptive_Streaming_over_HTTP) using `.mpd` manifest files and [HLS (HTTP Live Streaming)](https://en.wikipedia.org/wiki/HTTP_Live_Streaming) using `.m3u8` playlists. The tool is designed to handle adaptive bitrate streams, fetch individual video and audio segments, and optionally mux them into a single playable file, making it ideal for offline viewing, archival, or analysis of online video content.
 
 <p align="center">
-  <img src="https://github.com/clitic/vsd/blob/main/vsd/images/showcase.gif" width="800">
+  <img src="https://github.com/clitic/vsd/blob/main/vsd/images/showcase.gif" width="700">
 </p>
 
 ## Table of Contents
