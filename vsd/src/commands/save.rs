@@ -1,7 +1,7 @@
 use crate::{
     cookie::{CookieJar, CookieParam},
     downloader::{self, Decrypter},
-    playlist::{AutomationOptions, KeyMethod, Quality},
+    playlist::{AutomationOptions, Quality},
 };
 use anyhow::Result;
 use clap::Args;
@@ -14,7 +14,6 @@ use reqwest::{
 };
 use std::{
     collections::HashMap,
-    fs,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -97,7 +96,7 @@ pub struct Save {
     /// Skip default subtitle stream selection.
     #[arg(long, help_heading = "Automation Options")]
     pub skip_subs: bool,
-    
+
     /// Skip default video stream selection.
     #[arg(long, help_heading = "Automation Options")]
     pub skip_video: bool,
@@ -149,8 +148,7 @@ pub struct Save {
 
     /// Keys for decrypting encrypted streams.
     /// KID:KEY should be specified in hex format.
-    /// While a single KEY should be specified as file path.
-    #[arg(long, help_heading = "Decrypt Options", value_name = "KEY | KID:KEY;KID:KEY...", default_value = "", hide_default_value = true, value_parser = keys_parser)]
+    #[arg(long, help_heading = "Decrypt Options", value_name = "KID:KEY;...", default_value = "", hide_default_value = true, value_parser = keys_parser)]
     pub keys: Decrypter,
 
     /// Download encrypted streams without decrypting them.
@@ -295,40 +293,29 @@ fn cookie_parser(s: &str) -> Result<CookieParams, String> {
 
 fn keys_parser(s: &str) -> Result<Decrypter, String> {
     if s.is_empty() {
-        Ok(Decrypter::None)
-    } else if Path::new(s).exists() {
-        let bytes = fs::read(s).map_err(|_| "could'nt read key file.")?;
+        return Ok(Decrypter::None);
+    }
 
-        if bytes.len() != 16 {
-            return Err("invalid key size.".to_owned());
-        }
+    let mut kid_key_pairs = HashMap::new();
 
-        let mut key = [0_u8; 16];
-        key.copy_from_slice(&bytes);
+    for pair in s.split(';') {
+        if let Some((kid, key)) = pair.split_once(':') {
+            let kid = kid.replace('-', "").to_ascii_lowercase();
+            let key = key.replace('-', "").to_ascii_lowercase();
 
-        Ok(Decrypter::new_hls_aes(key, [0_u8; 16], &KeyMethod::None))
-    } else {
-        let mut kid_key_pairs = HashMap::new();
-
-        for pair in s.split(';') {
-            if let Some((kid, key)) = pair.split_once(':') {
-                let kid = kid.replace('-', "").to_ascii_lowercase();
-                let key = key.replace('-', "").to_ascii_lowercase();
-
-                if kid.len() == 32
-                    && key.len() == 32
-                    && kid.chars().all(|c| c.is_ascii_hexdigit())
-                    && key.chars().all(|c| c.is_ascii_hexdigit())
-                {
-                    kid_key_pairs.insert(kid, key);
-                } else {
-                    return Err("invalid kid key format used.".to_owned());
-                }
+            if kid.len() == 32
+                && key.len() == 32
+                && kid.chars().all(|c| c.is_ascii_hexdigit())
+                && key.chars().all(|c| c.is_ascii_hexdigit())
+            {
+                kid_key_pairs.insert(kid, key);
+            } else {
+                return Err("invalid kid key format used.".to_owned());
             }
         }
-
-        Ok(Decrypter::Mp4Decrypt(kid_key_pairs))
     }
+
+    Ok(Decrypter::Mp4Decrypt(kid_key_pairs))
 }
 
 fn proxy_address_parser(s: &str) -> Result<Proxy, String> {

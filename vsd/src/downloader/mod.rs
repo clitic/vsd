@@ -33,10 +33,6 @@ pub fn download(
     retries: u8,
     threads: u8,
 ) -> Result<()> {
-    // if streams.len() == 1 && output.extension() == Some(streams.first().unwrap().extension()) {
-    //     return false;
-    // }
-
     let should_mux = mux::should_mux(no_decrypt, no_merge, output.as_ref(), &streams);
 
     if should_mux && utils::find_ffmpeg().is_none() {
@@ -48,8 +44,6 @@ pub fn download(
         let default_kids = encryption::extract_default_kids(&base_url, &client, &streams, query)?;
         encryption::check_key_exists_for_kid(&decrypter, &default_kids)?;
     }
-
-    let mut temp_files = vec![];
 
     if let Some(directory) = &directory {
         if !directory.exists() {
@@ -83,6 +77,7 @@ pub fn download(
             Column::Rate,
         ],
     );
+    let mut temp_files = vec![];
 
     download_subtitle_streams(
         &base_url,

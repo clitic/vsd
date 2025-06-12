@@ -65,37 +65,13 @@ impl Decrypter {
         })
     }
 
-    pub fn is_hls_aes_and_not_defined(&self) -> bool {
-        if let Self::HlsAes(_, _, enc_type) = self {
-            matches!(enc_type, EncryptionType::NotDefined)
-        } else {
-            false
-        }
-    }
-
     pub fn is_none(&self) -> bool {
         matches!(self, Self::None)
     }
 
     pub fn increment_iv(&mut self) {
-        if let Self::HlsAes(_, iv, _) = self {
+        if let Self::HlsAes(_, iv, EncryptionType::SampleAes) = self {
             *iv = (u128::from_be_bytes(*iv) + 1).to_be_bytes();
-        }
-    }
-
-    pub fn update_enc_type(&mut self, method: &KeyMethod) {
-        if let Self::HlsAes(_, _, enc_type) = self {
-            *enc_type = match method {
-                KeyMethod::Aes128 => EncryptionType::Aes128,
-                KeyMethod::SampleAes => EncryptionType::SampleAes,
-                _ => panic!("trying to create a non aes hls decrypter."),
-            };
-        }
-    }
-
-    pub fn update_iv(&mut self, sequence: u64) {
-        if let Self::HlsAes(_, iv, _) = self {
-            *iv = (sequence as u128).to_be_bytes();
         }
     }
 }
