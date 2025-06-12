@@ -242,7 +242,6 @@ fn download_stream(
     let mut merger = merger.lock().unwrap();
     merger.flush()?;
 
-    println!("{}", merger.buffered());
     if !merger.buffered() {
         bail!("failed to download stream.",);
     }
