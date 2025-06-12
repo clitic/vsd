@@ -40,13 +40,12 @@
 
 ## Features
 
-- [x] A single progress bar for the entire download process, similar to a normal file download, with real-time file size estimations.
-- [x] Capturing network requests and collecting .m3u8, .mpd and subtitles from websites and save them locally.
+- [x] A single progress bar for the entire download process. Similar to a normal file download with real-time file size estimations.
+- [x] Capturing network requests and collecting .m3u8, .mpd and subtitles from websites.
 - [x] Muxing streams to single video container using ffmpeg.
 - [x] Supports `AES-128`, `SAMPLE-AES`, `CENC`, `CBCS`, `CENS` and `CBC1` decryption.
-- [x] Supports HLS and DASH
+- [x] Supports DASH and HLS
 - [x] Supports downloading in multiple threads.
-- [ ] GUI (wip)
 - [ ] Live stream download (not planned)
 
 <a href="#Help">See More</a>

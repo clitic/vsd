@@ -22,9 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `save`
   - Now by default vsd proceeds with default stream selections. The old behaviour can still be used using `-i, --interactive` and `--interactive-raw` flags.
   - Removed `--no-query-pass` flag.
+  - Removed support for custom hls key.
   - Renamed `--retry-count` to `--retries` flag.
   - Unknown codec subtitles can now ne downloaded.
-
+ 
 ### Fixed
 
 - `save`

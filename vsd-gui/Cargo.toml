@@ -1,9 +1,0 @@
-[package]
-name = "vsd-gui"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-eframe = { version = "0.31", features = ["persistence"] }
-egui = { version = "0.31", features = ["persistence"] }
-serde = { version = "1", features = ["derive"] }
