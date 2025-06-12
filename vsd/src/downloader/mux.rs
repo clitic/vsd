@@ -198,13 +198,6 @@ pub fn should_mux(
         return false;
     }
 
-    let output = output.unwrap();
-
-    // Check if output file extension matches with actual stream file extension.
-    if streams.len() == 1 && output.extension() == Some(streams.first().unwrap().extension()) {
-        return false;
-    }
-
     let video_streams = streams
         .iter()
         .filter(|x| x.media_type == MediaType::Video)
