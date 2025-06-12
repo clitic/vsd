@@ -1,6 +1,6 @@
-# Building From Source
+# Build Instructions
 
-## Build Dependencies
+## Dependencies
 
 - C/C++ Compiler
 - [protoc](https://github.com/protocolbuffers/protobuf)
@@ -27,25 +27,25 @@ cargo build -p vsd --release
 
 ## Android (On Linux)
 
-1. Install Android [NDK](https://developer.android.com/ndk/downloads).
+1. Install [Android NDK](https://developer.android.com/ndk/downloads).
 
 ```bash
-$ wget https://dl.google.com/android/repository/android-ndk-r22b-linux-x86_64.zip
-$ unzip android-ndk-r22b-linux-x86_64.zip
-$ rm android-ndk-r22b-linux-x86_64.zip
+$ wget https://dl.google.com/android/repository/android-ndk-r27c-linux-x86_64.zip
+$ unzip android-ndk-r27c-linux-x86_64.zip
+$ rm android-ndk-r27c-linux-x86_64.zip
 ```
 
 2. Add rustup target aarch64-linux-android.
 
 ```bash
 $ rustup target add aarch64-linux-android
-$ printf '\n[target.aarch64-linux-android]\nlinker = "aarch64-linux-android30-clang"\n' >> $HOME/.cargo/config.toml
+$ printf '\n[target.aarch64-linux-android]\nlinker = "aarch64-linux-android25-clang"\n' >> $HOME/.cargo/config.toml
 ```
 
 3. Now build with aarch64-linux-android target. `RUSTFLAGS` variable can be removed if you do not want to support termux.
 
 ```bash
-$ PATH=/content/android-ndk-r22b/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH \
+$ PATH=/content/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH \
     RUSTFLAGS="-C link-args=-Wl,-rpath=/data/data/com.termux/files/usr/lib -C link-args=-Wl,--enable-new-dtags" \
     cargo build -p vsd --release --target aarch64-linux-android --no-default-features --features "rustls-tls"
 ```
@@ -53,6 +53,7 @@ $ PATH=/content/android-ndk-r22b/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
 ## Android (On Termux)
 
 ```bash
+$ pkg update
 $ pkg upgrade
 $ pkg install git protobuf rust
 $ git clone https://github.com/clitic/vsd --recursive --depth 1

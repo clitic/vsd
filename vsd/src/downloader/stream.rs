@@ -186,7 +186,7 @@ fn download_stream(
                             }
                         } else {
                             bail!(
-                                "custom keys (KID:KEY;KID:KEY...) are required to continue further.",
+                                "custom keys (KID:KEY;...) are required to continue further.",
                             );
                         }
                     }
