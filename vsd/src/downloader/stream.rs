@@ -170,10 +170,8 @@ fn download_stream(
                             &key.method,
                         );
 
-                        if key.method == KeyMethod::SampleAes {
-                            if key.iv.is_none() {
-                                increment_iv = true;
-                            }
+                        if key.method == KeyMethod::SampleAes && key.iv.is_none() {
+                            increment_iv = true;
                         }
                     }
                     KeyMethod::Mp4Decrypt => {
