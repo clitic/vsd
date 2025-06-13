@@ -41,7 +41,7 @@ $ rm android-ndk-r27c-linux.zip
 $ rustup target add aarch64-linux-android
 ```
 
-3. Now build with *aarch64-linux-android target*. `rpath` link arg can be removed if you do not want to support termux.
+3. Now build with *aarch64-linux-android target*. `rpath` link arg can be removed if you do not want to support termux. You can also use [cargo-ndk](https://github.com/bbqsrc/cargo-ndk) to build vsd.
 
 ```bash
 $ PATH=$HOME/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH \
@@ -73,7 +73,7 @@ $ AR=llvm-ar \
     cargo build -p vsd --release --no-default-features --features "native-tls"
 ```
 
-## Darwin (On Linux)
+## Darwin (On Linux via osxcross)
 
 1. Install [osxcross](https://github.com/tpoechtrager/osxcross) toolchain.
 
