@@ -148,7 +148,7 @@ $ PATH=$HOME/musl-cross-make/output/bin:$PATH \
 $ PATH=$HOME/musl-cross-make/output/bin:$PATH x86_64-linux-musl-readelf target/x86_64-unknown-linux-musl/release/vsd --dynamic
 ```
 
-## Linux with MUSL (cargo-zigbuild)
+## Linux with MUSL (On Linux via cargo-zigbuild)
 
 1. Install [zig](https://ziglang.org/download) and [cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild).
 
@@ -172,6 +172,32 @@ $ cargo zigbuild -p vsd --release --target x86_64-unknown-linux-musl --no-defaul
 
 ```bash
 $ llvm-readelf target/x86_64-unknown-linux-musl/release/vsd --needed-libs
+```
+
+## Windows with MSVC (On Linux via cargo-xwin)
+
+1. Install [cargo-xwin](https://github.com/rust-cross/cargo-xwin).
+
+```bash
+$ cargo install cargo-xwin
+```
+
+2. Add rustup *x86_64-pc-windows-msvc* target.
+
+```bash
+$ rustup target add x86_64-pc-windows-msvc
+```
+
+3. Now build with *x86_64-pc-windows-msvc* target using cargo-xwin.
+
+```bash
+$ cargo zigbuild -p vsd --release --target x86_64-pc-windows-msvc
+```
+
+5. Inspect for linked libraries.
+
+```bash
+$ llvm-readelf target/x86_64-pc-windows-msvc/release/vsd.exe --needed-libs
 ```
 
 [reqwest]: https://docs.rs/reqwest/latest/reqwest/#optional-features
