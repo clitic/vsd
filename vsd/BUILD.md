@@ -44,7 +44,7 @@ $ rustup target add aarch64-linux-android
 3. Now build with *aarch64-linux-android target*. `rpath` link arg can be removed if you do not want to support termux.
 
 ```bash
-$ PATH=$HOME/packages/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH \
+$ PATH=$HOME/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH \
     AR=llvm-ar \
     CC=aarch64-linux-android25-clang \
     CXX=aarch64-linux-android25-clang++ \
@@ -146,6 +146,32 @@ $ PATH=$HOME/musl-cross-make/output/bin:$PATH \
 
 ```bash
 $ PATH=$HOME/musl-cross-make/output/bin:$PATH x86_64-linux-musl-readelf target/x86_64-unknown-linux-musl/release/vsd --dynamic
+```
+
+## Linux with MUSL (cargo-zigbuild)
+
+1. Install [zig](https://ziglang.org/download) and [cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild).
+
+```bash
+$ cargo install cargo-zigbuild
+```
+
+2. Add rustup *x86_64-unknown-linux-musl* target.
+
+```bash
+$ rustup target add x86_64-unknown-linux-musl
+```
+
+3. Now build with *x86_64-unknown-linux-musl* target using cargo-zigbuild.
+
+```bash
+$ cargo zigbuild -p vsd --release --target x86_64-unknown-linux-musl --no-default-features --features "browser,rustls-tls-webpki-roots"
+```
+
+5. Inspect for linked libraries.
+
+```bash
+$ llvm-readelf target/x86_64-unknown-linux-musl/release/vsd --needed-libs
 ```
 
 [reqwest]: https://docs.rs/reqwest/latest/reqwest/#optional-features
