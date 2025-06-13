@@ -191,7 +191,7 @@ $ rustup target add x86_64-pc-windows-msvc
 3. Now build with *x86_64-pc-windows-msvc* target using cargo-xwin.
 
 ```bash
-$ cargo xwin -p vsd --release --target x86_64-pc-windows-msvc
+$ cargo xwin build -p vsd --release --target x86_64-pc-windows-msvc
 ```
 
 5. Inspect for linked libraries.
