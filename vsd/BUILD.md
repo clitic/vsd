@@ -30,24 +30,32 @@ cargo build -p vsd --release
 1. Install [Android NDK](https://developer.android.com/ndk/downloads).
 
 ```bash
-$ wget https://dl.google.com/android/repository/android-ndk-r27c-linux-x86_64.zip
-$ unzip android-ndk-r27c-linux-x86_64.zip
-$ rm android-ndk-r27c-linux-x86_64.zip
+$ wget https://dl.google.com/android/repository/android-ndk-r27c-linux.zip
+$ unzip android-ndk-r27c-linux.zip
+$ rm android-ndk-r27c-linux.zip
 ```
 
-2. Add rustup target aarch64-linux-android.
+2. Add rustup *aarch64-linux-android* target.
 
 ```bash
 $ rustup target add aarch64-linux-android
-$ printf '\n[target.aarch64-linux-android]\nlinker = "aarch64-linux-android25-clang"\n' >> $HOME/.cargo/config.toml
 ```
 
-3. Now build with aarch64-linux-android target. `RUSTFLAGS` variable can be removed if you do not want to support termux.
+3. Now build with *aarch64-linux-android target*. `rpath` link arg can be removed if you do not want to support termux.
 
 ```bash
-$ PATH=/content/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH \
-    RUSTFLAGS="-C link-args=-Wl,-rpath=/data/data/com.termux/files/usr/lib -C link-args=-Wl,--enable-new-dtags" \
-    cargo build -p vsd --release --target aarch64-linux-android --no-default-features --features "rustls-tls"
+$ PATH=$HOME/packages/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH \
+    AR=llvm-ar \
+    CC=aarch64-linux-android25-clang \
+    CXX=aarch64-linux-android25-clang++ \
+    RUSTFLAGS="-C linker=aarch64-linux-android25-clang -C link-args=-Wl,-rpath=/data/data/com.termux/files/usr/lib" \
+    cargo build -p vsd --release --target aarch64-linux-android --no-default-features --features "rustls-tls-webpki-roots"
+```
+
+4. Inspect for linked libraries.
+
+```bash
+$ llvm-readelf target/aarch64-linux-android/release/vsd --needed-libs
 ```
 
 ## Android (On Termux)
@@ -71,38 +79,38 @@ $ AR=llvm-ar \
 
 ```bash
 $ git clone https://github.com/tpoechtrager/osxcross
-$ curl -L https://github.com/joseluisq/macosx-sdks/releases/download/13.1/MacOSX13.1.sdk.tar.xz -o osxcross/tarballs/MacOSX13.1.sdk.tar.xz
+$ curl -L https://github.com/joseluisq/macosx-sdks/releases/download/15.4/MacOSX15.4.sdk.tar.xz -o osxcross/tarballs/MacOSX15.4.sdk.tar.xz
 $ cd osxcross
-$ ./tools/get_dependencies.sh
-$ apt install llvm
-$ UNATTENDED=1 SDK_VERSION=13.1 ./build.sh
-$ # compiler-rt (optional)
-$ ENABLE_COMPILER_RT_INSTALL=1 ./build_compiler_rt.sh
+$ sudo apt install bzip2 clang cmake cpio git libssl-dev libxml2-dev llvm-dev lzma-dev patch python3 uuid-dev zlib1g-dev xz-utils
+$ UNATTENDED=1 ./build.sh
 ```
 
-2. Add rustup target x86_64-apple-darwin.
+2. Add rustup *aarch64-apple-darwin* target.
 
 ```bash
-$ rustup target add x86_64-apple-darwin
-$ printf '\n[target.x86_64-apple-darwin]\nlinker = "x86_64-apple-darwin21.4-clang"\n' >> $HOME/.cargo/config.toml
+$ rustup target add aarch64-apple-darwin
 ```
 
-3. Now build with x86_64-apple-darwin target.
+3. Now build with *aarch64-apple-darwin* target.
 
 ```bash
-$ PATH=/content/osxcross/target/bin:$PATH \
-    LD_LIBRARY_PATH=/content/osxcross/target/lib:$LD_LIBRARY_PATH \
-    MACOSX_DEPLOYMENT_TARGET=13.1 \
-    CC=x86_64-apple-darwin21.4-clang \
-    CXX=x86_64-apple-darwin21.4-clang++ \
-    AR=x86_64-apple-darwin21.4-ar \
-    cargo build -p vsd --release --target x86_64-apple-darwin
-$ llvm-readobj ./target/x86_64-apple-darwin/release/vsd --macho-version-min --needed-libs
+$ PATH=$HOME/osxcross/target/bin:$PATH \
+    AR=aarch64-apple-darwin24.4-ar \
+    CC=aarch64-apple-darwin24.4-clang \
+    CXX=aarch64-apple-darwin24.4-clang++ \
+    RUSTFLAGS="-C linker=aarch64-apple-darwin24.4-clang" \
+    cargo build -p vsd --release --target aarch64-apple-darwin
+```
+
+4. Inspect for linked libraries.
+
+```bash
+$ llvm-readobj target/aarch64-apple-darwin/release/vsd --macho-version-min --needed-libs
 ```
 
 ## Linux with MUSL (On Linux)
 
-1. Build musl cross toolchain using [musl-cross-make](https://github.com/richfelker/musl-cross-make).
+1. Build and install musl cross toolchain using [musl-cross-make](https://github.com/richfelker/musl-cross-make).
 
 ```bash
 $ git clone https://github.com/richfelker/musl-cross-make --depth 1
@@ -110,29 +118,34 @@ $ cd musl-cross-make
 $ TARGET=x86_64-linux-musl make install
 ```
 
-2. Find and delete `libstdc++.so` for static linking else keep it.
+2. Find and delete *libstdc++.so* for static linking else keep it.
 
 ```bash
 $ find musl-cross-make/output/**/*/libstdc++.so*
 $ rm musl-cross-make/output/**/*/libstdc++.so*
 ```
 
-3. Add rustup target x86_64-unknown-linux-musl.
+3. Add rustup *x86_64-unknown-linux-musl* target.
 
 ```bash
 $ rustup target add x86_64-unknown-linux-musl
-$ printf '\n[target.x86_64-unknown-linux-musl]\nlinker = "x86_64-linux-musl-gcc"\n' >> $HOME/.cargo/config.toml
 ```
 
-4. Now build with x86_64-unknown-linux-musl target.
+4. Now build with *x86_64-unknown-linux-musl* target.
 
 ```bash
-$ PATH=/content/musl-cross-make/output/bin:$PATH \
+$ PATH=$HOME/musl-cross-make/output/bin:$PATH \
+    AR=x86_64-linux-musl-ar \
     CC=x86_64-linux-musl-gcc \
     CXX=x86_64-linux-musl-g++ \
-    AR=x86_64-linux-musl-ar \
+    RUSTFLAGS="-C linker=x86_64-linux-musl-gcc" \
     cargo build -p vsd --release --target x86_64-unknown-linux-musl --no-default-features --features "browser,rustls-tls-webpki-roots"
-$ PATH=/content/musl-cross-make/output/bin:$PATH x86_64-linux-musl-readelf ./target/x86_64-unknown-linux-musl/release/vsd --dynamic
+```
+
+5. Inspect for linked libraries.
+
+```bash
+$ PATH=$HOME/musl-cross-make/output/bin:$PATH x86_64-linux-musl-readelf target/x86_64-unknown-linux-musl/release/vsd --dynamic
 ```
 
 [reqwest]: https://docs.rs/reqwest/latest/reqwest/#optional-features
