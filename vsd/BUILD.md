@@ -99,6 +99,7 @@ $ PATH=$HOME/osxcross/target/bin:$PATH \
     CC=aarch64-apple-darwin24.4-clang \
     CXX=aarch64-apple-darwin24.4-clang++ \
     RUSTFLAGS="-C linker=aarch64-apple-darwin24.4-clang" \
+    CRATE_CC_NO_DEFAULTS=true \
     cargo build -p vsd --release --target aarch64-apple-darwin
 ```
 
