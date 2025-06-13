@@ -253,7 +253,7 @@ $ pkg install ffmpeg
 $ ln -s /storage/emulated/0/Download Download
 ```
 
-2. Install [vsd on termux](https://github.com/clitic/vsd/blob/main/vsd/BUILD.md#android-on-termux). Currently, only *arm64-v8a* binaries pre-builts are available wjich can be installed using the following command.
+2. Install [vsd on termux](https://github.com/clitic/vsd/blob/main/vsd/BUILD.md#android-on-termux). Currently, only *arm64-v8a* binaries pre-builts are available which can be installed using the following command.
 
 ```bash
 curl -L https://github.com/clitic/vsd/releases/download/vsd-0.4.0/vsd-0.4.0-aarch64-linux-android.tar.xz | tar xJC $PREFIX/bin
