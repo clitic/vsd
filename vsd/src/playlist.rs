@@ -521,14 +521,15 @@ impl MasterPlaylist {
 
 impl MediaPlaylist {
     pub fn default_kid(&self) -> Option<String> {
-        if let Some(segment) = self.segments.first() {
-            if let Some(Key {
+        if let Some(Segment {
+            key: Some(Key {
                 default_kid: Some(x),
                 ..
-            }) = &segment.key
-            {
-                return Some(x.replace('-', "").to_lowercase());
-            }
+            }),
+            ..
+        }) = self.segments.first()
+        {
+            return Some(x.to_ascii_lowercase().replace('-', ""));
         }
 
         None

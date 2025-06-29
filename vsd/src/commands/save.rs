@@ -300,8 +300,8 @@ fn keys_parser(s: &str) -> Result<Decrypter, String> {
 
     for pair in s.split(';') {
         if let Some((kid, key)) = pair.split_once(':') {
-            let kid = kid.replace('-', "").to_ascii_lowercase();
-            let key = key.replace('-', "").to_ascii_lowercase();
+            let kid = kid.to_ascii_lowercase().replace('-', "");
+            let key = key.to_ascii_lowercase().replace('-', "");
 
             if kid.len() == 32
                 && key.len() == 32

@@ -1,4 +1,4 @@
-use crate::playlist::{Key, KeyMethod, MediaPlaylist, Segment};
+use crate::playlist::{KeyMethod, MediaPlaylist, Segment};
 use aes::cipher::{BlockDecryptMut, KeyIvInit, block_padding::Pkcs7};
 use anyhow::{Result, anyhow, bail};
 use kdam::term::Colorizer;
@@ -91,7 +91,12 @@ pub fn check_key_exists_for_kid(
     for kid in default_kids {
         if !user_kids.iter().any(|x| x == kid) {
             bail!(
-                "use --keys flag to specify content decryption keys for at least required key ids.",
+                "use --keys flag to specify content decryption keys for at least required key ids ({}).",
+                default_kids
+                    .iter()
+                    .map(|item| item.to_owned())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             );
         }
     }
@@ -123,15 +128,8 @@ pub fn extract_default_kids(
     let mut default_kids = HashSet::new();
 
     for stream in streams {
-        if let Some(Segment {
-            key: Some(Key {
-                default_kid: Some(x),
-                ..
-            }),
-            ..
-        }) = stream.segments.first()
-        {
-            default_kids.insert(x.replace('-', ""));
+        if let Some(default_kid) = stream.default_kid() {
+            default_kids.insert(default_kid);
         }
     }
 
