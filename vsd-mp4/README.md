@@ -15,7 +15,7 @@
   </a>
 </p>
 
-This crate contains a mp4 parser ported from [shaka-player](https://github.com/shaka-project/shaka-player) project. Also, some optional features are added for parsing subtitles and `PSSH` boxes.
+This crate contains a mp4 parser ported from [shaka-player](https://github.com/shaka-project/shaka-player) project. Also, some optional features are added for parsing subtitles, `PSSH` and `SIDX` boxes.
 
 ## Getting Started
 
@@ -23,7 +23,7 @@ Add this to your Cargo.toml file.
 
 ```toml
 [dependencies]
-vsd-mp4 = "0.1.2"
+vsd-mp4 = "0.1.3"
 ```
 
 Or add from command line.

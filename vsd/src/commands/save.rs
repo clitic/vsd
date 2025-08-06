@@ -176,7 +176,8 @@ impl Save {
         let mut client_builder = Client::builder()
             .cookie_store(true)
             .danger_accept_invalid_certs(self.no_certificate_checks)
-            .user_agent(&self.user_agent);
+            .user_agent(&self.user_agent)
+            .timeout(std::time::Duration::from_secs(60));
 
         if !self.header.is_empty() {
             let mut headers = HeaderMap::new();

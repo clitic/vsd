@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `save`
+  - `SegmentBase@indexRange` addressing mode for DASH streams.
+
 ## [0.4.0] - 2025-06-13
 
 ### Added

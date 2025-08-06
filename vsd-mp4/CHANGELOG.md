@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2024-08-06
+
 ### Added
 
 - Mp4 `SIDX` box parsing capabilities. 
@@ -23,7 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.0] - 2023-06-27
 
-[Unreleased]: https://github.com/clitic/vsd/compare/vsd-mp4-0.1.2...HEAD
+[Unreleased]: https://github.com/clitic/vsd/compare/vsd-mp4-0.1.3...HEAD
+[0.1.3]: https://github.com/clitic/vsd/compare/vsd-mp4-0.1.2...vsd-mp4-0.1.3
 [0.1.2]: https://github.com/clitic/vsd/compare/vsd-mp4-0.1.1...vsd-mp4-0.1.2
 [0.1.1]: https://github.com/clitic/vsd/compare/vsd-mp4-v0.1.0...vsd-mp4-0.1.1
 [0.1.0]: https://github.com/clitic/vsd/compare/f043fdd...vsd-mp4-v0.1.0
