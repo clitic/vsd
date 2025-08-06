@@ -315,8 +315,6 @@ fn keys_parser(s: &str) -> Result<Decrypter, String> {
             }
         }
     }
-
-    println!("{:#?}", kid_key_pairs);
     
     Ok(Decrypter::Mp4Decrypt(kid_key_pairs))
 }
