@@ -429,6 +429,11 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                                     range: byte_range,
                                     uri: base_url.join(&template.resolve(source_url))?.to_string(),
                                 });
+                            } else {
+                                init_map = Some(Map {
+                                    range: byte_range,
+                                    uri: base_url.to_string(),
+                                });
                             }
                         }
 
