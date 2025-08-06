@@ -52,6 +52,8 @@ pub fn parse_all_streams(
                     &mpd,
                     stream,
                     base_url.as_ref().unwrap_or(&meta.url).as_str(),
+                    client,
+                    query,
                 )?;
                 stream.id = blake3::hash((meta.url.as_ref().to_owned() + &stream.uri).as_bytes())
                     .to_hex()[..7]
@@ -138,6 +140,8 @@ pub fn parse_selected_streams(
                     &mpd,
                     stream,
                     base_url.as_ref().unwrap_or(&meta.url).as_str(),
+                    client,
+                    query,
                 )?;
                 stream.id = blake3::hash((meta.url.as_ref().to_owned() + &stream.uri).as_bytes())
                     .to_hex()[..7]

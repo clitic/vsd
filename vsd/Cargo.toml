@@ -17,6 +17,7 @@ aes = "0.8"
 anyhow = "1"
 base64 = "0.22"
 blake3 = "1.8"
+byteorder = "1.5.0"
 cbc = "0.1"
 chrono = "0.4"
 clap = { version = "4", features = ["derive", "wrap_help"] }

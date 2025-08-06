@@ -12,9 +12,9 @@ use super::{DashUrl, Template};
 use crate::playlist::{
     Key, KeyMethod, Map, MasterPlaylist, MediaPlaylist, MediaType, PlaylistType, Range, Segment,
 };
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use dash_mpd::MPD;
-use reqwest::Url;
+use reqwest::{Url, blocking::Client, header};
 use std::collections::HashMap;
 
 pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
@@ -126,7 +126,13 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
     }
 }
 
-pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &str) -> Result<()> {
+pub(crate) fn push_segments(
+    mpd: &MPD,
+    playlist: &mut MediaPlaylist,
+    base_url: &str,
+    client: &Client,
+    query: &HashMap<String, String>,
+) -> Result<()> {
     let location = playlist.uri.parse::<DashUrl>().map_err(|x| anyhow!(x))?;
 
     for period in mpd.periods.iter() {
@@ -377,7 +383,9 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                                 }
 
                                 if duration == 0.0 {
-                                    bail!("Representation is missing SegmentTemplate @duration attribute.");
+                                    bail!(
+                                        "Representation is missing SegmentTemplate @duration attribute."
+                                    );
                                 }
 
                                 let mut number = segment_template.startNumber.unwrap_or(1) as i64;
@@ -437,10 +445,51 @@ pub(crate) fn push_segments(mpd: &MPD, playlist: &mut MediaPlaylist, base_url: &
                             }
                         }
 
-                        playlist.segments.push(Segment {
+                        if segment_base.indexRange.is_some() {
+                            let index_range = parse_range(&segment_base.indexRange).unwrap();
+
+                            let request = client
+                                .get(base_url.as_str())
+                                .query(query)
+                                .header(header::RANGE, index_range.as_header_value());
+
+                            let response = request.send()?;
+                            let bytes = response.bytes()?;
+
+                            if let Some(init_map) = &mut init_map {
+                                init_map.range = Some(Range {
+                                    start: 0,
+                                    end: index_range.end,
+                                })
+                            }
+
+                            let mut max_chunk_pos = 0;
+
+                            if let Ok(segment_chunks) =
+                                super::sidx::from_isobmff_sidx(&bytes, index_range.end + 1)
+                            {
+                                for chunk in segment_chunks {
+                                    playlist.segments.push(Segment {
+                                        range: Some(Range {
+                                            start: chunk.start,
+                                            end: chunk.end,
+                                        }),
+                                        uri: base_url.to_string(),
+                                        ..Default::default()
+                                    });
+
+                                    if chunk.end > max_chunk_pos {
+                                        max_chunk_pos = chunk.end;
+                                    }
+                                }
+                            }
+                        } else {
+                                                    playlist.segments.push(Segment {
                             uri: base_url.to_string(),
                             ..Default::default()
                         });
+
+                        }
                     } else if playlist.segments.is_empty() && !representation.BaseURL.is_empty() {
                         // (6) Plain BaseURL
                         playlist.segments.push(Segment {
