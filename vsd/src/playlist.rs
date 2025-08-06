@@ -62,8 +62,8 @@ pub struct Segment {
 
 #[derive(Clone, Serialize)]
 pub struct Range {
-    pub start: u64,
     pub end: u64,
+    pub start: u64,
 }
 
 #[derive(Clone, Serialize)]

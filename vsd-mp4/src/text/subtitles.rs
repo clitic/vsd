@@ -101,7 +101,6 @@ fn seconds_to_timestamp(seconds: f32, millisecond_sep: &str) -> String {
     let (minutes, seconds) = divmod(seconds, 60);
     let (hours, minutes) = divmod(minutes, 60);
     format!(
-        "{:02}:{:02}:{:02}{}{:03}",
-        hours, minutes, seconds, millisecond_sep, milliseconds
+        "{hours:02}:{minutes:02}:{seconds:02}{millisecond_sep}{milliseconds:03}"
     )
 }

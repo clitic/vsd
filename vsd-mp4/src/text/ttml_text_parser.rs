@@ -66,25 +66,25 @@ impl Span {
 
         if let Some(font_weight) = &self.font_weight {
             if font_weight == "bold" {
-                value = format!("{{b}}{}{{/b}}", value);
+                value = format!("{{b}}{value}{{/b}}");
             }
         }
 
         if let Some(font_style) = &self.font_style {
             if font_style == "italic" {
-                value = format!("{{i}}{}{{/i}}", value);
+                value = format!("{{i}}{value}{{/i}}");
             }
         }
 
         if let Some(text_decoration) = &self.text_decoration {
             if text_decoration == "underline" {
-                value = format!("{{u}}{}{{/u}}", value);
+                value = format!("{{u}}{value}{{/u}}");
             }
         }
 
         if let Some(color) = &self.color {
-            value = format!("{{font color=\"{}\">{}{{/font}}", color, value);
-            value = format!("<font color=\"{}\">{}</font>", color, value);
+            value = format!("{{font color=\"{color}\">{value}{{/font}}");
+            value = format!("<font color=\"{color}\">{value}</font>");
         }
 
         value

@@ -445,50 +445,36 @@ pub(crate) fn push_segments(
                             }
                         }
 
-                        if segment_base.indexRange.is_some() {
-                            let index_range = parse_range(&segment_base.indexRange).unwrap();
-
+                        if let Some(index_range) = parse_range(&segment_base.indexRange) {
                             let request = client
                                 .get(base_url.as_str())
                                 .query(query)
                                 .header(header::RANGE, index_range.as_header_value());
-
                             let response = request.send()?;
                             let bytes = response.bytes()?;
 
                             if let Some(init_map) = &mut init_map {
                                 init_map.range = Some(Range {
-                                    start: 0,
                                     end: index_range.end,
+                                    start: 0,
                                 })
                             }
 
-                            let mut max_chunk_pos = 0;
-
-                            if let Ok(segment_chunks) =
-                                super::sidx::from_isobmff_sidx(&bytes, index_range.end + 1)
-                            {
-                                for chunk in segment_chunks {
-                                    playlist.segments.push(Segment {
-                                        range: Some(Range {
-                                            start: chunk.start,
-                                            end: chunk.end,
-                                        }),
-                                        uri: base_url.to_string(),
-                                        ..Default::default()
-                                    });
-
-                                    if chunk.end > max_chunk_pos {
-                                        max_chunk_pos = chunk.end;
-                                    }
-                                }
+                            for range in vsd_mp4::sidx::parse(&bytes, index_range.start)? {
+                                playlist.segments.push(Segment {
+                                    range: Some(Range {
+                                        end: range.end,
+                                        start: range.start,
+                                    }),
+                                    uri: base_url.to_string(),
+                                    ..Default::default()
+                                });
                             }
                         } else {
-                                                    playlist.segments.push(Segment {
-                            uri: base_url.to_string(),
-                            ..Default::default()
-                        });
-
+                            playlist.segments.push(Segment {
+                                uri: base_url.to_string(),
+                                ..Default::default()
+                            });
                         }
                     } else if playlist.segments.is_empty() && !representation.BaseURL.is_empty() {
                         // (6) Plain BaseURL
@@ -555,110 +541,6 @@ pub(crate) fn push_segments(
         }
     }
 
-    // if let Some(segment_template) = representation.segment_template(adaptation_set) {
-    //     let mut template_resolver = TemplateResolver::new(representation.template_vars());
-
-    //     if let Some(initialization) = &segment_template.initialization {
-    //         init_map = Some(playlist::Map {
-    //             byte_range: None,
-    //             uri: template_resolver.resolve(baseurl.join(initialization)?.as_str()),
-    //         });
-
-    //         let mut start_number = segment_template.start_number();
-    //         let timescale = segment_template.timescale();
-
-    //         if let Some(segment_timeline) = &segment_template.segment_timeline {
-    //             let mut current_time = 0;
-
-    //             for s in &segment_timeline.s {
-    //                 if let Some(t) = &s.t {
-    //                     current_time = *t;
-    //                 }
-
-    //                 template_resolver.insert("Time", current_time.to_string());
-    //                 template_resolver.insert("Number", start_number.to_string());
-
-    //                 playlist.segments.push(playlist::Segment {
-    //                     duration: s.d as f32 / timescale,
-    //                     uri: template_resolver.resolve(
-    //                         baseurl
-    //                             .join(segment_template.media.as_ref().unwrap())?
-    //                             .as_str(),
-    //                     ),
-    //                     ..Default::default()
-    //                 });
-
-    //                 start_number += 1;
-
-    //                 let mut repeat_count = s.r.unwrap_or(0);
-
-    //                 if repeat_count < 0 {
-    //                     repeat_count = ((mpd_duration * timescale / s.d as f32) - 1.0) as i64;
-    //                 }
-
-    //                 for _ in 0..repeat_count {
-    //                     current_time += s.d;
-
-    //                     template_resolver.insert("Time", current_time.to_string());
-    //                     template_resolver.insert("Number", start_number.to_string());
-
-    //                     playlist.segments.push(playlist::Segment {
-    //                         duration: s.d as f32 / timescale,
-    //                         uri: template_resolver.resolve(
-    //                             baseurl
-    //                                 .join(segment_template.media.as_ref().unwrap())?
-    //                                 .as_str(),
-    //                         ),
-    //                         ..Default::default()
-    //                     });
-
-    //                     start_number += 1;
-    //                 }
-
-    //                 current_time += s.d;
-    //             }
-    //         } else {
-    //             let duration = segment_template.duration();
-    //             let segment_duration = duration / timescale;
-    //             let mut total = (mpd_duration * timescale / duration).ceil() as usize;
-
-    //             if total == 0 && mpd.live() {
-    //                 let now = if let Some(publish_time) = &mpd.publish_time {
-    //                     chrono::DateTime::parse_from_rfc3339(publish_time).unwrap()
-    //                 } else {
-    //                     chrono::Local::now().into()
-    //                 };
-
-    //                 let available_time = chrono::DateTime::parse_from_rfc3339(
-    //                     mpd.availability_start_time.as_ref().unwrap(),
-    //                 )
-    //                 .unwrap();
-    //                 let ts = now - available_time;
-    //                 let update_ts =
-    //                     iso8601_duration_to_seconds(mpd.time_shift_buffer_depth.as_ref().unwrap())
-    //                         .unwrap();
-    //                 start_number +=
-    //                     ((ts.num_seconds() as f32 - update_ts) * timescale / duration) as usize;
-    //                 total = (update_ts * timescale / duration) as usize;
-    //             }
-
-    //             for i in start_number..(start_number + total) {
-    //                 template_resolver.insert("Number", i.to_string());
-
-    //                 playlist.segments.push(playlist::Segment {
-    //                     duration: segment_duration,
-    //                     uri: template_resolver.resolve(
-    //                         baseurl
-    //                             .join(segment_template.media.as_ref().unwrap())?
-    //                             .as_str(),
-    //                     ),
-    //                     ..Default::default()
-    //                 });
-    //             }
-    //         }
-    //     }
-    // }
-
     Ok(())
 }
 
@@ -691,29 +573,3 @@ fn parse_range(range: &Option<String>) -> Option<Range> {
         }
     })
 }
-
-// // Sec-Fetch-Mode: navigate
-// // Upgrade-Insecure-Requests: 1
-// /*
-// A manifest may use a data URL (RFC 2397) to embed media content such as the
-// initialization segment directly in the manifest (recommended by YouTube for live
-// streaming, but uncommon in practice).
-//  */
-// if url.scheme() == "data" {
-//     let us = &url.to_string();
-//     let du = DataUrl::process(us)
-//         .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
-//     if du.mime_type().type_ != "audio" {
-//         return Err(DashMpdError::UnhandledMediaStream(
-//             String::from("expecting audio content in data URL")));
-//     }
-//     let (body, _fragment) = du.decode_to_vec()
-//         .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
-//     if downloader.verbosity > 2 {
-//         println!("Audio segment data URL -> {} octets", body.len());
-//     }
-//     if let Err(e) = tmpfile_audio.write_all(&body) {
-//         log::error!("Unable to write DASH audio data: {e:?}");
-//         return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
-//     }
-//     have_audio = true;

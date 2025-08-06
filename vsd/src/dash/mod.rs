@@ -1,6 +1,5 @@
 mod locator;
 mod playlist;
-mod sidx;
 mod template;
 
 use locator::DashUrl;

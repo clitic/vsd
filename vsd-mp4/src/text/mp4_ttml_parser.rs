@@ -67,8 +67,7 @@ impl Mp4TtmlParser {
                         &mut ttml_text_parser::parse(&xml)
                             .map_err(|x| {
                                 Error::new_decode(format!(
-                                    "xml string as ttml content.\n\n{}\n\n{:#?}",
-                                    xml, x
+                                    "xml string as ttml content.\n\n{xml}\n\n{x:#?}"
                                 ))
                             })?
                             .into_cues(),

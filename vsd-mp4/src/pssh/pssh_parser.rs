@@ -170,7 +170,7 @@ impl Pssh {
             .reader
             .read_bytes_u8(pssh_data_size as usize)
             .map_err(|_| {
-                Error::new_read(format!("PSSH box data ({} bytes).", pssh_data_size))
+                Error::new_read(format!("PSSH box data ({pssh_data_size} bytes)."))
             })?;
 
         match system_id.as_str() {

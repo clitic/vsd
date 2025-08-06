@@ -107,7 +107,7 @@ impl Mp4Parser {
             .read_u32()
             .map_err(|_| Error::new_read("box type (u32)."))? as usize;
         let name = type_to_string(_type)
-            .map_err(|_| Error::new_decode(format!("{} (u32) to string.", _type)))?;
+            .map_err(|_| Error::new_decode(format!("{_type} (u32) to string.")))?;
         let mut has_64_bit_size = false;
         // println!("Parsing MP4 box {}", name);
 
@@ -162,7 +162,7 @@ impl Mp4Parser {
             let payload_size = end - reader.get_position();
             let payload = if payload_size > 0 {
                 reader.read_bytes_u8(payload_size as usize).map_err(|_| {
-                    Error::new_read(format!("box payload ({} bytes).", payload_size))
+                    Error::new_read(format!("box payload ({payload_size} bytes)."))
                 })?
             } else {
                 Vec::with_capacity(0)
@@ -192,7 +192,7 @@ impl Mp4Parser {
                 .min(reader.get_length() - reader.get_position());
             reader
                 .skip(skip_length)
-                .map_err(|_| Error::new_read(format!("{} bytes.", skip_length)))?;
+                .map_err(|_| Error::new_read(format!("{skip_length} bytes.")))?;
         }
 
         Ok(())
@@ -295,7 +295,7 @@ pub fn alldata(callback: Arc<dyn Fn(Vec<u8>) -> HandlerResult>) -> CallbackType 
         callback(
             _box.reader
                 .read_bytes_u8(all as usize)
-                .map_err(|_| Error::new_read(format!("all data {} bytes.", all)))?,
+                .map_err(|_| Error::new_read(format!("all data {all} bytes.")))?,
         )
     })
 }
