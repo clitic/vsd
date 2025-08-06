@@ -41,7 +41,7 @@ impl Template {
             ("Time", &self.re_time),
             ("Bandwidth", &self.re_bandwidth),
         ] {
-            let ident = format!("${}$", var);
+            let ident = format!("${var}$");
 
             if template.contains(&ident) {
                 if let Some(value) = self.vars.get(var) {

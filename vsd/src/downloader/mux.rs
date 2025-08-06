@@ -93,8 +93,8 @@ pub fn ffmpeg(output: Option<&PathBuf>, temp_files: &[Stream]) -> Result<()> {
                 MediaType::Audio => {
                     if let Some(language) = &temp_file.language {
                         args.extend_from_slice(&[
-                            format!("-metadata:s:a:{}", audio_index),
-                            format!("language={}", language),
+                            format!("-metadata:s:a:{audio_index}"),
+                            format!("language={language}"),
                         ]);
                     }
 
@@ -103,8 +103,8 @@ pub fn ffmpeg(output: Option<&PathBuf>, temp_files: &[Stream]) -> Result<()> {
                 MediaType::Subtitles => {
                     if let Some(language) = &temp_file.language {
                         args.extend_from_slice(&[
-                            format!("-metadata:s:s:{}", subtitle_index),
-                            format!("language={}", language),
+                            format!("-metadata:s:s:{subtitle_index}"),
+                            format!("language={language}"),
                         ]);
                     }
 
@@ -146,7 +146,7 @@ pub fn ffmpeg(output: Option<&PathBuf>, temp_files: &[Stream]) -> Result<()> {
         "Executing".colorize("cyan"),
         args.iter()
             .map(|x| if x.contains(' ') {
-                format!("\"{}\"", x)
+                format!("\"{x}\"")
             } else {
                 x.to_owned()
             })

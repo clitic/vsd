@@ -343,20 +343,20 @@ fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
     let url = error.url().unwrap();
 
     if error.is_connect() {
-        return Ok(format!("    {} {} (connection error)", request, url));
+        return Ok(format!("    {request} {url} (connection error)"));
     } else if error.is_timeout() {
-        return Ok(format!("    {} {} (timeout)", request, url));
+        return Ok(format!("    {request} {url} (timeout)"));
     }
 
     if let Some(status) = error.status() {
         match status {
-            StatusCode::GATEWAY_TIMEOUT => Ok(format!("    {} {} (gateway timeout)", request, url)),
-            StatusCode::REQUEST_TIMEOUT => Ok(format!("    {} {} (timeout)", request, url)),
+            StatusCode::GATEWAY_TIMEOUT => Ok(format!("    {request} {url} (gateway timeout)")),
+            StatusCode::REQUEST_TIMEOUT => Ok(format!("    {request} {url} (timeout)")),
             StatusCode::SERVICE_UNAVAILABLE => {
-                Ok(format!("    {} {} (service unavailable)", request, url))
+                Ok(format!("    {request} {url} (service unavailable)"))
             }
             StatusCode::TOO_MANY_REQUESTS => {
-                Ok(format!("    {} {} (too many requests)", request, url))
+                Ok(format!("    {request} {url} (too many requests)"))
             }
             _ => bail!("download failed {} (HTTP {})", url, status),
         }

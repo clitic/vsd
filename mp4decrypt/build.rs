@@ -14,10 +14,10 @@ fn main() {
     let target_bento4_vendor_env = target + "_BENTO4_VENDOR";
     let bento4_vendor_env = "BENTO4_VENDOR";
 
-    println!("cargo:rerun-if-env-changed={}", bento4_dir_env);
-    println!("cargo:rerun-if-env-changed={}", bento4_dir_env);
-    println!("cargo:rerun-if-env-changed={}", bento4_vendor_env);
-    println!("cargo:rerun-if-env-changed={}", bento4_vendor_env);
+    println!("cargo:rerun-if-env-changed={bento4_dir_env}");
+    println!("cargo:rerun-if-env-changed={bento4_dir_env}");
+    println!("cargo:rerun-if-env-changed={bento4_vendor_env}");
+    println!("cargo:rerun-if-env-changed={bento4_vendor_env}");
 
     let includes;
 

@@ -274,7 +274,7 @@ impl Save {
 fn cookie_parser(s: &str) -> Result<CookieParams, String> {
     if Path::new(s).exists() {
         Ok(serde_json::from_slice::<CookieParams>(
-            &std::fs::read(s).map_err(|_| format!("could not read {}.", s))?,
+            &std::fs::read(s).map_err(|_| format!("could not read {s}."))?,
         )
         .map_err(|_| "could not deserialize cookies from json file.")?)
     } else if let Ok(cookies) = serde_json::from_str::<CookieParams>(s) {

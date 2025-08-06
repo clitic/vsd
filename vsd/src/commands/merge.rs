@@ -79,7 +79,7 @@ impl Merge {
                     let file = file.to_string_lossy();
 
                     if file != self.output {
-                        concat.write_fmt(format_args!("file '{}'\n", file))?;
+                        concat.write_fmt(format_args!("file '{file}'\n"))?;
                     }
                 }
 

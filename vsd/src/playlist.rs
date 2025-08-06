@@ -542,7 +542,7 @@ impl MediaPlaylist {
         );
 
         if let Some(codecs) = &self.codecs {
-            extra += &format!(", codecs: {}", codecs);
+            extra += &format!(", codecs: {codecs}");
         }
 
         if let Some(bandwidth) = self.bandwidth {
@@ -553,7 +553,7 @@ impl MediaPlaylist {
         }
 
         if let Some(channels) = self.channels {
-            extra += &format!(", channels: {}", channels);
+            extra += &format!(", channels: {channels}");
         }
 
         if self.live {
@@ -570,7 +570,7 @@ impl MediaPlaylist {
         );
 
         if let Some(codecs) = &self.codecs {
-            extra += &format!(", codecs: {}", codecs);
+            extra += &format!(", codecs: {codecs}");
         }
 
         extra
@@ -589,7 +589,7 @@ impl MediaPlaylist {
                 (2560, 1440) => "1440p".to_owned(),
                 (3840, 2160) => "4K".to_owned(),
                 (7680, 4320) => "8K".to_owned(),
-                (w, h) => format!("{}x{}", w, h),
+                (w, h) => format!("{w}x{h}"),
             }
         } else {
             "?".to_owned()
@@ -607,7 +607,7 @@ impl MediaPlaylist {
         );
 
         if let Some(frame_rate) = self.frame_rate {
-            extra += &format!(", frame_rate: {}", frame_rate);
+            extra += &format!(", frame_rate: {frame_rate}");
         }
 
         if self.i_frame {

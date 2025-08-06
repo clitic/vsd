@@ -553,7 +553,7 @@ fn parse_frame_rate(frame_rate: &Option<String>) -> Option<f32> {
             {
                 Some(upper / lower)
             } else {
-                panic!("could'nt parse \"{}\" frame rate", frame_rate);
+                panic!("could'nt parse \"{frame_rate}\" frame rate");
             }
         } else {
             frame_rate.parse::<f32>().ok()
@@ -569,7 +569,7 @@ fn parse_range(range: &Option<String>) -> Option<Range> {
         {
             Range { start, end }
         } else {
-            panic!("could'nt parse \"{}\" range", range);
+            panic!("could'nt parse \"{range}\" range");
         }
     })
 }

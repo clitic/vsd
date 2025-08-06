@@ -52,9 +52,9 @@ pub fn format_bytes(bytesval: usize, precision: usize) -> (String, String, Strin
     for unit in ["bytes", "KiB", "MiB", "GiB", "TiB"] {
         if val < 1024.0 {
             return (
-                format!("{:.precision$}", val, precision = precision),
+                format!("{val:.precision$}"),
                 unit.to_owned(),
-                format!("{:.precision$} {}", val, unit, precision = precision),
+                format!("{val:.precision$} {unit}"),
             );
         }
 
@@ -62,9 +62,9 @@ pub fn format_bytes(bytesval: usize, precision: usize) -> (String, String, Strin
     }
 
     (
-        format!("{:.precision$}", bytesval, precision = precision),
+        format!("{bytesval:.precision$}"),
         "".to_owned(),
-        format!("{:.precision$}", bytesval, precision = precision),
+        format!("{bytesval:.precision$}"),
     )
 }
 

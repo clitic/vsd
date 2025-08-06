@@ -33,8 +33,7 @@ impl FromStr for DashUrl {
         if !s.starts_with("dash://") {
             return Err(format!(
                 "url doesn't have dash scheme \
-            (expected: dash://period.{{}}.adaptation-set.{{}}.representation.{{}}, found: {})",
-                s
+            (expected: dash://period.{{}}.adaptation-set.{{}}.representation.{{}}, found: {s})"
             ));
         }
 
@@ -50,8 +49,7 @@ impl FromStr for DashUrl {
         if location.len() != 3 {
             return Err(format!(
                 "url doesn't have full location to locate dash resource \
-            (expected: dash://period.{{}}.adaptation-set.{{}}.representation.{{}}, found: {})",
-                s
+            (expected: dash://period.{{}}.adaptation-set.{{}}.representation.{{}}, found: {s})"
             ));
         }
 

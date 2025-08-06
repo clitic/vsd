@@ -154,8 +154,7 @@ pub fn mp4decrypt(
             },
             x => Error {
                 msg: format!(
-                    "failed to decrypt data with error code {}.",
-                    x
+                    "failed to decrypt data with error code {x}."
                 ),
                 err_type: ErrorType::Failed(x),
             },

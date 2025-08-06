@@ -166,7 +166,7 @@ fn fetch_from_website(
                 println!("   {} {}", "Selected".colorize("bold green"), meta.url);
             } else {
                 for link in &links {
-                    println!("            {}", link);
+                    println!("            {link}");
                 }
 
                 println!("   {} {}", "Selected".colorize("bold green"), &links[0]);
@@ -193,7 +193,7 @@ fn scrape_playlist_links(text: &str) -> Vec<String> {
         .map(|x| {
             if x.starts_with("http") {
                 if let Some(y) = x.split("http").last() {
-                    return format!("http{}", y);
+                    return format!("http{y}");
                 }
             }
             x

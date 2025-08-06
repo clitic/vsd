@@ -311,9 +311,9 @@ fn cookie_parser(s: &str) -> Result<CookieParams, String> {
         Ok(Vec::new())
     } else if Path::new(s).exists() {
         Ok(serde_json::from_slice::<CookieParams>(
-            &fs::read(s).map_err(|_| format!("could not read {}.", s))?,
+            &fs::read(s).map_err(|_| format!("could not read {s}."))?,
         )
-        .map_err(|_| format!("could not deserialize cookies from {}.", s))?)
+        .map_err(|_| format!("could not deserialize cookies from {s}."))?)
     } else {
         let mut cookies = vec![];
 
