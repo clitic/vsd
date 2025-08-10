@@ -2,9 +2,7 @@
     REFERENCES
     ----------
 
-    1. https://github.com/emarsden/dash-mpd-rs/blob/d468503320dcb2387efee3b5395768408f24efcb/src/fetch.rs
-    2. https://github.com/streamlink/streamlink/blob/781ef1fc92f215d0f3ec9a272fbe9f2cac122f08/src/streamlink/stream/dash_manifest.py
-    3. https://github.com/nilaoda/N_m3u8DL-RE/blob/7bba10aa0d7adf7e79e0feec7327039681cb7bd4/src/N_m3u8DL-RE.Parser/Extractor/DASHExtractor2.cs
+    1. https://github.com/emarsden/dash-mpd-rs/blob/7e985069fd95fd5d9993b7610c28228d2448aea7/src/fetch.rs#L2428-L2870
 
 */
 
@@ -22,7 +20,6 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
 
     if let Some(period) = mpd.periods.first() {
         let period_index = 0;
-        // for (period_index, period) in mpd.periods.iter().enumerate() {
         for (adaptation_index, adaptation_set) in period.adaptations.iter().enumerate() {
             for (representation_index, representation) in
                 adaptation_set.representations.iter().enumerate()
@@ -61,15 +58,7 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
                         };
                     }
                 }
-
-                // if let Some(role) = &representation.role {
-                //     if let Some(value) = &role.value {
-                //         if value == "subtitle" {
-                //             media_type = MediaType::Subtitles;
-                //         }
-                //     }
-                // }
-
+                
                 streams.push(MediaPlaylist {
                     bandwidth: representation.bandwidth,
                     channels: representation
@@ -192,18 +181,19 @@ pub(crate) fn push_segments(
                     let mut template = Template::new(template_vars);
 
                     // Now the 6 possible addressing modes:
-                    // (1) SegmentList
-                    // (2) SegmentTemplate+SegmentTimeline
-                    // (3) SegmentTemplate@duration
-                    // (4) SegmentTemplate@index
-                    // (5) SegmentBase@indexRange
-                    // (6) Plain BaseURL
+                    // (1.1) AdaptationSet>SegmentList
+                    // (1.2) Representation>SegmentList
+                    // ( 2 ) SegmentTemplate+SegmentTimeline
+                    // ( 3 ) SegmentTemplate@duration
+                    // ( 4 ) SegmentTemplate@index
+                    // ( 5 ) SegmentBase@indexRange
+                    // ( 6 ) Plain BaseURL
 
                     // Though SegmentBase and SegmentList addressing modes are supposed to be
                     // mutually exclusive, some manifests in the wild use both. So we try to work
                     // around the brokenness.
 
-                    // (1) AdaptationSet>SegmentList
+                    // (1.1) AdaptationSet>SegmentList
                     if let Some(segment_list) = &adaptation_set.SegmentList {
                         if let Some(initialization) = &segment_list.Initialization {
                             let byte_range = parse_range(&initialization.range);
@@ -241,7 +231,7 @@ pub(crate) fn push_segments(
                         }
                     }
 
-                    // (1) Representation>SegmentList
+                    // (1.2) Representation>SegmentList
                     if let Some(segment_list) = &representation.SegmentList {
                         if let Some(initialization) = &segment_list.Initialization {
                             let byte_range = parse_range(&initialization.range);
@@ -297,138 +287,128 @@ pub(crate) fn push_segments(
 
                         // (2) SegmentTemplate+SegmentTimeline (explicit addressing)
                         if let Some(segment_timeline) = &segment_template.SegmentTimeline {
-                            if let Some(media) = &segment_template.media {
-                                let media = template.resolve(media);
-                                let timescale = segment_template.timescale.unwrap_or(1) as f32;
-                                let mut segment_time = 0;
-                                let mut number = segment_template.startNumber.unwrap_or(1);
-
-                                for s in &segment_timeline.segments {
-                                    if let Some(t) = s.t {
-                                        segment_time = t;
-                                    }
-
-                                    template.insert("Time", segment_time.to_string());
-                                    template.insert("Number", number.to_string());
-
-                                    playlist.segments.push(Segment {
-                                        duration: s.d as f32 / timescale,
-                                        uri: base_url.join(&template.resolve(&media))?.to_string(),
-                                        ..Default::default()
-                                    });
-
-                                    number += 1;
-
-                                    // let mut repeat_count = s.r.unwrap_or(0);
-                                    // if repeat_count < 0 {
-                                    //     repeat_count = ((period_duration_secs * timescale / s.d as f32) - 1.0) as i64;
-                                    // }
-                                    // for _ in 0..repeat_count {}
-
-                                    if let Some(r) = s.r {
-                                        let mut count = 0;
-                                        // FIXME - Perhaps we also need to account for startTime?
-                                        let end_time = period_duration_secs * timescale;
-
-                                        loop {
-                                            count += 1;
-                                            // Exit from the loop after @r iterations (if @r is
-                                            // positive). A negative value of the @r attribute indicates
-                                            // that the duration indicated in @d attribute repeats until
-                                            // the start of the next S element, the end of the Period or
-                                            // until the next MPD update.
-                                            if r >= 0 {
-                                                if count > r {
-                                                    break;
-                                                }
-                                            } else if segment_time as f32 > end_time {
-                                                break;
-                                            }
-
-                                            segment_time += s.d;
-
-                                            template.insert("Time", segment_time.to_string());
-                                            template.insert("Number", number.to_string());
-
-                                            playlist.segments.push(Segment {
-                                                duration: s.d as f32 / timescale,
-                                                uri: base_url
-                                                    .join(&template.resolve(&media))?
-                                                    .to_string(),
-                                                ..Default::default()
-                                            });
-
-                                            number += 1;
-                                        }
-                                    }
-
-                                    segment_time += s.d;
-                                }
-                            } else {
+                            if segment_template.media.is_none() {
                                 bail!("SegmentTimeline without a media attribute.");
                             }
-                        } else {
+
+                            let media = template.resolve(segment_template.media.as_ref().unwrap());
+                            let mut number = segment_template.startNumber.unwrap_or(1);
+                            let mut segment_time = 0;
+                            let timescale = segment_template.timescale.unwrap_or(1) as f32;
+
+                            for s in &segment_timeline.segments {
+                                if let Some(t) = s.t {
+                                    segment_time = t;
+                                }
+
+                                template.insert("Time", segment_time.to_string());
+                                template.insert("Number", number.to_string());
+
+                                playlist.segments.push(Segment {
+                                    duration: s.d as f32 / timescale,
+                                    uri: base_url.join(&template.resolve(&media))?.to_string(),
+                                    ..Default::default()
+                                });
+
+                                number += 1;
+
+                                if let Some(r) = s.r {
+                                    let mut count = 0;
+                                    // FIXME - Perhaps we also need to account for startTime?
+                                    let end_time = period_duration_secs * timescale;
+
+                                    loop {
+                                        count += 1;
+                                        // Exit from the loop after @r iterations (if @r is
+                                        // positive). A negative value of the @r attribute indicates
+                                        // that the duration indicated in @d attribute repeats until
+                                        // the start of the next S element, the end of the Period or
+                                        // until the next MPD update.
+                                        if r >= 0 {
+                                            if count > r {
+                                                break;
+                                            }
+                                        } else if segment_time as f32 > end_time {
+                                            break;
+                                        }
+
+                                        segment_time += s.d;
+
+                                        template.insert("Time", segment_time.to_string());
+                                        template.insert("Number", number.to_string());
+
+                                        playlist.segments.push(Segment {
+                                            duration: s.d as f32 / timescale,
+                                            uri: base_url
+                                                .join(&template.resolve(&media))?
+                                                .to_string(),
+                                            ..Default::default()
+                                        });
+
+                                        number += 1;
+                                    }
+                                }
+
+                                segment_time += s.d;
+                            }
+                        } else if let Some(media) = &segment_template.media {
                             // (3) SegmentTemplate@duration || (4) SegmentTemplate@index (simple addressing)
-                            if let Some(media) = &segment_template.media {
-                                let media = template.resolve(media);
-                                let timescale = segment_template.timescale.unwrap_or(1) as f32;
-                                let mut duration = 0.0;
+                            let mut segment_duration = -1.0;
+                            let media = template.resolve(media);
+                            let timescale = segment_template.timescale.unwrap_or(1) as f32;
 
-                                if let Some(x) = period.duration {
-                                    duration = x.as_secs_f32();
-                                }
+                            if let Some(x) = segment_template.duration {
+                                segment_duration = x as f32 / timescale;
+                            }
 
-                                if let Some(x) = segment_template.duration {
-                                    duration = x as f32 / timescale;
-                                }
+                            if segment_duration < 0.0 {
+                                bail!(
+                                    "Representation is missing SegmentTemplate@duration attribute."
+                                );
+                            }
 
-                                if duration == 0.0 {
-                                    bail!(
-                                        "Representation is missing SegmentTemplate @duration attribute."
-                                    );
-                                }
+                            let mut number = segment_template.startNumber.unwrap_or(1) as i64;
+                            let total_number =
+                                number + (period_duration_secs / segment_duration).round() as i64;
 
-                                let mut number = segment_template.startNumber.unwrap_or(1) as i64;
+                            // // For a live manifest (dynamic MPD), we look at the time elapsed since now
+                            // // and the mpd.availabilityStartTime to determine the correct value for
+                            // // startNumber, based on duration and timescale. The latest available
+                            // // segment is numbered
+                            // //
+                            // //    LSN = floor((now - (availabilityStartTime+PST))/segmentDuration + startNumber - 1)
 
-                                let mut total_number =
-                                    number + (period_duration_secs / duration).ceil() as i64;
+                            // // https://dashif.org/Guidelines-TimingModel/Timing-Model.pdf
+                            // // To be more precise, any LeapSecondInformation should be added to the availabilityStartTime.
+                            // if mpd_is_dynamic(mpd) {
+                            //     if let Some(start_time) = mpd.availabilityStartTime {
+                            //         let elapsed = Utc::now()
+                            //             .signed_duration_since(start_time)
+                            //             .as_seconds_f64()
+                            //             / segment_duration;
+                            //         number = (elapsed + number as f64 - 1f64).floor() as u64;
+                            //     } else {
+                            //         return Err(DashMpdError::UnhandledMediaStream(
+                            //             "dynamic manifest is missing @availabilityStartTime"
+                            //                 .to_string(),
+                            //         ));
+                            //     }
+                            // }
 
-                                if init_map.is_some() {
-                                    total_number -= 1;
-                                }
+                            for _ in 1..=total_number {
+                                template.insert("Number", number.to_string());
 
-                                for _ in 1..=total_number {
-                                    template.insert("Number", number.to_string());
+                                playlist.segments.push(Segment {
+                                    duration: segment_duration,
+                                    uri: base_url.join(&template.resolve(&media))?.to_string(),
+                                    ..Default::default()
+                                });
 
-                                    playlist.segments.push(Segment {
-                                        duration,
-                                        uri: base_url.join(&template.resolve(&media))?.to_string(),
-                                        ..Default::default()
-                                    });
-
-                                    number += 1;
-                                }
+                                number += 1;
                             }
                         }
                     } else if let Some(segment_base) = &representation.SegmentBase {
                         // (5) SegmentBase@indexRange
-                        // The SegmentBase@indexRange attribute points to a byte range in the media
-                        // file that contains index information (an sidx box for MPEG files, or a
-                        // Cues entry for a DASH-WebM stream). To be fully compliant, we should
-                        // download and parse these (for example using the sidx crate) then download
-                        // the referenced content segments. In practice, it seems that the
-                        // indexRange information is mostly provided by DASH encoders to allow
-                        // clients to rewind and fast-foward a stream, and is not necessary if we
-                        // download the full content specified by BaseURL.
-                        //
-                        // Our strategy: if there is a SegmentBase > Initialization > SourceURL
-                        // node, download that first, respecting the byte range if it is specified.
-                        // Otherwise, download the full content specified by the BaseURL for this
-                        // segment (ignoring any indexRange attributes).
-                        //
-                        // https://github.com/shaka-project/shaka-player/blob/main/lib/dash/segment_base.js
-                        // https://github.com/shaka-project/shaka-player/blob/main/lib/media/mp4_segment_index_parser.js
-
                         if let Some(initialization) = &segment_base.Initialization {
                             let byte_range = parse_range(&initialization.range);
 

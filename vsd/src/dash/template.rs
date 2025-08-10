@@ -2,7 +2,7 @@
     REFERENCES
     ----------
 
-    1. https://github.com/emarsden/dash-mpd-rs/blob/6ebdfb4759adbda8233b5b3520804e23ff86e7de/src/fetch.rs#L435-L466
+    1. https://github.com/emarsden/dash-mpd-rs/blob/7e985069fd95fd5d9993b7610c28228d2448aea7/src/fetch.rs#L1422-L1460
 
 */
 
