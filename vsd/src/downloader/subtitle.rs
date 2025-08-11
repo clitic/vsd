@@ -118,13 +118,13 @@ fn download_subtitle_stream(
             first_run = false;
 
             if codec.is_none() {
-                if subs_data.starts_with(b"WEBVTT") {
+                if subs_data.starts_with(b"WEBVTT") || ext == "vtt" {
                     ext = OsStr::new("vtt");
                     codec = Some(SubtitleType::VttText);
-                } else if subs_data.starts_with(b"1") {
+                } else if subs_data.starts_with(b"1") || ext == "srt" {
                     ext = OsStr::new("srt");
                     codec = Some(SubtitleType::SrtText);
-                } else if subs_data.starts_with(b"<?xml") || subs_data.starts_with(b"<tt") {
+                } else if subs_data.starts_with(b"<?xml") || subs_data.starts_with(b"<tt") || ext == "ttml" {
                     ext = OsStr::new("srt");
                     codec = Some(SubtitleType::TtmlText);
                 } else if Mp4VttParser::parse_init(&subs_data).is_ok() {

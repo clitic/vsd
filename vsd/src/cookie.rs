@@ -107,7 +107,7 @@ impl CookieParam {
         }
     }
 
-    pub fn as_cookie(&self) -> Cookie {
+    pub fn as_cookie(&self) -> Cookie<'_> {
         if self.url.is_some() {
             let mut cookie = Cookie::new(&self.name, &self.value);
 

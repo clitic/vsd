@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `save`
+  - Subtitles codec detection. ([#58](https://github.com/clitic/vsd/issues/58)).
+
 ## [0.4.1] - 2025-08-10
 
 ### Fixed
