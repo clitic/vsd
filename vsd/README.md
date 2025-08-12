@@ -72,13 +72,13 @@ Finally, add that directory to your system's `PATH` environment variable.
 
 | Host                | Architecture | Download                                                                                                     |
 |---------------------|--------------|--------------------------------------------------------------------------------------------------------------|
-| Android 7+ (Termux) | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.1/vsd-0.4.1-aarch64-linux-android.tar.xz)      |
-| Linux               | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.1/vsd-0.4.1-aarch64-unknown-linux-musl.tar.xz) |
-| MacOS               | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.1/vsd-0.4.1-aarch64-apple-darwin.tar.xz)       |
-| Windows             | aarch64      | [.zip](https://github.com/clitic/vsd/releases/download/vsd-0.4.1/vsd-0.4.1-aarch64-pc-windows-msvc.zip)          |
-| Linux               | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.1/vsd-0.4.1-x86_64-unknown-linux-musl.tar.xz)  |
-| MacOS               | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.1/vsd-0.4.1-x86_64-apple-darwin.tar.xz)        |
-| Windows             | x86_64       | [.zip](https://github.com/clitic/vsd/releases/download/vsd-0.4.1/vsd-0.4.1-x86_64-pc-windows-msvc.zip)           |
+| Android 7+ (Termux) | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.2/vsd-0.4.2-aarch64-linux-android.tar.xz)      |
+| Linux               | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.2/vsd-0.4.2-aarch64-unknown-linux-musl.tar.xz) |
+| MacOS               | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.2/vsd-0.4.2-aarch64-apple-darwin.tar.xz)       |
+| Windows             | aarch64      | [.zip](https://github.com/clitic/vsd/releases/download/vsd-0.4.2/vsd-0.4.2-aarch64-pc-windows-msvc.zip)          |
+| Linux               | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.2/vsd-0.4.2-x86_64-unknown-linux-musl.tar.xz)  |
+| MacOS               | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.2/vsd-0.4.2-x86_64-apple-darwin.tar.xz)        |
+| Windows             | x86_64       | [.zip](https://github.com/clitic/vsd/releases/download/vsd-0.4.2/vsd-0.4.2-x86_64-pc-windows-msvc.zip)           |
 
 ### Install via Cargo
 
@@ -123,13 +123,13 @@ $ vsd save https://bitmovin-a.akamaihd.net/content/art-of-motion_drm/mpds/11331.
 
 ```bash
 $ vsd save <url> --list-streams
-$ vsd save <url> --select-streams "1,2" -o video.mp4
+$ vsd save <url> --select-streams "v=1,2:a=3" -o video.mp4
 ```
 
 - Prefer some specific languages when downloading audio/subtitles.
 
 ```bash
-$ vsd save <url> --audio-lang "en,fr" --subs-lang "en,fr" -o video.mp4
+$ vsd save <url> --select-streams "a=en,fr:s=en,fr" -o video.mp4
 ```
 
 - Use as a playlist parser. ([json schema](https://github.com/clitic/vsd/blob/main/vsd/src/playlist.rs))
@@ -147,7 +147,7 @@ $ vsd --help
 ```
 Download video streams served over HTTP from websites, DASH (.mpd) and HLS (.m3u8) playlists.
 
-Usage: vsd.exe [OPTIONS] <COMMAND>
+Usage: vsd [OPTIONS] <COMMAND>
 
 Commands:
   capture  Capture playlists and subtitles from a website
@@ -169,77 +169,109 @@ $ vsd save --help
 ```
 Download DASH and HLS playlists
 
-Usage: vsd.exe save [OPTIONS] <INPUT>
+Usage: vsd save [OPTIONS] <INPUT>
 
 Arguments:
-  <INPUT>  http(s):// | .mpd | .xml | .m3u8
+  <INPUT>
+          http(s):// | .mpd | .xml | .m3u8
 
 Options:
-      --base-url <BASE_URL>    Base url to be used for building absolute url to segment. This flag is usually needed for
-                               local input files. By default redirected playlist url is used
-  -d, --directory <DIRECTORY>  Change directory path for temporarily downloaded files. By default current working
-                               directory is used
-  -o, --output <OUTPUT>        Mux all downloaded streams to a video container (.mp4, .mkv, etc.) using ffmpeg. Note
-                               that existing files will be overwritten and downloaded streams will be deleted
-      --parse                  Parse playlist and returns it in json format. Note that --output flag is ignored when
-                               this flag is used
-      --color <COLOR>          When to output colored text [default: auto] [possible values: auto, always, never]
-  -h, --help                   Print help
+      --base-url <BASE_URL>
+          Base url to be used for building absolute url to segment. This flag is usually needed for local input files. By default redirected
+          playlist url is used
+
+  -d, --directory <DIRECTORY>
+          Change directory path for temporarily downloaded files. By default current working directory is used
+
+  -o, --output <OUTPUT>
+          Mux all downloaded streams to a video container (.mp4, .mkv, etc.) using ffmpeg. Note that existing files will be overwritten and
+          downloaded streams will be deleted
+
+      --parse
+          Parse playlist and returns it in json format. Note that --output flag is ignored when this flag is used
+
+      --color <COLOR>
+          When to output colored text
+          
+          [default: auto]
+          [possible values: auto, always, never]
+
+  -h, --help
+          Print help (see a summary with '-h')
 
 Automation Options:
-      --all-streams                      Download all streams with --skip-audio, --skip-video and --skip-subs filters
-                                         kept in mind
-      --audio-lang <AUDIO_LANG>          Preferred languages when multiple audio streams with different languages are
-                                         available. Must be in RFC 5646 format (eg. fr or en-AU). If a preference is not
-                                         specified and multiple audio streams are present, the first one listed in the
-                                         manifest will be downloaded. The values should be seperated by comma
-  -i, --interactive                      Prompt for custom streams selection with modern style input prompts. By default
-                                         proceed with defaults
-      --interactive-raw                  Prompt for custom streams selection with raw style input prompts. By default
-                                         proceed with defaults
-  -l, --list-streams                     List all the streams present inside the playlist
-      --quality <WIDTHxHEIGHT|HEIGHTp>   Automatic selection of some standard resolution video stream with highest
-                                         bandwidth stream variant from playlist. If matching resolution of WIDTHxHEIGHT
-                                         is not found then only resolution HEIGHT would be considered for selection.
-                                         comman values: [lowest, min, 144p, 240p, 360p, 480p, 720p, hd, 1080p, fhd, 2k,
-                                         1440p, qhd, 4k, 8k, highest, max] [default: highest]
-  -s, --select-streams <SELECT_STREAMS>  Select streams to download by their ids obtained by --list-streams flag. It has
-                                         the highest priority among the rest of filters. The values should be seperated
-                                         by comma
-      --skip-audio                       Skip default audio stream selection
-      --skip-subs                        Skip default subtitle stream selection
-      --skip-video                       Skip default video stream selection
-      --subs-lang <SUBS_LANG>            Preferred languages when multiple subtitles streams with different languages
-                                         are available. Must be in RFC 5646 format (eg. fr or en-AU). If a preference is
-                                         not specified and multiple subtitles streams are present, the first one listed
-                                         in the manifest will be downloaded. The values should be seperated by comma
+  -i, --interactive
+          Prompt for custom streams selection with modern style input prompts. By default proceed with defaults
+
+      --interactive-raw
+          Prompt for custom streams selection with raw style input prompts. By default proceed with defaults
+
+  -l, --list-streams
+          List all the streams present inside the playlist
+
+  -s, --select-streams <SELECT_STREAMS>
+          Filters to be applied for automatic stream selection.
+          
+          SYNTAX: `v={}:s={}:a={}` where `{}` (in priority order) can contain
+          |> all: select all streams.
+          |> skip: skip all streams or select inverter.
+          |> 1,2: ids obtained by --list-streams flag.
+          |> 1080p,1280x720: stream resolution.
+          |> en,fr: stream language.
+          
+          EXAMPLES:
+          |> v=skip:a=skip:s=all (download all sub streems)
+          |> a:en:s=en (prefer en lang)
+          |> v=1080p:a=all:s=skip (1080p with all audio streams)
+          
+          [default: v=best:s=en]
 
 Client Options:
-      --cookies <COOKIES>              Fill request client with some existing cookies value. Cookies value can be same
-                                       as document.cookie or in json format same as puppeteer
-      --header <KEY> <VALUE>           Custom headers for requests. This option can be used multiple times
-      --no-certificate-checks          Skip checking and validation of site certificates
-      --proxy <PROXY>                  Set http(s) / socks proxy address for requests
-      --query <QUERY>                  Set query parameters for requests
-      --set-cookie <SET_COOKIE> <URL>  Fill request client with some existing cookies per domain. First value for this
-                                       option is set-cookie header and second value is url which was requested to send
-                                       this set-cookie header. Example: --set-cookie "foo=bar; Domain=yolo.local"
-                                       https://yolo.local. This option can be used multiple times
-      --user-agent <USER_AGENT>        Update and set user agent header for requests [default: "Mozilla/5.0 (Windows NT
-                                       10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0
-                                       Safari/537.36"]
+      --cookies <COOKIES>
+          Fill request client with some existing cookies value. Cookies value can be same as document.cookie or in json format same as puppeteer
+
+      --header <KEY> <VALUE>
+          Custom headers for requests. This option can be used multiple times
+
+      --no-certificate-checks
+          Skip checking and validation of site certificates
+
+      --proxy <PROXY>
+          Set http(s) / socks proxy address for requests
+
+      --query <QUERY>
+          Set query parameters for requests
+
+      --set-cookie <SET_COOKIE> <URL>
+          Fill request client with some existing cookies per domain. First value for this option is set-cookie header and second value is url
+          which was requested to send this set-cookie header. EXAMPLE: --set-cookie "foo=bar; Domain=yolo.local" https://yolo.local. This option
+          can be used multiple times
+
+      --user-agent <USER_AGENT>
+          Update and set user agent header for requests
+          
+          [default: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"]
 
 Decrypt Options:
-      --keys <KID:KEY;...>  Keys for decrypting encrypted streams. KID:KEY should be specified in hex format
-      --no-decrypt          Download encrypted streams without decrypting them. Note that --output flag is ignored if
-                            this flag is used
+      --keys <KID:KEY;...>
+          Keys for decrypting encrypted streams. KID:KEY should be specified in hex format
+
+      --no-decrypt
+          Download encrypted streams without decrypting them. Note that --output flag is ignored if this flag is used
 
 Download Options:
-      --retries <RETRIES>  Maximum number of retries to download an individual segment [default: 15]
-      --no-merge           Download streams without merging them. Note that --output flag is ignored if this flag is
-                           used
-  -t, --threads <THREADS>  Maximum number of threads for parllel downloading of segments. Number of threads should be in
-                           range 1-16 (inclusive) [default: 5]
+      --retries <RETRIES>
+          Maximum number of retries to download an individual segment
+          
+          [default: 15]
+
+      --no-merge
+          Download streams without merging them. Note that --output flag is ignored if this flag is used
+
+  -t, --threads <THREADS>
+          Maximum number of threads for parllel downloading of segments. Number of threads should be in range 1-16 (inclusive)
+          
+          [default: 5]
 ```
 
 ## Running on Android
@@ -256,7 +288,7 @@ $ ln -s /storage/emulated/0/Download Download
 2. Install [vsd on termux](https://github.com/clitic/vsd/blob/main/vsd/BUILD.md#android-on-termux). Currently, only *arm64-v8a* binaries pre-builts are available which can be installed using the following command.
 
 ```bash
-curl -L https://github.com/clitic/vsd/releases/download/vsd-0.4.1/vsd-0.4.1-aarch64-linux-android.tar.xz | tar xJC $PREFIX/bin
+curl -L https://github.com/clitic/vsd/releases/download/vsd-0.4.2/vsd-0.4.2-aarch64-linux-android.tar.xz | tar xJC $PREFIX/bin
 ```
 
 3. Use third party browsers like [Kiwi Browser](https://github.com/kiwibrowser/src.next) (*developer tools*) paired with [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) extension or [Via Browser](https://play.google.com/store/apps/details?id=mark.via.gp) (*tools > resource sniffer*) to find playlists within websites.
