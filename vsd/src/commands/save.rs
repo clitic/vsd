@@ -1,12 +1,11 @@
 use crate::{
+    automation::{Prompter, SelectOptions},
     cookie::{CookieJar, CookieParam},
     downloader::{self, Decrypter},
-    playlist::{AutomationOptions, Quality},
 };
 use anyhow::Result;
 use clap::Args;
 use cookie::Cookie;
-use kdam::term::Colorizer;
 use reqwest::{
     Proxy, Url,
     blocking::Client,
@@ -48,18 +47,6 @@ pub struct Save {
     #[arg(long)]
     pub parse: bool,
 
-    /// Download all streams with --skip-audio, --skip-video and --skip-subs filters kept in mind.
-    #[arg(long, help_heading = "Automation Options")]
-    pub all_streams: bool,
-
-    /// Preferred languages when multiple audio streams with different languages are available.
-    /// Must be in RFC 5646 format (eg. fr or en-AU).
-    /// If a preference is not specified and multiple audio streams are present,
-    /// the first one listed in the manifest will be downloaded.
-    /// The values should be seperated by comma.
-    #[arg(long, help_heading = "Automation Options", value_delimiter = ',')]
-    pub audio_lang: Vec<String>,
-
     /// Prompt for custom streams selection with modern style input prompts. By default proceed with defaults.
     #[arg(short, long, help_heading = "Automation Options")]
     pub interactive: bool,
@@ -72,42 +59,15 @@ pub struct Save {
     #[arg(short, long, help_heading = "Automation Options")]
     pub list_streams: bool,
 
-    /// Automatic selection of some standard resolution video stream with highest bandwidth stream variant from playlist.
-    /// If matching resolution of WIDTHxHEIGHT is not found then only resolution HEIGHT would be considered for selection.
-    /// comman values: [lowest, min, 144p, 240p, 360p, 480p, 720p, hd, 1080p, fhd, 2k, 1440p, qhd, 4k, 8k, highest, max]
-    #[arg(long, help_heading = "Automation Options", default_value = "highest", value_name = "WIDTHxHEIGHT|HEIGHTp", value_parser = quality_parser)]
-    pub quality: Quality,
-
-    /// Select streams to download by their ids obtained by --list-streams flag.
-    /// It has the highest priority among the rest of filters.
-    /// The values should be seperated by comma.
+    /// Filters to be applied for automatic stream selection.
     #[arg(
         short,
         long,
         help_heading = "Automation Options",
-        value_delimiter = ','
+        default_value = "v=best:s=en",
+        long_help = "Filters to be applied for automatic stream selection.\n\nSYNTAX: `v={}:s={}:a={}` where `{}` (in priority order) can contain\n|> all: select all streams.\n|> skip: skip all streams or select inverter.\n|> 1,2: ids obtained by --list-streams flag.\n|> 1080p,1280x720: stream resolution.\n|> en,fr: stream language.\n\nEXAMPLES:\n|> v=skip:a=skip:s=all (download all sub streems)\n|> a:en:s=en (prefer en lang)\n|> v=1080p:a=all:s=skip (1080p with all audio streams)"
     )]
-    pub select_streams: Vec<usize>,
-
-    /// Skip default audio stream selection.
-    #[arg(long, help_heading = "Automation Options")]
-    pub skip_audio: bool,
-
-    /// Skip default subtitle stream selection.
-    #[arg(long, help_heading = "Automation Options")]
-    pub skip_subs: bool,
-
-    /// Skip default video stream selection.
-    #[arg(long, help_heading = "Automation Options")]
-    pub skip_video: bool,
-
-    /// Preferred languages when multiple subtitles streams with different languages are available.
-    /// Must be in RFC 5646 format (eg. fr or en-AU).
-    /// If a preference is not specified and multiple subtitles streams are present,
-    /// the first one listed in the manifest will be downloaded.
-    /// The values should be seperated by comma.
-    #[arg(long, help_heading = "Automation Options", value_delimiter = ',')]
-    pub subs_lang: Vec<String>,
+    pub select_streams: String,
 
     /// Fill request client with some existing cookies value.
     /// Cookies value can be same as document.cookie or in json format same as puppeteer.
@@ -133,7 +93,7 @@ pub struct Save {
 
     /// Fill request client with some existing cookies per domain.
     /// First value for this option is set-cookie header and second value is url which was requested to send this set-cookie header.
-    /// Example: --set-cookie "foo=bar; Domain=yolo.local" https://yolo.local.
+    /// EXAMPLE: --set-cookie "foo=bar; Domain=yolo.local" https://yolo.local.
     /// This option can be used multiple times.
     #[arg(long, help_heading = "Client Options", num_args = 2, value_names = &["SET_COOKIE", "URL"])]
     pub set_cookie: Vec<String>, // Vec<(String, String)> not supported
@@ -218,23 +178,17 @@ impl Save {
 
     pub fn execute(self) -> Result<()> {
         let client = self.client()?;
-        let auto_opts = AutomationOptions {
-            all_streams: self.all_streams,
-            audio_lang: self.audio_lang,
+
+        let prompter = Prompter {
             interactive: self.interactive,
             interactive_raw: self.interactive_raw,
-            select_streams: self.select_streams,
-            skip_audio: self.skip_audio,
-            skip_video: self.skip_video,
-            skip_subs: self.skip_subs,
-            subs_lang: self.subs_lang,
-            quality: self.quality,
         };
+
         let meta = downloader::fetch_playlist(
-            &auto_opts,
             self.base_url.clone(),
             &client,
             &self.input,
+            &prompter,
             &self.query,
         )?;
 
@@ -246,11 +200,12 @@ impl Save {
             serde_json::to_writer(std::io::stdout(), &playlist)?;
         } else {
             let streams = downloader::parse_selected_streams(
-                &auto_opts,
                 self.base_url.clone(),
                 &client,
                 &meta,
+                &prompter,
                 &self.query,
+                SelectOptions::parse(&self.select_streams),
             )?;
 
             downloader::download(
@@ -315,57 +270,12 @@ fn keys_parser(s: &str) -> Result<Decrypter, String> {
             }
         }
     }
-    
+
     Ok(Decrypter::Mp4Decrypt(kid_key_pairs))
 }
 
 fn proxy_address_parser(s: &str) -> Result<Proxy, String> {
     Proxy::all(s).map_err(|x| x.to_string())
-}
-
-fn quality_parser(s: &str) -> Result<Quality, String> {
-    Ok(match s.to_lowercase().as_str() {
-        "lowest" | "min" => Quality::Lowest,
-        "144p" => Quality::Youtube144p,
-        "240p" => Quality::Youtube240p,
-        "360p" => Quality::Youtube360p,
-        "480p" => Quality::Youtube480p,
-        "720p" | "hd" => Quality::Youtube720p,
-        "1080p" | "fhd" => Quality::Youtube1080p,
-        "2k" => Quality::Youtube2k,
-        "1440p" | "qhd" => Quality::Youtube1440p,
-        "4k" => Quality::Youtube4k,
-        "8k" => Quality::Youtube8k,
-        "highest" | "max" => Quality::Highest,
-        x if x.ends_with('p') => Quality::Resolution(
-            0,
-            x.trim_end_matches('p')
-                .parse::<u16>()
-                .map_err(|_| "could not parse resolution HEIGHT.".to_owned())?,
-        ),
-        x => {
-            if let Some((w, h)) = x.split_once('x') {
-                Quality::Resolution(
-                    w.parse::<u16>()
-                        .map_err(|_| "could not parse resolution WIDTH.".to_owned())?,
-                    h.parse::<u16>()
-                        .map_err(|_| "could not parse resolution HEIGHT.".to_owned())?,
-                )
-            } else {
-                Err(format!(
-                    "could not parse resolution WIDTHxHEIGHT. comman values: [{}]",
-                    [
-                        "lowest", "min", "144p", "240p", "360p", "480p", "720p", "hd", "1080p",
-                        "fhd", "2k", "1440p", "qhd", "4k", "8k", "highest", "max"
-                    ]
-                    .iter()
-                    .map(|x| x.colorize("green"))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                ))?
-            }
-        }
-    })
 }
 
 fn query_parser(s: &str) -> Result<HashMap<String, String>, String> {

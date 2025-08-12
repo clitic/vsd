@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `save`
+  - Removed `--all-streams`, `--audio-lang`, `--quality`, `--skip-audio`, `--skip-subs`, `--skip-video`, `--subs-lang` flags and merged there functionality into `--select-streams` flag,
+
 ### Fixed
 
 - `save`

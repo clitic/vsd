@@ -6,6 +6,7 @@ mod hls;
 mod merger;
 mod playlist;
 mod utils;
+mod automation;
 
 use clap::{ColorChoice, Parser};
 use commands::{Args, Commands};

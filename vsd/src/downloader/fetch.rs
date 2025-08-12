@@ -1,4 +1,4 @@
-use crate::playlist::{AutomationOptions, PlaylistType};
+use crate::{automation::Prompter, playlist::PlaylistType};
 use anyhow::{Result, anyhow, bail};
 use kdam::term::Colorizer;
 use regex::Regex;
@@ -50,10 +50,10 @@ impl Metadata {
 }
 
 pub fn fetch_playlist(
-    auto_opts: &AutomationOptions,
     base_url: Option<Url>,
     client: &Client,
     input: &str,
+    prompter: &Prompter,
     query: &HashMap<String, String>,
 ) -> Result<Metadata> {
     let mut meta = Metadata {
@@ -85,7 +85,7 @@ pub fn fetch_playlist(
         meta.fetch(client, query)?;
 
         if meta.pl_type.is_none() {
-            fetch_from_website(auto_opts, client, &mut meta, query)?;
+            fetch_from_website(client, &mut meta, prompter, query)?;
         }
     }
 
@@ -93,9 +93,9 @@ pub fn fetch_playlist(
 }
 
 fn fetch_from_website(
-    auto_opts: &AutomationOptions,
     client: &Client,
     meta: &mut Metadata,
+    prompter: &Prompter,
     query: &HashMap<String, String>,
 ) -> Result<()> {
     println!(
@@ -113,7 +113,7 @@ fn fetch_from_website(
             meta.url = links[0].parse::<Url>()?;
         }
         _ => {
-            if auto_opts.interactive {
+            if prompter.interactive {
                 let question = requestty::Question::select("scraped-link")
                     .message("Select one playlist")
                     .should_loop(false)
@@ -121,7 +121,7 @@ fn fetch_from_website(
                     .build();
                 let answer = requestty::prompt_one(question)?;
                 meta.url = answer.as_list_item().unwrap().text.parse::<Url>()?;
-            } else if auto_opts.interactive_raw {
+            } else if prompter.interactive_raw {
                 println!("Select one playlist:");
 
                 for (i, link) in links.iter().enumerate() {
