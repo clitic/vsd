@@ -26,11 +26,9 @@ pub fn find_ffmpeg() -> Option<PathBuf> {
     if let Some(exe) = env::current_exe()
         .ok()
         .and_then(|x| x.parent().map(|y| y.join(bin)))
-    {
-        if exe.exists() {
+        && exe.exists() {
             return Some(exe);
         }
-    }
 
     // Search in PATH
     env::var("PATH")

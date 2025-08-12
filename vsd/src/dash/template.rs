@@ -43,14 +43,13 @@ impl Template {
         ] {
             let ident = format!("${var}$");
 
-            if template.contains(&ident) {
-                if let Some(value) = self.vars.get(var) {
+            if template.contains(&ident)
+                && let Some(value) = self.vars.get(var) {
                     template = template.replace(&ident, value);
                 }
-            }
 
-            if let Some(cap) = ident_re.captures(&template) {
-                if let Some(value) = self.vars.get(var) {
+            if let Some(cap) = ident_re.captures(&template)
+                && let Some(value) = self.vars.get(var) {
                     let count = format!(
                         "{:0>width$}",
                         value,
@@ -59,7 +58,6 @@ impl Template {
                     let m = ident_re.find(&template).unwrap();
                     template = template[..m.start()].to_owned() + &count + &template[m.end()..];
                 }
-            }
         }
 
         template

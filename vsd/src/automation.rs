@@ -107,12 +107,11 @@ impl SelectOptions {
                                     let _ = auto.video.resolutions.insert((7680, 4320));
                                 }
                                 x => {
-                                    if let Some((w, h)) = x.split_once('x') {
-                                        if let (Ok(w), Ok(h)) = (w.parse::<u16>(), h.parse::<u16>())
+                                    if let Some((w, h)) = x.split_once('x')
+                                        && let (Ok(w), Ok(h)) = (w.parse::<u16>(), h.parse::<u16>())
                                         {
                                             auto.video.resolutions.insert((w, h));
                                         }
-                                    }
                                 }
                             }
                         }

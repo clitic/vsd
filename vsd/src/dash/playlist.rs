@@ -49,15 +49,14 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
                     MediaType::Undefined
                 };
 
-                if media_type == MediaType::Undefined {
-                    if let Some(codecs) = &codecs {
+                if media_type == MediaType::Undefined
+                    && let Some(codecs) = &codecs {
                         media_type = match codecs.as_str() {
                             "wvtt" | "stpp" => MediaType::Subtitles,
                             x if x.starts_with("stpp.") => MediaType::Subtitles,
                             _ => media_type,
                         };
                     }
-                }
                 
                 streams.push(MediaPlaylist {
                     bandwidth: representation.bandwidth,

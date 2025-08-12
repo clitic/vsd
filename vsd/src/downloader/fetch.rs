@@ -191,11 +191,10 @@ fn scrape_playlist_links(text: &str) -> Vec<String> {
     links
         .into_iter()
         .map(|x| {
-            if x.starts_with("http") {
-                if let Some(y) = x.split("http").last() {
+            if x.starts_with("http")
+                && let Some(y) = x.split("http").last() {
                     return format!("http{y}");
                 }
-            }
             x
         })
         .collect()

@@ -161,11 +161,10 @@ impl Capture {
         if self.save_cookies {
             println!("{} session cookies", "Downloading".colorize("bold green"));
 
-            if let Some(directory) = &self.directory {
-                if !directory.exists() {
+            if let Some(directory) = &self.directory
+                && !directory.exists() {
                     fs::create_dir_all(directory).unwrap();
-                }
-            };
+                };
 
             let mut path = PathBuf::from("cookies.json");
 
@@ -199,11 +198,10 @@ fn handler(
         );
 
         if let Ok(body) = get_response_body() {
-            if let Some(directory) = directory {
-                if !directory.exists() {
+            if let Some(directory) = directory
+                && !directory.exists() {
                     fs::create_dir_all(directory).unwrap();
-                }
-            };
+                };
 
             let mut path = PathBuf::from(
                 params

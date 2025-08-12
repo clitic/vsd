@@ -45,11 +45,10 @@ pub fn download(
         encryption::check_key_exists_for_kid(&decrypter, &default_kids)?;
     }
 
-    if let Some(directory) = &directory {
-        if !directory.exists() {
+    if let Some(directory) = &directory
+        && !directory.exists() {
             fs::create_dir_all(directory)?;
         }
-    }
 
     for stream in &mut streams {
         if stream.media_type != MediaType::Subtitles {

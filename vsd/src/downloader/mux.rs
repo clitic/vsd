@@ -27,8 +27,8 @@ pub fn delete_temp_files(directory: Option<&PathBuf>, temp_files: &[Stream]) -> 
         fs::remove_file(&temp_file.path)?;
     }
 
-    if let Some(directory) = directory {
-        if directory.read_dir()?.next().is_none() {
+    if let Some(directory) = directory
+        && directory.read_dir()?.next().is_none() {
             println!(
                 "   {} {}",
                 "Deleting".colorize("bold red"),
@@ -36,7 +36,6 @@ pub fn delete_temp_files(directory: Option<&PathBuf>, temp_files: &[Stream]) -> 
             );
             fs::remove_dir(directory)?;
         }
-    }
 
     Ok(())
 }
