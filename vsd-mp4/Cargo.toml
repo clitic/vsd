@@ -22,11 +22,11 @@ serde = { version = "1", features = ["derive"], optional = true }
 prost-build = { version = "0.14", optional = true }
 
 [features]
-default = ["pssh", "sidx", "text-ttml", "text-vtt"]
 pssh = ["dep:base64", "dep:hex", "dep:prost", "dep:prost-build", "dep:serde"]
 sidx = []
 text-ttml = ["dep:serde", "dep:quick-xml"]
 text-vtt = []
+# default = ["pssh", "sidx", "text-ttml", "text-vtt"]
 
 [package.metadata.docs.rs]
 all-features = true

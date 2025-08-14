@@ -13,7 +13,7 @@ use crate::{
 };
 use std::sync::{Arc, Mutex};
 
-/// Parse default kid from MP4 `TENC` box.
+/// Parse default kid from mp4 `TENC` box.
 pub fn default_kid(data: &[u8]) -> Result<Option<String>> {
     let default_kid = Arc::new(Mutex::new(None));
     let default_kid_c = default_kid.clone();
