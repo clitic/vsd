@@ -80,6 +80,8 @@ Finally, add that directory to your system's `PATH` environment variable.
 | MacOS               | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.2/vsd-0.4.2-x86_64-apple-darwin.tar.xz)        |
 | Windows             | x86_64       | [.zip](https://github.com/clitic/vsd/releases/download/vsd-0.4.2/vsd-0.4.2-x86_64-pc-windows-msvc.zip)           |
 
+[![Packaging status](https://repology.org/badge/vertical-allrepos/vsd.svg)](https://repology.org/project/vsd/versions)
+
 ### Install via Cargo
 
 You can also install vsd using cargo.
@@ -92,8 +94,6 @@ $ cargo install vsd
 
 - [Build Instructions](https://github.com/clitic/vsd/blob/main/vsd/BUILD.md)
 - [Changelog](https://github.com/clitic/vsd/blob/main/vsd/CHANGELOG.md)
-
-[![Packaging status](https://repology.org/badge/vertical-allrepos/vsd.svg)](https://repology.org/project/vsd/versions)
 
 ## Usage
 
@@ -214,7 +214,7 @@ Automation Options:
   -s, --select-streams <SELECT_STREAMS>
           Filters to be applied for automatic stream selection.
           
-          SYNTAX: `v={}:s={}:a={}` where `{}` (in priority order) can contain
+          SYNTAX: `v={}:a={}:s={}` where `{}` (in priority order) can contain
           |> all: select all streams.
           |> skip: skip all streams or select inverter.
           |> 1,2: ids obtained by --list-streams flag.
@@ -222,7 +222,7 @@ Automation Options:
           |> en,fr: stream language.
           
           EXAMPLES:
-          |> v=skip:a=skip:s=all (download all sub streems)
+          |> v=skip:a=skip:s=all (download all sub streams)
           |> a:en:s=en (prefer en lang)
           |> v=1080p:a=all:s=skip (1080p with all audio streams)
           
