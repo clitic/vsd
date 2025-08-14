@@ -29,9 +29,9 @@ impl Mp4VttParser {
         let timescale_c = timescale.clone();
 
         Mp4Parser::default()
-            ._box("moov", Arc::new(parser::children))
-            ._box("trak", Arc::new(parser::children))
-            ._box("mdia", Arc::new(parser::children))
+            .basic_box("moov", Arc::new(parser::children))
+            .basic_box("trak", Arc::new(parser::children))
+            .basic_box("mdia", Arc::new(parser::children))
             .full_box(
                 "mdhd",
                 Arc::new(move |mut _box| {
@@ -44,10 +44,10 @@ impl Mp4VttParser {
                     Ok(())
                 }),
             )
-            ._box("minf", Arc::new(parser::children))
-            ._box("stbl", Arc::new(parser::children))
+            .basic_box("minf", Arc::new(parser::children))
+            .basic_box("stbl", Arc::new(parser::children))
             .full_box("stsd", Arc::new(parser::sample_description))
-            ._box(
+            .basic_box(
                 "wvtt",
                 Arc::new(move |_box| {
                     // A valid vtt init segment, though we have no actual subtitles yet.
@@ -55,7 +55,7 @@ impl Mp4VttParser {
                     Ok(())
                 }),
             )
-            .parse(data, None, None)?;
+            .parse(data, false, false)?;
 
         let saw_wvtt = *saw_wvtt.lock().unwrap();
         let timescale = *timescale.lock().unwrap();
@@ -94,8 +94,8 @@ impl Mp4VttParser {
         let timescale = self.timescale;
 
         Mp4Parser::default()
-            ._box("moof", Arc::new(parser::children))
-            ._box("traf", Arc::new(parser::children))
+            .basic_box("moof", Arc::new(parser::children))
+            .basic_box("traf", Arc::new(parser::children))
             .full_box(
                 "tfdt",
                 Arc::new(move |mut _box| {
@@ -143,7 +143,7 @@ impl Mp4VttParser {
                     Ok(())
                 }),
             )
-            ._box(
+            .basic_box(
                 "mdat",
                 parser::alldata(Arc::new(move |data| {
                     let base_time = *base_time.lock().unwrap();
@@ -171,7 +171,7 @@ impl Mp4VttParser {
                     Ok(())
                 })),
             )
-            .parse(data, Some(false), None)?;
+            .parse(data, false, false)?;
 
         let cues = cues.lock().unwrap().clone();
         Ok(Subtitles::new(cues))
@@ -303,7 +303,7 @@ fn parse_vttc(data: &[u8], start_time: f32, end_time: f32) -> Result<Option<Cue>
     let settings_c = settings.clone();
 
     Mp4Parser::default()
-        ._box(
+        .basic_box(
             "payl",
             parser::alldata(Arc::new(move |data| {
                 *payload_c.lock().unwrap() = String::from_utf8(data)
@@ -311,7 +311,7 @@ fn parse_vttc(data: &[u8], start_time: f32, end_time: f32) -> Result<Option<Cue>
                 Ok(())
             })),
         )
-        ._box(
+        .basic_box(
             "iden",
             parser::alldata(Arc::new(move |data| {
                 *id_c.lock().unwrap() = String::from_utf8(data)
@@ -319,7 +319,7 @@ fn parse_vttc(data: &[u8], start_time: f32, end_time: f32) -> Result<Option<Cue>
                 Ok(())
             })),
         )
-        ._box(
+        .basic_box(
             "sttg",
             parser::alldata(Arc::new(move |data| {
                 *settings_c.lock().unwrap() = String::from_utf8(data)
@@ -327,7 +327,7 @@ fn parse_vttc(data: &[u8], start_time: f32, end_time: f32) -> Result<Option<Cue>
                 Ok(())
             })),
         )
-        .parse(data, None, None)?;
+        .parse(data, false, false)?;
 
     let payload = payload.lock().unwrap().to_owned();
 

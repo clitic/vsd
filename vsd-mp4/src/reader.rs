@@ -35,6 +35,17 @@ impl Reader {
         self.inner.position()
     }
 
+    pub fn read_u8(&mut self) -> Result<u8> {
+        let mut buf = [0; 1];
+        self.inner.read_exact(&mut buf)?;
+
+        if self.little_endian {
+            Ok(u8::from_le_bytes(buf))
+        } else {
+            Ok(u8::from_be_bytes(buf))
+        }
+    }
+
     pub fn read_u16(&mut self) -> Result<u16> {
         let mut buf = [0; 2];
         self.inner.read_exact(&mut buf)?;

@@ -31,8 +31,8 @@ impl Subtitles {
         for current_cue in cues {
             if !(current_cue.payload.is_empty() || (current_cue.start_time == current_cue.end_time))
             {
-                if let Some(last_cue) = trimmed_cues.last() {
-                    if last_cue.end_time == current_cue.start_time
+                if let Some(last_cue) = trimmed_cues.last()
+                    && last_cue.end_time == current_cue.start_time
                         && last_cue.settings == current_cue.settings
                         && last_cue.payload == current_cue.payload
                     {
@@ -41,7 +41,6 @@ impl Subtitles {
                             current_cue.end_time;
                         continue;
                     }
-                }
 
                 trimmed_cues.push(current_cue);
             }

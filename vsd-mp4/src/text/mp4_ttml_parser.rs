@@ -20,13 +20,13 @@ impl Mp4TtmlParser {
         let saw_stpp_c = saw_stpp.clone();
 
         Mp4Parser::default()
-            ._box("moov", Arc::new(parser::children))
-            ._box("trak", Arc::new(parser::children))
-            ._box("mdia", Arc::new(parser::children))
-            ._box("minf", Arc::new(parser::children))
-            ._box("stbl", Arc::new(parser::children))
+            .basic_box("moov", Arc::new(parser::children))
+            .basic_box("trak", Arc::new(parser::children))
+            .basic_box("mdia", Arc::new(parser::children))
+            .basic_box("minf", Arc::new(parser::children))
+            .basic_box("stbl", Arc::new(parser::children))
             .full_box("stsd", Arc::new(parser::sample_description))
-            ._box(
+            .basic_box(
                 "stpp",
                 Arc::new(move |mut _box| {
                     *saw_stpp_c.lock().unwrap() = true;
@@ -34,7 +34,7 @@ impl Mp4TtmlParser {
                     Ok(())
                 }),
             )
-            .parse(data, None, None)?;
+            .parse(data, false, false)?;
 
         let saw_stpp = *saw_stpp.lock().unwrap();
 
@@ -54,7 +54,7 @@ impl Mp4TtmlParser {
         let cues_c = cues.clone();
 
         Mp4Parser::default()
-            ._box(
+            .basic_box(
                 "mdat",
                 parser::alldata(Arc::new(move |data| {
                     *saw_mdat_c.lock().unwrap() = true;
@@ -75,7 +75,7 @@ impl Mp4TtmlParser {
                     Ok(())
                 })),
             )
-            .parse(data, Some(false), None)?;
+            .parse(data, false, false)?;
 
         let saw_mdat = *saw_mdat.lock().unwrap();
 

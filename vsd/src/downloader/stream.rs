@@ -148,6 +148,26 @@ fn download_stream(
 
             let response = request.send()?;
             let bytes = response.bytes()?;
+
+            //             Pssh {
+            //     key_ids: [
+            //         KeyId {
+            //             system_type: PlayReady,
+            //             value: "000000003c42c8c86331202020202020",
+            //         },
+            //         KeyId {
+            //             system_type: WideVine,
+            //             value: "00000000423cc8c86331202020202020",
+            //         },
+            //     ],
+            //     system_ids: [
+            //         "9a04f07998404286ab92e65be0885f95",
+            //         "edef8ba979d64acea3c827dcd51d21ed",
+            //     ],
+            // }
+            // println!("{:#?}", vsd_mp4::pssh::Pssh::new(&bytes).unwrap());
+
+            // println!("{:?}", vsd_mp4::pssh::default_kid(&bytes));
             init_seg = Some(bytes.to_vec())
         }
 
@@ -185,9 +205,7 @@ fn download_stream(
                                 ))?;
                             }
                         } else {
-                            bail!(
-                                "custom keys (KID:KEY;...) are required to continue further.",
-                            );
+                            bail!("custom keys (KID:KEY;...) are required to continue further.",);
                         }
                     }
                     _ => (),
@@ -355,9 +373,7 @@ fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
             StatusCode::SERVICE_UNAVAILABLE => {
                 Ok(format!("    {request} {url} (service unavailable)"))
             }
-            StatusCode::TOO_MANY_REQUESTS => {
-                Ok(format!("    {request} {url} (too many requests)"))
-            }
+            StatusCode::TOO_MANY_REQUESTS => Ok(format!("    {request} {url} (too many requests)")),
             _ => bail!("download failed {} (HTTP {})", url, status),
         }
     } else {

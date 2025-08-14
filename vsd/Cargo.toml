@@ -9,7 +9,7 @@ keywords = ["m3u8", "mpd"]
 license = "MIT OR Apache-2.0"
 name = "vsd"
 repository = "https://github.com/clitic/vsd/tree/main/vsd"
-version = "0.4.2"
+version = "0.4.3"
 readme = "README.md"
 
 [dependencies]
@@ -36,7 +36,7 @@ requestty = "0.5.0"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "cookies", "socks"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-vsd-mp4 = { version = "0.1.3", path = "../vsd-mp4", features = ["pssh", "sidx", "text-ttml", "text-vtt"] }
+vsd-mp4 = { version = "0.1.4", path = "../vsd-mp4", features = ["pssh", "sidx", "text-ttml", "text-vtt"] }
 
 [features]
 default = ["browser", "native-tls"]

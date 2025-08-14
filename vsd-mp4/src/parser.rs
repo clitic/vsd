@@ -2,8 +2,8 @@
     REFERENCES
     ----------
 
-    1. https://github.com/shaka-project/shaka-player/blob/d6001097a9751bd9211eb52f940e282ead026a32/lib/util/mp4_parser.js
-    2. https://github.com/shaka-project/shaka-player/blob/d6001097a9751bd9211eb52f940e282ead026a32/externs/shaka/mp4_parser.js
+    1. https://github.com/shaka-project/shaka-player/blob/7098f43f70119226bca2e5583833aaf27b498e33/lib/util/mp4_box_parsers.js
+    2. https://github.com/shaka-project/shaka-player/blob/7098f43f70119226bca2e5583833aaf27b498e33/externs/shaka/mp4_parser.js
 
 */
 
@@ -24,8 +24,8 @@ pub struct Mp4Parser {
 }
 
 impl Mp4Parser {
-    /// Declare a box type as a Box.
-    pub fn _box(mut self, _type: &str, definition: CallbackType) -> Self {
+    /// Declare a box type as a Basic Box.
+    pub fn basic_box(mut self, _type: &str, definition: CallbackType) -> Self {
         let type_code = type_from_string(_type);
         self.headers.insert(type_code, BoxType::BasicBox);
         self.box_definitions.insert(type_code, definition);
@@ -50,16 +50,16 @@ impl Mp4Parser {
     ///
     /// # Arguments
     ///
-    /// - `partial_okay` (optional) - If true, allow reading partial payloads
+    /// - `partial_okay` - If true, allow reading partial payloads
     ///   from some boxes. If the goal is a child box, we can sometimes find it
     ///   without enough data to find all child boxes.
-    /// - `stop_on_partial` (optional) - If true, stop reading if an incomplete
+    /// - `stop_on_partial` - If true, stop reading if an incomplete
     ///   box is detected.
     pub fn parse(
         &mut self,
         data: &[u8],
-        partial_okay: Option<bool>,
-        stop_on_partial: Option<bool>,
+        partial_okay: bool,
+        stop_on_partial: bool,
     ) -> HandlerResult {
         let mut reader = Reader::new(data, false);
 
@@ -78,20 +78,18 @@ impl Mp4Parser {
     ///
     /// - `abs_start` - The absolute start position in the original
     ///   byte array.
-    /// - `partial_okay` (optional) - If true, allow reading partial payloads
+    /// - `partial_okay` - If true, allow reading partial payloads
     ///   from some boxes. If the goal is a child box, we can sometimes find it
     ///   without enough data to find all child boxes.
-    /// - `stop_on_partial` (optional) - If true, stop reading if an incomplete
+    /// - `stop_on_partial` - If true, stop reading if an incomplete
     ///   box is detected.
     fn parse_next(
         &mut self,
         abs_start: u64,
         reader: &mut Reader,
-        partial_okay: Option<bool>,
-        stop_on_partial: Option<bool>,
+        partial_okay: bool,
+        stop_on_partial: bool,
     ) -> HandlerResult {
-        let partial_okay = partial_okay.unwrap_or(false);
-        let stop_on_partial = stop_on_partial.unwrap_or(false);
         let start = reader.get_position();
 
         // size(4 bytes) + type(4 bytes) = 8 bytes
@@ -161,9 +159,9 @@ impl Mp4Parser {
 
             let payload_size = end - reader.get_position();
             let payload = if payload_size > 0 {
-                reader.read_bytes_u8(payload_size as usize).map_err(|_| {
-                    Error::new_read(format!("box payload ({payload_size} bytes)."))
-                })?
+                reader
+                    .read_bytes_u8(payload_size as usize)
+                    .map_err(|_| Error::new_read(format!("box payload ({payload_size} bytes).")))?
             } else {
                 Vec::with_capacity(0)
             };
@@ -174,6 +172,7 @@ impl Mp4Parser {
                 name,
                 parser: self.clone(),
                 partial_okay,
+                stop_on_partial,
                 version,
                 flags,
                 reader: payload_reader,
@@ -212,8 +211,8 @@ pub fn children(mut _box: ParsedBox) -> HandlerResult {
         _box.parser.parse_next(
             _box.start + header_size,
             &mut _box.reader,
-            Some(_box.partial_okay),
-            None,
+            _box.partial_okay,
+            _box.stop_on_partial,
         )?;
     }
 
@@ -237,8 +236,8 @@ pub fn sample_description(mut _box: ParsedBox) -> HandlerResult {
         _box.parser.parse_next(
             _box.start + header_size,
             &mut _box.reader,
-            Some(_box.partial_okay),
-            None,
+            _box.partial_okay,
+            _box.stop_on_partial,
         )?;
 
         if _box.parser.done {
@@ -278,8 +277,80 @@ pub fn visual_sample_entry(mut _box: ParsedBox) -> HandlerResult {
         _box.parser.parse_next(
             _box.start + header_size,
             &mut _box.reader,
-            Some(_box.partial_okay),
-            None,
+            _box.partial_okay,
+            _box.stop_on_partial,
+        )?;
+    }
+
+    Ok(())
+}
+
+/// A callback that tells the Mp4 parser to treat the body of a box as a audio
+/// sample entry.  A audio sample entry has some fixed-sized fields
+/// describing the audio codec parameters, followed by an arbitrary number of
+/// ppended children.  Each child is a box.
+pub fn audio_sample_entry(mut _box: ParsedBox) -> HandlerResult {
+    // The "reader" starts at the payload, so we need to add the header to the
+    // start position.  The header size varies.
+    let header_size = _box.header_size();
+
+    // 6 bytes reserved
+    // 2 bytes data reference index
+    _box.reader
+        .skip(8)
+        .map_err(|_| Error::new_read("audio sample entry reserved (6+2 bytes)."))?;
+
+    // 2 bytes version
+    let version = _box
+        .reader
+        .read_u16()
+        .map_err(|_| Error::new_read("audio sample entry version (u16)."))?;
+    // 2 bytes revision (0, could be ignored)
+    // 4 bytes reserved
+    _box.reader
+        .skip(6)
+        .map_err(|_| Error::new_read("audio sample entry reserved (2+4 bytes)."))?;
+
+    if version == 2 {
+        // 16 bytes hard-coded values with no comments
+        // 8 bytes sample rate
+        // 4 bytes channel count
+        // 4 bytes hard-coded values with no comments
+        // 4 bytes bits per sample
+        // 4 bytes lpcm flags
+        // 4 bytes sample size
+        // 4 bytes samples per packet
+        _box.reader
+            .skip(48)
+            .map_err(|_| Error::new_read("audio sample entry reserved (48 bytes)."))?;
+    } else {
+        // 2 bytes channel count
+        // 2 bytes bits per sample
+        // 2 bytes compression ID
+        // 2 bytes packet size
+        // 2 bytes sample rate
+        // 2 byte reserved
+        _box.reader
+            .skip(12)
+            .map_err(|_| Error::new_read("audio sample entry reserved (12 bytes)."))?;
+    }
+
+    if version == 1 {
+        // 4 bytes samples per packet
+        // 4 bytes bytes per packet
+        // 4 bytes bytes per frame
+        // 4 bytes bytes per sample
+        _box.reader
+            .skip(16)
+            .map_err(|_| Error::new_read("audio sample entry reserved (16 bytes)."))?;
+    }
+
+    while _box.reader.has_more_data() && !_box.parser.done {
+        _box.parser.parse_next(
+            _box.start + header_size,
+            &mut _box.reader,
+            _box.partial_okay,
+            _box.stop_on_partial,
         )?;
     }
 
@@ -288,7 +359,6 @@ pub fn visual_sample_entry(mut _box: ParsedBox) -> HandlerResult {
 
 /// Create a callback that tells the Mp4 parser to treat the body of a box as a
 /// binary blob and to parse the body's contents using the provided callback.
-#[allow(clippy::arc_with_non_send_sync)]
 pub fn alldata(callback: Arc<dyn Fn(Vec<u8>) -> HandlerResult>) -> CallbackType {
     Arc::new(move |mut _box| {
         let all = _box.reader.get_length() - _box.reader.get_position();
@@ -342,14 +412,17 @@ pub struct ParsedBox {
     pub name: String,
     /// The parser that parsed this box. The parser can be used to parse child
     /// boxes where the configuration of the current parser is needed to parsed
-    /// other boxes
+    /// other boxes.
     pub parser: Mp4Parser,
     /// If true, allows reading partial payloads from some boxes. If the goal is a
     /// child box, we can sometimes find it without enough data to find all child
     /// boxes. This property allows the partialOkay flag from parse() to be
     /// propagated through methods like children().
     pub partial_okay: bool,
-    /// The size of this box (including the header).
+    /// If true, stop reading if an incomplete box is detected.
+    pub stop_on_partial: bool,
+    /// The start of this box (before the header) in the original buffer. This
+    /// start position is the absolute position.
     pub start: u64, // i64
     /// The size of this box (including the header).
     pub size: usize,

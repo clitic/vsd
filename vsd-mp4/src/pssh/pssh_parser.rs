@@ -81,13 +81,13 @@ impl Pssh {
         let pssh_c = pssh.clone();
 
         Mp4Parser::default()
-            ._box("moov", Arc::new(parser::children))
-            ._box("moof", Arc::new(parser::children))
+            .basic_box("moov", Arc::new(parser::children))
+            .basic_box("moof", Arc::new(parser::children))
             .full_box(
                 "pssh",
                 Arc::new(move |mut _box| pssh_c.lock().unwrap().parse_pssh_box(&mut _box)),
             )
-            .parse(data, None, None)?;
+            .parse(data, false, false)?;
 
         let pssh = pssh.lock().unwrap();
         let mut key_ids: Vec<KeyId> = vec![];
@@ -184,15 +184,3 @@ impl Pssh {
         Ok(())
     }
 }
-
-// https://github.com/shaka-project/shaka-player/blob/main/lib/util/buffer_utils.js
-// fn view(mut reader: Reader, offset: i64, length: i64) -> Vec<u8> {
-//     let data_end = (reader.get_position() + reader.get_length()) as i64;
-//     // let data_end = reader.get_length() as i64;
-//     let raw_start = reader.get_position() as i64 + offset;
-//     // let raw_start = offset;
-//     let start = std::cmp::max(0, std::cmp::min(raw_start, data_end));
-//     let end = std::cmp::min(start + std::cmp::max(length, 0), start);
-//     reader.set_position(start as u64);
-//     reader.read_bytes(end as usize).unwrap()
-// }

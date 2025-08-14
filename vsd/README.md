@@ -93,6 +93,8 @@ $ cargo install vsd
 - [Build Instructions](https://github.com/clitic/vsd/blob/main/vsd/BUILD.md)
 - [Changelog](https://github.com/clitic/vsd/blob/main/vsd/CHANGELOG.md)
 
+[![Packaging status](https://repology.org/badge/vertical-allrepos/vsd.svg)](https://repology.org/project/vsd/versions)
+
 ## Usage
 
 - Capture playlists and subtitles from a website.

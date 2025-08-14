@@ -32,7 +32,7 @@ pub fn parse(data: &[u8], sidx_offset: u64) -> Result<Vec<Range>> {
                 Ok(())
             }),
         )
-        .parse(data, None, None)?;
+        .parse(data, false, false)?;
 
     let references = references.lock().unwrap().to_vec();
     Ok(references)
