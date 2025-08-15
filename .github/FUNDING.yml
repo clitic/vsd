@@ -1,2 +1,4 @@
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+
 github: [clitic]
-custom: ["https://www.buymeacoffee.com/clitic"]
+buy_me_a_coffee: clitic
