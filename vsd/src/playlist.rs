@@ -236,9 +236,9 @@ impl MasterPlaylist {
                         .video
                         .resolutions
                         .contains(&(*w as u16, *h as u16))
-                    {
-                        selected_vstreams.insert(*i);
-                    }
+                {
+                    selected_vstreams.insert(*i);
+                }
             }
 
             if select_opts.video.skip && !selected_vstreams.is_empty() {
@@ -249,9 +249,10 @@ impl MasterPlaylist {
                 }
             } else if !select_opts.video.skip {
                 if selected_vstreams.is_empty()
-                    && let Some((i, _)) = video_streams.first() {
-                        selected_vstreams.insert(*i);
-                    }
+                    && let Some((i, _)) = video_streams.first()
+                {
+                    selected_vstreams.insert(*i);
+                }
 
                 for i in selected_vstreams {
                     selected_streams.insert(i);
@@ -274,16 +275,18 @@ impl MasterPlaylist {
 
             for (i, stream) in &audio_streams {
                 if let Some(stream_lang) = &stream.language
-                    && select_opts.audio.contains_exact_lang(stream_lang) {
-                        selected_astreams.insert(*i);
-                    }
+                    && select_opts.audio.contains_exact_lang(stream_lang)
+                {
+                    selected_astreams.insert(*i);
+                }
             }
 
             for (i, stream) in &audio_streams {
                 if let Some(stream_lang) = &stream.language
-                    && select_opts.audio.contains_siml_lang(stream_lang) {
-                        selected_astreams.insert(*i);
-                    }
+                    && select_opts.audio.contains_siml_lang(stream_lang)
+                {
+                    selected_astreams.insert(*i);
+                }
             }
 
             if select_opts.audio.skip && !selected_astreams.is_empty() {
@@ -294,9 +297,10 @@ impl MasterPlaylist {
                 }
             } else if !select_opts.audio.skip {
                 if selected_astreams.is_empty()
-                    && let Some((i, _)) = audio_streams.first() {
-                        selected_astreams.insert(*i);
-                    }
+                    && let Some((i, _)) = audio_streams.first()
+                {
+                    selected_astreams.insert(*i);
+                }
 
                 for i in selected_astreams {
                     selected_streams.insert(i);
@@ -319,16 +323,18 @@ impl MasterPlaylist {
 
             for (i, stream) in &sub_streams {
                 if let Some(stream_lang) = &stream.language
-                    && select_opts.subs.contains_exact_lang(stream_lang) {
-                        selected_sstreams.insert(*i);
-                    }
+                    && select_opts.subs.contains_exact_lang(stream_lang)
+                {
+                    selected_sstreams.insert(*i);
+                }
             }
 
             for (i, stream) in &sub_streams {
                 if let Some(stream_lang) = &stream.language
-                    && select_opts.subs.contains_siml_lang(stream_lang) {
-                        selected_sstreams.insert(*i);
-                    }
+                    && select_opts.subs.contains_siml_lang(stream_lang)
+                {
+                    selected_sstreams.insert(*i);
+                }
             }
 
             if select_opts.subs.skip && !selected_sstreams.is_empty() {
@@ -339,9 +345,10 @@ impl MasterPlaylist {
                 }
             } else if !select_opts.subs.skip {
                 if selected_sstreams.is_empty()
-                    && let Some((i, _)) = sub_streams.first() {
-                        selected_sstreams.insert(*i);
-                    }
+                    && let Some((i, _)) = sub_streams.first()
+                {
+                    selected_sstreams.insert(*i);
+                }
 
                 for i in selected_sstreams {
                     selected_streams.insert(i);
@@ -667,17 +674,27 @@ impl MediaPlaylist {
         client: &Client,
         query: &HashMap<String, String>,
     ) -> Result<usize> {
-        let base_url = base_url.clone().unwrap_or(self.uri.parse::<Url>().unwrap());
         let total_segments = self.segments.len();
 
+        if total_segments > 1
+            && let Some(Segment {
+                range: Some(Range { end, .. }),
+                ..
+            }) = self.segments.last()
+        {
+            return Ok(*end as usize);
+        }
+
         if let Some(segment) = self.segments.first() {
+            let base_url = base_url.clone().unwrap_or(self.uri.parse::<Url>().unwrap());
             let url = base_url.join(&segment.uri)?;
             let mut request = client.head(url.clone()).query(query);
 
             if total_segments > 1
-                && let Some(range) = &segment.range {
-                    request = request.header(header::RANGE, range.as_header_value());
-                }
+                && let Some(range) = &segment.range
+            {
+                request = request.header(header::RANGE, range.as_header_value());
+            }
 
             let response = request.send()?;
             let content_length = response
@@ -711,9 +728,10 @@ impl MediaPlaylist {
 
         if let Some(segment) = self.segments.first() {
             if let Some(init) = &segment.map
-                && init.uri.ends_with(".mp4") {
-                    ext = "mp4";
-                }
+                && init.uri.ends_with(".mp4")
+            {
+                ext = "mp4";
+            }
 
             if segment.uri.ends_with(".mp4") {
                 ext = "mp4";
