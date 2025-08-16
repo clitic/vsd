@@ -30,6 +30,10 @@
   <img src="https://github.com/clitic/vsd/blob/main/vsd/images/showcase.gif" width="700">
 </p>
 
+<div align="center">
+    <a href="https://www.buymeacoffee.com/clitic" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="41px"></a>
+</div>
+
 ## Table of Contents
 
 - [Features](#features)
@@ -72,13 +76,13 @@ Finally, add that directory to your system's `PATH` environment variable.
 
 | Host                | Architecture | Download                                                                                                     |
 |---------------------|--------------|--------------------------------------------------------------------------------------------------------------|
-| Android 7+ (Termux) | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.2/vsd-0.4.2-aarch64-linux-android.tar.xz)      |
-| Linux               | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.2/vsd-0.4.2-aarch64-unknown-linux-musl.tar.xz) |
-| MacOS               | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.2/vsd-0.4.2-aarch64-apple-darwin.tar.xz)       |
-| Windows             | aarch64      | [.zip](https://github.com/clitic/vsd/releases/download/vsd-0.4.2/vsd-0.4.2-aarch64-pc-windows-msvc.zip)          |
-| Linux               | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.2/vsd-0.4.2-x86_64-unknown-linux-musl.tar.xz)  |
-| MacOS               | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.2/vsd-0.4.2-x86_64-apple-darwin.tar.xz)        |
-| Windows             | x86_64       | [.zip](https://github.com/clitic/vsd/releases/download/vsd-0.4.2/vsd-0.4.2-x86_64-pc-windows-msvc.zip)           |
+| Android 7+ (Termux) | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.3/vsd-0.4.3-aarch64-linux-android.tar.xz)      |
+| Linux               | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.3/vsd-0.4.3-aarch64-unknown-linux-musl.tar.xz) |
+| MacOS               | aarch64      | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.3/vsd-0.4.3-aarch64-apple-darwin.tar.xz)       |
+| Windows             | aarch64      | [.zip](https://github.com/clitic/vsd/releases/download/vsd-0.4.3/vsd-0.4.3-aarch64-pc-windows-msvc.zip)          |
+| Linux               | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.3/vsd-0.4.3-x86_64-unknown-linux-musl.tar.xz)  |
+| MacOS               | x86_64       | [.tar.xz](https://github.com/clitic/vsd/releases/download/vsd-0.4.3/vsd-0.4.3-x86_64-apple-darwin.tar.xz)        |
+| Windows             | x86_64       | [.zip](https://github.com/clitic/vsd/releases/download/vsd-0.4.3/vsd-0.4.3-x86_64-pc-windows-msvc.zip)           |
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/vsd.svg)](https://repology.org/project/vsd/versions)
 
@@ -198,6 +202,11 @@ Options:
           [default: auto]
           [possible values: auto, always, never]
 
+      --subs-codec <SUBS_CODEC>
+          Force some specific subtitle codec when muxing through ffmpeg. By default `mov_text` is used for .mp4 and `copy` for others
+          
+          [default: copy]
+
   -h, --help
           Print help (see a summary with '-h')
 
@@ -271,7 +280,7 @@ Download Options:
           Download streams without merging them. Note that --output flag is ignored if this flag is used
 
   -t, --threads <THREADS>
-          Maximum number of threads for parllel downloading of segments. Number of threads should be in range 1-16 (inclusive)
+          Total number of threads for parllel downloading of segments. Number of threads should be in range 1-16 (inclusive)
           
           [default: 5]
 ```
@@ -290,7 +299,7 @@ $ ln -s /storage/emulated/0/Download Download
 2. Install [vsd on termux](https://github.com/clitic/vsd/blob/main/vsd/BUILD.md#android-on-termux). Currently, only *arm64-v8a* binaries pre-builts are available which can be installed using the following command.
 
 ```bash
-curl -L https://github.com/clitic/vsd/releases/download/vsd-0.4.2/vsd-0.4.2-aarch64-linux-android.tar.xz | tar xJC $PREFIX/bin
+curl -L https://github.com/clitic/vsd/releases/download/vsd-0.4.3/vsd-0.4.3-aarch64-linux-android.tar.xz | tar xJC $PREFIX/bin
 ```
 
 3. Use third party browsers like [Kiwi Browser](https://github.com/kiwibrowser/src.next) (*developer tools*) paired with [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) extension or [Via Browser](https://play.google.com/store/apps/details?id=mark.via.gp) (*tools > resource sniffer*) to find playlists within websites.
