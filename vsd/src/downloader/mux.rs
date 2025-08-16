@@ -28,19 +28,20 @@ pub fn delete_temp_files(directory: Option<&PathBuf>, temp_files: &[Stream]) -> 
     }
 
     if let Some(directory) = directory
-        && directory.read_dir()?.next().is_none() {
-            println!(
-                "   {} {}",
-                "Deleting".colorize("bold red"),
-                directory.to_string_lossy()
-            );
-            fs::remove_dir(directory)?;
-        }
+        && directory.read_dir()?.next().is_none()
+    {
+        println!(
+            "   {} {}",
+            "Deleting".colorize("bold red"),
+            directory.to_string_lossy()
+        );
+        fs::remove_dir(directory)?;
+    }
 
     Ok(())
 }
 
-pub fn ffmpeg(output: Option<&PathBuf>, temp_files: &[Stream]) -> Result<()> {
+pub fn ffmpeg(output: Option<&PathBuf>, subs_codec: &str, temp_files: &[Stream]) -> Result<()> {
     let output = output.unwrap();
 
     let sub_streams_present = temp_files
@@ -115,10 +116,16 @@ pub fn ffmpeg(output: Option<&PathBuf>, temp_files: &[Stream]) -> Result<()> {
 
         if sub_streams_present {
             args.extend_from_slice(&["-disposition:s:0".to_owned(), "default".to_owned()]);
-        }
 
-        if sub_streams_present && output.extension() == Some(OsStr::new("mp4")) {
-            args.extend_from_slice(&["-c:s".to_owned(), "mov_text".to_owned()]);
+            if subs_codec == "copy" {
+                if output.extension() == Some(OsStr::new("mp4")) {
+                    args.extend_from_slice(&["-c:s".to_owned(), "mov_text".to_owned()]);
+                } else {
+                    args.extend_from_slice(&["-c:s".to_owned(), "copy".to_owned()]);
+                }
+            } else {
+                args.extend_from_slice(&["-c:s".to_owned(), subs_codec.to_owned()]);
+            }
         }
 
         args.extend_from_slice(&[

@@ -28,8 +28,9 @@ pub fn download(
     no_decrypt: bool,
     no_merge: bool,
     output: Option<PathBuf>,
-    query: &HashMap<String, String>,
+    query: HashMap<String, String>,
     mut streams: Vec<MediaPlaylist>,
+    subs_codec: String,
     retries: u8,
     threads: u8,
 ) -> Result<()> {
@@ -41,7 +42,7 @@ pub fn download(
 
     if !no_decrypt {
         encryption::check_unsupported_encryptions(&streams)?;
-        let default_kids = encryption::extract_default_kids(&base_url, &client, &streams, query)?;
+        let default_kids = encryption::extract_default_kids(&base_url, &client, &streams, &query)?;
         encryption::check_key_exists_for_kid(&decrypter, &default_kids)?;
     }
 
@@ -52,7 +53,7 @@ pub fn download(
 
     for stream in &mut streams {
         if stream.media_type != MediaType::Subtitles {
-            stream.split_segment(&base_url, &client, query)?;
+            stream.split_segment(&base_url, &client, &query)?;
         }
     }
 
@@ -84,7 +85,7 @@ pub fn download(
         directory.as_ref(),
         &streams,
         &mut pb,
-        query,
+        &query,
         &mut temp_files,
     )?;
 
@@ -96,7 +97,7 @@ pub fn download(
         no_decrypt,
         no_merge,
         pb,
-        query,
+        &query,
         retries,
         streams,
         threads,
@@ -104,7 +105,7 @@ pub fn download(
     )?;
 
     if should_mux {
-        mux::ffmpeg(output.as_ref(), &temp_files)?;
+        mux::ffmpeg(output.as_ref(), &subs_codec, &temp_files)?;
         mux::delete_temp_files(directory.as_ref(), &temp_files)?;
     }
 

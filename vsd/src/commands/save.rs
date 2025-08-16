@@ -47,6 +47,11 @@ pub struct Save {
     #[arg(long)]
     pub parse: bool,
 
+    /// Force some specific subtitle codec when muxing through ffmpeg.
+    /// By default `mov_text` is used for .mp4 and `copy` for others.
+    #[arg(long, default_value = "copy")]
+    pub subs_codec: String,
+
     /// Prompt for custom streams selection with modern style input prompts. By default proceed with defaults.
     #[arg(short, long, help_heading = "Automation Options")]
     pub interactive: bool,
@@ -125,7 +130,7 @@ pub struct Save {
     #[arg(long, help_heading = "Download Options")]
     pub no_merge: bool,
 
-    /// Maximum number of threads for parllel downloading of segments.
+    /// Total number of threads for parllel downloading of segments.
     /// Number of threads should be in range 1-16 (inclusive).
     #[arg(short, long, help_heading = "Download Options", default_value_t = 5, value_parser = clap::value_parser!(u8).range(1..=16))]
     pub threads: u8,
@@ -216,8 +221,9 @@ impl Save {
                 self.no_decrypt,
                 self.no_merge,
                 self.output,
-                &self.query,
+                self.query,
                 streams,
+                self.subs_codec,
                 self.retries,
                 self.threads,
             )?;
