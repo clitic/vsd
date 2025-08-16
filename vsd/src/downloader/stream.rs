@@ -113,7 +113,7 @@ fn download_stream(
     base_url: &Option<Url>,
     client: &Client,
     downloaded_bytes: &mut usize,
-    mut decrypter: Decrypter,
+    decrypter: Decrypter,
     estimated_bytes: usize,
     no_decrypt: bool,
     no_merge: bool,
@@ -136,6 +136,9 @@ fn download_stream(
         .unwrap_or(stream.uri.parse::<Url>().unwrap());
     let mut threads = Vec::with_capacity(stream.segments.len());
     let timer = Arc::new(Instant::now());
+
+    let mut default_kid = None;
+    let mut stream_decrypter = decrypter.clone();
 
     for (i, segment) in stream.segments.iter().enumerate() {
         if let Some(map) = &segment.map {
@@ -167,13 +170,13 @@ fn download_stream(
             // }
             // println!("{:#?}", vsd_mp4::pssh::Pssh::new(&bytes).unwrap());
 
-            // println!("{:?}", vsd_mp4::pssh::default_kid(&bytes));
+            default_kid = vsd_mp4::pssh::default_kid(&bytes)?.or(stream.default_kid());
             init_seg = Some(bytes.to_vec())
         }
 
         if !no_decrypt {
             if increment_iv {
-                decrypter.increment_iv();
+                stream_decrypter.increment_iv();
             }
 
             if let Some(key) = &segment.key {
@@ -184,7 +187,7 @@ fn download_stream(
                         let response = request.send()?;
                         let bytes = response.bytes()?;
 
-                        decrypter = Decrypter::new_hls_aes(
+                        stream_decrypter = Decrypter::new_hls_aes(
                             key.key(&bytes)?,
                             key.iv(stream.media_sequence)?,
                             &key.method,
@@ -195,14 +198,22 @@ fn download_stream(
                         }
                     }
                     KeyMethod::Mp4Decrypt => {
-                        if let Decrypter::Mp4Decrypt(kid_key_pairs) = &decrypter {
-                            if let Some(default_kid) = stream.default_kid() {
+                        if let Decrypter::Mp4Decrypt(kid_key_pairs) = &stream_decrypter {
+                            if let Some(default_kid) = &default_kid {
+                                // We already checked this before hand
+                                let key = kid_key_pairs.get(default_kid).unwrap();
+
                                 pb.lock().unwrap().write(format!(
                                     "        {} {}:{}",
                                     "Key".colorize("bold red"),
                                     default_kid,
-                                    kid_key_pairs.get(&default_kid).unwrap(), // We already checked this before hand
+                                    key,
                                 ))?;
+
+                                stream_decrypter = Decrypter::Mp4Decrypt(HashMap::from([(
+                                    default_kid.to_owned(),
+                                    key.to_owned(),
+                                )]));
                             }
                         } else {
                             bail!("custom keys (KID:KEY;...) are required to continue further.",);
@@ -221,7 +232,7 @@ fn download_stream(
         }
 
         threads.push(Thread {
-            decrypter: decrypter.clone(),
+            decrypter: stream_decrypter.clone(),
             downloaded_bytes: *downloaded_bytes,
             estimated_bytes,
             index: i,
@@ -233,7 +244,7 @@ fn download_stream(
             timer: timer.clone(),
         });
 
-        if decrypter.is_none() {
+        if stream_decrypter.is_none() {
             init_seg = None;
         }
     }

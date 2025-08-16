@@ -107,12 +107,13 @@ pub fn check_key_exists_for_kid(
 pub fn check_unsupported_encryptions(streams: &Vec<MediaPlaylist>) -> Result<()> {
     for stream in streams {
         if let Some(Segment { key: Some(x), .. }) = stream.segments.first()
-            && let KeyMethod::Other(x) = &x.method {
-                bail!(
-                    "{} decryption is not supported. Use --no-decrypt flag to download encrypted streams.",
-                    x,
-                );
-            }
+            && let KeyMethod::Other(x) = &x.method
+        {
+            bail!(
+                "{} decryption is not supported. Use --no-decrypt flag to download encrypted streams.",
+                x,
+            );
+        }
     }
 
     Ok(())
