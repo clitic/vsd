@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `save`
+  - Decryption bug fixes. ([#54](https://github.com/clitic/vsd/issues/54), [#61](https://github.com/clitic/vsd/issues/61)).
+
 ## [0.4.2] - 2025-08-12
 
 ### Changed
