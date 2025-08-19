@@ -1461,7 +1461,7 @@ dependencies = [
 
 [[package]]
 name = "mp4decrypt"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bento4-src",
 ]
@@ -2807,7 +2807,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vsd"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "aes",
  "anyhow",

@@ -36,8 +36,7 @@ pub fn default_kid(data: &[u8]) -> Result<Option<String>> {
                 Ok(())
             }),
         )
-        .parse(data, true, false)
-        .unwrap();
+        .parse(data, true, false)?;
 
     let default_kid = default_kid.lock().unwrap();
     Ok(default_kid.clone())

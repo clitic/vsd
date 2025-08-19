@@ -10,7 +10,7 @@ license = "MIT OR Apache-2.0"
 name = "mp4decrypt"
 readme = "README.md"
 repository = "https://github.com/clitic/vsd/tree/main/mp4decrypt"
-version = "0.5.1"
+version = "0.5.2"
 
 [dependencies]
 

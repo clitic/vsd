@@ -6,27 +6,17 @@ extern "C"
 {
 #endif
 
-    typedef void (*rust_store_callback)(void *, const unsigned char *data, unsigned int length);
-    int decrypt_in_memory(
+    typedef void (*callback_rust)(void *, const unsigned char *data, unsigned int length);
+
+    int ap4_mp4decrypt(
         const unsigned char data[],
         unsigned int data_size,
-        const char* keyids[],
-        const char* keys[],
-        int nkeys,
-        void* decrypted_data,
-        rust_store_callback callback
-    );
-    int decrypt_in_memory_with_fragments_info(
-        const unsigned char data[],
-        unsigned int data_size,
-        const char* keyids[],
-        const char* keys[],
-        int nkeys,
-        void* decrypted_data,
-        rust_store_callback callback,
-        const unsigned char fragments_info_data[],
-        unsigned int fragments_info_data_size
-    );
+        const char *keys[],
+        unsigned int keys_size,
+        const unsigned char fg_info[],
+        unsigned int fg_info_size,
+        void *decrypted_data,
+        callback_rust callback);
 
 #ifdef __cplusplus
 }
