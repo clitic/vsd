@@ -700,11 +700,8 @@ impl MediaPlaylist {
             let content_length = response
                 .headers()
                 .get(header::CONTENT_LENGTH)
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .parse::<usize>()
-                .unwrap();
+                .map(|h| h.to_str().unwrap_or("0").parse::<usize>().unwrap_or(0usize))
+                .unwrap_or(0usize);
 
             if total_segments > 1 {
                 return Ok(total_segments * content_length);
