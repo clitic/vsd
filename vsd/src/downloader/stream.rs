@@ -1,12 +1,11 @@
 use crate::{
-    downloader::{encryption::Decrypter, fix, mux::Stream},
+    downloader::{encryption::Decrypter, mux::Stream},
     merger::Merger,
     playlist::{KeyMethod, MediaPlaylist, MediaType},
     utils,
 };
 use anyhow::{Result, bail};
 use kdam::{BarExt, Column, RichProgress, term::Colorizer};
-use rayon::{ThreadPool, ThreadPoolBuilder};
 use reqwest::{Client, RequestBuilder, StatusCode, Url, header};
 use std::{
     collections::{HashMap, VecDeque},
