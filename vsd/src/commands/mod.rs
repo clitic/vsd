@@ -21,10 +21,9 @@ use clap::{ColorChoice, Parser, Subcommand};
     long_version = concat!(
         env!("CARGO_PKG_VERSION"),
         "\n\nEnabled features:",
-        "\n  browser                 : ", cfg!(feature = "browser"),
-        "\n  native-tls              : ", cfg!(feature = "native-tls"),
-        "\n  rustls-tls-native-roots : ", cfg!(feature = "rustls-tls-native-roots"),
-        "\n  rustls-tls-webpki-roots : ", cfg!(feature = "rustls-tls-webpki-roots"),
+        "\n  browser    : ", cfg!(feature = "browser"),
+        "\n  native-tls : ", cfg!(feature = "native-tls"),
+        "\n  rustls     : ", cfg!(feature = "rustls"),
     ),
     version,
 )]

@@ -3,6 +3,7 @@
 ## Dependencies
 
 - C/C++ Compiler
+- [cmake](https://cmake.org/download)
 - [protoc](https://github.com/protocolbuffers/protobuf)
 - [reqwest](https://github.com/seanmonstar/reqwest#requirements) (crate)
 - [rust](https://www.rust-lang.org)
@@ -13,9 +14,8 @@
 These features can be turned on or off by using cargo's `--features` flag.
 
 1. `browser` (*default*): Enable `capture` subcommand.
-2. `native-tls` (*default*): Enable `native-tls` feature of [reqwest] crate.
-3. `rustls-tls-native-roots`: Enable `rustls-tls-native-roots` feature of [reqwest] crate.
-4. `rustls-tls-webpki-roots`: Enable `rustls-tls-webpki-roots` feature of [reqwest] crate.
+2. `rustls` (*default*): Enable `rustls` feature of [reqwest] crate.
+3. `native-tls`: Enable `native-tls` feature of [reqwest] crate.
 
 ## Any Target
 
@@ -49,7 +49,7 @@ $ PATH=$HOME/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH \
     CC=aarch64-linux-android25-clang \
     CXX=aarch64-linux-android25-clang++ \
     RUSTFLAGS="-C linker=aarch64-linux-android25-clang -C link-args=-Wl,-rpath=/data/data/com.termux/files/usr/lib" \
-    cargo build -p vsd --release --target aarch64-linux-android --no-default-features --features "rustls-tls-webpki-roots"
+    cargo build -p vsd --release --target aarch64-linux-android --no-default-features --features "rustls"
 ```
 
 4. Inspect for linked libraries.
@@ -140,7 +140,7 @@ $ PATH=$HOME/musl-cross-make/output/bin:$PATH \
     CC=x86_64-linux-musl-gcc \
     CXX=x86_64-linux-musl-g++ \
     RUSTFLAGS="-C linker=x86_64-linux-musl-gcc" \
-    cargo build -p vsd --release --target x86_64-unknown-linux-musl --no-default-features --features "browser,rustls-tls-webpki-roots"
+    cargo build -p vsd --release --target x86_64-unknown-linux-musl
 ```
 
 5. Inspect for linked libraries.
@@ -166,7 +166,7 @@ $ rustup target add x86_64-unknown-linux-musl
 3. Now build with *x86_64-unknown-linux-musl* target using cargo-zigbuild.
 
 ```bash
-$ cargo zigbuild -p vsd --release --target x86_64-unknown-linux-musl --no-default-features --features "browser,rustls-tls-webpki-roots"
+$ cargo zigbuild -p vsd --release --target x86_64-unknown-linux-musl
 ```
 
 5. Inspect for linked libraries.

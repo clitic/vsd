@@ -21,7 +21,7 @@ PATH=$PACKAGES_DIR/android-ndk-$ANDROID_NDK_VERSION/toolchains/llvm/prebuilt/lin
   CC=aarch64-linux-android25-clang \
   CXX=aarch64-linux-android25-clang++ \
   RUSTFLAGS="-C linker=aarch64-linux-android25-clang -C link-args=-Wl,-rpath=/data/data/com.termux/files/usr/lib" \
-  cargo build -p vsd --release --target aarch64-linux-android --no-default-features --features "rustls-tls-webpki-roots"
+  cargo build -p vsd --release --target aarch64-linux-android --no-default-features --features "rustls"
 
 echo "Packaging aarch64-linux-android"
 cd target/aarch64-linux-android/release
@@ -64,7 +64,7 @@ cd ../../../
 # Linux
 
 echo "Building aarch64-unknown-linux-musl"
-cargo zigbuild -p vsd --release --target aarch64-unknown-linux-musl --no-default-features --features "browser,rustls-tls-webpki-roots"
+cargo zigbuild -p vsd --release --target aarch64-unknown-linux-musl
 
 echo "Packaging aarch64-unknown-linux-musl"
 cd target/aarch64-unknown-linux-musl/release
@@ -73,7 +73,7 @@ tar -cJf $RELEASE_DIR/vsd-$VSD_VERSION-aarch64-unknown-linux-musl.tar.xz ./vsd
 cd ../../../
 
 echo "Building x86_64-unknown-linux-musl"
-cargo zigbuild -p vsd --release --target x86_64-unknown-linux-musl --no-default-features --features "browser,rustls-tls-webpki-roots"
+cargo zigbuild -p vsd --release --target x86_64-unknown-linux-musl
 
 echo "Packaging x86_64-unknown-linux-musl"
 cd target/x86_64-unknown-linux-musl/release
