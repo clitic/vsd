@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>vsd - Video Stream Downloader</title>
+    <meta name="description" content="A powerful command-line utility to download DASH and HLS video streams.">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        primary: '#f59e0b', // Amber/Rust-like color
+                        primaryHover: '#d97706',
+                        dark: {
+                            900: '#0f172a',
+                            800: '#1e293b',
+                            700: '#334155',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Alpine.js for interactivity -->
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .text-shadow {
+                text-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+            }
+            .glass-panel {
+                @apply bg-dark-800/50 backdrop-blur-lg border border-white/10;
+            }
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569; 
+        }
+    </style>
+</head>
+
+<body class="bg-dark-900 text-slate-300 font-sans antialiased selection:bg-primary selection:text-white">
+
+    <!-- Navigation -->
+    <nav
+        class="fixed w-full z-50 top-0 transition-all duration-300 bg-dark-900/80 backdrop-blur-md border-b border-white/5">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl font-bold text-white tracking-tighter">vsd</span>
+                    <span
+                        class="hidden sm:inline-block px-2 py-0.5 rounded text-xs font-mono bg-primary/10 text-primary border border-primary/20">CLI</span>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-8">
+                        <a href="#" class="hover:text-white transition-colors duration-200">Home</a>
+                        <a href="#features" class="hover:text-white transition-colors duration-200">Features</a>
+                        <a href="#downloads" class="hover:text-white transition-colors duration-200">Installation</a>
+                        <a href="#usage" class="hover:text-white transition-colors duration-200">Usage</a>
+                        <a href="https://github.com/clitic/vsd" target="_blank"
+                            class="text-white bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-all duration-200 flex items-center gap-2">
+                            <i class="fab fa-github"></i> Star on GitHub
+                        </a>
+                    </div>
+                </div>
+                <!-- Mobile menu button (simplified) -->
+                <div class="-mr-2 flex md:hidden">
+                    <a href="https://github.com/clitic/vsd" class="text-white p-2">
+                        <i class="fab fa-github text-2xl"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
+        <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h1 class="text-5xl md:text-7xl font-extrabold text-white tracking-tight mb-6">
+                Video Stream <span
+                    class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400">Downloader</span>
+            </h1>
+            <p class="mt-4 max-w-2xl mx-auto text-xl text-slate-400">
+                A powerful command-line utility to capture, decrypt, and download DASH (.mpd) and HLS (.m3u8) streams
+                with ease.
+            </p>
+
+            <div class="mt-10 flex flex-col sm:flex-row justify-center gap-4">
+                <a href="#downloads"
+                    class="px-8 py-4 rounded-xl bg-primary text-white font-semibold hover:bg-primaryHover transform hover:-translate-y-1 transition-all duration-200 shadow-lg shadow-primary/25 flex items-center justify-center gap-2">
+                    <i class="fas fa-download"></i> Download Binary
+                </a>
+            </div>
+
+            <!-- Terminal Showcase -->
+            <div
+                class="mt-16 relative rounded-xl bg-dark-900 border border-white/10 shadow-2xl max-w-4xl mx-auto overflow-hidden group">
+                <div class="flex items-center gap-2 px-4 py-3 bg-dark-800 border-b border-white/5">
+                    <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                    <div class="ml-4 text-xs text-slate-500 font-mono">vsd save</div>
+                </div>
+                <div class="relative w-full h-auto">
+                    <img src="https://github.com/clitic/vsd/blob/main/vsd/images/showcase.gif?raw=true"
+                        alt="vsd CLI usage demo" class="w-full h-auto block opacity-90">
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Features Section -->
+    <section id="features" class="py-20 bg-dark-800/30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl font-bold text-white mb-4">Powerful Features</h2>
+                <p class="text-slate-400">Everything you need to archive streams efficiently.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Features (Unchanged) -->
+                <div class="glass-panel p-6 rounded-2xl hover:bg-dark-800 transition-colors">
+                    <div class="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 text-primary">
+                        <i class="fas fa-network-wired text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-white mb-2">Network Capture</h3>
+                    <p class="text-slate-400">Captures network requests to automatically detect playlist and subtitle
+                        files from websites.</p>
+                </div>
+                <div class="glass-panel p-6 rounded-2xl hover:bg-dark-800 transition-colors">
+                    <div
+                        class="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center mb-4 text-blue-400">
+                        <i class="fas fa-bolt text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-white mb-2">Multi-threaded</h3>
+                    <p class="text-slate-400">Downloads segments in parallel with a unified progress bar for maximum
+                        speed.</p>
+                </div>
+                <div class="glass-panel p-6 rounded-2xl hover:bg-dark-800 transition-colors">
+                    <div
+                        class="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center mb-4 text-green-400">
+                        <i class="fas fa-lock-open text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-white mb-2">Decryption Support</h3>
+                    <p class="text-slate-400">Supports decryption for AES-128, SAMPLE-AES, CENC, CBCS, and more.</p>
+                </div>
+                <div class="glass-panel p-6 rounded-2xl hover:bg-dark-800 transition-colors">
+                    <div
+                        class="w-12 h-12 rounded-lg bg-purple-500/10 flex items-center justify-center mb-4 text-purple-400">
+                        <i class="fas fa-file-video text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-white mb-2">Smart Muxing</h3>
+                    <p class="text-slate-400">Automatically muxes video and audio streams into a single container using
+                        ffmpeg.</p>
+                </div>
+                <div class="glass-panel p-6 rounded-2xl hover:bg-dark-800 transition-colors">
+                    <div class="w-12 h-12 rounded-lg bg-red-500/10 flex items-center justify-center mb-4 text-red-400">
+                        <i class="fas fa-robot text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-white mb-2">Automation Ready</h3>
+                    <p class="text-slate-400">Offers robust automation support with JSON output parsing and cookie
+                        handling.</p>
+                </div>
+                <div class="glass-panel p-6 rounded-2xl hover:bg-dark-800 transition-colors">
+                    <div
+                        class="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center mb-4 text-orange-400">
+                        <i class="fas fa-list-check text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-white mb-2">Stream Selection</h3>
+                    <p class="text-slate-400">Filter streams by resolution, language, or specific IDs before
+                        downloading.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Downloads / Installation Section -->
+    <section id="downloads" class="py-24 relative" x-data="{ activeTab: 'windows', winArch: 'x64', linArch: 'x64' }">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-bold text-white mb-4">Download & Install</h2>
+                <p class="text-slate-400">Choose your platform to get started.</p>
+            </div>
+
+            <!-- OS Tabs -->
+            <div class="flex flex-wrap justify-center gap-2 mb-8">
+                <button @click="activeTab = 'windows'"
+                    :class="{ 'bg-primary text-white': activeTab === 'windows', 'bg-dark-800 text-slate-400 hover:text-white': activeTab !== 'windows' }"
+                    class="px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2">
+                    <i class="fab fa-windows"></i> Windows
+                </button>
+                <button @click="activeTab = 'linux'"
+                    :class="{ 'bg-primary text-white': activeTab === 'linux', 'bg-dark-800 text-slate-400 hover:text-white': activeTab !== 'linux' }"
+                    class="px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2">
+                    <i class="fab fa-linux"></i> Linux
+                </button>
+                <button @click="activeTab = 'macos'"
+                    :class="{ 'bg-primary text-white': activeTab === 'macos', 'bg-dark-800 text-slate-400 hover:text-white': activeTab !== 'macos' }"
+                    class="px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2">
+                    <i class="fab fa-apple"></i> macOS
+                </button>
+                <button @click="activeTab = 'android'"
+                    :class="{ 'bg-primary text-white': activeTab === 'android', 'bg-dark-800 text-slate-400 hover:text-white': activeTab !== 'android' }"
+                    class="px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2">
+                    <i class="fab fa-android"></i> Android
+                </button>
+            </div>
+
+            <!-- Download Cards Area -->
+            <div class="glass-panel rounded-2xl p-8 min-h-[300px] border border-white/5">
+
+                <!-- Windows Content -->
+                <div x-show="activeTab === 'windows'" x-transition:enter="transition ease-out duration-300"
+                    x-transition:enter-start="opacity-0 transform scale-95"
+                    x-transition:enter-end="opacity-100 transform scale-100">
+
+                    <!-- Arch Selection for Command -->
+                    <div class="flex justify-between items-center mb-4">
+                        <label class="text-sm font-semibold text-white uppercase tracking-wider">Quick Install
+                            (PowerShell)</label>
+                        <div class="bg-dark-900 rounded-lg p-1 flex text-xs">
+                            <button @click="winArch = 'x64'; updateWinCmd('x64')"
+                                :class="winArch === 'x64' ? 'bg-primary text-white shadow-sm' : 'text-slate-400 hover:text-white'"
+                                class="px-3 py-1 rounded transition-all">x86_64</button>
+                            <button @click="winArch = 'arm64'; updateWinCmd('arm64')"
+                                :class="winArch === 'arm64' ? 'bg-primary text-white shadow-sm' : 'text-slate-400 hover:text-white'"
+                                class="px-3 py-1 rounded transition-all">ARM64</button>
+                        </div>
+                    </div>
+
+                    <div class="mb-8">
+                        <div
+                            class="bg-black/50 rounded-lg p-4 font-mono text-sm border border-white/5 relative group pr-14">
+                            <span class="text-slate-500 select-none">PS> </span><code id="cmd-win-ps"
+                                class="text-white break-all">Fetching latest version...</code>
+                            <button
+                                onclick="navigator.clipboard.writeText(document.getElementById('cmd-win-ps').innerText); document.getElementById('copied-win-ps').classList.remove('hidden'); setTimeout(()=>document.getElementById('copied-win-ps').classList.add('hidden'), 2000)"
+                                class="absolute top-2 right-2 bg-white/10 hover:bg-white/20 p-2 rounded text-white transition-colors">
+                                <i class="far fa-copy"></i>
+                            </button>
+                            <span id="copied-win-ps"
+                                class="hidden absolute top-2 right-12 text-xs font-semibold text-green-400 bg-dark-800 border border-green-400/30 rounded py-1 px-3 shadow-lg z-10">Copied!</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-2">Downloads and extracts the binary to your current
+                            directory.</p>
+                    </div>
+
+                    <div class="border-t border-white/10 my-8"></div>
+
+                    <!-- Binaries -->
+                    <label class="text-sm font-semibold text-white uppercase tracking-wider block mb-4">Download
+                        Binary</label>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <div
+                            class="bg-dark-900/50 p-6 rounded-xl border border-white/5 hover:border-primary/50 transition-colors group">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h4 class="text-white font-semibold text-lg">Windows x86_64</h4>
+                                    <span class="text-slate-500 text-sm">Standard 64-bit</span>
+                                </div>
+                                <i
+                                    class="fab fa-windows text-2xl text-slate-600 group-hover:text-primary transition-colors"></i>
+                            </div>
+                            <a id="dl-win-x64" href="#"
+                                class="w-full block text-center py-2 rounded bg-white/10 hover:bg-white/20 text-white font-medium transition-colors">
+                                Download .zip
+                            </a>
+                        </div>
+                        <div
+                            class="bg-dark-900/50 p-6 rounded-xl border border-white/5 hover:border-primary/50 transition-colors group">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h4 class="text-white font-semibold text-lg">Windows ARM64</h4>
+                                    <span class="text-slate-500 text-sm">Surface Pro X, etc.</span>
+                                </div>
+                                <i
+                                    class="fab fa-windows text-2xl text-slate-600 group-hover:text-primary transition-colors"></i>
+                            </div>
+                            <a id="dl-win-arm" href="#"
+                                class="w-full block text-center py-2 rounded bg-white/10 hover:bg-white/20 text-white font-medium transition-colors">
+                                Download .zip
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Linux Content -->
+                <div x-show="activeTab === 'linux'" style="display: none;"
+                    x-transition:enter="transition ease-out duration-300"
+                    x-transition:enter-start="opacity-0 transform scale-95"
+                    x-transition:enter-end="opacity-100 transform scale-100">
+
+                    <!-- Arch Selection for Command -->
+                    <div class="flex justify-between items-center mb-4">
+                        <label class="text-sm font-semibold text-white uppercase tracking-wider">Quick Install
+                            (curl)</label>
+                        <div class="bg-dark-900 rounded-lg p-1 flex text-xs">
+                            <button @click="linArch = 'x64'; updateLinCmd('x64')"
+                                :class="linArch === 'x64' ? 'bg-primary text-white shadow-sm' : 'text-slate-400 hover:text-white'"
+                                class="px-3 py-1 rounded transition-all">x86_64</button>
+                            <button @click="linArch = 'arm64'; updateLinCmd('arm64')"
+                                :class="linArch === 'arm64' ? 'bg-primary text-white shadow-sm' : 'text-slate-400 hover:text-white'"
+                                class="px-3 py-1 rounded transition-all">ARM64</button>
+                        </div>
+                    </div>
+
+                    <div class="mb-8">
+                        <div
+                            class="bg-black/50 rounded-lg p-4 font-mono text-sm border border-white/5 relative group pr-14">
+                            <span class="text-slate-500 select-none">$ </span><code id="cmd-lin-curl"
+                                class="text-white break-all">Fetching latest version...</code>
+                            <button
+                                onclick="navigator.clipboard.writeText(document.getElementById('cmd-lin-curl').innerText); document.getElementById('copied-lin-curl').classList.remove('hidden'); setTimeout(()=>document.getElementById('copied-lin-curl').classList.add('hidden'), 2000)"
+                                class="absolute top-2 right-2 bg-white/10 hover:bg-white/20 p-2 rounded text-white transition-colors">
+                                <i class="far fa-copy"></i>
+                            </button>
+                            <span id="copied-lin-curl"
+                                class="hidden absolute top-2 right-12 text-xs font-semibold text-green-400 bg-dark-800 border border-green-400/30 rounded py-1 px-3 shadow-lg z-10">Copied!</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-2">Extracts the binary to your current directory. Add to
+                            PATH manually.</p>
+                    </div>
+
+                    <div class="border-t border-white/10 my-8"></div>
+
+                    <!-- Binaries -->
+                    <label class="text-sm font-semibold text-white uppercase tracking-wider block mb-4">Download
+                        Binary</label>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <div
+                            class="bg-dark-900/50 p-6 rounded-xl border border-white/5 hover:border-primary/50 transition-colors group">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h4 class="text-white font-semibold text-lg">Linux x86_64</h4>
+                                    <span class="text-slate-500 text-sm">Standard 64-bit (musl)</span>
+                                </div>
+                                <i
+                                    class="fab fa-linux text-2xl text-slate-600 group-hover:text-primary transition-colors"></i>
+                            </div>
+                            <a id="dl-lin-x64" href="#"
+                                class="w-full block text-center py-2 rounded bg-white/10 hover:bg-white/20 text-white font-medium transition-colors">
+                                Download .tar.xz
+                            </a>
+                        </div>
+                        <div
+                            class="bg-dark-900/50 p-6 rounded-xl border border-white/5 hover:border-primary/50 transition-colors group">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h4 class="text-white font-semibold text-lg">Linux aarch64</h4>
+                                    <span class="text-slate-500 text-sm">ARM 64-bit (musl)</span>
+                                </div>
+                                <i
+                                    class="fab fa-linux text-2xl text-slate-600 group-hover:text-primary transition-colors"></i>
+                            </div>
+                            <a id="dl-lin-arm" href="#"
+                                class="w-full block text-center py-2 rounded bg-white/10 hover:bg-white/20 text-white font-medium transition-colors">
+                                Download .tar.xz
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MacOS Content -->
+                <div x-show="activeTab === 'macos'" style="display: none;"
+                    x-transition:enter="transition ease-out duration-300"
+                    x-transition:enter-start="opacity-0 transform scale-95"
+                    x-transition:enter-end="opacity-100 transform scale-100">
+
+                    <!-- Brew -->
+                    <div class="mb-8">
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-sm font-semibold text-white uppercase tracking-wider">Quick Install
+                                (Homebrew)
+                            </label>
+                        </div>
+                        <div
+                            class="bg-black/50 rounded-lg p-4 font-mono text-sm border border-white/5 relative group pr-14">
+                            <span class="text-slate-500 select-none">$ </span><code
+                                class="text-white break-all">brew install vsd</code>
+                            <button
+                                onclick="navigator.clipboard.writeText('brew install vsd'); document.getElementById('copied-mac-brew').classList.remove('hidden'); setTimeout(()=>document.getElementById('copied-mac-brew').classList.add('hidden'), 2000)"
+                                class="absolute top-2 right-2 bg-white/10 hover:bg-white/20 p-2 rounded text-white transition-colors">
+                                <i class="far fa-copy"></i>
+                            </button>
+                            <span id="copied-mac-brew"
+                                class="hidden absolute top-2 right-12 text-xs font-semibold text-green-400 bg-dark-800 border border-green-400/30 rounded py-1 px-3 shadow-lg z-10">Copied!</span>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-white/10 my-8"></div>
+
+                    <!-- Binaries -->
+                    <label class="text-sm font-semibold text-white uppercase tracking-wider block mb-4">Download
+                        Binary</label>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <div
+                            class="bg-dark-900/50 p-6 rounded-xl border border-white/5 hover:border-primary/50 transition-colors group">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h4 class="text-white font-semibold text-lg">macOS Intel</h4>
+                                    <span class="text-slate-500 text-sm">x86_64</span>
+                                </div>
+                                <i
+                                    class="fab fa-apple text-2xl text-slate-600 group-hover:text-primary transition-colors"></i>
+                            </div>
+                            <a id="dl-mac-intel" href="#"
+                                class="w-full block text-center py-2 rounded bg-white/10 hover:bg-white/20 text-white font-medium transition-colors">
+                                Download .tar.xz
+                            </a>
+                        </div>
+                        <div
+                            class="bg-dark-900/50 p-6 rounded-xl border border-white/5 hover:border-primary/50 transition-colors group">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h4 class="text-white font-semibold text-lg">macOS Apple Silicon</h4>
+                                    <span class="text-slate-500 text-sm">M1/M2/M3 (aarch64)</span>
+                                </div>
+                                <i
+                                    class="fab fa-apple text-2xl text-slate-600 group-hover:text-primary transition-colors"></i>
+                            </div>
+                            <a id="dl-mac-silicon" href="#"
+                                class="w-full block text-center py-2 rounded bg-white/10 hover:bg-white/20 text-white font-medium transition-colors">
+                                Download .tar.xz
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Android Content -->
+                <div x-show="activeTab === 'android'" style="display: none;"
+                    x-transition:enter="transition ease-out duration-300"
+                    x-transition:enter-start="opacity-0 transform scale-95"
+                    x-transition:enter-end="opacity-100 transform scale-100">
+
+                    <!-- Termux Command -->
+                    <div class="mb-8">
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-sm font-semibold text-white uppercase tracking-wider">Quick Install
+                                (Termux)</label>
+                        </div>
+                        <div
+                            class="bg-black/50 rounded-lg p-4 font-mono text-sm border border-white/5 relative group pr-14">
+                            <span class="text-slate-500 select-none">$ </span><code id="cmd-android"
+                                class="text-white break-all">Fetching latest version...</code>
+                            <button
+                                onclick="navigator.clipboard.writeText(document.getElementById('cmd-android').innerText); document.getElementById('copied-android').classList.remove('hidden'); setTimeout(()=>document.getElementById('copied-android').classList.add('hidden'), 2000)"
+                                class="absolute top-2 right-2 bg-white/10 hover:bg-white/20 p-2 rounded text-white transition-colors">
+                                <i class="far fa-copy"></i>
+                            </button>
+                            <span id="copied-android"
+                                class="hidden absolute top-2 right-12 text-xs font-semibold text-green-400 bg-dark-800 border border-green-400/30 rounded py-1 px-3 shadow-lg z-10">Copied!</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-2">Requires Termux. Downloads and extracts the binary to
+                            <code>$PREFIX/bin</code>.
+                        </p>
+                    </div>
+
+                    <div class="border-t border-white/10 my-8"></div>
+
+                    <!-- Binaries -->
+                    <label class="text-sm font-semibold text-white uppercase tracking-wider block mb-4">Download
+                        Binary</label>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <div
+                            class="bg-dark-900/50 p-6 rounded-xl border border-white/5 hover:border-primary/50 transition-colors group">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h4 class="text-white font-semibold text-lg">Android aarch64</h4>
+                                    <span class="text-slate-500 text-sm">ARM 64-bit</span>
+                                </div>
+                                <i
+                                    class="fab fa-android text-2xl text-slate-600 group-hover:text-green-500 transition-colors"></i>
+                            </div>
+                            <a id="dl-android" href="#"
+                                class="w-full block text-center py-2 rounded bg-white/10 hover:bg-white/20 text-white font-medium transition-colors">
+                                Download .tar.xz
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CI / Source Links -->
+            <div class="flex flex-wrap justify-center gap-4 mt-6">
+                <a href="https://nightly.link/clitic/vsd/workflows/build/main" target="_blank"
+                    class="inline-flex items-center gap-2 px-4 py-2 bg-dark-800 border border-primary/30 rounded-full text-sm text-primary hover:bg-primary/10 transition-colors">
+                    <i class="fas fa-flask"></i> Get latest CI / Debug Builds
+                </a>
+                <a href="https://github.com/clitic/vsd/blob/main/vsd/BUILD.md" target="_blank"
+                    class="inline-flex items-center gap-2 px-4 py-2 bg-dark-800 border border-white/10 rounded-full text-sm text-slate-300 hover:bg-white/5 transition-colors">
+                    <i class="fas fa-hammer"></i> Build from Source
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Usage Examples Section -->
+    <section id="usage" class="py-20 bg-dark-900 border-t border-white/5">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-bold text-white mb-4">Common Usage</h2>
+                <p class="text-slate-400">Learn how to use vsd to capture, parse, and download content.</p>
+            </div>
+
+            <div class="grid grid-cols-1 gap-6">
+                <!-- Example 1: Basic Download -->
+                <div class="glass-panel rounded-xl overflow-hidden">
+                    <div class="bg-dark-800 px-6 py-3 border-b border-white/5 flex items-center justify-between">
+                        <h3 class="text-white font-medium"><i class="fas fa-download mr-2 text-primary"></i> Basic
+                            Download</h3>
+                        <span class="text-xs text-slate-500 bg-dark-900 px-2 py-1 rounded">HLS / DASH</span>
+                    </div>
+                    <div class="p-6">
+                        <p class="text-slate-400 mb-4 text-sm">Download a playlist and save it as an MP4 file.</p>
+                        <div
+                            class="bg-black/50 rounded-lg p-4 font-mono text-sm border border-white/5 relative group pr-14">
+                            <span class="text-slate-500 select-none">$ </span>
+                            <code id="cmd-usage-1"
+                                class="text-white break-all">vsd save https://example.com/playlist.m3u8 -o video.mp4</code>
+                            <button
+                                onclick="navigator.clipboard.writeText('vsd save https://example.com/playlist.m3u8 -o video.mp4'); document.getElementById('copied-usage-1').classList.remove('hidden'); setTimeout(()=>document.getElementById('copied-usage-1').classList.add('hidden'), 2000)"
+                                class="absolute top-2 right-2 bg-white/10 hover:bg-white/20 p-2 rounded text-white transition-colors">
+                                <i class="far fa-copy"></i>
+                            </button>
+                            <span id="copied-usage-1"
+                                class="hidden absolute top-2 right-12 text-xs font-semibold text-green-400 bg-dark-800 border border-green-400/30 rounded py-1 px-3 shadow-lg z-10">Copied!</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Example 2: Capture -->
+                <div class="glass-panel rounded-xl overflow-hidden">
+                    <div class="bg-dark-800 px-6 py-3 border-b border-white/5 flex items-center justify-between">
+                        <h3 class="text-white font-medium"><i class="fas fa-network-wired mr-2 text-blue-400"></i>
+                            Capture Traffic</h3>
+                        <span class="text-xs text-slate-500 bg-dark-900 px-2 py-1 rounded">Sniffing</span>
+                    </div>
+                    <div class="p-6">
+                        <p class="text-slate-400 mb-4 text-sm">Sniff network requests to find playlists and save
+                            cookies.</p>
+                        <div
+                            class="bg-black/50 rounded-lg p-4 font-mono text-sm border border-white/5 relative group pr-14">
+                            <span class="text-slate-500 select-none">$ </span>
+                            <code id="cmd-usage-2"
+                                class="text-white break-all">vsd capture https://example.com --save-cookies</code>
+                            <button
+                                onclick="navigator.clipboard.writeText('vsd capture https://example.com --save-cookies'); document.getElementById('copied-usage-2').classList.remove('hidden'); setTimeout(()=>document.getElementById('copied-usage-2').classList.add('hidden'), 2000)"
+                                class="absolute top-2 right-2 bg-white/10 hover:bg-white/20 p-2 rounded text-white transition-colors">
+                                <i class="far fa-copy"></i>
+                            </button>
+                            <span id="copied-usage-2"
+                                class="hidden absolute top-2 right-12 text-xs font-semibold text-green-400 bg-dark-800 border border-green-400/30 rounded py-1 px-3 shadow-lg z-10">Copied!</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-dark-900 border-t border-white/5 py-12">
+        <div
+            class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
+            <div class="flex items-center gap-2">
+                <span class="text-xl font-bold text-white">vsd</span>
+                <span class="text-slate-500">© 2022-26</span>
+            </div>
+
+            <div class="flex gap-8">
+                <a href="https://github.com/clitic/vsd" target="_blank"
+                    class="text-slate-400 hover:text-white transition-colors">
+                    <i class="fab fa-github text-xl"></i>
+                </a>
+                <a href="https://crates.io/crates/vsd" target="_blank"
+                    class="text-slate-400 hover:text-primary transition-colors">
+                    <i class="fas fa-cube text-xl"></i>
+                </a>
+            </div>
+
+            <div class="text-sm text-slate-500">
+                Licensed under <a href="#" class="text-slate-400 hover:text-white">Apache 2.0</a> & <a href="#"
+                    class="text-slate-400 hover:text-white">MIT</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Version Fetching Script -->
+    <script>
+        // Global variables to store asset URLs
+        let winX64Url = '#';
+        let winArmUrl = '#';
+        let linX64Url = '#';
+        let linArmUrl = '#';
+
+        // Functions to update commands based on arch
+        function updateWinCmd(arch) {
+            const url = arch === 'x64' ? winX64Url : winArmUrl;
+            if (url && url !== '#') {
+                const psCmd = `irm ${url} -OutFile vsd.zip; Expand-Archive vsd.zip -DestinationPath . -Force; rm vsd.zip`;
+                document.getElementById('cmd-win-ps').innerText = psCmd;
+            } else {
+                document.getElementById('cmd-win-ps').innerText = 'Fetching latest version...';
+            }
+        }
+
+        function updateLinCmd(arch) {
+            const url = arch === 'x64' ? linX64Url : linArmUrl;
+            if (url && url !== '#') {
+                const curlCmd = `curl -L ${url} | tar xJC .`;
+                document.getElementById('cmd-lin-curl').innerText = curlCmd;
+            } else {
+                document.getElementById('cmd-lin-curl').innerText = 'Fetching latest version...';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Fetch latest release data from GitHub API
+                const response = await fetch('https://api.github.com/repos/clitic/vsd/releases/latest');
+                if (!response.ok) throw new Error('Network response was not ok');
+                const data = await response.json();
+
+                // Helper to find asset URL by name pattern
+                const findAsset = (pattern) => {
+                    const asset = data.assets.find(a => a.name.includes(pattern));
+                    return asset ? asset.browser_download_url : '#';
+                };
+
+                // Store URLs
+                winX64Url = findAsset('x86_64-pc-windows-msvc.zip');
+                winArmUrl = findAsset('aarch64-pc-windows-msvc.zip');
+                linX64Url = findAsset('x86_64-unknown-linux-musl.tar.xz');
+                linArmUrl = findAsset('aarch64-unknown-linux-musl.tar.xz');
+                
+                const macIntel = findAsset('x86_64-apple-darwin.tar.xz');
+                const macSilicon = findAsset('aarch64-apple-darwin.tar.xz');
+                const androidArm = findAsset('aarch64-linux-android.tar.xz');
+
+                // Update Links
+                if (winX64Url !== '#') document.getElementById('dl-win-x64').href = winX64Url;
+                if (winArmUrl !== '#') document.getElementById('dl-win-arm').href = winArmUrl;
+                if (linX64Url !== '#') document.getElementById('dl-lin-x64').href = linX64Url;
+                if (linArmUrl !== '#') document.getElementById('dl-lin-arm').href = linArmUrl;
+                if (macIntel !== '#') document.getElementById('dl-mac-intel').href = macIntel;
+                if (macSilicon !== '#') document.getElementById('dl-mac-silicon').href = macSilicon;
+                if (androidArm !== '#') document.getElementById('dl-android').href = androidArm;
+
+                // Initial Command Updates (Default to x64)
+                updateWinCmd('x64');
+                updateLinCmd('x64');
+
+                if (androidArm !== '#') {
+                    const termuxCmd = `curl -L ${androidArm} | tar xJC $PREFIX/bin`;
+                    document.getElementById('cmd-android').innerText = termuxCmd;
+                }
+
+            } catch (error) {
+                console.error('Failed to fetch latest version:', error);
+            }
+        });
+    </script>
+</body>
+
+</html>
