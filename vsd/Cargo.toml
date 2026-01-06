@@ -22,7 +22,7 @@ chrono = "0.4"
 clap = { version = "4", features = ["derive", "wrap_help"] }
 cookie = "0.18"
 ctrlc = "3"
-dash-mpd = { version = "0.18", default-features = false }
+dash-mpd = { version = "0.19", default-features = false }
 glob = "0.3"
 headless_chrome = { version = "1.0.10", optional = true }
 hex = "0.4"
@@ -31,7 +31,7 @@ kdam = { version = "0.6", features = ["rich"] }
 m3u8-rs = "6.0.0"
 mp4decrypt = { version = "0.5.2", path = "../mp4decrypt" }
 regex = "1"
-requestty = "0.5.0"
+requestty = "0.6.3"
 reqwest = { version = "0.13", default-features = false, features = ["cookies", "query", "socks"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
