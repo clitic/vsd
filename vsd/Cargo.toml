@@ -33,9 +33,10 @@ mp4decrypt = { version = "0.5.2", path = "../mp4decrypt" }
 rayon = "1"
 regex = "1"
 requestty = "0.5.0"
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "cookies", "socks"] }
+reqwest = { version = "0.12", default-features = false, features = ["cookies", "socks"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "fs", "signal", "sync", "io-util"] }
 vsd-mp4 = { version = "0.1.4", path = "../vsd-mp4", features = ["pssh", "sidx", "text-ttml", "text-vtt"] }
 
 [features]

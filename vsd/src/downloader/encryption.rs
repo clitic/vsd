@@ -2,7 +2,7 @@ use crate::playlist::{KeyMethod, MediaPlaylist, Segment};
 use aes::cipher::{BlockDecryptMut, KeyIvInit, block_padding::Pkcs7};
 use anyhow::{Result, anyhow, bail};
 use kdam::term::Colorizer;
-use reqwest::{Url, blocking::Client, header};
+use reqwest::{Url, Client, header};
 use std::collections::{HashMap, HashSet};
 use vsd_mp4::pssh::Pssh;
 
@@ -119,7 +119,7 @@ pub fn check_unsupported_encryptions(streams: &Vec<MediaPlaylist>) -> Result<()>
     Ok(())
 }
 
-pub fn extract_default_kids(
+pub async fn extract_default_kids(
     base_url: &Option<Url>,
     client: &Client,
     streams: &Vec<MediaPlaylist>,
@@ -148,8 +148,8 @@ pub fn extract_default_kids(
                 request = request.header(header::RANGE, range.as_header_value());
             }
 
-            let response = request.send()?;
-            let bytes = response.bytes()?;
+            let response = request.send().await?;
+            let bytes = response.bytes().await?;
 
             let default_kid = vsd_mp4::pssh::default_kid(&bytes)?;
             let pssh = Pssh::new(&bytes).map_err(|x| anyhow!(x))?;

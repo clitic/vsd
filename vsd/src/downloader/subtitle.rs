@@ -5,7 +5,7 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use kdam::{BarExt, Column, RichProgress, term::Colorizer};
-use reqwest::{Url, blocking::Client, header};
+use reqwest::{Url, Client, header};
 use std::{collections::HashMap, ffi::OsStr, fs::File, io::Write, path::PathBuf};
 use vsd_mp4::text::{Mp4TtmlParser, Mp4VttParser, ttml_text_parser};
 
@@ -18,7 +18,7 @@ enum SubtitleType {
     VttText,
 }
 
-pub fn download_subtitle_streams(
+pub async fn download_subtitle_streams(
     base_url: &Option<Url>,
     client: &Client,
     directory: Option<&PathBuf>,
@@ -29,14 +29,14 @@ pub fn download_subtitle_streams(
 ) -> Result<()> {
     for stream in streams {
         if stream.media_type == MediaType::Subtitles {
-            download_subtitle_stream(base_url, client, directory, stream, pb, query, temp_files)?;
+            download_subtitle_stream(base_url, client, directory, stream, pb, query, temp_files).await?;
         }
     }
 
     Ok(())
 }
 
-fn download_subtitle_stream(
+async fn download_subtitle_stream(
     base_url: &Option<Url>,
     client: &Client,
     directory: Option<&PathBuf>,
@@ -98,8 +98,8 @@ fn download_subtitle_stream(
                 request = request.header(header::RANGE, range.as_header_value());
             }
 
-            let response = request.send()?;
-            let bytes = response.bytes()?;
+            let response = request.send().await?;
+            let bytes = response.bytes().await?;
             subs_data.extend_from_slice(&bytes);
         }
 
@@ -110,8 +110,8 @@ fn download_subtitle_stream(
             request = request.header(header::RANGE, range.as_header_value());
         }
 
-        let response = request.send()?;
-        let bytes = response.bytes()?;
+        let response = request.send().await?;
+        let bytes = response.bytes().await?;
         subs_data.extend_from_slice(&bytes);
 
         if first_run {

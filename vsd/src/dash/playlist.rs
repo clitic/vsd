@@ -12,7 +12,7 @@ use crate::playlist::{
 };
 use anyhow::{Result, anyhow, bail};
 use dash_mpd::MPD;
-use reqwest::{Url, blocking::Client, header};
+use reqwest::{Url, Client, header};
 use std::collections::HashMap;
 
 pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
@@ -114,7 +114,7 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
     }
 }
 
-pub(crate) fn push_segments(
+pub(crate) async fn push_segments(
     mpd: &MPD,
     playlist: &mut MediaPlaylist,
     base_url: &str,
@@ -429,8 +429,8 @@ pub(crate) fn push_segments(
                                 .get(base_url.as_str())
                                 .query(query)
                                 .header(header::RANGE, index_range.as_header_value());
-                            let response = request.send()?;
-                            let bytes = response.bytes()?;
+                            let response = request.send().await?;
+                            let bytes = response.bytes().await?;
 
                             if let Some(init_map) = &mut init_map {
                                 init_map.range = Some(Range {

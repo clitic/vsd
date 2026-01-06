@@ -1,5 +1,5 @@
 use crate::{
-    downloader::{encryption::Decrypter, mux::Stream},
+    downloader::{encryption::Decrypter, fix, mux::Stream},
     merger::Merger,
     playlist::{KeyMethod, MediaPlaylist, MediaType},
     utils,
@@ -7,20 +7,17 @@ use crate::{
 use anyhow::{Result, bail};
 use kdam::{BarExt, Column, RichProgress, term::Colorizer};
 use rayon::{ThreadPool, ThreadPoolBuilder};
-use reqwest::{
-    StatusCode, Url,
-    blocking::{Client, RequestBuilder},
-    header,
-};
+use reqwest::{Client, RequestBuilder, StatusCode, Url, header};
 use std::{
     collections::{HashMap, VecDeque},
     path::PathBuf,
     sync::{Arc, Mutex},
     time::Instant,
 };
+use tokio::task::JoinSet;
 
 #[allow(clippy::too_many_arguments)]
-pub fn download_streams(
+pub async fn download_streams(
     base_url: &Option<Url>,
     client: &Client,
     decrypter: Decrypter,
@@ -43,7 +40,7 @@ pub fn download_streams(
     let mut estimated_bytes = VecDeque::new();
 
     for stream in &mut streams {
-        estimated_bytes.push_back(stream.estimate_size(base_url, client, query)?);
+        estimated_bytes.push_back(stream.estimate_size(base_url, client, query).await?);
     }
 
     pb.columns.extend_from_slice(&[
@@ -51,10 +48,6 @@ pub fn download_streams(
         Column::Text("[yellow]?".to_owned()), // download speed
     ]);
     let pb = Arc::new(Mutex::new(pb));
-    let pool = ThreadPoolBuilder::new()
-        .num_threads(threads as usize)
-        .build()
-        .unwrap();
 
     for stream in streams {
         pb.lock().unwrap().write(format!(
@@ -96,12 +89,13 @@ pub fn download_streams(
             no_decrypt,
             no_merge,
             pb.clone(),
-            &pool,
             query,
             retries,
             stream,
             &temp_file,
-        )?;
+            threads as usize,
+        )
+        .await?;
     }
 
     eprintln!();
@@ -109,7 +103,7 @@ pub fn download_streams(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn download_stream(
+async fn download_stream(
     base_url: &Option<Url>,
     client: &Client,
     downloaded_bytes: &mut usize,
@@ -118,11 +112,11 @@ fn download_stream(
     no_decrypt: bool,
     no_merge: bool,
     pb: Arc<Mutex<RichProgress>>,
-    pool: &ThreadPool,
     query: &HashMap<String, String>,
     retries: u8,
     stream: MediaPlaylist,
     temp_file: &PathBuf,
+    no_threads: usize,
 ) -> Result<()> {
     let mut init_seg = None;
     let merger = Arc::new(Mutex::new(if no_merge {
@@ -150,8 +144,8 @@ fn download_stream(
                 request = request.header(header::RANGE, range.as_header_value());
             }
 
-            let response = request.send()?;
-            let bytes = response.bytes()?;
+            let response = request.send().await?;
+            let bytes = response.bytes().await?;
 
             default_kid = vsd_mp4::pssh::default_kid(&bytes)?.or(stream.default_kid());
             widevine_kid = vsd_mp4::pssh::Pssh::new(&bytes)?
@@ -175,8 +169,8 @@ fn download_stream(
                     KeyMethod::Aes128 | KeyMethod::SampleAes => {
                         let url = base_url.join(key.uri.as_ref().unwrap())?;
                         let request = client.get(url).query(query);
-                        let response = request.send()?;
-                        let bytes = response.bytes()?;
+                        let response = request.send().await?;
+                        let bytes = response.bytes().await?;
 
                         stream_decrypter = Decrypter::new_hls_aes(
                             key.key(&bytes)?,
@@ -250,17 +244,34 @@ fn download_stream(
         }
     }
 
-    pool.scope_fifo(|s| {
-        for mut thread in threads {
-            s.spawn_fifo(move |_| {
-                if let Err(e) = thread.execute() {
-                    let _lock = thread.pb.lock().unwrap();
-                    println!("\n{}: {}", "error".colorize("bold red"), e);
-                    std::process::exit(1);
-                }
-            });
+    // pool.scope_fifo(|s| {
+    //     for mut thread in threads {
+    //         s.spawn_fifo(move |_| async{
+    //             if let Err(e) = thread.execute().await {
+    //                 let _lock = thread.pb.lock().unwrap();
+    //                 println!("\n{}: {}", "error".colorize("bold red"), e);
+    //                 std::process::exit(1);
+    //             }
+    //         });
+    //     }
+    // });
+
+    let mut set = JoinSet::new();
+
+    for mut thread in threads {
+        while set.len() >= no_threads {
+            set.join_next().await;
         }
-    });
+        set.spawn(async move {
+            if let Err(e) = thread.execute().await {
+                let _lock = thread.pb.lock().unwrap();
+                println!("\n{}: {}", "error".colorize("bold red"), e);
+                std::process::exit(1);
+            }
+        });
+    }
+
+    while let Some(_res) = set.join_next().await {}
 
     let mut merger = merger.lock().unwrap();
     merger.flush()?;
@@ -293,14 +304,16 @@ struct Thread {
 }
 
 impl Thread {
-    fn execute(&mut self) -> Result<()> {
+    async fn execute(&mut self) -> Result<()> {
         let mut segment = Vec::new();
 
         if let Some(init_segment) = &mut self.init_seg {
             segment.append(init_segment);
         }
 
-        segment.append(&mut self.segment()?);
+        let mut data = self.segment().await?;
+        // data = fix::fake_png_header(&data);
+        segment.append(&mut data);
         segment = self.decrypter.decrypt(segment)?;
 
         let mut merger = self.merger.lock().unwrap();
@@ -327,9 +340,9 @@ impl Thread {
         Ok(())
     }
 
-    fn segment(&self) -> Result<Vec<u8>> {
+    async fn segment(&self) -> Result<Vec<u8>> {
         for _ in 0..self.retries {
-            let response = match self.request.try_clone().unwrap().send() {
+            let response = match self.request.try_clone().unwrap().send().await {
                 Ok(response) => response,
                 Err(error) => {
                     // TODO - Only print this info on verbose logging
@@ -347,7 +360,7 @@ impl Thread {
                 bail!("failed to fetch segments.");
             }
 
-            let data = response.bytes()?.to_vec();
+            let data = response.bytes().await?.to_vec();
             let elapsed_time = self.timer.elapsed().as_secs() as usize;
 
             if elapsed_time != 0 {

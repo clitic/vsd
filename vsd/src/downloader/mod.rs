@@ -1,5 +1,6 @@
 mod encryption;
 mod fetch;
+mod fix;
 mod mux;
 mod parse;
 mod stream;
@@ -16,11 +17,11 @@ use crate::{
 };
 use anyhow::{Result, bail};
 use kdam::{Column, RichProgress, tqdm};
-use reqwest::{Url, blocking::Client};
+use reqwest::{Url, Client};
 use std::{collections::HashMap, fs, path::PathBuf};
 
 #[allow(clippy::too_many_arguments)]
-pub fn download(
+pub async fn download(
     base_url: Option<Url>,
     client: Client,
     decrypter: Decrypter,
@@ -42,7 +43,7 @@ pub fn download(
 
     if !no_decrypt {
         encryption::check_unsupported_encryptions(&streams)?;
-        let default_kids = encryption::extract_default_kids(&base_url, &client, &streams, &query)?;
+        let default_kids = encryption::extract_default_kids(&base_url, &client, &streams, &query).await?;
         encryption::check_key_exists_for_kid(&decrypter, &default_kids)?;
     }
 
@@ -53,7 +54,7 @@ pub fn download(
 
     for stream in &mut streams {
         if stream.media_type != MediaType::Subtitles {
-            stream.split_segment(&base_url, &client, &query)?;
+            stream.split_segment(&base_url, &client, &query).await?;
         }
     }
 
@@ -87,7 +88,7 @@ pub fn download(
         &mut pb,
         &query,
         &mut temp_files,
-    )?;
+    ).await?;
 
     stream::download_streams(
         &base_url,
@@ -102,7 +103,7 @@ pub fn download(
         streams,
         threads,
         &mut temp_files,
-    )?;
+    ).await?;
 
     if should_mux {
         mux::ffmpeg(output.as_ref(), &subs_codec, &temp_files)?;

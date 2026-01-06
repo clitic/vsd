@@ -2,7 +2,7 @@ use crate::{automation::Prompter, playlist::PlaylistType};
 use anyhow::{Result, anyhow, bail};
 use kdam::term::Colorizer;
 use regex::Regex;
-use reqwest::{Url, blocking::Client, header};
+use reqwest::{Url, Client, header};
 use std::{
     collections::{HashMap, HashSet},
     fs,
@@ -17,8 +17,8 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    fn fetch(&mut self, client: &Client, query: &HashMap<String, String>) -> Result<()> {
-        let response = client.get(self.url.as_ref()).query(query).send()?;
+    async fn fetch(&mut self, client: &Client, query: &HashMap<String, String>) -> Result<()> {
+        let response = client.get(self.url.as_ref()).query(query).send().await?;
         self.url = response.url().to_owned();
 
         if let Some(content_type) = response.headers().get(header::CONTENT_TYPE) {
@@ -33,7 +33,7 @@ impl Metadata {
             }
         }
 
-        self.text = response.text()?;
+        self.text = response.text().await?;
         self.update_pl_type_from_text();
         Ok(())
     }
@@ -49,7 +49,7 @@ impl Metadata {
     }
 }
 
-pub fn fetch_playlist(
+pub async fn fetch_playlist(
     base_url: Option<Url>,
     client: &Client,
     input: &str,
@@ -82,17 +82,17 @@ pub fn fetch_playlist(
         meta.update_pl_type_from_text();
     } else {
         // TODO - We can add site specific parsers here
-        meta.fetch(client, query)?;
+        meta.fetch(client, query).await?;
 
         if meta.pl_type.is_none() {
-            fetch_from_website(client, &mut meta, prompter, query)?;
+            fetch_from_website(client, &mut meta, prompter, query).await?;
         }
     }
 
     Ok(meta)
 }
 
-fn fetch_from_website(
+async fn fetch_from_website(
     client: &Client,
     meta: &mut Metadata,
     prompter: &Prompter,
@@ -175,7 +175,7 @@ fn fetch_from_website(
         }
     }
 
-    meta.fetch(client, query)?;
+    meta.fetch(client, query).await?;
     Ok(())
 }
 

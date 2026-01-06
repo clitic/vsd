@@ -6,7 +6,7 @@ use crate::{
 };
 use anyhow::{Result, anyhow, bail};
 use kdam::term::Colorizer;
-use reqwest::{Url, blocking::Client};
+use reqwest::{Url, Client};
 use std::collections::HashMap;
 
 pub fn list_all_streams(meta: &Metadata) -> Result<()> {
@@ -36,7 +36,7 @@ pub fn list_all_streams(meta: &Metadata) -> Result<()> {
     Ok(())
 }
 
-pub fn parse_all_streams(
+pub async fn parse_all_streams(
     base_url: Option<Url>,
     client: &Client,
     meta: &Metadata,
@@ -55,7 +55,7 @@ pub fn parse_all_streams(
                     base_url.as_ref().unwrap_or(&meta.url).as_str(),
                     client,
                     query,
-                )?;
+                ).await?;
                 stream.id = blake3::hash((meta.url.as_ref().to_owned() + &stream.uri).as_bytes())
                     .to_hex()[..7]
                     .to_owned();
@@ -84,8 +84,8 @@ pub fn parse_all_streams(
                         let decoded = utils::decode_base64(bs)?;
                         text = String::from_utf8(decoded)?;
                     } else {
-                        let response = client.get(&stream.uri).query(query).send()?;
-                        text = response.text()?;
+                        let response = client.get(&stream.uri).query(query).send().await?;
+                        text = response.text().await?;
                     }
 
                     let media_playlist = m3u8_rs::parse_media_playlist_res(text.as_bytes())
@@ -121,7 +121,7 @@ pub fn parse_all_streams(
     }
 }
 
-pub fn parse_selected_streams(
+pub async fn parse_selected_streams(
     base_url: Option<Url>,
     client: &Client,
     meta: &Metadata,
@@ -144,7 +144,7 @@ pub fn parse_selected_streams(
                     base_url.as_ref().unwrap_or(&meta.url).as_str(),
                     client,
                     query,
-                )?;
+                ).await?;
                 stream.id = blake3::hash((meta.url.as_ref().to_owned() + &stream.uri).as_bytes())
                     .to_hex()[..7]
                     .to_owned();
@@ -175,8 +175,8 @@ pub fn parse_selected_streams(
                         let decoded = utils::decode_base64(bs)?;
                         text = String::from_utf8(decoded)?;
                     } else {
-                        let response = client.get(&stream.uri).query(query).send()?;
-                        text = response.text()?;
+                        let response = client.get(&stream.uri).query(query).send().await?;
+                        text = response.text().await?;
                     }
 
                     let media_playlist = m3u8_rs::parse_media_playlist_res(text.as_bytes())

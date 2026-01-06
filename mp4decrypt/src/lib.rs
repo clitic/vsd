@@ -36,7 +36,7 @@ unsafe extern "C" {
     ) -> c_int;
 }
 
-extern "C" fn decrypt_callback(decrypted_stream: *mut Vec<u8>, data: *const c_uchar, size: c_uint) {
+extern "C" fn callback_rust(decrypted_stream: *mut Vec<u8>, data: *const c_uchar, size: c_uint) {
     unsafe {
         *decrypted_stream = std::slice::from_raw_parts(data, size as usize).to_vec();
     }
@@ -100,7 +100,7 @@ pub fn mp4decrypt(
                 fragments_info_data.as_ptr(),
                 fragments_info_data_size,
                 &mut *decrypted_data,
-                decrypt_callback,
+                callback_rust,
             )
         }
     } else {
@@ -113,7 +113,7 @@ pub fn mp4decrypt(
                 std::ptr::null(),
                 0,
                 &mut *decrypted_data,
-                decrypt_callback,
+                callback_rust,
             )
         }
     };

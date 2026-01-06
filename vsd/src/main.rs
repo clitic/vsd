@@ -17,7 +17,7 @@ use std::{
     process,
 };
 
-fn run() -> anyhow::Result<()> {
+async fn run() -> anyhow::Result<()> {
     let args = Args::parse();
 
     term::init(match args.color {
@@ -31,19 +31,20 @@ fn run() -> anyhow::Result<()> {
         Commands::Capture(args) => args.execute()?,
         Commands::Extract(args) => args.execute()?,
         Commands::Merge(args) => args.execute()?,
-        Commands::Save(args) => args.execute()?,
+        Commands::Save(args) => args.execute().await?,
     }
 
     Ok(())
 }
 
-fn main() {
+#[tokio::main(flavor = "multi_thread")]
+async fn main() {
     let mut symbols = symbols::UNICODE;
     symbols.completed = '•';
     symbols.cross = 'x';
     symbols::set(symbols);
 
-    if let Err(e) = run() {
+    if let Err(e) = run().await {
         eprintln!("{}: {}", "error".colorize("bold red"), e);
         process::exit(1);
     }

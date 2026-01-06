@@ -3,7 +3,7 @@ use kdam::term::Colorizer;
 use requestty::prompt::style::Stylize;
 use reqwest::{
     Url,
-    blocking::Client,
+    Client,
     header::{self, HeaderValue},
 };
 use serde::Serialize;
@@ -668,7 +668,7 @@ impl MediaPlaylist {
         .join(" ")
     }
 
-    pub fn estimate_size(
+    pub async fn estimate_size(
         &self,
         base_url: &Option<Url>,
         client: &Client,
@@ -696,7 +696,7 @@ impl MediaPlaylist {
                 request = request.header(header::RANGE, range.as_header_value());
             }
 
-            let response = request.send()?;
+            let response = request.send().await?;
             let content_length = response
                 .headers()
                 .get(header::CONTENT_LENGTH)
@@ -771,7 +771,7 @@ impl MediaPlaylist {
         path
     }
 
-    pub fn split_segment(
+    pub async fn split_segment(
         &mut self,
         base_url: &Option<Url>,
         client: &Client,
@@ -784,7 +784,7 @@ impl MediaPlaylist {
         let base_url = base_url.clone().unwrap_or(self.uri.parse::<Url>().unwrap());
         let segment = self.segments.remove(0);
         let url = base_url.join(&segment.uri)?;
-        let response = client.head(url).query(query).send()?;
+        let response = client.head(url).query(query).send().await?;
         let content_length = response
             .headers()
             .get(header::CONTENT_LENGTH)

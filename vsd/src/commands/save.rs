@@ -7,8 +7,7 @@ use anyhow::Result;
 use clap::Args;
 use cookie::Cookie;
 use reqwest::{
-    Proxy, Url,
-    blocking::Client,
+    Client, Proxy, Url,
     header::{HeaderMap, HeaderName, HeaderValue},
 };
 use std::{
@@ -181,7 +180,7 @@ impl Save {
         Ok(client)
     }
 
-    pub fn execute(self) -> Result<()> {
+    pub async fn execute(self) -> Result<()> {
         let client = self.client()?;
 
         let prompter = Prompter {
@@ -195,13 +194,15 @@ impl Save {
             &self.input,
             &prompter,
             &self.query,
-        )?;
+        )
+        .await?;
 
         if self.list_streams {
             downloader::list_all_streams(&meta)?;
         } else if self.parse {
             let playlist =
-                downloader::parse_all_streams(self.base_url.clone(), &client, &meta, &self.query)?;
+                downloader::parse_all_streams(self.base_url.clone(), &client, &meta, &self.query)
+                    .await?;
             serde_json::to_writer(std::io::stdout(), &playlist)?;
         } else {
             let streams = downloader::parse_selected_streams(
@@ -211,7 +212,8 @@ impl Save {
                 &prompter,
                 &self.query,
                 SelectOptions::parse(&self.select_streams),
-            )?;
+            )
+            .await?;
 
             downloader::download(
                 self.base_url,
@@ -226,7 +228,8 @@ impl Save {
                 self.subs_codec,
                 self.retries,
                 self.threads,
-            )?;
+            )
+            .await?;
         }
 
         Ok(())
