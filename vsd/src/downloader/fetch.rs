@@ -1,6 +1,6 @@
 use crate::{automation::Prompter, playlist::PlaylistType};
 use anyhow::{Result, anyhow, bail};
-use kdam::term::Colorizer;
+use colored::Colorize;
 use regex::Regex;
 use reqwest::{Url, Client, header};
 use std::{
@@ -67,7 +67,7 @@ pub async fn fetch_playlist(
 
     if path.exists() {
         if base_url.is_none() {
-            println!("    {} base url is not set", "Warning".colorize("yellow"));
+            println!("    {} base url is not set", "Warning".yellow());
         }
 
         if let Some(ext) = path.extension() {
@@ -100,7 +100,7 @@ async fn fetch_from_website(
 ) -> Result<()> {
     println!(
         "   {} [generic-regex] website for DASH and HLS playlists",
-        "Scraping".colorize("bold cyan")
+        "Scraping".bold().cyan()
     );
 
     let links = scrape_playlist_links(&meta.text);
@@ -109,7 +109,7 @@ async fn fetch_from_website(
         0 => bail!("no playlists were found in website source."),
         1 => {
             println!("            {}", &links[0]);
-            println!("   {} {}", "Selected".colorize("bold green"), &links[0]);
+            println!("   {} {}", "Selected".bold().green(), &links[0]);
             meta.url = links[0].parse::<Url>()?;
         }
         _ => {
@@ -129,15 +129,15 @@ async fn fetch_from_website(
                         "{:2}) [{}] {}",
                         i + 1,
                         if i == 0 {
-                            "x".colorize("green")
+                            "x".green()
                         } else {
-                            " ".to_owned()
+                            " ".normal()
                         },
                         link
                     );
                 }
 
-                println!("{}", "------------------------------".colorize("cyan"));
+                println!("{}", "------------------------------".cyan());
                 print!(
                     "Press enter to proceed with defaults.\n\
                     Or select playlist to download (1, 2, etc.): "
@@ -147,7 +147,7 @@ async fn fetch_from_website(
                 let mut input = String::new();
                 std::io::stdin().read_line(&mut input)?;
 
-                println!("{}", "------------------------------".colorize("cyan"));
+                println!("{}", "------------------------------".cyan());
 
                 let input = input.trim();
                 let mut index = 0;
@@ -163,13 +163,13 @@ async fn fetch_from_website(
                     .get(index)
                     .ok_or_else(|| anyhow!("selected playlist is out of index bounds."))?
                     .parse::<Url>()?;
-                println!("   {} {}", "Selected".colorize("bold green"), meta.url);
+                println!("   {} {}", "Selected".bold().green(), meta.url);
             } else {
                 for link in &links {
                     println!("            {link}");
                 }
 
-                println!("   {} {}", "Selected".colorize("bold green"), &links[0]);
+                println!("   {} {}", "Selected".bold().green(), &links[0]);
                 meta.url = links[0].parse::<Url>()?;
             }
         }

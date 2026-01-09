@@ -3,7 +3,7 @@ use crate::{
     utils,
 };
 use anyhow::{Result, bail};
-use kdam::term::Colorizer;
+use colored::Colorize;
 use std::{
     ffi::OsStr,
     fs,
@@ -21,7 +21,7 @@ pub fn delete_temp_files(directory: Option<&PathBuf>, temp_files: &[Stream]) -> 
     for temp_file in temp_files {
         println!(
             "   {} {}",
-            "Deleting".colorize("bold red"),
+            "Deleting".bold().red(),
             temp_file.path.to_string_lossy()
         );
         fs::remove_file(&temp_file.path)?;
@@ -32,7 +32,7 @@ pub fn delete_temp_files(directory: Option<&PathBuf>, temp_files: &[Stream]) -> 
     {
         println!(
             "   {} {}",
-            "Deleting".colorize("bold red"),
+            "Deleting".bold().red(),
             directory.to_string_lossy()
         );
         fs::remove_dir(directory)?;
@@ -141,7 +141,7 @@ pub fn ffmpeg(output: Option<&PathBuf>, subs_codec: &str, temp_files: &[Stream])
     if output.exists() {
         println!(
             "   {} {}",
-            "Deleting".colorize("bold red"),
+            "Deleting".bold().red(),
             output.to_string_lossy()
         );
         fs::remove_file(output)?;
@@ -149,7 +149,7 @@ pub fn ffmpeg(output: Option<&PathBuf>, subs_codec: &str, temp_files: &[Stream])
 
     println!(
         "  {} ffmpeg {}",
-        "Executing".colorize("cyan"),
+        "Executing".cyan(),
         args.iter()
             .map(|x| if x.contains(' ') {
                 format!("\"{x}\"")
@@ -186,7 +186,7 @@ pub fn should_mux(
     if no_decrypt {
         println!(
             "    {} --output is ignored when --no-decrypt is used",
-            "Warning".colorize("yellow")
+            "Warning".yellow()
         );
         return false;
     }
@@ -199,7 +199,7 @@ pub fn should_mux(
     if no_merge && subtitle_streams.is_empty() {
         println!(
             "    {} --output is ignored when --no-merge is used",
-            "Warning".colorize("yellow")
+            "Warning".yellow()
         );
         return false;
     }
@@ -216,7 +216,7 @@ pub fn should_mux(
     if video_streams.len() > 1 {
         println!(
             "    {} --output flag is ignored when multiple video streams are selected",
-            "Warning".colorize("yellow")
+            "Warning".yellow()
         );
         return false;
     }
@@ -228,7 +228,7 @@ pub fn should_mux(
     {
         println!(
             "    {} --output is ignored when no video streams are selected but multiple audio/subtitle streams are selected",
-            "Warning".colorize("yellow")
+            "Warning".yellow()
         );
         return false;
     }
@@ -236,7 +236,7 @@ pub fn should_mux(
     if no_merge && !subtitle_streams.is_empty() {
         println!(
             "    {} subtitle streams are always merged even if --no-merge is used",
-            "Warning".colorize("yellow")
+            "Warning".yellow()
         );
     }
 

@@ -1,34 +1,37 @@
+mod automation;
 mod commands;
 mod cookie;
 mod dash;
 mod downloader;
 mod hls;
+mod logger;
 mod merger;
 mod playlist;
+mod progress;
 mod utils;
-mod automation;
 
 use clap::{ColorChoice, Parser};
+use colored::Colorize;
 use commands::{Args, Commands};
-use kdam::{term, term::Colorizer};
-use requestty::symbols;
-use std::{
-    io::{stderr, IsTerminal},
-    process,
-};
 
 async fn run() -> anyhow::Result<()> {
     let args = Args::parse();
 
-    term::init(match args.color {
+    kdam::term::init(match args.color {
         ColorChoice::Always => true,
-        ColorChoice::Auto => stderr().is_terminal(),
+        ColorChoice::Auto => std::io::IsTerminal::is_terminal(&std::io::stderr()),
         ColorChoice::Never => false,
     });
 
+    match args.color {
+        ColorChoice::Always => colored::control::set_override(true),
+        ColorChoice::Never => colored::control::set_override(false),
+        _ => (),
+    }
+
     match args.command {
         #[cfg(feature = "browser")]
-        Commands::Capture(args) => args.execute()?,
+        Commands::Capture(args) => args.execute().await?,
         Commands::Extract(args) => args.execute()?,
         Commands::Merge(args) => args.execute()?,
         Commands::Save(args) => args.execute().await?,
@@ -39,13 +42,17 @@ async fn run() -> anyhow::Result<()> {
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
-    let mut symbols = symbols::UNICODE;
+    log::set_logger(&logger::Logger)
+        .map(|()| log::set_max_level(log::LevelFilter::Info))
+        .expect("Failed to initialize logger.");
+
+    let mut symbols = requestty::symbols::UNICODE;
     symbols.completed = '•';
     symbols.cross = 'x';
-    symbols::set(symbols);
+    requestty::symbols::set(symbols);
 
     if let Err(e) = run().await {
-        eprintln!("{}: {}", "error".colorize("bold red"), e);
-        process::exit(1);
+        eprintln!("{}: {}", "error".bold().red(), e);
+        std::process::exit(1);
     }
 }

@@ -5,7 +5,7 @@ use crate::{
     utils,
 };
 use anyhow::{Result, anyhow, bail};
-use kdam::term::Colorizer;
+use colored::Colorize;
 use reqwest::{Url, Client};
 use std::collections::HashMap;
 
@@ -26,7 +26,7 @@ pub fn list_all_streams(meta: &Metadata) -> Result<()> {
             }
 
             Ok(m3u8_rs::Playlist::MediaPlaylist(_)) => {
-                println!("------ {} ------", "Undefined Streams".colorize("cyan"));
+                println!("------ {} ------", "Undefined Streams".cyan());
                 println!(" 1) {}", meta.url);
             }
             Err(_) => bail!("couldn't parse response ({}) as hls playlist.", meta.url),

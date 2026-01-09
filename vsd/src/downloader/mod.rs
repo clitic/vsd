@@ -16,9 +16,9 @@ use crate::{
     utils,
 };
 use anyhow::{Result, bail};
-use kdam::{Column, RichProgress, tqdm};
 use reqwest::{Url, Client};
 use std::{collections::HashMap, fs, path::PathBuf};
+use kdam::{RichProgress, Column, tqdm};
 
 #[allow(clippy::too_many_arguments)]
 pub async fn download(

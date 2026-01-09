@@ -1,7 +1,8 @@
 use crate::playlist::{KeyMethod, MediaPlaylist, Segment};
 use aes::cipher::{BlockDecryptMut, KeyIvInit, block_padding::Pkcs7};
 use anyhow::{Result, anyhow, bail};
-use kdam::term::Colorizer;
+use colored::Colorize;
+use log::info;
 use reqwest::{Url, Client, header};
 use std::collections::{HashMap, HashSet};
 use vsd_mp4::pssh::Pssh;
@@ -163,13 +164,12 @@ pub async fn extract_default_kids(
 
                 if !parsed_kids.contains(&kid.value) {
                     parsed_kids.insert(kid.value.clone());
-                    println!(
-                        "      {} [{:>9}] {} {}",
-                        "KeyId".colorize("bold red"),
+                    info!(
+                        "Found {:>9} drm: {}{}",
                         kid.system_type.to_string(),
-                        kid.uuid(),
+                        kid.uuid().bold(),
                         if default_kids.contains(&kid.value) {
-                            "(required)"
+                            " (required)"
                         } else {
                             ""
                         },

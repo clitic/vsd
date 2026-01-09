@@ -67,7 +67,7 @@ impl Merger {
         if self.indexed == 0 {
             0
         } else {
-            (self.stored_bytes / self.indexed) * (self.size + 1)
+            (self.stored_bytes / self.indexed) * (self.size + 1) // n + 1
         }
     }
 

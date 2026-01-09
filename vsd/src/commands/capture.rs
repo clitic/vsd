@@ -8,12 +8,11 @@ use headless_chrome::{
         CookieParam, GetResponseBodyReturnObject, ResourceType, events::ResponseReceivedEventParams,
     },
 };
-use kdam::term::Colorizer;
+use log::info;
 use std::{
     fs::{self, File},
     io::Write,
     path::{Path, PathBuf},
-    sync::mpsc,
 };
 
 type CookieParams = Vec<CookieParam>;
@@ -79,21 +78,10 @@ pub struct Capture {
 }
 
 impl Capture {
-    pub fn execute(self) -> Result<()> {
-        let (tx, rx) = mpsc::channel();
-        ctrlc::set_handler(move || {
-            tx.send(())
-                .expect("could not send shutdown signal on channel.")
-        })?;
-
-        println!(
-            "       {} sometimes video starts playing but links are not detected",
-            "Note".colorize("cyan")
-        );
-
-        println!(
-            "    {} launching in {} mode",
-            "Browser".colorize("cyan"),
+    pub async fn execute(self) -> Result<()> {
+        info!("Sometimes video starts playing but links are not detected.");
+        info!(
+            "Launching browser in {} mode",
             if self.headless {
                 "headless (no window)"
             } else {
@@ -109,7 +97,7 @@ impl Capture {
         )?;
         let tab = browser.new_tab()?;
 
-        println!("    {} setting cookies", "Browser".colorize("cyan"));
+        info!("Setting browser cookies");
         tab.set_cookies(self.cookies)?;
 
         let directory = if self.save {
@@ -123,10 +111,7 @@ impl Capture {
         };
         let save = self.save;
 
-        println!(
-            "    {} registering response listener",
-            "Browser".colorize("cyan")
-        );
+        info!("Registering browser response listener");
         tab.register_response_handling(
             "vsd-capture",
             Box::new(move |params, get_response_body| {
@@ -140,31 +125,24 @@ impl Capture {
             }),
         )?;
 
-        println!(
-            "    {} navigating to {}",
-            "Browser".colorize("cyan"),
-            self.url
-        );
+        info!("Navigating browwser to {}", self.url);
         tab.navigate_to(&self.url)?;
 
-        println!(
-            "       {} waiting for CTRL+C signal",
-            "Note".colorize("cyan")
-        );
-        rx.recv()?;
-        println!(
-            "    {} deregistering response listener and closing browser",
-            "Browser".colorize("cyan")
-        );
+        info!("Waiting for CTRL+C signal.");
+
+        tokio::signal::ctrl_c().await.unwrap();
+
+        info!("Deregistering browser response listener and closing browser");
         let _ = tab.deregister_response_handling("vsd-capture")?;
 
         if self.save_cookies {
-            println!("{} session cookies", "Downloading".colorize("bold green"));
+            info!("Downloading session cookies.");
 
             if let Some(directory) = &self.directory
-                && !directory.exists() {
-                    fs::create_dir_all(directory).unwrap();
-                };
+                && !directory.exists()
+            {
+                fs::create_dir_all(directory).unwrap();
+            };
 
             let mut path = PathBuf::from("cookies.json");
 
@@ -191,17 +169,14 @@ fn handler(
     }
 
     if save {
-        println!(
-            "{} {}",
-            "Downloading".colorize("bold green"),
-            params.response.url,
-        );
+        info!("Downloading {}", params.response.url,);
 
         if let Ok(body) = get_response_body() {
             if let Some(directory) = directory
-                && !directory.exists() {
-                    fs::create_dir_all(directory).unwrap();
-                };
+                && !directory.exists()
+            {
+                fs::create_dir_all(directory).unwrap();
+            };
 
             let mut path = PathBuf::from(
                 params
@@ -233,11 +208,7 @@ fn handler(
             }
         }
     } else {
-        println!(
-            "   {} {}",
-            "Detected".colorize("bold green"),
-            params.response.url,
-        );
+        info!("Detected {}", params.response.url,);
     }
 }
 

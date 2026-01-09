@@ -5,7 +5,9 @@ use crate::{
     utils,
 };
 use anyhow::{Result, bail};
-use kdam::{BarExt, Column, RichProgress, term::Colorizer};
+use colored::Colorize;
+use kdam::{BarExt, Column, RichProgress};
+use log::{info, warn};
 use reqwest::{Client, RequestBuilder, StatusCode, Url, header};
 use std::{
     collections::{HashMap, VecDeque},
@@ -49,18 +51,14 @@ pub async fn download_streams(
     let pb = Arc::new(Mutex::new(pb));
 
     for stream in streams {
-        pb.lock().unwrap().write(format!(
-            " {} [{:>5}] {}",
-            "Processing".colorize("cyan"),
+        info!(
+            "Processing {:>5} stream: {}",
             stream.media_type.to_string(),
             stream.display_stream(),
-        ))?;
+        );
 
         if stream.segments.is_empty() {
-            pb.lock().unwrap().write(format!(
-                "    {} skipping stream (no segments)",
-                "Warning".colorize("yellow"),
-            ))?;
+            warn!("Skipping stream (no segments)",);
             continue;
         }
 
@@ -74,11 +72,7 @@ pub async fn download_streams(
 
         let _ = estimated_bytes.pop_front();
 
-        pb.lock().unwrap().write(format!(
-            "{} {}",
-            "Downloading".colorize("bold green"),
-            temp_file.to_string_lossy(),
-        ))?;
+        info!("Downloading {}", temp_file.to_string_lossy());
         download_stream(
             base_url,
             client,
@@ -202,12 +196,11 @@ async fn download_stream(
                                     key.to_owned(),
                                 )]));
 
-                                pb.lock().unwrap().write(format!(
-                                    "        {} {}:{}",
-                                    "Key".colorize("bold red"),
+                                info!(
+                                    "Using key: {}:{}",
                                     default_kid,
                                     key,
-                                ))?;
+                                );
                             }
                         } else {
                             bail!("custom keys (KID:KEY;...) are required to continue further.",);
@@ -264,7 +257,7 @@ async fn download_stream(
         set.spawn(async move {
             if let Err(e) = thread.execute().await {
                 let _lock = thread.pb.lock().unwrap();
-                println!("\n{}: {}", "error".colorize("bold red"), e);
+                println!("\n{}: {}", "error".bold().red(), e);
                 std::process::exit(1);
             }
         });
@@ -283,7 +276,7 @@ async fn download_stream(
 
     pb.lock().unwrap().write(format!(
         " {} stream successfully",
-        "Downloaded".colorize("bold green"),
+        "Downloaded".bold().green(),
     ))?;
 
     Ok(())
@@ -345,10 +338,7 @@ impl Thread {
                 Ok(response) => response,
                 Err(error) => {
                     // TODO - Only print this info on verbose logging
-                    self.pb
-                        .lock()
-                        .unwrap()
-                        .write(check_reqwest_error(&error)?)?;
+                    warn!("{}", check_reqwest_error(&error)?);
                     continue;
                 }
             };
@@ -381,7 +371,7 @@ impl Thread {
 }
 
 fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
-    let request = "Request".colorize("yellow");
+    let request = "Request".yellow();
     let url = error.url().unwrap();
 
     if error.is_connect() {

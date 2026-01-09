@@ -4,8 +4,9 @@ use crate::{
     utils,
 };
 use anyhow::{Result, anyhow};
-use kdam::{BarExt, Column, RichProgress, term::Colorizer};
-use reqwest::{Url, Client, header};
+use kdam::{BarExt, Column, RichProgress};
+use log::{info, warn};
+use reqwest::{Client, Url, header};
 use std::{collections::HashMap, ffi::OsStr, fs::File, io::Write, path::PathBuf};
 use vsd_mp4::text::{Mp4TtmlParser, Mp4VttParser, ttml_text_parser};
 
@@ -29,7 +30,8 @@ pub async fn download_subtitle_streams(
 ) -> Result<()> {
     for stream in streams {
         if stream.media_type == MediaType::Subtitles {
-            download_subtitle_stream(base_url, client, directory, stream, pb, query, temp_files).await?;
+            download_subtitle_stream(base_url, client, directory, stream, pb, query, temp_files)
+                .await?;
         }
     }
 
@@ -45,18 +47,14 @@ async fn download_subtitle_stream(
     query: &HashMap<String, String>,
     temp_files: &mut Vec<Stream>,
 ) -> Result<()> {
-    pb.write(format!(
-        " {} [{:>5}] {}",
-        "Processing".colorize("cyan"),
+    info!(
+        "Processing {} stream: {}",
         stream.media_type.to_string(),
         stream.display_stream(),
-    ))?;
+    );
 
     if stream.segments.is_empty() {
-        pb.write(format!(
-            "    {} skipping stream (no segments)",
-            "Warning".colorize("yellow"),
-        ))?;
+        warn!("Skipping stream (no segments)",);
         return Ok(());
     }
 
@@ -124,7 +122,10 @@ async fn download_subtitle_stream(
                 } else if subs_data.starts_with(b"1") || ext == "srt" {
                     ext = OsStr::new("srt");
                     codec = Some(SubtitleType::SrtText);
-                } else if subs_data.starts_with(b"<?xml") || subs_data.starts_with(b"<tt") || ext == "ttml" {
+                } else if subs_data.starts_with(b"<?xml")
+                    || subs_data.starts_with(b"<tt")
+                    || ext == "ttml"
+                {
                     ext = OsStr::new("srt");
                     codec = Some(SubtitleType::TtmlText);
                 } else if Mp4VttParser::parse_init(&subs_data).is_ok() {
@@ -134,10 +135,7 @@ async fn download_subtitle_stream(
                     ext = OsStr::new("srt");
                     codec = Some(SubtitleType::Mp4Ttml);
                 } else {
-                    pb.write(format!(
-                        "    {} unknown subtitle codec used",
-                        "Warning".colorize("yellow"),
-                    ))?;
+                    warn!("Unknown subtitle codec used",);
                     ext = OsStr::new("txt");
                     codec = Some(SubtitleType::Unknown);
                 }
@@ -149,11 +147,7 @@ async fn download_subtitle_stream(
                 media_type: stream.media_type.clone(),
                 path: temp_file.clone(),
             });
-            pb.write(format!(
-                "{} {}",
-                "Downloading".colorize("bold green"),
-                temp_file.to_string_lossy()
-            ))?;
+            info!("Downloading {}", temp_file.to_string_lossy());
         }
 
         pb.replace(
@@ -168,19 +162,19 @@ async fn download_subtitle_stream(
 
     match codec {
         Some(SubtitleType::Mp4Vtt) => {
-            pb.write(format!(" {} wvtt subs", "Extracting".colorize("cyan")))?;
+            info!("Extracting wvtt subs");
             let vtt = Mp4VttParser::parse_init(&subs_data)?;
             let subs = vtt.parse_media(&subs_data, None)?;
             File::create(&temp_file)?.write_all(subs.as_vtt().as_bytes())?;
         }
         Some(SubtitleType::Mp4Ttml) => {
-            pb.write(format!(" {} stpp subs", "Extracting".colorize("cyan")))?;
+            info!("Extracting stpp subs");
             let ttml = Mp4TtmlParser::parse_init(&subs_data)?;
             let subs = ttml.parse_media(&subs_data)?;
             File::create(&temp_file)?.write_all(subs.as_srt().as_bytes())?;
         }
         Some(SubtitleType::TtmlText) => {
-            pb.write(format!(" {} ttml+xml subs", "Extracting".colorize("cyan")))?;
+            info!("Extracting ttml+xml subs");
             let xml = String::from_utf8(subs_data)
                 .map_err(|_| anyhow!("cannot decode subs as valid utf-8 data."))?;
             let ttml = ttml_text_parser::parse(&xml).map_err(|x| {
@@ -195,9 +189,6 @@ async fn download_subtitle_stream(
         _ => File::create(&temp_file)?.write_all(&subs_data)?,
     };
 
-    pb.write(format!(
-        " {} stream successfully",
-        "Downloaded".colorize("bold green"),
-    ))?;
+    info!("Downloaded stream successfully");
     Ok(())
 }

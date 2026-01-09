@@ -1,9 +1,8 @@
 use anyhow::{Result, anyhow, bail};
-use kdam::term::Colorizer;
-use requestty::prompt::style::Stylize;
+use colored::Colorize;
+use log::info;
 use reqwest::{
-    Url,
-    Client,
+    Client, Url,
     header::{self, HeaderValue},
 };
 use serde::Serialize;
@@ -143,31 +142,31 @@ impl MasterPlaylist {
     }
 
     pub fn list_streams(&self) {
-        println!("{}", "------- Video Streams --------".colorize("cyan"));
+        info!("{}", "------- Video Streams --------".cyan());
 
         for (i, stream) in self.streams.iter().enumerate() {
             if stream.media_type == MediaType::Video {
-                println!("{:>2}) {}", i + 1, stream.display_video_stream());
+                info!("{:>2}) {}", i + 1, stream.display_video_stream());
             }
         }
 
-        println!("{}", "------- Audio Streams --------".colorize("cyan"));
+        info!("{}", "------- Audio Streams --------".cyan());
 
         for (i, stream) in self.streams.iter().enumerate() {
             if stream.media_type == MediaType::Audio {
-                println!("{:>2}) {}", i + 1, stream.display_audio_stream());
+                info!("{:>2}) {}", i + 1, stream.display_audio_stream());
             }
         }
 
-        println!("{}", "------ Subtitle Streams ------".colorize("cyan"));
+        info!("{}", "------ Subtitle Streams ------".cyan());
 
         for (i, stream) in self.streams.iter().enumerate() {
             if stream.media_type == MediaType::Subtitles {
-                println!("{:>2}) {}", i + 1, stream.display_subs_stream());
+                info!("{:>2}) {}", i + 1, stream.display_subs_stream());
             }
         }
 
-        println!("{}", "------------------------------".colorize("cyan"));
+        info!("{}", "------------------------------".cyan());
     }
 
     pub fn select_streams(
@@ -177,11 +176,10 @@ impl MasterPlaylist {
     ) -> Result<Vec<MediaPlaylist>> {
         if !prompter.interactive && !prompter.interactive_raw {
             for stream in &self.streams {
-                println!(
-                    "     {} [{:>5}] {}",
-                    "Stream".colorize("cyan"),
+                info!(
+                    "Found {:>5} stream: {}",
                     stream.media_type.to_string(),
-                    stream.display_stream()
+                    stream.display_stream(),
                 );
             }
         }
@@ -403,14 +401,13 @@ impl MasterPlaylist {
                 .message("Select streams to download")
                 .choices_with_default(choices_with_default)
                 .transform(|choices, _, backend| {
-                    backend.write_styled(
+                    backend.write_styled(&requestty::prompt::style::Stylize::cyan(
                         &choices
                             .iter()
                             .map(|x| x.text.split_whitespace().collect::<Vec<_>>().join(" "))
                             .collect::<Vec<_>>()
-                            .join(" | ")
-                            .cyan(),
-                    )
+                            .join(" | "),
+                    ))
                 })
                 .build();
 
@@ -449,7 +446,7 @@ impl MasterPlaylist {
             Ok(selected_streams)
         } else {
             if prompter.interactive_raw {
-                println!("Select streams to download:");
+                info!("Select streams to download:");
             }
 
             let mut selected_choices_index = vec![];
@@ -458,7 +455,7 @@ impl MasterPlaylist {
             for choice in choices_with_default {
                 if let requestty::Separator(seperator) = choice {
                     if prompter.interactive_raw {
-                        println!("{}", seperator.replace('─', "-").colorize("cyan"));
+                        info!("{}", seperator.replace('─', "-").cyan());
                     }
                 } else {
                     let (message, selected) = choice.unwrap_choice();
@@ -468,14 +465,10 @@ impl MasterPlaylist {
                     }
 
                     if prompter.interactive_raw {
-                        println!(
+                        info!(
                             "{:2}) [{}] {}",
                             index,
-                            if selected {
-                                "x".colorize("green")
-                            } else {
-                                " ".to_owned()
-                            },
+                            if selected { "x".green() } else { " ".normal() },
                             message
                         );
                     }
@@ -484,7 +477,7 @@ impl MasterPlaylist {
             }
 
             if prompter.interactive_raw {
-                println!("{}", "------------------------------".colorize("cyan"));
+                info!("{}", "------------------------------".cyan());
                 print!(
                     "Press enter to proceed with defaults.\n\
                         Or select streams to download (1, 2, etc.): "
@@ -493,7 +486,7 @@ impl MasterPlaylist {
                 let mut input = String::new();
                 std::io::stdin().read_line(&mut input)?;
 
-                println!("{}", "------------------------------".colorize("cyan"));
+                info!("{}", "------------------------------".cyan());
 
                 let input = input.trim();
 
@@ -513,31 +506,28 @@ impl MasterPlaylist {
             for i in selected_choices_index {
                 if choices_with_default_ranges[0].contains(&i) {
                     let stream = video_streams.remove(i - video_streams_offset).1;
-                    println!(
-                        "   {} [{:>5}] {}",
-                        "Selected".colorize("bold green"),
+                    info!(
+                        "Selected {:>5} stream: {}",
                         stream.media_type.to_string(),
-                        stream.display_stream()
+                        stream.display_stream().bold()
                     );
                     selected_streams.push(stream);
                     video_streams_offset += 1;
                 } else if choices_with_default_ranges[1].contains(&i) {
                     let stream = audio_streams.remove(i - audio_streams_offset).1;
-                    println!(
-                        "   {} [{:>5}] {}",
-                        "Selected".colorize("bold green"),
+                    info!(
+                        "Selected {:>5} stream: {}",
                         stream.media_type.to_string(),
-                        stream.display_stream()
+                        stream.display_stream().bold()
                     );
                     selected_streams.push(stream);
                     audio_streams_offset += 1;
                 } else if choices_with_default_ranges[2].contains(&i) {
                     let stream = sub_streams.remove(i - subtitle_streams_offset).1;
-                    println!(
-                        "   {} [{:>5}] {}",
-                        "Selected".colorize("bold green"),
+                    info!(
+                        "Selected {:>5} stream: {}",
                         stream.media_type.to_string(),
-                        stream.display_stream()
+                        stream.display_stream().bold()
                     );
                     selected_streams.push(stream);
                     subtitle_streams_offset += 1;
