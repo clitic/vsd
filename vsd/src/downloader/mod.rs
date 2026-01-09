@@ -16,9 +16,8 @@ use crate::{
     utils,
 };
 use anyhow::{Result, bail};
-use reqwest::{Url, Client};
+use reqwest::{Client, Url};
 use std::{collections::HashMap, fs, path::PathBuf};
-use kdam::{RichProgress, Column, tqdm};
 
 #[allow(clippy::too_many_arguments)]
 pub async fn download(
@@ -43,14 +42,16 @@ pub async fn download(
 
     if !no_decrypt {
         encryption::check_unsupported_encryptions(&streams)?;
-        let default_kids = encryption::extract_default_kids(&base_url, &client, &streams, &query).await?;
+        let default_kids =
+            encryption::extract_default_kids(&base_url, &client, &streams, &query).await?;
         encryption::check_key_exists_for_kid(&decrypter, &default_kids)?;
     }
 
     if let Some(directory) = &directory
-        && !directory.exists() {
-            fs::create_dir_all(directory)?;
-        }
+        && !directory.exists()
+    {
+        fs::create_dir_all(directory)?;
+    }
 
     for stream in &mut streams {
         if stream.media_type != MediaType::Subtitles {
@@ -58,26 +59,6 @@ pub async fn download(
         }
     }
 
-    let mut pb = RichProgress::new(
-        tqdm!(
-            dynamic_ncols = true,
-            total = streams.iter().map(|x| x.segments.len()).sum(),
-            unit = " SEG"
-        ),
-        vec![
-            Column::Text("[bold blue]?".to_owned()), // downladed bytes / estimated bytes
-            Column::Animation,
-            Column::Percentage(0),
-            Column::Text("•".to_owned()),
-            Column::CountTotal, // downloaded segments / total segments
-            Column::Text("•".to_owned()),
-            Column::ElapsedTime,
-            Column::Text(">".to_owned()),
-            Column::RemainingTime,
-            Column::Text("•".to_owned()),
-            Column::Rate,
-        ],
-    );
     let mut temp_files = vec![];
 
     download_subtitle_streams(
@@ -85,10 +66,10 @@ pub async fn download(
         &client,
         directory.as_ref(),
         &streams,
-        &mut pb,
         &query,
         &mut temp_files,
-    ).await?;
+    )
+    .await?;
 
     stream::download_streams(
         &base_url,
@@ -97,13 +78,13 @@ pub async fn download(
         directory.as_ref(),
         no_decrypt,
         no_merge,
-        pb,
         &query,
         retries,
         streams,
         threads,
         &mut temp_files,
-    ).await?;
+    )
+    .await?;
 
     if should_mux {
         mux::ffmpeg(output.as_ref(), &subs_codec, &temp_files)?;

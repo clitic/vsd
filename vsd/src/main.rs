@@ -11,17 +11,11 @@ mod progress;
 mod utils;
 
 use clap::{ColorChoice, Parser};
-use colored::Colorize;
 use commands::{Args, Commands};
+use log::error;
 
 async fn run() -> anyhow::Result<()> {
     let args = Args::parse();
-
-    kdam::term::init(match args.color {
-        ColorChoice::Always => true,
-        ColorChoice::Auto => std::io::IsTerminal::is_terminal(&std::io::stderr()),
-        ColorChoice::Never => false,
-    });
 
     match args.color {
         ColorChoice::Always => colored::control::set_override(true),
@@ -51,8 +45,13 @@ async fn main() {
     symbols.cross = 'x';
     requestty::symbols::set(symbols);
 
+    // FIX - cursor hide unhide
+    eprint!("\x1B[?25l");
+
     if let Err(e) = run().await {
-        eprintln!("{}: {}", "error".bold().red(), e);
+        error!("{}", e);
         std::process::exit(1);
     }
+
+    eprint!("\x1B[?25h")
 }

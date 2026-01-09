@@ -63,6 +63,7 @@ impl Merger {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn estimate(&self) -> usize {
         if self.indexed == 0 {
             0
@@ -71,6 +72,7 @@ impl Merger {
         }
     }
 
+    #[allow(dead_code)]
     pub fn stored(&self) -> usize {
         self.stored_bytes
     }

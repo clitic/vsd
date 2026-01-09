@@ -3,7 +3,7 @@ use crate::{
     utils,
 };
 use anyhow::{Result, bail};
-use colored::Colorize;
+use log::{info, warn};
 use std::{
     ffi::OsStr,
     fs,
@@ -19,22 +19,14 @@ pub struct Stream {
 
 pub fn delete_temp_files(directory: Option<&PathBuf>, temp_files: &[Stream]) -> Result<()> {
     for temp_file in temp_files {
-        println!(
-            "   {} {}",
-            "Deleting".bold().red(),
-            temp_file.path.to_string_lossy()
-        );
+        info!("Deleting {}", temp_file.path.to_string_lossy());
         fs::remove_file(&temp_file.path)?;
     }
 
     if let Some(directory) = directory
         && directory.read_dir()?.next().is_none()
     {
-        println!(
-            "   {} {}",
-            "Deleting".bold().red(),
-            directory.to_string_lossy()
-        );
+        info!("Deleting {}", directory.to_string_lossy());
         fs::remove_dir(directory)?;
     }
 
@@ -139,17 +131,12 @@ pub fn ffmpeg(output: Option<&PathBuf>, subs_codec: &str, temp_files: &[Stream])
     args.push(output.to_string_lossy().into());
 
     if output.exists() {
-        println!(
-            "   {} {}",
-            "Deleting".bold().red(),
-            output.to_string_lossy()
-        );
+        info!("Deleting {}", output.to_string_lossy());
         fs::remove_file(output)?;
     }
 
-    println!(
-        "  {} ffmpeg {}",
-        "Executing".cyan(),
+    info!(
+        "Executing ffmpeg {}",
         args.iter()
             .map(|x| if x.contains(' ') {
                 format!("\"{x}\"")
@@ -184,10 +171,7 @@ pub fn should_mux(
     }
 
     if no_decrypt {
-        println!(
-            "    {} --output is ignored when --no-decrypt is used",
-            "Warning".yellow()
-        );
+        warn!("--output is ignored when --no-decrypt is used.");
         return false;
     }
 
@@ -197,10 +181,7 @@ pub fn should_mux(
         .collect::<Vec<_>>();
 
     if no_merge && subtitle_streams.is_empty() {
-        println!(
-            "    {} --output is ignored when --no-merge is used",
-            "Warning".yellow()
-        );
+        warn!("--output is ignored when --no-merge is used.");
         return false;
     }
 
@@ -214,10 +195,7 @@ pub fn should_mux(
         .collect::<Vec<_>>();
 
     if video_streams.len() > 1 {
-        println!(
-            "    {} --output flag is ignored when multiple video streams are selected",
-            "Warning".yellow()
-        );
+        warn!("--output flag is ignored when multiple video streams are selected.");
         return false;
     }
 
@@ -226,18 +204,14 @@ pub fn should_mux(
             || subtitle_streams.len() > 1
             || (!audio_streams.is_empty() && !subtitle_streams.is_empty()))
     {
-        println!(
-            "    {} --output is ignored when no video streams are selected but multiple audio/subtitle streams are selected",
-            "Warning".yellow()
+        warn!(
+            "--output is ignored when no video streams are selected but multiple audio/subtitle streams are selected."
         );
         return false;
     }
 
     if no_merge && !subtitle_streams.is_empty() {
-        println!(
-            "    {} subtitle streams are always merged even if --no-merge is used",
-            "Warning".yellow()
-        );
+        warn!("subtitle streams are always merged even if --no-merge is used.");
     }
 
     true

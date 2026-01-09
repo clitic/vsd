@@ -1,129 +1,88 @@
-// use kdam::{Bar, BarExt, tqdm};
-// use std::{io::Result, num::NonZeroU16};
-
-// #[derive(BarExt)]
-// struct Progress {
-//     #[bar]
-//     pb: Bar,
-//     downloaded_bytes: usize,
-// }
-
-// impl Progress {
-//     fn estimate(&self) -> usize {
-//         
-//     }
-    
-//     fn render(&mut self) -> String {
-//         let fmt_percentage = self.pb.fmt_percentage(0);
-//         let padding = 1 + fmt_percentage.chars().count() as u16 + self.pb.animation.spaces() as u16;
-
-//         let ncols = self.pb.ncols_for_animation(padding);
-
-//         if ncols == 0 {
-//             self.pb.bar_length = padding - 1;
-//             fmt_percentage
-//         } else {
-//             self.pb.bar_length = padding + ncols;
-//             self.pb.animation.fmt_render(
-//                 NonZeroU16::new(ncols).unwrap(),
-//                 self.pb.percentage(),
-//                 &None,
-//             ) + " "
-//                 + &fmt_percentage
-//         }
-//     }
-// }
-
-
 use colored::Colorize;
-use std::io::{self, Write};
-use std::time::{Instant};
+use std::{
+    io::{self, Write},
+    sync::{Arc, Mutex},
+    time::Instant,
+};
 
+struct ProgressInner {
+    counter: usize,
+    id: String,
+    total: usize,
+    last_bytes: usize,
+    last_time: Instant,
+    total_bytes: usize,
+}
+
+#[derive(Clone)]
 pub struct Progress {
-    gid: String,
-    total_size: usize,
-    last_stat_time: Instant,
-    last_stat_bytes: usize,
+    inner: Arc<Mutex<ProgressInner>>,
 }
 
 impl Progress {
-    pub fn new(gid: &str, total_size: usize) -> Self {
-        let stderr = io::stderr();
-        let mut handle = stderr.lock();
-        write!(handle, "\x1B[?25l").unwrap();
-        handle.flush().unwrap();
-
+    pub fn new(id: &str, total: usize) -> Self {
         Self {
-            gid: gid.to_owned(),
-            total_size,
-            last_stat_time: Instant::now(),
-            last_stat_bytes: 0,
+            inner: Arc::new(Mutex::new(ProgressInner {
+                counter: 0,
+                id: id.to_owned(),
+                total,
+                last_bytes: 0,
+                last_time: Instant::now(),
+                total_bytes: 0,
+            })),
         }
     }
 
-    pub fn update(&mut self, current_bytes: usize) {
-        // estimate
-        // (self.downloaded_bytes / self.pb.counter) * (self.pb.total + 1)
+    pub fn update(&self, chunk_bytes: usize) {
+        let mut inner = self.inner.lock().unwrap();
+
+        inner.counter += 1;
+        inner.total_bytes += chunk_bytes;
+
         let now = Instant::now();
-        let elapsed_secs = now.duration_since(self.last_stat_time).as_secs_f64();
-
-        let speed = if elapsed_secs > 0.0 {
-            (current_bytes.saturating_sub(self.last_stat_bytes)) as f64 / elapsed_secs
-        } else {
-            0.0
-        };
-
-        let remaining_bytes = self.total_size.saturating_sub(current_bytes);
-
-        let eta_seconds = if speed > 0.0 {
-            (remaining_bytes as f64 / speed) as usize
-        } else {
-            0
-        };
-
-        let percent = if self.total_size > 0 {
-            (current_bytes as f64 / self.total_size as f64 * 100.0) as usize
+        let elapsed_secs = now.duration_since(inner.last_time).as_secs_f64();
+        let remaining_bytes =
+            ((inner.total_bytes as f64 / inner.counter as f64) * inner.total as f64) as usize;
+        let percent = if inner.total > 0 {
+            (inner.counter as f64 / inner.total as f64 * 100.0) as usize
         } else {
             100
         };
-
-        let progress_str = format!("{}/{}", ByteSize(current_bytes), ByteSize(self.total_size),);
-        let speed_val = ByteSize(speed as usize).to_string();
-        let eta_val = Eta(eta_seconds).to_string();
+        let speed = if elapsed_secs > 0.0 {
+            (inner.total_bytes.saturating_sub(inner.last_bytes)) as f64 / elapsed_secs
+        } else {
+            0.0
+        };
+        let eta_secs = (inner.total.saturating_sub(inner.counter) as f64 * elapsed_secs) as usize;
+        // let eta_secs = (remaining_bytes as f64 / speed) as usize;
 
         let stderr = io::stderr();
         let mut handle = stderr.lock();
         write!(
             handle,
-            "\r\x1B[2K{}#[{}] {}{} SG:{} DL:{} ETA:{}{}", // \x1B[2K clears the line
+            "\r\x1B[2K{}#[{}] {}{} PT:{} DL:{} ETA:{}{}",
             "[".magenta(),
-            self.gid,
-            progress_str,
+            inner.id,
+            format!(
+                "{}/~{}",
+                ByteSize(inner.total_bytes),
+                ByteSize(remaining_bytes)
+            ),
             format!("({}%)", percent).cyan(),
-            "50/100".cyan(),
-            speed_val.green(),
-            eta_val.yellow(),
+            format!("{}/{}", inner.counter, inner.total).cyan(),
+            ByteSize(speed as usize).to_string().green(),
+            Eta(eta_secs).to_string().yellow(),
             "]".magenta(),
         )
         .unwrap();
         handle.flush().unwrap();
 
-        // 4. Update state for next delta calculation
-        self.last_stat_time = now;
-        self.last_stat_bytes = current_bytes;
+        inner.last_bytes = inner.total_bytes;
+        inner.last_time = now;
     }
 }
 
-impl Drop for Progress {
-    fn drop(&mut self) {
-        let stderr = io::stderr();
-        let mut handle = stderr.lock();
-        writeln!(handle, "\x1B[?25h").unwrap();
-        handle.flush().unwrap();
-    }
-}
-
-struct ByteSize(usize);
+pub struct ByteSize(pub usize);
 
 impl std::fmt::Display for ByteSize {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

@@ -1,10 +1,9 @@
 use super::mux::Stream;
 use crate::{
     playlist::{MediaPlaylist, MediaType},
-    utils,
+    progress::Progress,
 };
 use anyhow::{Result, anyhow};
-use kdam::{BarExt, Column, RichProgress};
 use log::{info, warn};
 use reqwest::{Client, Url, header};
 use std::{collections::HashMap, ffi::OsStr, fs::File, io::Write, path::PathBuf};
@@ -24,14 +23,21 @@ pub async fn download_subtitle_streams(
     client: &Client,
     directory: Option<&PathBuf>,
     streams: &[MediaPlaylist],
-    pb: &mut RichProgress,
     query: &HashMap<String, String>,
     temp_files: &mut Vec<Stream>,
 ) -> Result<()> {
     for stream in streams {
         if stream.media_type == MediaType::Subtitles {
-            download_subtitle_stream(base_url, client, directory, stream, pb, query, temp_files)
-                .await?;
+            download_subtitle_stream(
+                base_url,
+                client,
+                directory,
+                stream,
+                Progress::new("0", stream.segments.len()),
+                query,
+                temp_files,
+            )
+            .await?;
         }
     }
 
@@ -43,7 +49,7 @@ async fn download_subtitle_stream(
     client: &Client,
     directory: Option<&PathBuf>,
     stream: &MediaPlaylist,
-    pb: &mut RichProgress,
+    pb: Progress,
     query: &HashMap<String, String>,
     temp_files: &mut Vec<Stream>,
 ) -> Result<()> {
@@ -150,16 +156,11 @@ async fn download_subtitle_stream(
             info!("Downloading {}", temp_file.to_string_lossy());
         }
 
-        pb.replace(
-            0,
-            Column::Text(format!(
-                "[bold blue]{}",
-                utils::format_bytes(subs_data.len(), 2).2
-            )),
-        );
-        pb.update(1)?;
+        pb.update(bytes.len());
     }
 
+    eprintln!();
+    
     match codec {
         Some(SubtitleType::Mp4Vtt) => {
             info!("Extracting wvtt subs");
@@ -188,7 +189,6 @@ async fn download_subtitle_stream(
         }
         _ => File::create(&temp_file)?.write_all(&subs_data)?,
     };
-
     info!("Downloaded stream successfully");
     Ok(())
 }

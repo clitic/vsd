@@ -14,7 +14,10 @@ use std::{
     path::PathBuf,
 };
 
-use crate::automation::{Prompter, SelectOptions, VideoPreference};
+use crate::{
+    automation::{Prompter, SelectOptions, VideoPreference},
+    progress::ByteSize,
+};
 
 #[derive(Serialize)]
 pub struct MasterPlaylist {
@@ -557,19 +560,16 @@ impl MediaPlaylist {
 
     fn display_audio_stream(&self) -> String {
         let mut extra = format!(
-            "language: {}",
+            "lang: {}",
             self.language.as_ref().unwrap_or(&"?".to_owned())
         );
 
-        if let Some(codecs) = &self.codecs {
-            extra += &format!(", codecs: {codecs}");
+        if let Some(bandwidth) = self.bandwidth {
+            extra += &format!(", bandwidth: {}", ByteSize(bandwidth as usize));
         }
 
-        if let Some(bandwidth) = self.bandwidth {
-            extra += &format!(
-                ", bandwidth: {}/s",
-                crate::utils::format_bytes(bandwidth as usize, 2).2
-            );
+        if let Some(codecs) = &self.codecs {
+            extra += &format!(", codecs: {codecs}");
         }
 
         if let Some(channels) = self.channels {
@@ -585,7 +585,7 @@ impl MediaPlaylist {
 
     fn display_subs_stream(&self) -> String {
         let mut extra = format!(
-            "language: {}",
+            "lang: {}",
             self.language.as_ref().unwrap_or(&"?".to_owned())
         );
 
@@ -597,32 +597,35 @@ impl MediaPlaylist {
     }
 
     fn display_video_stream(&self) -> String {
-        let resolution = if let Some((w, h)) = self.resolution {
-            match (w, h) {
-                (256, 144) => "144p".to_owned(),
-                (426, 240) => "240p".to_owned(),
-                (640, 360) => "360p".to_owned(),
-                (854, 480) => "480p".to_owned(),
-                (1280, 720) => "720p".to_owned(),
-                (1920, 1080) => "1080p".to_owned(),
-                (2048, 1080) => "2K".to_owned(),
-                (2560, 1440) => "1440p".to_owned(),
-                (3840, 2160) => "4K".to_owned(),
-                (7680, 4320) => "8K".to_owned(),
-                (w, h) => format!("{w}x{h}"),
-            }
-        } else {
-            "?".to_owned()
-        };
-
-        let bandwidth = if let Some(bandwidth) = self.bandwidth {
-            crate::utils::format_bytes(bandwidth as usize, 2)
-        } else {
-            ("?".to_owned(), "?".to_owned(), "?".to_owned())
-        };
-
         let mut extra = format!(
-            "(codecs: {}",
+            "res: {}",
+            if let Some((w, h)) = self.resolution {
+                match (w, h) {
+                    (256, 144) => "144p".to_owned(),
+                    (426, 240) => "240p".to_owned(),
+                    (640, 360) => "360p".to_owned(),
+                    (854, 480) => "480p".to_owned(),
+                    (1280, 720) => "720p".to_owned(),
+                    (1920, 1080) => "1080p".to_owned(),
+                    (2048, 1080) => "2K".to_owned(),
+                    (2560, 1440) => "1440p".to_owned(),
+                    (3840, 2160) => "4K".to_owned(),
+                    (7680, 4320) => "8K".to_owned(),
+                    (w, h) => format!("{w}x{h}"),
+                }
+            } else {
+                "?".to_owned()
+            }
+        );
+
+        if let Some(bandwidth) = self.bandwidth {
+            extra += &format!(", bandwidth: {}", ByteSize(bandwidth as usize));
+        } else {
+            extra += "bandwidth: ?";
+        }
+
+        extra += &format!(
+            ", codecs: {}",
             self.codecs.as_ref().unwrap_or(&"?".to_owned())
         );
 
@@ -638,12 +641,7 @@ impl MediaPlaylist {
             extra += ", live";
         }
 
-        extra += ")";
-
-        format!(
-            "{:9} {:>7} {}/s {}",
-            resolution, bandwidth.0, bandwidth.1, extra
-        )
+        extra
     }
 
     pub fn display_stream(&self) -> String {

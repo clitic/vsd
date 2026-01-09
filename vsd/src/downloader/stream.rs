@@ -2,18 +2,15 @@ use crate::{
     downloader::{encryption::Decrypter, mux::Stream},
     merger::Merger,
     playlist::{KeyMethod, MediaPlaylist, MediaType},
-    utils,
+    progress::Progress,
 };
 use anyhow::{Result, bail};
-use colored::Colorize;
-use kdam::{BarExt, Column, RichProgress};
-use log::{info, warn};
+use log::{error, info, trace, warn};
 use reqwest::{Client, RequestBuilder, StatusCode, Url, header};
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::HashMap,
     path::PathBuf,
     sync::{Arc, Mutex},
-    time::Instant,
 };
 use tokio::task::JoinSet;
 
@@ -25,30 +22,16 @@ pub async fn download_streams(
     directory: Option<&PathBuf>,
     no_decrypt: bool,
     no_merge: bool,
-    mut pb: RichProgress,
     query: &HashMap<String, String>,
     retries: u8,
     streams: Vec<MediaPlaylist>,
     threads: u8,
     temp_files: &mut Vec<Stream>,
 ) -> Result<()> {
-    let mut streams = streams
+    let streams = streams
         .into_iter()
         .filter(|x| x.media_type != MediaType::Subtitles)
         .collect::<Vec<_>>();
-
-    let mut downloaded_bytes = 0;
-    let mut estimated_bytes = VecDeque::new();
-
-    for stream in &mut streams {
-        estimated_bytes.push_back(stream.estimate_size(base_url, client, query).await?);
-    }
-
-    pb.columns.extend_from_slice(&[
-        Column::Text("•".to_owned()),
-        Column::Text("[yellow]?".to_owned()), // download speed
-    ]);
-    let pb = Arc::new(Mutex::new(pb));
 
     for stream in streams {
         info!(
@@ -70,18 +53,14 @@ pub async fn download_streams(
             path: temp_file.clone(),
         });
 
-        let _ = estimated_bytes.pop_front();
-
         info!("Downloading {}", temp_file.to_string_lossy());
         download_stream(
             base_url,
             client,
-            &mut downloaded_bytes,
             decrypter.clone(),
-            estimated_bytes.iter().sum(),
             no_decrypt,
             no_merge,
-            pb.clone(),
+            Progress::new("0", stream.segments.len()),
             query,
             retries,
             stream,
@@ -91,7 +70,7 @@ pub async fn download_streams(
         .await?;
     }
 
-    eprintln!();
+    // eprintln!();
     Ok(())
 }
 
@@ -99,12 +78,10 @@ pub async fn download_streams(
 async fn download_stream(
     base_url: &Option<Url>,
     client: &Client,
-    downloaded_bytes: &mut usize,
     decrypter: Decrypter,
-    estimated_bytes: usize,
     no_decrypt: bool,
     no_merge: bool,
-    pb: Arc<Mutex<RichProgress>>,
+    pb: Progress,
     query: &HashMap<String, String>,
     retries: u8,
     stream: MediaPlaylist,
@@ -122,7 +99,6 @@ async fn download_stream(
         .clone()
         .unwrap_or(stream.uri.parse::<Url>().unwrap());
     let mut threads = Vec::with_capacity(stream.segments.len());
-    let timer = Arc::new(Instant::now());
 
     let mut default_kid = None;
     let mut widevine_kid = None;
@@ -196,11 +172,7 @@ async fn download_stream(
                                     key.to_owned(),
                                 )]));
 
-                                info!(
-                                    "Using key: {}:{}",
-                                    default_kid,
-                                    key,
-                                );
+                                info!("Using key: {}:{}", default_kid, key,);
                             }
                         } else {
                             bail!("custom keys (KID:KEY;...) are required to continue further.",);
@@ -220,33 +192,18 @@ async fn download_stream(
 
         threads.push(Thread {
             decrypter: stream_decrypter.clone(),
-            downloaded_bytes: *downloaded_bytes,
-            estimated_bytes,
             index: i,
             init_seg: init_seg.clone(),
             merger: merger.clone(),
             pb: pb.clone(),
             request,
             retries,
-            timer: timer.clone(),
         });
 
         if stream_decrypter.is_none() {
             init_seg = None;
         }
     }
-
-    // pool.scope_fifo(|s| {
-    //     for mut thread in threads {
-    //         s.spawn_fifo(move |_| async{
-    //             if let Err(e) = thread.execute().await {
-    //                 let _lock = thread.pb.lock().unwrap();
-    //                 println!("\n{}: {}", "error".colorize("bold red"), e);
-    //                 std::process::exit(1);
-    //             }
-    //         });
-    //     }
-    // });
 
     let mut set = JoinSet::new();
 
@@ -256,8 +213,7 @@ async fn download_stream(
         }
         set.spawn(async move {
             if let Err(e) = thread.execute().await {
-                let _lock = thread.pb.lock().unwrap();
-                println!("\n{}: {}", "error".bold().red(), e);
+                error!("{}", e);
                 std::process::exit(1);
             }
         });
@@ -272,27 +228,19 @@ async fn download_stream(
         bail!("failed to download stream.",);
     }
 
-    *downloaded_bytes += merger.stored();
-
-    pb.lock().unwrap().write(format!(
-        " {} stream successfully",
-        "Downloaded".bold().green(),
-    ))?;
-
+    eprintln!();
+    info!("Downloaded stream successfully");
     Ok(())
 }
 
 struct Thread {
     decrypter: Decrypter,
-    downloaded_bytes: usize,
-    estimated_bytes: usize,
     index: usize,
     init_seg: Option<Vec<u8>>,
     merger: Arc<Mutex<Merger>>,
-    pb: Arc<Mutex<RichProgress>>,
+    pb: Progress,
     request: RequestBuilder,
     retries: u8,
-    timer: Arc<Instant>,
 }
 
 impl Thread {
@@ -304,6 +252,7 @@ impl Thread {
         }
 
         let mut data = self.segment().await?;
+        let chunk_bytes = data.len();
         // data = fix::fake_png_header(&data);
         segment.append(&mut data);
         segment = self.decrypter.decrypt(segment)?;
@@ -312,23 +261,7 @@ impl Thread {
         merger.write(self.index, &segment)?;
         merger.flush()?;
 
-        self.notify(merger.stored(), merger.estimate())?;
-        Ok(())
-    }
-
-    fn notify(&self, stored: usize, estimate: usize) -> Result<()> {
-        let mut pb = self.pb.lock().unwrap();
-        pb.replace(
-            0,
-            Column::Text(format!(
-                "[bold blue]{}",
-                utils::format_download_bytes(
-                    self.downloaded_bytes + stored,
-                    self.downloaded_bytes + estimate + self.estimated_bytes,
-                ),
-            )),
-        );
-        pb.update(1)?;
+        self.pb.update(chunk_bytes);
         Ok(())
     }
 
@@ -337,8 +270,7 @@ impl Thread {
             let response = match self.request.try_clone().unwrap().send().await {
                 Ok(response) => response,
                 Err(error) => {
-                    // TODO - Only print this info on verbose logging
-                    warn!("{}", check_reqwest_error(&error)?);
+                    trace!("{}", check_reqwest_error(&error)?);
                     continue;
                 }
             };
@@ -350,19 +282,6 @@ impl Thread {
             }
 
             let data = response.bytes().await?.to_vec();
-            let elapsed_time = self.timer.elapsed().as_secs() as usize;
-
-            if elapsed_time != 0 {
-                let stored = self.merger.lock().unwrap().stored() + data.len();
-                self.pb.lock().unwrap().replace(
-                    12,
-                    Column::Text(format!(
-                        "[yellow]{}/s",
-                        utils::format_bytes(stored / elapsed_time, 2).2
-                    )),
-                );
-            }
-
             return Ok(data);
         }
 
@@ -371,23 +290,22 @@ impl Thread {
 }
 
 fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
-    let request = "Request".yellow();
     let url = error.url().unwrap();
 
     if error.is_connect() {
-        return Ok(format!("    {request} {url} (connection error)"));
+        return Ok(format!("{url} (connection error)"));
     } else if error.is_timeout() {
-        return Ok(format!("    {request} {url} (timeout)"));
+        return Ok(format!("{url} (timeout)"));
     }
 
     if let Some(status) = error.status() {
         match status {
-            StatusCode::GATEWAY_TIMEOUT => Ok(format!("    {request} {url} (gateway timeout)")),
-            StatusCode::REQUEST_TIMEOUT => Ok(format!("    {request} {url} (timeout)")),
+            StatusCode::GATEWAY_TIMEOUT => Ok(format!("{url} (gateway timeout)")),
+            StatusCode::REQUEST_TIMEOUT => Ok(format!("{url} (timeout)")),
             StatusCode::SERVICE_UNAVAILABLE => {
-                Ok(format!("    {request} {url} (service unavailable)"))
+                Ok(format!("{url} (service unavailable)"))
             }
-            StatusCode::TOO_MANY_REQUESTS => Ok(format!("    {request} {url} (too many requests)")),
+            StatusCode::TOO_MANY_REQUESTS => Ok(format!("{url} (too many requests)")),
             _ => bail!("download failed {} (HTTP {})", url, status),
         }
     } else {
