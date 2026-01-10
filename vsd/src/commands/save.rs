@@ -1,7 +1,7 @@
 use crate::{
     automation::{Prompter, SelectOptions},
     cookie::{CookieJar, CookieParam},
-    downloader::{self, Decrypter},
+    downloader::{self, Decrypter, MAX_RETRIES, MAX_THREADS},
 };
 use anyhow::Result;
 use clap::Args;
@@ -181,6 +181,9 @@ impl Save {
     }
 
     pub async fn execute(self) -> Result<()> {
+        let _ = MAX_RETRIES.set(self.retries);
+        let _ = MAX_THREADS.set(self.threads);
+
         let client = self.client()?;
 
         let prompter = Prompter {
@@ -226,8 +229,6 @@ impl Save {
                 self.query,
                 streams,
                 self.subs_codec,
-                self.retries,
-                self.threads,
             )
             .await?;
         }

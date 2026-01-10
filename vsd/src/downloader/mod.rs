@@ -8,7 +8,6 @@ mod subtitle;
 
 pub use encryption::Decrypter;
 pub use fetch::fetch_playlist;
-use log::{error, warn};
 pub use parse::{list_all_streams, parse_all_streams, parse_selected_streams};
 pub use subtitle::download_subtitle_streams;
 
@@ -17,10 +16,19 @@ use crate::{
     utils,
 };
 use anyhow::{Result, bail};
+use log::{error, warn};
 use reqwest::{Client, Url};
-use std::{collections::HashMap, fs, path::PathBuf, sync::atomic::{AtomicBool, Ordering}};
+use std::{
+    cell::OnceCell,
+    collections::HashMap,
+    fs,
+    path::PathBuf,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
-static RUNNING: AtomicBool = AtomicBool::new(true);
+pub const MAX_RETRIES: OnceCell<u8> = OnceCell::new();
+pub const MAX_THREADS: OnceCell<u8> = OnceCell::new();
+pub static RUNNING: AtomicBool = AtomicBool::new(true);
 
 #[allow(clippy::too_many_arguments)]
 pub async fn download(
@@ -34,8 +42,6 @@ pub async fn download(
     query: HashMap<String, String>,
     mut streams: Vec<MediaPlaylist>,
     subs_codec: String,
-    retries: u8,
-    threads: u8,
 ) -> Result<()> {
     let should_mux = mux::should_mux(no_decrypt, no_merge, output.as_ref(), &streams);
 
@@ -69,7 +75,7 @@ pub async fn download(
             warn!("Ctrl+C received, stopping gracefully.");
             RUNNING.store(false, Ordering::SeqCst);
         }
-        
+
         if tokio::signal::ctrl_c().await.is_ok() {
             error!("Ctrl+C received, force exiting.");
             std::process::exit(1);
@@ -94,9 +100,7 @@ pub async fn download(
         no_decrypt,
         no_merge,
         &query,
-        retries,
         streams,
-        threads,
         &mut temp_files,
     )
     .await?;

@@ -1,5 +1,5 @@
 use crate::{
-    downloader::{encryption::Decrypter, mux::Stream},
+    downloader::{MAX_RETRIES, MAX_THREADS, encryption::Decrypter, mux::Stream},
     merger::Merger,
     playlist::{KeyMethod, MediaPlaylist, MediaType},
     progress::Progress,
@@ -23,9 +23,7 @@ pub async fn download_streams(
     no_decrypt: bool,
     no_merge: bool,
     query: &HashMap<String, String>,
-    retries: u8,
     streams: Vec<MediaPlaylist>,
-    threads: u8,
     temp_files: &mut Vec<Stream>,
 ) -> Result<()> {
     let streams = streams
@@ -62,10 +60,8 @@ pub async fn download_streams(
             no_merge,
             Progress::new("0", stream.segments.len()),
             query,
-            retries,
             stream,
             &temp_file,
-            threads as usize,
         )
         .await?;
     }
@@ -83,10 +79,8 @@ async fn download_stream(
     no_merge: bool,
     pb: Progress,
     query: &HashMap<String, String>,
-    retries: u8,
     stream: MediaPlaylist,
     temp_file: &PathBuf,
-    no_threads: usize,
 ) -> Result<()> {
     let mut init_seg = None;
     let merger = Arc::new(Mutex::new(if no_merge {
@@ -197,7 +191,6 @@ async fn download_stream(
             merger: merger.clone(),
             pb: pb.clone(),
             request,
-            retries,
         });
 
         if stream_decrypter.is_none() {
@@ -206,9 +199,10 @@ async fn download_stream(
     }
 
     let mut set = JoinSet::new();
+    let max_threads = *MAX_THREADS.get().unwrap() as usize;
 
     for mut thread in threads {
-        while set.len() >= no_threads {
+        while set.len() >= max_threads {
             set.join_next().await;
         }
         set.spawn(async move {
@@ -240,7 +234,6 @@ struct Thread {
     merger: Arc<Mutex<Merger>>,
     pb: Progress,
     request: RequestBuilder,
-    retries: u8,
 }
 
 impl Thread {
@@ -266,7 +259,7 @@ impl Thread {
     }
 
     async fn segment(&self) -> Result<Vec<u8>> {
-        for _ in 0..self.retries {
+        for _ in 0..*MAX_RETRIES.get().unwrap() {
             let response = match self.request.try_clone().unwrap().send().await {
                 Ok(response) => response,
                 Err(error) => {
@@ -302,9 +295,7 @@ fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
         match status {
             StatusCode::GATEWAY_TIMEOUT => Ok(format!("{url} (gateway timeout)")),
             StatusCode::REQUEST_TIMEOUT => Ok(format!("{url} (timeout)")),
-            StatusCode::SERVICE_UNAVAILABLE => {
-                Ok(format!("{url} (service unavailable)"))
-            }
+            StatusCode::SERVICE_UNAVAILABLE => Ok(format!("{url} (service unavailable)")),
             StatusCode::TOO_MANY_REQUESTS => Ok(format!("{url} (too many requests)")),
             _ => bail!("download failed {} (HTTP {})", url, status),
         }
