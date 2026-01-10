@@ -5,7 +5,7 @@ use crate::{
     progress::Progress,
 };
 use anyhow::{Result, bail};
-use log::{error, info, trace, warn};
+use log::{debug, error, info, warn};
 use reqwest::{Client, RequestBuilder, StatusCode, Url, header};
 use std::{
     collections::HashMap,
@@ -263,7 +263,7 @@ impl Thread {
             let response = match self.request.try_clone().unwrap().send().await {
                 Ok(response) => response,
                 Err(error) => {
-                    trace!("{}", check_reqwest_error(&error)?);
+                    debug!("{}", check_reqwest_error(&error)?);
                     continue;
                 }
             };

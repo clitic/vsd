@@ -48,11 +48,11 @@ pub struct Args {
     pub color: ColorChoice,
 
     /// Silence all output and only log errors.
-    #[arg(short, long, conflicts_with = "verbose")]
+    #[arg(short, long, global = true, conflicts_with = "verbose")]
     quiet: bool,
 
     /// Increase verbosity (-v [debug], -vv [trace]). Default logging level is set to info.
-    #[arg(short, long, action = ArgAction::Count)]
+    #[arg(short, long, global = true, action = ArgAction::Count)]
     verbose: u8,
 }
 
