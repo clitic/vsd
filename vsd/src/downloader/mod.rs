@@ -19,15 +19,14 @@ use anyhow::{Result, bail};
 use log::{error, warn};
 use reqwest::{Client, Url};
 use std::{
-    cell::OnceCell,
     collections::HashMap,
     fs,
     path::PathBuf,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::atomic::{AtomicBool, AtomicU8, Ordering},
 };
 
-pub const MAX_RETRIES: OnceCell<u8> = OnceCell::new();
-pub const MAX_THREADS: OnceCell<u8> = OnceCell::new();
+pub static MAX_RETRIES: AtomicU8 = AtomicU8::new(5);
+pub static MAX_THREADS: AtomicU8 = AtomicU8::new(5);
 pub static RUNNING: AtomicBool = AtomicBool::new(true);
 
 #[allow(clippy::too_many_arguments)]

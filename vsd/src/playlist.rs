@@ -656,51 +656,6 @@ impl MediaPlaylist {
         .join(" ")
     }
 
-    pub async fn estimate_size(
-        &self,
-        base_url: &Option<Url>,
-        client: &Client,
-        query: &HashMap<String, String>,
-    ) -> Result<usize> {
-        let total_segments = self.segments.len();
-
-        if total_segments > 1
-            && let Some(Segment {
-                range: Some(Range { end, .. }),
-                ..
-            }) = self.segments.last()
-        {
-            return Ok(*end as usize);
-        }
-
-        if let Some(segment) = self.segments.first() {
-            let base_url = base_url.clone().unwrap_or(self.uri.parse::<Url>().unwrap());
-            let url = base_url.join(&segment.uri)?;
-            let mut request = client.head(url.clone()).query(query);
-
-            if total_segments > 1
-                && let Some(range) = &segment.range
-            {
-                request = request.header(header::RANGE, range.as_header_value());
-            }
-
-            let response = request.send().await?;
-            let content_length = response
-                .headers()
-                .get(header::CONTENT_LENGTH)
-                .map(|h| h.to_str().unwrap_or("0").parse::<usize>().unwrap_or(0usize))
-                .unwrap_or(0usize);
-
-            if total_segments > 1 {
-                return Ok(total_segments * content_length);
-            } else {
-                return Ok(content_length);
-            }
-        }
-
-        Ok(0)
-    }
-
     pub fn extension(&self) -> &OsStr {
         if let Some(ext) = &self.extension {
             return OsStr::new(ext);

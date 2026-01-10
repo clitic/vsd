@@ -160,7 +160,7 @@ async fn download_subtitle_stream(
     }
 
     eprintln!();
-    
+
     match codec {
         Some(SubtitleType::Mp4Vtt) => {
             info!("Extracting wvtt subs");

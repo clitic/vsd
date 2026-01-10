@@ -13,7 +13,7 @@ use reqwest::{
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, atomic::Ordering},
 };
 
 type CookieParams = Vec<CookieParam>;
@@ -121,7 +121,7 @@ pub struct Save {
     pub no_decrypt: bool,
 
     /// Maximum number of retries to download an individual segment.
-    #[arg(long, help_heading = "Download Options", default_value_t = 15)]
+    #[arg(long, help_heading = "Download Options", default_value_t = 5)]
     pub retries: u8,
 
     /// Download streams without merging them.
@@ -181,8 +181,8 @@ impl Save {
     }
 
     pub async fn execute(self) -> Result<()> {
-        let _ = MAX_RETRIES.set(self.retries);
-        let _ = MAX_THREADS.set(self.threads);
+        MAX_RETRIES.store(self.retries, Ordering::SeqCst);
+        MAX_THREADS.store(self.threads, Ordering::SeqCst);
 
         let client = self.client()?;
 

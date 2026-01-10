@@ -10,7 +10,7 @@ use reqwest::{Client, RequestBuilder, StatusCode, Url, header};
 use std::{
     collections::HashMap,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, atomic::Ordering},
 };
 use tokio::task::JoinSet;
 
@@ -199,7 +199,7 @@ async fn download_stream(
     }
 
     let mut set = JoinSet::new();
-    let max_threads = *MAX_THREADS.get().unwrap() as usize;
+    let max_threads = MAX_THREADS.load(Ordering::SeqCst) as usize;
 
     for mut thread in threads {
         while set.len() >= max_threads {
@@ -259,7 +259,7 @@ impl Thread {
     }
 
     async fn segment(&self) -> Result<Vec<u8>> {
-        for _ in 0..*MAX_RETRIES.get().unwrap() {
+        for _ in 0..MAX_RETRIES.load(Ordering::SeqCst) {
             let response = match self.request.try_clone().unwrap().send().await {
                 Ok(response) => response,
                 Err(error) => {
