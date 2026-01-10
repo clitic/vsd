@@ -1,5 +1,5 @@
 use crate::{
-    downloader::{MAX_RETRIES, MAX_THREADS, encryption::Decrypter, mux::Stream},
+    downloader::{MAX_RETRIES, MAX_THREADS, SKIP_MERGE, encryption::Decrypter, mux::Stream},
     playlist::{KeyMethod, MediaPlaylist, MediaType},
     progress::Progress,
 };
@@ -216,20 +216,24 @@ async fn download_stream(
 
     eprintln!();
 
-    info!("Merging segments {}", temp_file.to_string_lossy());
+    if SKIP_MERGE.load(Ordering::SeqCst) {
+        info!("Merging skipped {}", temp_file.to_string_lossy());
+    } else {
+        info!("Merging segments {}", temp_file.to_string_lossy());
 
-    let mut outfile = File::create(temp_file).await?;
+        let mut outfile = File::create(temp_file).await?;
 
-    for i in 0..total {
-        let path = temp_dir.join(format!("{}.{}", i, extension));
+        for i in 0..total {
+            let path = temp_dir.join(format!("{}.{}", i, extension));
 
-        if path.exists() {
-            io::copy(&mut File::open(&path).await?, &mut outfile).await?;
+            if path.exists() {
+                io::copy(&mut File::open(&path).await?, &mut outfile).await?;
+            }
         }
-    }
 
-    info!("Deleting {}", temp_dir.to_string_lossy());
-    fs::remove_dir_all(&temp_dir).await?;
+        info!("Deleting {}", temp_dir.to_string_lossy());
+        fs::remove_dir_all(&temp_dir).await?;
+    }
 
     info!("Downloaded stream successfully");
     Ok(())

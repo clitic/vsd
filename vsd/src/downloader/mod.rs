@@ -37,13 +37,12 @@ pub async fn download(
     decrypter: Decrypter,
     directory: Option<PathBuf>,
     no_decrypt: bool,
-    no_merge: bool,
     output: Option<PathBuf>,
     query: HashMap<String, String>,
     mut streams: Vec<MediaPlaylist>,
     subs_codec: String,
 ) -> Result<()> {
-    let should_mux = mux::should_mux(no_decrypt, no_merge, output.as_ref(), &streams);
+    let should_mux = mux::should_mux(no_decrypt, SKIP_MERGE.load(Ordering::SeqCst), output.as_ref(), &streams);
 
     if should_mux && utils::find_ffmpeg().is_none() {
         bail!("ffmpeg couldn't be found, it is required to continue further.");
