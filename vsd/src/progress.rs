@@ -62,14 +62,11 @@ impl Progress {
         let mut handle = stderr.lock();
         write!(
             handle,
-            "\r\x1B[2K{}#[{}] {}{} PT:{} DL:{} ETA:{}{}",
+            "\r\x1B[2K{}#[{}] {}/~{}{} PT:{} DL:{} ETA:{}{}",
             "[".magenta(),
             inner.id,
-            format!(
-                "{}/~{}",
-                ByteSize(inner.total_bytes),
-                ByteSize(remaining_bytes)
-            ),
+            ByteSize(inner.total_bytes),
+            ByteSize(remaining_bytes),
             format!("({}%)", percent).cyan(),
             format!("{}/{}", inner.counter, inner.total).cyan(),
             ByteSize(speed as usize).to_string().green(),
