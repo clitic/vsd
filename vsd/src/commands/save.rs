@@ -1,7 +1,7 @@
 use crate::{
     automation::{Prompter, SelectOptions},
     cookie::{CookieJar, CookieParam},
-    downloader::{self, Decrypter, MAX_RETRIES, MAX_THREADS},
+    downloader::{self, Decrypter, MAX_RETRIES, MAX_THREADS, SKIP_MERGE},
 };
 use anyhow::Result;
 use clap::Args;
@@ -183,6 +183,7 @@ impl Save {
     pub async fn execute(self) -> Result<()> {
         MAX_RETRIES.store(self.retries, Ordering::SeqCst);
         MAX_THREADS.store(self.threads, Ordering::SeqCst);
+        SKIP_MERGE.store(self.no_merge, Ordering::SeqCst);
 
         let client = self.client()?;
 

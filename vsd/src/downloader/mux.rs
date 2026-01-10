@@ -3,13 +3,10 @@ use crate::{
     utils,
 };
 use anyhow::{Result, bail};
+use colored::Colorize;
 use log::{info, warn};
-use std::{
-    ffi::OsStr,
-    fs,
-    path::PathBuf,
-    process::{Command, Stdio},
-};
+use std::{ffi::OsStr, path::PathBuf, process::Stdio};
+use tokio::{fs, process::Command};
 
 pub struct Stream {
     pub language: Option<String>,
@@ -17,23 +14,27 @@ pub struct Stream {
     pub path: PathBuf,
 }
 
-pub fn delete_temp_files(directory: Option<&PathBuf>, temp_files: &[Stream]) -> Result<()> {
+pub async fn delete_temp_files(directory: Option<&PathBuf>, temp_files: &[Stream]) -> Result<()> {
     for temp_file in temp_files {
         info!("Deleting {}", temp_file.path.to_string_lossy());
-        fs::remove_file(&temp_file.path)?;
+        fs::remove_file(&temp_file.path).await?;
     }
 
     if let Some(directory) = directory
         && directory.read_dir()?.next().is_none()
     {
         info!("Deleting {}", directory.to_string_lossy());
-        fs::remove_dir(directory)?;
+        fs::remove_dir(directory).await?;
     }
 
     Ok(())
 }
 
-pub fn ffmpeg(output: Option<&PathBuf>, subs_codec: &str, temp_files: &[Stream]) -> Result<()> {
+pub async fn ffmpeg(
+    output: Option<&PathBuf>,
+    subs_codec: &str,
+    temp_files: &[Stream],
+) -> Result<()> {
     let output = output.unwrap();
 
     let sub_streams_present = temp_files
@@ -132,11 +133,12 @@ pub fn ffmpeg(output: Option<&PathBuf>, subs_codec: &str, temp_files: &[Stream])
 
     if output.exists() {
         info!("Deleting {}", output.to_string_lossy());
-        fs::remove_file(output)?;
+        fs::remove_file(output).await?;
     }
 
     info!(
-        "Executing ffmpeg {}",
+        "Executing {} {}",
+        "ffmpeg".bold(),
         args.iter()
             .map(|x| if x.contains(' ') {
                 format!("\"{x}\"")
@@ -145,13 +147,15 @@ pub fn ffmpeg(output: Option<&PathBuf>, subs_codec: &str, temp_files: &[Stream])
             })
             .collect::<Vec<_>>()
             .join(" ")
+            .bold()
     );
 
     let code = Command::new(utils::find_ffmpeg().unwrap())
         .args(args)
         .stderr(Stdio::null())
         .spawn()?
-        .wait()?;
+        .wait()
+        .await?;
 
     if !code.success() {
         bail!("ffmpeg exited with code {}", code.code().unwrap_or(1));

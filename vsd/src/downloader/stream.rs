@@ -1,18 +1,18 @@
 use crate::{
     downloader::{MAX_RETRIES, MAX_THREADS, encryption::Decrypter, mux::Stream},
-    merger::Merger,
     playlist::{KeyMethod, MediaPlaylist, MediaType},
     progress::Progress,
 };
 use anyhow::{Result, bail};
+use colored::Colorize;
 use log::{debug, error, info, warn};
 use reqwest::{Client, RequestBuilder, StatusCode, Url, header};
-use std::{
-    collections::HashMap,
-    path::PathBuf,
-    sync::{Arc, Mutex, atomic::Ordering},
+use std::{collections::HashMap, path::PathBuf, sync::atomic::Ordering};
+use tokio::{
+    fs::{self, File},
+    io::{self, AsyncWriteExt},
+    task::JoinSet,
 };
-use tokio::task::JoinSet;
 
 #[allow(clippy::too_many_arguments)]
 pub async fn download_streams(
@@ -21,7 +21,6 @@ pub async fn download_streams(
     decrypter: Decrypter,
     directory: Option<&PathBuf>,
     no_decrypt: bool,
-    no_merge: bool,
     query: &HashMap<String, String>,
     streams: Vec<MediaPlaylist>,
     temp_files: &mut Vec<Stream>,
@@ -35,7 +34,7 @@ pub async fn download_streams(
         info!(
             "Processing {:>5} stream: {}",
             stream.media_type.to_string(),
-            stream.display_stream(),
+            stream.display_stream().bold(),
         );
 
         if stream.segments.is_empty() {
@@ -43,7 +42,7 @@ pub async fn download_streams(
             continue;
         }
 
-        let temp_file = stream.path(directory, stream.extension());
+        let temp_file = stream.path(directory);
 
         temp_files.push(Stream {
             language: stream.language.clone(),
@@ -51,13 +50,15 @@ pub async fn download_streams(
             path: temp_file.clone(),
         });
 
-        info!("Downloading {}", temp_file.to_string_lossy());
+        info!(
+            "Downloading segments: {}",
+            temp_file.with_extension("").to_string_lossy()
+        );
         download_stream(
             base_url,
             client,
             decrypter.clone(),
             no_decrypt,
-            no_merge,
             Progress::new("0", stream.segments.len()),
             query,
             stream,
@@ -76,18 +77,12 @@ async fn download_stream(
     client: &Client,
     decrypter: Decrypter,
     no_decrypt: bool,
-    no_merge: bool,
     pb: Progress,
     query: &HashMap<String, String>,
     stream: MediaPlaylist,
     temp_file: &PathBuf,
 ) -> Result<()> {
     let mut init_seg = None;
-    let merger = Arc::new(Mutex::new(if no_merge {
-        Merger::new_directory(stream.segments.len(), temp_file)?
-    } else {
-        Merger::new_file(stream.segments.len(), temp_file)?
-    }));
     let mut increment_iv = false;
     let base_url = base_url
         .clone()
@@ -97,6 +92,9 @@ async fn download_stream(
     let mut default_kid = None;
     let mut widevine_kid = None;
     let mut stream_decrypter = decrypter.clone();
+    let temp_dir = temp_file.with_extension("");
+    let extension = stream.extension();
+    let total = stream.segments.len();
 
     for (i, segment) in stream.segments.iter().enumerate() {
         if let Some(map) = &segment.map {
@@ -166,7 +164,7 @@ async fn download_stream(
                                     key.to_owned(),
                                 )]));
 
-                                info!("Using key: {}:{}", default_kid, key,);
+                                info!("Using key: {}:{}", default_kid, key);
                             }
                         } else {
                             bail!("custom keys (KID:KEY;...) are required to continue further.",);
@@ -186,17 +184,18 @@ async fn download_stream(
 
         threads.push(Thread {
             decrypter: stream_decrypter.clone(),
-            index: i,
             init_seg: init_seg.clone(),
-            merger: merger.clone(),
             pb: pb.clone(),
             request,
+            temp_file: temp_dir.join(format!("{}.{}.part", i, extension)),
         });
 
         if stream_decrypter.is_none() {
             init_seg = None;
         }
     }
+
+    fs::create_dir_all(&temp_dir).await?;
 
     let mut set = JoinSet::new();
     let max_threads = MAX_THREADS.load(Ordering::SeqCst) as usize;
@@ -215,25 +214,33 @@ async fn download_stream(
 
     while let Some(_res) = set.join_next().await {}
 
-    let mut merger = merger.lock().unwrap();
-    merger.flush()?;
+    eprintln!();
 
-    if !merger.buffered() {
-        bail!("failed to download stream.",);
+    info!("Merging segments {}", temp_file.to_string_lossy());
+
+    let mut outfile = File::create(temp_file).await?;
+
+    for i in 0..total {
+        let path = temp_dir.join(format!("{}.{}", i, extension));
+
+        if path.exists() {
+            io::copy(&mut File::open(&path).await?, &mut outfile).await?;
+        }
     }
 
-    eprintln!();
+    info!("Deleting {}", temp_dir.to_string_lossy());
+    fs::remove_dir_all(&temp_dir).await?;
+
     info!("Downloaded stream successfully");
     Ok(())
 }
 
 struct Thread {
     decrypter: Decrypter,
-    index: usize,
     init_seg: Option<Vec<u8>>,
-    merger: Arc<Mutex<Merger>>,
     pb: Progress,
     request: RequestBuilder,
+    temp_file: PathBuf,
 }
 
 impl Thread {
@@ -250,9 +257,10 @@ impl Thread {
         segment.append(&mut data);
         segment = self.decrypter.decrypt(segment)?;
 
-        let mut merger = self.merger.lock().unwrap();
-        merger.write(self.index, &segment)?;
-        merger.flush()?;
+        let mut file = File::create(&self.temp_file).await?;
+        file.write_all(&segment).await?;
+        file.flush().await?;
+        fs::rename(&self.temp_file, self.temp_file.with_extension("")).await?;
 
         self.pb.update(chunk_bytes);
         Ok(())

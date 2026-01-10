@@ -28,6 +28,7 @@ use std::{
 pub static MAX_RETRIES: AtomicU8 = AtomicU8::new(5);
 pub static MAX_THREADS: AtomicU8 = AtomicU8::new(5);
 pub static RUNNING: AtomicBool = AtomicBool::new(true);
+pub static SKIP_MERGE: AtomicBool = AtomicBool::new(false);
 
 #[allow(clippy::too_many_arguments)]
 pub async fn download(
@@ -97,7 +98,6 @@ pub async fn download(
         decrypter,
         directory.as_ref(),
         no_decrypt,
-        no_merge,
         &query,
         streams,
         &mut temp_files,
@@ -105,8 +105,8 @@ pub async fn download(
     .await?;
 
     if should_mux {
-        mux::ffmpeg(output.as_ref(), &subs_codec, &temp_files)?;
-        mux::delete_temp_files(directory.as_ref(), &temp_files)?;
+        mux::ffmpeg(output.as_ref(), &subs_codec, &temp_files).await?;
+        mux::delete_temp_files(directory.as_ref(), &temp_files).await?;
     }
 
     Ok(())

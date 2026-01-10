@@ -8,7 +8,6 @@ use reqwest::{
 use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet},
-    ffi::OsStr,
     fmt::Display,
     io::Write,
     path::PathBuf,
@@ -182,7 +181,7 @@ impl MasterPlaylist {
                 info!(
                     "Found {:>5} stream: {}",
                     stream.media_type.to_string(),
-                    stream.display_stream(),
+                    stream.display_stream().dimmed(),
                 );
             }
         }
@@ -656,9 +655,9 @@ impl MediaPlaylist {
         .join(" ")
     }
 
-    pub fn extension(&self) -> &OsStr {
+    pub fn extension(&self) -> &str {
         if let Some(ext) = &self.extension {
-            return OsStr::new(ext);
+            return ext;
         }
 
         let mut ext = match &self.playlist_type {
@@ -678,10 +677,10 @@ impl MediaPlaylist {
             }
         }
 
-        OsStr::new(ext)
+        ext
     }
 
-    pub fn path(&self, directory: Option<&PathBuf>, ext: &OsStr) -> PathBuf {
+    pub fn path(&self, directory: Option<&PathBuf>) -> PathBuf {
         let prefix = match &self.media_type {
             MediaType::Audio => "vsd-audio",
             MediaType::Subtitles => "vsd-subtitles",
@@ -689,26 +688,10 @@ impl MediaPlaylist {
             MediaType::Video => "vsd-video",
         };
 
-        let mut path = PathBuf::from(format!("{}-{}.{}", prefix, self.id, ext.to_string_lossy()));
+        let mut path = PathBuf::from(format!("{}-{}.{}", prefix, self.id, self.extension()));
 
         if let Some(directory) = directory {
             path = directory.join(path);
-        }
-
-        if path.exists() {
-            for i in 1.. {
-                path.set_file_name(format!(
-                    "{}-{}-{}.{}",
-                    prefix,
-                    self.id,
-                    i,
-                    ext.to_string_lossy()
-                ));
-
-                if !path.exists() {
-                    return path;
-                }
-            }
         }
 
         path

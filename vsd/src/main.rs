@@ -5,7 +5,6 @@ mod dash;
 mod downloader;
 mod hls;
 mod logger;
-mod merger;
 mod playlist;
 mod progress;
 mod utils;

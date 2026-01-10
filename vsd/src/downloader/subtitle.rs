@@ -4,9 +4,11 @@ use crate::{
     progress::Progress,
 };
 use anyhow::{Result, anyhow};
+use colored::Colorize;
 use log::{info, warn};
 use reqwest::{Client, Url, header};
-use std::{collections::HashMap, ffi::OsStr, fs::File, io::Write, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf};
+use tokio::{fs::File, io::AsyncWriteExt};
 use vsd_mp4::text::{Mp4TtmlParser, Mp4VttParser, ttml_text_parser};
 
 enum SubtitleType {
@@ -56,7 +58,7 @@ async fn download_subtitle_stream(
     info!(
         "Processing {} stream: {}",
         stream.media_type.to_string(),
-        stream.display_stream(),
+        stream.display_stream().bold(),
     );
 
     if stream.segments.is_empty() {
@@ -70,15 +72,15 @@ async fn download_subtitle_stream(
     if let Some(codecs) = &stream.codecs {
         match codecs.as_str() {
             "vtt" => {
-                ext = OsStr::new("vtt");
+                ext = "vtt";
                 codec = Some(SubtitleType::VttText);
             }
             "wvtt" => {
-                ext = OsStr::new("vtt");
+                ext = "vtt";
                 codec = Some(SubtitleType::Mp4Vtt);
             }
             "stpp" | "stpp.ttml" | "stpp.ttml.im1t" | "stpp.TTML.im1t" => {
-                ext = OsStr::new("srt");
+                ext = "srt";
                 codec = Some(SubtitleType::Mp4Ttml);
             }
             _ => (),
@@ -123,31 +125,31 @@ async fn download_subtitle_stream(
 
             if codec.is_none() {
                 if subs_data.starts_with(b"WEBVTT") || ext == "vtt" {
-                    ext = OsStr::new("vtt");
+                    ext = "vtt";
                     codec = Some(SubtitleType::VttText);
                 } else if subs_data.starts_with(b"1") || ext == "srt" {
-                    ext = OsStr::new("srt");
+                    ext = "srt";
                     codec = Some(SubtitleType::SrtText);
                 } else if subs_data.starts_with(b"<?xml")
                     || subs_data.starts_with(b"<tt")
                     || ext == "ttml"
                 {
-                    ext = OsStr::new("srt");
+                    ext = "srt";
                     codec = Some(SubtitleType::TtmlText);
                 } else if Mp4VttParser::parse_init(&subs_data).is_ok() {
-                    ext = OsStr::new("vtt");
+                    ext = "vtt";
                     codec = Some(SubtitleType::Mp4Vtt);
                 } else if Mp4TtmlParser::parse_init(&subs_data).is_ok() {
-                    ext = OsStr::new("srt");
+                    ext = "srt";
                     codec = Some(SubtitleType::Mp4Ttml);
                 } else {
                     warn!("Unknown subtitle codec used",);
-                    ext = OsStr::new("txt");
+                    ext = "txt";
                     codec = Some(SubtitleType::Unknown);
                 }
             }
 
-            temp_file = stream.path(directory, ext);
+            temp_file = stream.path(directory);
             temp_files.push(Stream {
                 language: stream.language.clone(),
                 media_type: stream.media_type.clone(),
@@ -166,13 +168,19 @@ async fn download_subtitle_stream(
             info!("Extracting wvtt subs");
             let vtt = Mp4VttParser::parse_init(&subs_data)?;
             let subs = vtt.parse_media(&subs_data, None)?;
-            File::create(&temp_file)?.write_all(subs.as_vtt().as_bytes())?;
+            File::create(&temp_file)
+                .await?
+                .write_all(subs.as_vtt().as_bytes())
+                .await?;
         }
         Some(SubtitleType::Mp4Ttml) => {
             info!("Extracting stpp subs");
             let ttml = Mp4TtmlParser::parse_init(&subs_data)?;
             let subs = ttml.parse_media(&subs_data)?;
-            File::create(&temp_file)?.write_all(subs.as_srt().as_bytes())?;
+            File::create(&temp_file)
+                .await?
+                .write_all(subs.as_srt().as_bytes())
+                .await?;
         }
         Some(SubtitleType::TtmlText) => {
             info!("Extracting ttml+xml subs");
@@ -185,9 +193,17 @@ async fn download_subtitle_stream(
                     x,
                 )
             })?;
-            File::create(&temp_file)?.write_all(ttml.into_subtitles().as_srt().as_bytes())?;
+            File::create(&temp_file)
+                .await?
+                .write_all(ttml.into_subtitles().as_srt().as_bytes())
+                .await?;
         }
-        _ => File::create(&temp_file)?.write_all(&subs_data)?,
+        _ => {
+            File::create(&temp_file)
+                .await?
+                .write_all(&subs_data)
+                .await?
+        }
     };
     info!("Downloaded stream successfully");
     Ok(())
