@@ -125,7 +125,7 @@ impl Capture {
             }),
         )?;
 
-        info!("Navigating browwser to {}", self.url);
+        info!("Navigating browser to {}", self.url);
         tab.navigate_to(&self.url)?;
 
         info!("Waiting for CTRL+C signal.");

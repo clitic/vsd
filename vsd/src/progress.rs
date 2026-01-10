@@ -48,6 +48,8 @@ impl Progress {
         } else {
             100
         };
+
+        // FIX - Speed and ETA smoothning
         let speed = if elapsed_secs > 0.0 {
             (inner.total_bytes.saturating_sub(inner.last_bytes)) as f64 / elapsed_secs
         } else {

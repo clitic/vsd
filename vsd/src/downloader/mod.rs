@@ -8,6 +8,7 @@ mod subtitle;
 
 pub use encryption::Decrypter;
 pub use fetch::fetch_playlist;
+use log::{error, warn};
 pub use parse::{list_all_streams, parse_all_streams, parse_selected_streams};
 pub use subtitle::download_subtitle_streams;
 
@@ -17,7 +18,9 @@ use crate::{
 };
 use anyhow::{Result, bail};
 use reqwest::{Client, Url};
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{collections::HashMap, fs, path::PathBuf, sync::atomic::{AtomicBool, Ordering}};
+
+static RUNNING: AtomicBool = AtomicBool::new(true);
 
 #[allow(clippy::too_many_arguments)]
 pub async fn download(
@@ -60,6 +63,18 @@ pub async fn download(
     }
 
     let mut temp_files = vec![];
+
+    tokio::spawn(async {
+        if tokio::signal::ctrl_c().await.is_ok() && RUNNING.load(Ordering::SeqCst) {
+            warn!("Ctrl+C received, stopping gracefully.");
+            RUNNING.store(false, Ordering::SeqCst);
+        }
+        
+        if tokio::signal::ctrl_c().await.is_ok() {
+            error!("Ctrl+C received, force exiting.");
+            std::process::exit(1);
+        }
+    });
 
     download_subtitle_streams(
         &base_url,
