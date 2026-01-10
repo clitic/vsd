@@ -1,5 +1,5 @@
 use crate::{
-    downloader::{MAX_RETRIES, MAX_THREADS, SKIP_MERGE, encryption::Decrypter, mux::Stream},
+    downloader::{MAX_RETRIES, MAX_THREADS, SKIP_MERGE, encryption::Decrypter, fix, mux::Stream},
     playlist::{KeyMethod, MediaPlaylist, MediaType},
     progress::Progress,
 };
@@ -255,10 +255,10 @@ impl Thread {
             segment.append(init_segment);
         }
 
-        let mut data = self.segment().await?;
+        let data = self.segment().await?;
         let chunk_bytes = data.len();
-        // data = fix::fake_png_header(&data);
-        segment.append(&mut data);
+
+        segment.extend_from_slice(fix::fake_png_header(&data));
         segment = self.decrypter.decrypt(segment)?;
 
         let mut file = File::create(&self.temp_file).await?;
