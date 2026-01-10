@@ -225,7 +225,6 @@ impl Save {
                 self.keys,
                 self.directory,
                 self.no_decrypt,
-                self.no_merge,
                 self.output,
                 self.query,
                 streams,
