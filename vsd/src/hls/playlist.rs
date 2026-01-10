@@ -237,9 +237,10 @@ pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, stream: &mut playlist
 
     if let Some(segment) = stream.segments.first() {
         if let Some(init) = &segment.map
-            && init.uri.split('?').next().unwrap().ends_with(".mp4") {
-                stream.extension = Some("m4s".to_owned());
-            }
+            && init.uri.split('?').next().unwrap().ends_with(".mp4")
+        {
+            stream.extension = Some("m4s".to_owned());
+        }
 
         let uri = segment.uri.split('?').next().unwrap();
 

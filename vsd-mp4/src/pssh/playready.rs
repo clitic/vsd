@@ -152,7 +152,7 @@ impl WrmHeader {
             x => {
                 return Err(Error::new(format!(
                     "unsupported PSSH box playready object header version v{x}."
-                )))
+                )));
             }
         }
 

@@ -33,14 +33,13 @@ impl Subtitles {
             {
                 if let Some(last_cue) = trimmed_cues.last()
                     && last_cue.end_time == current_cue.start_time
-                        && last_cue.settings == current_cue.settings
-                        && last_cue.payload == current_cue.payload
-                    {
-                        let last_cue_index = trimmed_cues.len() - 1;
-                        trimmed_cues.get_mut(last_cue_index).unwrap().end_time =
-                            current_cue.end_time;
-                        continue;
-                    }
+                    && last_cue.settings == current_cue.settings
+                    && last_cue.payload == current_cue.payload
+                {
+                    let last_cue_index = trimmed_cues.len() - 1;
+                    trimmed_cues.get_mut(last_cue_index).unwrap().end_time = current_cue.end_time;
+                    continue;
+                }
 
                 trimmed_cues.push(current_cue);
             }
@@ -99,7 +98,5 @@ fn seconds_to_timestamp(seconds: f32, millisecond_sep: &str) -> String {
     let (seconds, milliseconds) = divmod((seconds * 1000.0) as usize, 1000);
     let (minutes, seconds) = divmod(seconds, 60);
     let (hours, minutes) = divmod(minutes, 60);
-    format!(
-        "{hours:02}:{minutes:02}:{seconds:02}{millisecond_sep}{milliseconds:03}"
-    )
+    format!("{hours:02}:{minutes:02}:{seconds:02}{millisecond_sep}{milliseconds:03}")
 }

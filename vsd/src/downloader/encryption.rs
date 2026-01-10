@@ -3,7 +3,7 @@ use aes::cipher::{BlockDecryptMut, KeyIvInit, block_padding::Pkcs7};
 use anyhow::{Result, anyhow, bail};
 use colored::Colorize;
 use log::info;
-use reqwest::{Url, Client, header};
+use reqwest::{Client, Url, header};
 use std::collections::{HashMap, HashSet};
 use vsd_mp4::pssh::Pssh;
 

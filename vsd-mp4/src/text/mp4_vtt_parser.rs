@@ -7,10 +7,10 @@
 */
 
 use super::{
-    boxes::{MDHDBox, TFDTBox, TFHDBox, TRUNBox, TRUNSample},
     Cue, Subtitles,
+    boxes::{MDHDBox, TFDTBox, TFHDBox, TRUNBox, TRUNSample},
 };
-use crate::{parser, parser::Mp4Parser, Error, Reader, Result};
+use crate::{Error, Reader, Result, parser, parser::Mp4Parser};
 use std::sync::{Arc, Mutex};
 
 /// Parse vtt subtitles from mp4 files.
@@ -226,12 +226,7 @@ fn parse_mdat(
             if payload_name == "vttc" {
                 if payload_size > 8 {
                     payload = Some(reader.read_bytes_u8((payload_size - 8) as usize).map_err(
-                        |_| {
-                            Error::new_read(format!(
-                                "payload data ({} bytes).",
-                                payload_size - 8
-                            ))
-                        },
+                        |_| Error::new_read(format!("payload data ({} bytes).", payload_size - 8)),
                     )?);
                 }
             } else if payload_name == "vtte" {

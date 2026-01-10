@@ -6,8 +6,8 @@
 
 */
 
-use super::{ttml_text_parser, Subtitles};
-use crate::{parser, parser::Mp4Parser, Error, Result};
+use super::{Subtitles, ttml_text_parser};
+use crate::{Error, Result, parser, parser::Mp4Parser};
 use std::sync::{Arc, Mutex};
 
 /// Parse ttml subtitles from mp4 files.
@@ -60,9 +60,8 @@ impl Mp4TtmlParser {
                     *saw_mdat_c.lock().unwrap() = true;
                     // Join this to any previous payload, in case the mp4 has multiple
                     // mdats.
-                    let xml = String::from_utf8(data).map_err(|_| {
-                        Error::new_decode("MDAT box payload as valid utf-8 data.")
-                    })?;
+                    let xml = String::from_utf8(data)
+                        .map_err(|_| Error::new_decode("MDAT box payload as valid utf-8 data."))?;
                     cues_c.lock().unwrap().append(
                         &mut ttml_text_parser::parse(&xml)
                             .map_err(|x| {

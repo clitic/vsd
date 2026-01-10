@@ -109,9 +109,9 @@ impl SelectOptions {
                                 x => {
                                     if let Some((w, h)) = x.split_once('x')
                                         && let (Ok(w), Ok(h)) = (w.parse::<u16>(), h.parse::<u16>())
-                                        {
-                                            auto.video.resolutions.insert((w, h));
-                                        }
+                                    {
+                                        auto.video.resolutions.insert((w, h));
+                                    }
                                 }
                             }
                         }

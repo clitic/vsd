@@ -2,7 +2,7 @@ use crate::{automation::Prompter, playlist::PlaylistType};
 use anyhow::{Result, anyhow, bail};
 use colored::Colorize;
 use regex::Regex;
-use reqwest::{Url, Client, header};
+use reqwest::{Client, Url, header};
 use std::{
     collections::{HashMap, HashSet},
     fs,
@@ -128,11 +128,7 @@ async fn fetch_from_website(
                     println!(
                         "{:2}) [{}] {}",
                         i + 1,
-                        if i == 0 {
-                            "x".green()
-                        } else {
-                            " ".normal()
-                        },
+                        if i == 0 { "x".green() } else { " ".normal() },
                         link
                     );
                 }
@@ -192,9 +188,10 @@ fn scrape_playlist_links(text: &str) -> Vec<String> {
         .into_iter()
         .map(|x| {
             if x.starts_with("http")
-                && let Some(y) = x.split("http").last() {
-                    return format!("http{y}");
-                }
+                && let Some(y) = x.split("http").last()
+            {
+                return format!("http{y}");
+            }
             x
         })
         .collect()

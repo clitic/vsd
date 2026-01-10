@@ -12,7 +12,7 @@ use crate::playlist::{
 };
 use anyhow::{Result, anyhow, bail};
 use dash_mpd::MPD;
-use reqwest::{Url, Client, header};
+use reqwest::{Client, Url, header};
 use std::collections::HashMap;
 
 pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
@@ -50,14 +50,15 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
                 };
 
                 if media_type == MediaType::Undefined
-                    && let Some(codecs) = &codecs {
-                        media_type = match codecs.as_str() {
-                            "wvtt" | "stpp" => MediaType::Subtitles,
-                            x if x.starts_with("stpp.") => MediaType::Subtitles,
-                            _ => media_type,
-                        };
-                    }
-                
+                    && let Some(codecs) = &codecs
+                {
+                    media_type = match codecs.as_str() {
+                        "wvtt" | "stpp" => MediaType::Subtitles,
+                        x if x.starts_with("stpp.") => MediaType::Subtitles,
+                        _ => media_type,
+                    };
+                }
+
                 streams.push(MediaPlaylist {
                     bandwidth: representation.bandwidth,
                     channels: representation

@@ -65,19 +65,22 @@ impl Span {
         let mut value = self.value.clone();
 
         if let Some(font_weight) = &self.font_weight
-            && font_weight == "bold" {
-                value = format!("{{b}}{value}{{/b}}");
-            }
+            && font_weight == "bold"
+        {
+            value = format!("{{b}}{value}{{/b}}");
+        }
 
         if let Some(font_style) = &self.font_style
-            && font_style == "italic" {
-                value = format!("{{i}}{value}{{/i}}");
-            }
+            && font_style == "italic"
+        {
+            value = format!("{{i}}{value}{{/i}}");
+        }
 
         if let Some(text_decoration) = &self.text_decoration
-            && text_decoration == "underline" {
-                value = format!("{{u}}{value}{{/u}}");
-            }
+            && text_decoration == "underline"
+        {
+            value = format!("{{u}}{value}{{/u}}");
+        }
 
         if let Some(color) = &self.color {
             value = format!("{{font color=\"{color}\">{value}{{/font}}");
@@ -165,10 +168,9 @@ fn duration(duration: &str) -> Result<f32, std::num::ParseFloatError> {
     let mut duration = duration.split(':').rev();
     let mut total_seconds = 0.0;
 
-    if is_frame
-        && let Some(seconds) = duration.next() {
-            total_seconds += seconds.parse::<f32>()? / 1000.0;
-        }
+    if is_frame && let Some(seconds) = duration.next() {
+        total_seconds += seconds.parse::<f32>()? / 1000.0;
+    }
 
     if let Some(seconds) = duration.next() {
         total_seconds += seconds.parse::<f32>()?;

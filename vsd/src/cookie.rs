@@ -8,9 +8,9 @@
 
 use cookie::Cookie;
 use reqwest::{
+    Url,
     cookie::{CookieStore, Jar},
     header::HeaderValue,
-    Url,
 };
 use serde::Deserialize;
 
@@ -163,7 +163,6 @@ impl CookieJar {
     pub fn add_cookie_str(&self, cookie: &str, url: &Url) {
         self.inner.add_cookie_str(cookie, url)
     }
-
 }
 
 impl CookieStore for CookieJar {

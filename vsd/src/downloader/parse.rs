@@ -6,7 +6,7 @@ use crate::{
 };
 use anyhow::{Result, anyhow, bail};
 use colored::Colorize;
-use reqwest::{Url, Client};
+use reqwest::{Client, Url};
 use std::collections::HashMap;
 
 pub fn list_all_streams(meta: &Metadata) -> Result<()> {
@@ -55,7 +55,8 @@ pub async fn parse_all_streams(
                     base_url.as_ref().unwrap_or(&meta.url).as_str(),
                     client,
                     query,
-                ).await?;
+                )
+                .await?;
                 stream.id = blake3::hash((meta.url.as_ref().to_owned() + &stream.uri).as_bytes())
                     .to_hex()[..7]
                     .to_owned();
@@ -144,7 +145,8 @@ pub async fn parse_selected_streams(
                     base_url.as_ref().unwrap_or(&meta.url).as_str(),
                     client,
                     query,
-                ).await?;
+                )
+                .await?;
                 stream.id = blake3::hash((meta.url.as_ref().to_owned() + &stream.uri).as_bytes())
                     .to_hex()[..7]
                     .to_owned();
