@@ -1,16 +1,4 @@
-mod automation;
-mod commands;
-mod cookie;
-mod dash;
-mod downloader;
-mod hls;
-mod logger;
-mod playlist;
-mod progress;
-mod utils;
-
 use clap::Parser;
-use commands::Args;
 use log::error;
 
 #[tokio::main(flavor = "multi_thread")]
@@ -18,7 +6,7 @@ async fn main() {
     // FIX - cursor hide unhide
     eprint!("\x1B[?25l");
 
-    if let Err(e) = Args::parse().execute().await {
+    if let Err(e) = vsd::Args::parse().execute().await {
         error!("{}", e);
         std::process::exit(1);
     }

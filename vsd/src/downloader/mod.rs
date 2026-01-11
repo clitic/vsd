@@ -28,6 +28,7 @@ use std::{
 pub static MAX_RETRIES: AtomicU8 = AtomicU8::new(5);
 pub static MAX_THREADS: AtomicU8 = AtomicU8::new(5);
 pub static RUNNING: AtomicBool = AtomicBool::new(true);
+pub static SKIP_DECRYPT: AtomicBool = AtomicBool::new(false);
 pub static SKIP_MERGE: AtomicBool = AtomicBool::new(false);
 
 #[allow(clippy::too_many_arguments)]
@@ -36,24 +37,18 @@ pub async fn download(
     client: Client,
     decrypter: Decrypter,
     directory: Option<PathBuf>,
-    no_decrypt: bool,
     output: Option<PathBuf>,
     query: HashMap<String, String>,
     mut streams: Vec<MediaPlaylist>,
     subs_codec: String,
 ) -> Result<()> {
-    let should_mux = mux::should_mux(
-        no_decrypt,
-        SKIP_MERGE.load(Ordering::SeqCst),
-        output.as_ref(),
-        &streams,
-    );
+    let should_mux = mux::should_mux(output.as_ref(), &streams);
 
     if should_mux && utils::find_ffmpeg().is_none() {
         bail!("ffmpeg couldn't be found, it is required to continue further.");
     }
 
-    if !no_decrypt {
+    if !SKIP_DECRYPT.load(Ordering::SeqCst) {
         encryption::check_unsupported_encryptions(&streams)?;
         let default_kids =
             encryption::extract_default_kids(&base_url, &client, &streams, &query).await?;
@@ -101,7 +96,6 @@ pub async fn download(
         &client,
         decrypter,
         directory.as_ref(),
-        no_decrypt,
         &query,
         streams,
         &mut temp_files,

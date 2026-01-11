@@ -1,7 +1,7 @@
 use crate::{
     automation::{Prompter, SelectOptions},
     cookie::{CookieJar, CookieParam},
-    downloader::{self, Decrypter, MAX_RETRIES, MAX_THREADS, SKIP_MERGE},
+    downloader::{self, Decrypter, MAX_RETRIES, MAX_THREADS, SKIP_DECRYPT, SKIP_MERGE},
 };
 use anyhow::Result;
 use clap::Args;
@@ -120,14 +120,14 @@ pub struct Save {
     #[arg(long, help_heading = "Decrypt Options")]
     pub no_decrypt: bool,
 
-    /// Maximum number of retries to download an individual segment.
-    #[arg(long, help_heading = "Download Options", default_value_t = 5)]
-    pub retries: u8,
-
     /// Download streams without merging them.
     /// Note that --output flag is ignored if this flag is used.
     #[arg(long, help_heading = "Download Options")]
     pub no_merge: bool,
+
+    /// Maximum number of retries to download an individual segment.
+    #[arg(long, help_heading = "Download Options", default_value_t = 5)]
+    pub retries: u8,
 
     /// Total number of threads for parllel downloading of segments.
     /// Number of threads should be in range 1-16 (inclusive).
@@ -183,6 +183,7 @@ impl Save {
     pub async fn execute(self) -> Result<()> {
         MAX_RETRIES.store(self.retries, Ordering::SeqCst);
         MAX_THREADS.store(self.threads, Ordering::SeqCst);
+        SKIP_DECRYPT.store(self.no_decrypt, Ordering::SeqCst);
         SKIP_MERGE.store(self.no_merge, Ordering::SeqCst);
 
         let client = self.client()?;
@@ -224,7 +225,6 @@ impl Save {
                 client,
                 self.keys,
                 self.directory,
-                self.no_decrypt,
                 self.output,
                 self.query,
                 streams,

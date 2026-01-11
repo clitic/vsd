@@ -1,5 +1,7 @@
 use crate::{
-    downloader::{MAX_RETRIES, MAX_THREADS, SKIP_MERGE, encryption::Decrypter, fix, mux::Stream},
+    downloader::{
+        MAX_RETRIES, MAX_THREADS, SKIP_DECRYPT, SKIP_MERGE, encryption::Decrypter, fix, mux::Stream,
+    },
     playlist::{KeyMethod, MediaPlaylist, MediaType},
     progress::Progress,
 };
@@ -20,7 +22,6 @@ pub async fn download_streams(
     client: &Client,
     decrypter: Decrypter,
     directory: Option<&PathBuf>,
-    no_decrypt: bool,
     query: &HashMap<String, String>,
     streams: Vec<MediaPlaylist>,
     temp_files: &mut Vec<Stream>,
@@ -58,7 +59,6 @@ pub async fn download_streams(
             base_url,
             client,
             decrypter.clone(),
-            no_decrypt,
             Progress::new("0", stream.segments.len()),
             query,
             stream,
@@ -76,7 +76,6 @@ async fn download_stream(
     base_url: &Option<Url>,
     client: &Client,
     decrypter: Decrypter,
-    no_decrypt: bool,
     pb: Progress,
     query: &HashMap<String, String>,
     stream: MediaPlaylist,
@@ -95,6 +94,7 @@ async fn download_stream(
     let temp_dir = temp_file.with_extension("");
     let extension = stream.extension();
     let total = stream.segments.len();
+    let should_decrypt = !SKIP_DECRYPT.load(Ordering::SeqCst);
 
     for (i, segment) in stream.segments.iter().enumerate() {
         if let Some(map) = &segment.map {
@@ -120,7 +120,7 @@ async fn download_stream(
             init_seg = Some(bytes.to_vec())
         }
 
-        if !no_decrypt {
+        if should_decrypt {
             if increment_iv {
                 stream_decrypter.increment_iv();
             }

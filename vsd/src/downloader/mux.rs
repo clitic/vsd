@@ -1,11 +1,12 @@
 use crate::{
+    downloader::{SKIP_DECRYPT, SKIP_MERGE},
     playlist::{MediaPlaylist, MediaType},
     utils,
 };
 use anyhow::{Result, bail};
 use colored::Colorize;
 use log::{info, warn};
-use std::{ffi::OsStr, path::PathBuf, process::Stdio};
+use std::{ffi::OsStr, path::PathBuf, process::Stdio, sync::atomic::Ordering};
 use tokio::{fs, process::Command};
 
 pub struct Stream {
@@ -164,17 +165,12 @@ pub async fn ffmpeg(
     Ok(())
 }
 
-pub fn should_mux(
-    no_decrypt: bool,
-    no_merge: bool,
-    output: Option<&PathBuf>,
-    streams: &[MediaPlaylist],
-) -> bool {
+pub fn should_mux(output: Option<&PathBuf>, streams: &[MediaPlaylist]) -> bool {
     if output.is_none() {
         return false;
     }
 
-    if no_decrypt {
+    if SKIP_DECRYPT.load(Ordering::SeqCst) {
         warn!("--output is ignored when --no-decrypt is used.");
         return false;
     }
@@ -184,7 +180,7 @@ pub fn should_mux(
         .filter(|x| x.media_type == MediaType::Subtitles)
         .collect::<Vec<_>>();
 
-    if no_merge && subtitle_streams.is_empty() {
+    if SKIP_MERGE.load(Ordering::SeqCst) && subtitle_streams.is_empty() {
         warn!("--output is ignored when --no-merge is used.");
         return false;
     }
@@ -214,7 +210,7 @@ pub fn should_mux(
         return false;
     }
 
-    if no_merge && !subtitle_streams.is_empty() {
+    if SKIP_MERGE.load(Ordering::SeqCst) && !subtitle_streams.is_empty() {
         warn!("subtitle streams are always merged even if --no-merge is used.");
     }
 
