@@ -14,7 +14,7 @@ use std::{
 };
 
 use crate::{
-    automation::{Prompter, SelectOptions, VideoPreference},
+    automation::{self, InteractionType, SelectOptions, VideoPreference},
     progress::ByteSize,
 };
 
@@ -171,12 +171,10 @@ impl MasterPlaylist {
         info!("{}", "------------------------------".cyan());
     }
 
-    pub fn select_streams(
-        self,
-        prompter: &Prompter,
-        select_opts: &mut SelectOptions,
-    ) -> Result<Vec<MediaPlaylist>> {
-        if !prompter.interactive && !prompter.interactive_raw {
+    pub fn select_streams(self, select_opts: &mut SelectOptions) -> Result<Vec<MediaPlaylist>> {
+        let interactions = automation::load_interaction_type();
+
+        if let InteractionType::None = interactions {
             for stream in &self.streams {
                 info!(
                     "Found {:>5} stream: {}",
@@ -374,7 +372,7 @@ impl MasterPlaylist {
             requestty::Choice((x.display_audio_stream(), selected_streams.contains(i)))
         }));
 
-        if prompter.interactive {
+        if let InteractionType::Modern = interactions {
             choices_with_default_ranges[1] =
                 (choices_with_default_ranges[0].end + 1)..choices_with_default.len();
         } else {
@@ -389,7 +387,7 @@ impl MasterPlaylist {
             requestty::Choice((x.display_subs_stream(), selected_streams.contains(i)))
         }));
 
-        if prompter.interactive {
+        if let InteractionType::Modern = interactions {
             choices_with_default_ranges[2] =
                 (choices_with_default_ranges[1].end + 1)..choices_with_default.len();
         } else {
@@ -397,7 +395,7 @@ impl MasterPlaylist {
                 choices_with_default_ranges[1].end..(choices_with_default.len() - 2);
         }
 
-        if prompter.interactive {
+        if let InteractionType::Modern = interactions {
             let question = requestty::Question::multi_select("streams")
                 .should_loop(false)
                 .message("Select streams to download")
@@ -447,7 +445,7 @@ impl MasterPlaylist {
 
             Ok(selected_streams)
         } else {
-            if prompter.interactive_raw {
+            if let InteractionType::Raw = interactions {
                 info!("Select streams to download:");
             }
 
@@ -456,7 +454,7 @@ impl MasterPlaylist {
 
             for choice in choices_with_default {
                 if let requestty::Separator(seperator) = choice {
-                    if prompter.interactive_raw {
+                    if let InteractionType::Raw = interactions {
                         info!("{}", seperator.replace('─', "-").cyan());
                     }
                 } else {
@@ -466,7 +464,7 @@ impl MasterPlaylist {
                         selected_choices_index.push(index);
                     }
 
-                    if prompter.interactive_raw {
+                    if let InteractionType::Raw = interactions {
                         info!(
                             "{:2}) [{}] {}",
                             index,
@@ -478,7 +476,7 @@ impl MasterPlaylist {
                 }
             }
 
-            if prompter.interactive_raw {
+            if let InteractionType::Raw = interactions {
                 info!("{}", "------------------------------".cyan());
                 print!(
                     "Press enter to proceed with defaults.\n\

@@ -1,8 +1,27 @@
-use std::collections::HashSet;
+use std::{
+    collections::HashSet,
+    sync::atomic::{AtomicU8, Ordering},
+};
 
-pub struct Prompter {
-    pub interactive: bool,
-    pub interactive_raw: bool,
+static INTERACTION_TYPE: AtomicU8 = AtomicU8::new(InteractionType::None as u8);
+
+pub enum InteractionType {
+    Modern,
+    None,
+    Raw,
+}
+
+pub fn set_interaction_type(_type: InteractionType) {
+    INTERACTION_TYPE.store(_type as u8, Ordering::SeqCst);
+}
+
+pub fn load_interaction_type() -> InteractionType {
+    match INTERACTION_TYPE.load(Ordering::SeqCst) {
+        0 => InteractionType::Modern,
+        1 => InteractionType::None,
+        2 => InteractionType::Raw,
+        _ => unreachable!(),
+    }
 }
 
 #[derive(Debug)]

@@ -1,6 +1,6 @@
 use super::fetch::Metadata;
 use crate::{
-    automation::{Prompter, SelectOptions},
+    automation::SelectOptions,
     playlist::{MasterPlaylist, MediaPlaylist, PlaylistType},
     utils,
 };
@@ -126,7 +126,6 @@ pub async fn parse_selected_streams(
     base_url: Option<Url>,
     client: &Client,
     meta: &Metadata,
-    prompter: &Prompter,
     query: &HashMap<String, String>,
     mut select_opts: SelectOptions,
 ) -> Result<Vec<MediaPlaylist>> {
@@ -136,7 +135,7 @@ pub async fn parse_selected_streams(
                 .map_err(|_| anyhow!("couldn't parse response ({}) as dash playlist.", meta.url))?;
             let mut streams = crate::dash::parse_as_master(&mpd, meta.url.as_ref())
                 .sort_streams()
-                .select_streams(prompter, &mut select_opts)?;
+                .select_streams(&mut select_opts)?;
 
             for stream in &mut streams {
                 crate::dash::push_segments(
@@ -159,7 +158,7 @@ pub async fn parse_selected_streams(
             Ok(m3u8_rs::Playlist::MasterPlaylist(m3u8)) => {
                 let mut streams = crate::hls::parse_as_master(&m3u8, meta.url.as_str())
                     .sort_streams()
-                    .select_streams(prompter, &mut select_opts)?;
+                    .select_streams(&mut select_opts)?;
 
                 for stream in &mut streams {
                     stream.uri = base_url

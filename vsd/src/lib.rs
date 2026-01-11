@@ -11,6 +11,7 @@ mod utils;
 
 #[doc(hidden)]
 pub use commands::Args;
+pub use reqwest;
 
 // use anyhow::Result;
 // use downloader::{MAX_RETRIES, MAX_THREADS, SKIP_MERGE, Decrypter};
@@ -35,7 +36,6 @@ pub use commands::Args;
 // }
 
 // impl Downloader {
-//     /// Creates a new builder with default configuration.
 //     pub fn new(client: Client, input: String) -> Self {
 //         Self {
 //             input,
@@ -55,32 +55,27 @@ pub use commands::Args;
 //         }
 //     }
 
-//     /// Sets the base URL for resolving relative segment URLs.
-//     pub fn base_url(mut self, base_url: Url) -> Self {
-//         self.base_url = Some(base_url);
+//     pub fn base_url(mut self, base_url: impl Into<Url>) -> Self {
+//         self.base_url = Some(base_url.into());
 //         self
 //     }
 
-//     /// Sets the directory for temporary files.
-//     pub fn directory(mut self, directory: PathBuf) -> Self {
-//         self.directory = Some(directory);
+//     pub fn directory(mut self, directory: impl Into<PathBuf>) -> Self {
+//         self.directory = Some(directory.into());
 //         self
 //     }
 
-//     /// Sets the output path for the merged file.
-//     pub fn output(mut self, output: PathBuf) -> Self {
-//         self.output = Some(output);
+//     pub fn output(mut self, output: impl Into<PathBuf>) -> Self {
+//         self.output = Some(output.into());
 //         self
 //     }
 
-//     /// Sets the subtitle codec for muxing.
 //     pub fn subs_codec(mut self, subs_codec: impl Into<String>) -> Self {
 //         self.subs_codec = subs_codec.into();
 //         self
 //     }
 
-//     /// Enables or disables interactive stream selection.
-//     pub fn interactive(mut self, interactive: bool) -> Self {
+//     pub fn interactive(mut self, raw: bool) -> Self {
 //         self.interactive = interactive;
 //         self
 //     }

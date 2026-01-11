@@ -1,5 +1,5 @@
 use crate::{
-    automation::{Prompter, SelectOptions},
+    automation::{self, InteractionType, SelectOptions},
     cookie::{CookieJar, CookieParam},
     downloader::{self, Decrypter, MAX_RETRIES, MAX_THREADS, SKIP_DECRYPT, SKIP_MERGE},
 };
@@ -52,7 +52,12 @@ pub struct Save {
     pub subs_codec: String,
 
     /// Prompt for custom streams selection with modern style input prompts. By default proceed with defaults.
-    #[arg(short, long, help_heading = "Automation Options")]
+    #[arg(
+        short,
+        long,
+        help_heading = "Automation Options",
+        conflicts_with = "interactive_raw"
+    )]
     pub interactive: bool,
 
     /// Prompt for custom streams selection with raw style input prompts. By default proceed with defaults.
@@ -185,22 +190,18 @@ impl Save {
         MAX_THREADS.store(self.threads, Ordering::SeqCst);
         SKIP_DECRYPT.store(self.no_decrypt, Ordering::SeqCst);
         SKIP_MERGE.store(self.no_merge, Ordering::SeqCst);
+        automation::set_interaction_type(if self.interactive {
+            InteractionType::Modern
+        } else if self.interactive_raw {
+            InteractionType::Raw
+        } else {
+            InteractionType::None
+        });
 
         let client = self.client()?;
-
-        let prompter = Prompter {
-            interactive: self.interactive,
-            interactive_raw: self.interactive_raw,
-        };
-
-        let meta = downloader::fetch_playlist(
-            self.base_url.clone(),
-            &client,
-            &self.input,
-            &prompter,
-            &self.query,
-        )
-        .await?;
+        let meta =
+            downloader::fetch_playlist(self.base_url.clone(), &client, &self.input, &self.query)
+                .await?;
 
         if self.list_streams {
             downloader::list_all_streams(&meta)?;
@@ -214,7 +215,6 @@ impl Save {
                 self.base_url.clone(),
                 &client,
                 &meta,
-                &prompter,
                 &self.query,
                 SelectOptions::parse(&self.select_streams),
             )

@@ -1,4 +1,7 @@
-use crate::{automation::Prompter, playlist::PlaylistType};
+use crate::{
+    automation::{self, InteractionType},
+    playlist::PlaylistType,
+};
 use anyhow::{Result, anyhow, bail};
 use colored::Colorize;
 use regex::Regex;
@@ -53,7 +56,6 @@ pub async fn fetch_playlist(
     base_url: Option<Url>,
     client: &Client,
     input: &str,
-    prompter: &Prompter,
     query: &HashMap<String, String>,
 ) -> Result<Metadata> {
     let mut meta = Metadata {
@@ -85,7 +87,7 @@ pub async fn fetch_playlist(
         meta.fetch(client, query).await?;
 
         if meta.pl_type.is_none() {
-            fetch_from_website(client, &mut meta, prompter, query).await?;
+            fetch_from_website(client, &mut meta, query).await?;
         }
     }
 
@@ -95,7 +97,6 @@ pub async fn fetch_playlist(
 async fn fetch_from_website(
     client: &Client,
     meta: &mut Metadata,
-    prompter: &Prompter,
     query: &HashMap<String, String>,
 ) -> Result<()> {
     println!(
@@ -112,8 +113,8 @@ async fn fetch_from_website(
             println!("   {} {}", "Selected".bold().green(), &links[0]);
             meta.url = links[0].parse::<Url>()?;
         }
-        _ => {
-            if prompter.interactive {
+        _ => match automation::load_interaction_type() {
+            InteractionType::Modern => {
                 let question = requestty::Question::select("scraped-link")
                     .message("Select one playlist")
                     .should_loop(false)
@@ -121,7 +122,16 @@ async fn fetch_from_website(
                     .build();
                 let answer = requestty::prompt_one(question)?;
                 meta.url = answer.as_list_item().unwrap().text.parse::<Url>()?;
-            } else if prompter.interactive_raw {
+            }
+            InteractionType::None => {
+                for link in &links {
+                    println!("            {link}");
+                }
+
+                println!("   {} {}", "Selected".bold().green(), &links[0]);
+                meta.url = links[0].parse::<Url>()?;
+            }
+            InteractionType::Raw => {
                 println!("Select one playlist:");
 
                 for (i, link) in links.iter().enumerate() {
@@ -160,15 +170,8 @@ async fn fetch_from_website(
                     .ok_or_else(|| anyhow!("selected playlist is out of index bounds."))?
                     .parse::<Url>()?;
                 println!("   {} {}", "Selected".bold().green(), meta.url);
-            } else {
-                for link in &links {
-                    println!("            {link}");
-                }
-
-                println!("   {} {}", "Selected".bold().green(), &links[0]);
-                meta.url = links[0].parse::<Url>()?;
             }
-        }
+        },
     }
 
     meta.fetch(client, query).await?;
