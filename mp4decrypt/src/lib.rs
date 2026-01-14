@@ -21,7 +21,7 @@ mod error;
 pub use error::{Error, ErrorType};
 
 use core::ffi::{c_char, c_int, c_uchar, c_uint};
-use std::{collections::HashMap, ffi::CString};
+use std::{collections::HashMap, ffi::CString, fs, path::Path};
 
 unsafe extern "C" {
     fn ap4_mp4decrypt(
@@ -40,82 +40,140 @@ extern "C" fn callback_rust(decrypted_stream: *mut Vec<u8>, data: *const c_uchar
     }
 }
 
-/// Decrypt encrypted mp4 data stream using given keys.
-///
-/// # Arguments
-///
-/// * `data` - Encrypted data stream.
-/// * `kid_key_pairs` - Hashmap of kid key pairs for decrypting data stream.
-///   Hashmap `key` is either a track ID in decimal or a 128-bit KID in hex.
-///   Hashmap `value` is a 128-bit key in hex. <br>
-///   1. For dcf files, use 1 as the track index <br>
-///   2. For Marlin IPMP/ACGK, use 0 as the track ID <br>
-///   3. KIDs are only applicable to some encryption methods like MPEG-CENC <br>
-/// * `fragments_info` (optional) - Decrypt the fragments read from data stream, with track info read from this stream.
-///
-/// # Example
-///
-/// ```no_run
-/// use std::collections::HashMap;
-///
-/// let kid_key_pairs = HashMap::from([(
-///     "eb676abbcb345e96bbcf616630f1a3da".to_owned(),
-///     "100b6c20940f779a4589152b57d2dacb".to_owned(),
-/// )]);
-///
-/// let decrypted_data = mp4decrypt::mp4decrypt(&[0, 0, 0, 112], &kid_key_pairs, None).unwrap();
-/// ```
-pub fn mp4decrypt(
-    data: &[u8],
-    keys: &HashMap<String, String>,
-) -> Result<Vec<u8>, Error> {
-    let data_size = u32::try_from(data.len()).map_err(|_| Error {
-        msg: "the input data stream is too large.".to_owned(),
-        err_type: ErrorType::DataTooLarge,
-    })?;
+pub fn verify_hex(input: String) -> Result<String, Error> {
+    let bytes = hex::decode(&input).unwrap();
 
-    let c_keys = keys
-        .iter()
-        .map(|(kid, key)| CString::new(format!("{}:{}", kid, key)).unwrap())
-        .collect::<Vec<_>>();
-    let mut c_keys = c_keys.iter().map(|x| x.as_ptr()).collect::<Vec<_>>();
-    let mut decrypted_data: Box<Vec<u8>> = Box::default();
+    if bytes.len() != 16 {
+        return Err(Error {
+            msg: "invalid hex format, length should be 16 bytes only.".to_owned(),
+            err_type: ErrorType::InvalidFormat,
+        });
+    }
 
-    let result = unsafe {
-        ap4_mp4decrypt(
-            data.as_ptr(),
-            data_size,
-            c_keys.as_mut_ptr(),
-            c_keys.len() as u32,
-            &mut *decrypted_data,
-            callback_rust,
-        )
-    };
+    Ok(input)
+}
 
-    if result == 0 {
-        Ok(*decrypted_data)
-    } else {
-        Err(match result {
-            -999 => Error {
-                msg: "invalid argument for keys.".to_owned(),
-                err_type: ErrorType::InvalidFormat,
-            },
-            -998 => Error {
-                msg: "invalid hex format for key id.".to_owned(),
-                err_type: ErrorType::InvalidFormat,
-            },
-            -997 => Error {
-                msg: "invalid key id.".to_owned(),
-                err_type: ErrorType::InvalidFormat,
-            },
-            -996 => Error {
-                msg: "invalid hex format for key.".to_owned(),
-                err_type: ErrorType::InvalidFormat,
-            },
-            x => Error {
-                msg: format!("failed to decrypt data with error code {x}."),
-                err_type: ErrorType::Failed(x),
-            },
-        })
+pub struct Mp4Decrypter {
+    keys: HashMap<String, String>,
+    init_data: Option<Vec<u8>>,
+    input_data: Option<Vec<u8>>,
+}
+
+impl Clone for Mp4Decrypter {
+    fn clone(&self) -> Self {
+        Self {
+            keys: self.keys.clone(),
+            init_data: None,
+            input_data: None,
+        }
+    }
+}
+
+impl Mp4Decrypter {
+    pub fn new() -> Self {
+        Self {
+            keys: HashMap::new(),
+            init_data: None,
+            input_data: None,
+        }
+    }
+
+    pub fn key(mut self, kid: &str, key: &str) -> Result<Self, Error> {
+        self.keys.insert(verify_hex(kid.to_owned())?, verify_hex(key.to_owned())?);
+        Ok(self)
+    }
+
+    pub fn keys(mut self, keys: HashMap<String, String>) -> Result<Self, Error> {
+        for (kid, key) in keys {
+            self.keys.insert(verify_hex(kid)?, verify_hex(key)?);
+        }
+        Ok(self)
+    }
+
+    pub fn init_data(mut self, data: Vec<u8>) -> Self {
+        self.init_data = Some(data);
+        self
+    }
+
+    pub fn init_file(mut self, path: impl AsRef<Path>) -> Result<Self, Error> {
+        self.init_data = Some(fs::read(path).unwrap());
+        Ok(self)
+    }
+
+    pub fn input_data(mut self, data: Vec<u8>) -> Self {
+        self.input_data = Some(data);
+        self
+    }
+
+    pub fn input_file<P: AsRef<Path>>(mut self, path: P) -> Result<Self, Error> {
+        self.input_data = Some(fs::read(path).unwrap());
+        Ok(self)
+    }
+
+    pub fn decrypt(self) -> Result<Vec<u8>, Error> {
+        let mut data = Vec::new();
+
+        if let Some(mut init_data) = self.init_data {
+            data.append(&mut init_data);
+        }
+
+        data.append(&mut self.input_data.unwrap());
+
+        let data_size = u32::try_from(data.len()).map_err(|_| Error {
+            msg: "the input data stream is too large.".to_owned(),
+            err_type: ErrorType::DataTooLarge,
+        })?;
+
+        let c_keys = self.keys
+            .iter()
+            .map(|(kid, key)| CString::new(format!("{}:{}", kid, key)).unwrap())
+            .collect::<Vec<_>>();
+        let mut c_keys = c_keys.iter().map(|x| x.as_ptr()).collect::<Vec<_>>();
+        let mut decrypted_data: Box<Vec<u8>> = Box::default();
+
+        let result = unsafe {
+            ap4_mp4decrypt(
+                data.as_ptr(),
+                data_size,
+                c_keys.as_mut_ptr(),
+                c_keys.len() as u32,
+                &mut *decrypted_data,
+                callback_rust,
+            )
+        };
+
+        if result == 0 {
+            Ok(*decrypted_data)
+        } else {
+            Err(match result {
+                -999 => Error {
+                    msg: "invalid argument for keys.".to_owned(),
+                    err_type: ErrorType::InvalidFormat,
+                },
+                -998 => Error {
+                    msg: "invalid hex format for key id.".to_owned(),
+                    err_type: ErrorType::InvalidFormat,
+                },
+                -997 => Error {
+                    msg: "invalid key id.".to_owned(),
+                    err_type: ErrorType::InvalidFormat,
+                },
+                -996 => Error {
+                    msg: "invalid hex format for key.".to_owned(),
+                    err_type: ErrorType::InvalidFormat,
+                },
+                x => Error {
+                    msg: format!("failed to decrypt data with error code {x}."),
+                    err_type: ErrorType::Failed(x),
+                },
+            })
+        }
+    }
+
+    pub fn decrypt_to_file(self, path: impl AsRef<Path>) -> Result<(), Error> {
+        let data = self.decrypt()?;
+        println!("{}", path.as_ref().display());
+        fs::write(path, data).unwrap();
+        Ok(())
     }
 }

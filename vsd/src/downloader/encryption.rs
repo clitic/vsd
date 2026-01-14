@@ -3,6 +3,7 @@ use aes::cipher::{BlockDecryptMut, KeyIvInit, block_padding::Pkcs7};
 use anyhow::{Result, anyhow, bail};
 use colored::Colorize;
 use log::info;
+use mp4decrypt::Mp4Decrypter;
 use reqwest::{Client, Url, header};
 use std::collections::{HashMap, HashSet};
 use vsd_mp4::pssh::Pssh;
@@ -59,9 +60,13 @@ impl Decrypter {
                     writer
                 }
             },
-            Decrypter::Mp4Decrypt(kid_key_pairs) => {
-                mp4decrypt::mp4decrypt(&data, kid_key_pairs, None).map_err(|x| anyhow!(x))?
-            }
+            // FIX - Handle errors
+            Decrypter::Mp4Decrypt(kid_key_pairs) => Mp4Decrypter::new()
+                .keys(kid_key_pairs.clone())
+                .unwrap()
+                .input_data(data)
+                .decrypt()
+                .unwrap(),
             Decrypter::None => data,
         })
     }

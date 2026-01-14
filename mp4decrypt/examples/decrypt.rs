@@ -1,20 +1,17 @@
-use std::{collections::HashMap, fs, fs::File, io::Write, path::PathBuf};
+use mp4decrypt::{Error, Mp4Decrypter};
+use std::path::Path;
 
-fn main() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+fn main() -> Result<(), Error> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
 
-    let mut input = fs::read(root.join("examples/sample/init.mp4")).unwrap();
-    input.extend(fs::read(root.join("examples/sample/segment_0.m4s")).unwrap());
+    Mp4Decrypter::new()
+        .key(
+            "eb676abbcb345e96bbcf616630f1a3da",
+            "100b6c20940f779a4589152b57d2dacb",
+        )?
+        .init_file(root.join("examples/sample/init.mp4"))?
+        .input_file(root.join("examples/sample/segment_0.m4s"))?
+        .decrypt_to_file(root.join("../target/mp4decrypt-example.mp4"))?;
 
-    let kid_key_pairs = HashMap::from([(
-        "eb676abbcb345e96bbcf616630f1a3da".to_owned(),
-        "100b6c20940f779a4589152b57d2dacb".to_owned(),
-    )]);
-
-    let decrypted_data = mp4decrypt::mp4decrypt(&input, &kid_key_pairs).unwrap();
-
-    File::create("decrypted.mp4")
-        .unwrap()
-        .write_all(&decrypted_data)
-        .unwrap();
+    Ok(())
 }

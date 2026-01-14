@@ -1576,6 +1576,7 @@ name = "mp4decrypt"
 version = "0.5.2"
 dependencies = [
  "bento4-src",
+ "hex",
 ]
 
 [[package]]

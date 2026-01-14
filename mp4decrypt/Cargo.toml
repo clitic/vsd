@@ -13,6 +13,7 @@ repository = "https://github.com/clitic/vsd/tree/main/mp4decrypt"
 version = "0.5.2"
 
 [dependencies]
+hex = "0.4.3"
 
 [build-dependencies]
 bento4-src = { version = "0.1", path = "../bento4-src" }
