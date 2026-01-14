@@ -1,22 +1,38 @@
-/// The returned error type.
-#[derive(Debug)]
-pub struct Error {
-    pub msg: String,
-    pub err_type: ErrorType,
-}
+use thiserror::Error;
 
-/// The type of error which can occur during decryption.
-#[derive(Debug)]
-pub enum ErrorType {
+/// The error type returned by decrypt operations.
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("Data too large (maximum supported {} bytes)", u32::MAX)]
     DataTooLarge,
-    Failed(i32),
-    InvalidFormat,
-}
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "mp4decrypt-error: {}", self.msg)
-    }
-}
+    #[error("Failed to decrypt data with error code {0}")]
+    DecryptionFailed(i32),
 
-impl std::error::Error for Error {}
+    #[error("Internal string conversion error")]
+    FfiString,
+
+    #[error("Failed to read file '{path}': {source}")]
+    FileRead {
+        path: String,
+        source: std::io::Error,
+    },
+
+    #[error("Failed to write file '{path}': {source}")]
+    FileWrite {
+        path: String,
+        source: std::io::Error,
+    },
+
+    #[error("Invalid hex format '{input}': {message}")]
+    InvalidHex { input: String, message: String },
+
+    #[error("Hex decode error: {0}")]
+    HexDecode(#[from] hex::FromHexError),
+
+    #[error("No input data provided")]
+    NoInputData,
+
+    #[error("No keys provided")]
+    NoKeys,
+}

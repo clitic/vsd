@@ -14,6 +14,7 @@ version = "0.6.0"
 
 [dependencies]
 hex = "0.4.3"
+thiserror = "2"
 
 [build-dependencies]
 bento4-src = { version = "0.1", path = "../bento4-src" }
