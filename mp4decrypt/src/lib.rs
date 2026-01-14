@@ -1,7 +1,4 @@
-//! This crate provides a safe function to decrypt,
-//! encrypted mp4 data stream using [Bento4](https://github.com/axiomatic-systems/Bento4).
-//!
-//! Maximum supported stream size is around `4.29` G.B i.e. [u32::MAX](u32::MAX).
+//! This crate provides a safe high level api to decrypt mp4 data using [Bento4](https://github.com/axiomatic-systems/Bento4).
 //!
 //! ## Environment Variables
 //!
@@ -53,6 +50,24 @@ fn verify_hex(input: String) -> Result<String, Error> {
     Ok(input)
 }
 
+/// A builder for decrypting encrypted MP4 streams.
+///
+/// This struct uses a builder pattern to configure decryption parameters
+/// including keys, initialization data, and input data before performing
+/// the actual decryption.
+///
+/// # Example
+///
+/// ```no_run
+/// use mp4decrypt::Mp4Decrypter;
+///
+/// let decrypted = Mp4Decrypter::new()
+///     .key("eb676abbcb345e96bbcf616630f1a3da", "100b6c20940f779a4589152b57d2dacb")?
+///     .init_file("init.mp4")?
+///     .input_file("segment.m4s")?
+///     .decrypt()?;
+/// # Ok::<(), mp4decrypt::Error>(())
+/// ```
 pub struct Mp4Decrypter {
     keys: HashMap<String, String>,
     init_data: Option<Vec<u8>>,
@@ -70,6 +85,7 @@ impl Clone for Mp4Decrypter {
 }
 
 impl Mp4Decrypter {
+    /// Creates a new `Mp4Decrypter` instance with no keys or data configured.
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
@@ -79,12 +95,35 @@ impl Mp4Decrypter {
         }
     }
 
+    /// Adds a single key-id and key pair for decryption.
+    ///
+    /// Both `kid` (key ID) and `key` must be valid hex strings that decode to exactly 16 bytes.
+    ///
+    /// # Arguments
+    ///
+    /// * `kid` - The key ID as a 32-character hex string (16 bytes)
+    /// * `key` - The decryption key as a 32-character hex string (16 bytes)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if either `kid` or `key` is not valid hex or not 16 bytes.
     pub fn key(mut self, kid: &str, key: &str) -> Result<Self, Error> {
         self.keys
             .insert(verify_hex(kid.to_owned())?, verify_hex(key.to_owned())?);
         Ok(self)
     }
 
+    /// Adds multiple key-id and key pairs for decryption.
+    ///
+    /// All keys in the map must be valid hex strings that decode to exactly 16 bytes.
+    ///
+    /// # Arguments
+    ///
+    /// * `keys` - A map of key IDs to decryption keys, both as hex strings
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any key ID or key is not valid hex or not 16 bytes.
     pub fn keys(mut self, keys: HashMap<String, String>) -> Result<Self, Error> {
         for (kid, key) in keys {
             self.keys.insert(verify_hex(kid)?, verify_hex(key)?);
@@ -92,11 +131,23 @@ impl Mp4Decrypter {
         Ok(self)
     }
 
+    /// Sets the initialization segment data from a byte vector.
+    ///
+    /// The initialization segment (often `init.mp4`) contains the encryption
+    /// metadata needed to decrypt the media segments.
     pub fn init_data(mut self, data: Vec<u8>) -> Self {
         self.init_data = Some(data);
         self
     }
 
+    /// Sets the initialization segment data by reading from a file.
+    ///
+    /// The initialization segment (often `init.mp4`) contains the encryption
+    /// metadata needed to decrypt the media segments.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be read.
     pub fn init_file(mut self, path: impl AsRef<Path>) -> Result<Self, Error> {
         let path_ref = path.as_ref();
         self.init_data = Some(fs::read(path_ref).map_err(|e| Error::FileRead {
@@ -106,11 +157,21 @@ impl Mp4Decrypter {
         Ok(self)
     }
 
+    /// Sets the encrypted input data from a byte vector.
+    ///
+    /// This is the encrypted media segment data that will be decrypted.
     pub fn input_data(mut self, data: Vec<u8>) -> Self {
         self.input_data = Some(data);
         self
     }
 
+    /// Sets the encrypted input data by reading from a file.
+    ///
+    /// This is the encrypted media segment file that will be decrypted.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be read.
     pub fn input_file<P: AsRef<Path>>(mut self, path: P) -> Result<Self, Error> {
         let path_ref = path.as_ref();
         self.input_data = Some(fs::read(path_ref).map_err(|e| Error::FileRead {
@@ -120,6 +181,19 @@ impl Mp4Decrypter {
         Ok(self)
     }
 
+    /// Decrypts the configured data and returns the decrypted bytes.
+    ///
+    /// This method consumes the builder and performs the actual decryption
+    /// using the configured keys and data. If initialization data was provided,
+    /// it will be prepended to the input data before decryption.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - No keys were configured ([`Error::NoKeys`])
+    /// - No input data was provided ([`Error::NoData`])
+    /// - The combined data exceeds the maximum size ([`Error::DataTooLarge`])
+    /// - The decryption fails ([`Error::DecryptionFailed`])
     pub fn decrypt(self) -> Result<Vec<u8>, Error> {
         if self.keys.is_empty() {
             return Err(Error::NoKeys);
@@ -164,6 +238,14 @@ impl Mp4Decrypter {
         }
     }
 
+    /// Decrypts the configured data and writes the result to a file.
+    ///
+    /// This is a convenience method that combines [`decrypt`](Self::decrypt)
+    /// with writing the result to a file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if decryption fails or if the file cannot be written.
     pub fn decrypt_to_file(self, path: impl AsRef<Path>) -> Result<(), Error> {
         let data = self.decrypt()?;
         let path_ref = path.as_ref();
