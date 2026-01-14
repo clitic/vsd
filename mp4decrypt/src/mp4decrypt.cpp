@@ -17,8 +17,6 @@ int ap4_mp4decrypt(
     unsigned int data_size,
     const char *keys[],
     unsigned int keys_size,
-    const unsigned char fg_info[],
-    unsigned int fg_info_size,
     void *decrypted_data,
     callback_rust callback
 ) {
@@ -60,15 +58,10 @@ int ap4_mp4decrypt(
     }
 
     AP4_ByteStream* input = new AP4_MemoryByteStream(data, data_size);
-    AP4_ByteStream* fragments_info = NULL;
-    
-    if (fg_info) {
-        fragments_info = new AP4_MemoryByteStream(fg_info, fg_info_size);
-    }
 
     // create the decrypting processor
     AP4_Processor* processor = NULL;
-    AP4_File* input_file = new AP4_File(fragments_info?*fragments_info:*input);
+    AP4_File* input_file = new AP4_File(*input);
     AP4_FtypAtom* ftyp = input_file->GetFileType();
     if (ftyp) {
         if (ftyp->GetMajorBrand() == AP4_OMA_DCF_BRAND_ODCF || ftyp->HasCompatibleBrand(AP4_OMA_DCF_BRAND_ODCF)) {
@@ -113,21 +106,14 @@ int ap4_mp4decrypt(
     
     delete input_file;
     input_file = NULL;
-    if (fragments_info) {
-        fragments_info->Seek(0);
-    } else {
-        input->Seek(0);
-    }
+    input->Seek(0);
 
     AP4_Result result;
     AP4_MemoryByteStream* output = new AP4_MemoryByteStream();
     
     // process/decrypt the file
-    if (fragments_info) {
-        result = processor->Process(*input, *output, *fragments_info, NULL);
-    } else {
-        result = processor->Process(*input, *output, NULL);
-    }
+    result = processor->Process(*input, *output, NULL);
+    
     if (AP4_FAILED(result)) {
         return result;
     }

@@ -13,8 +13,6 @@ extern "C"
         unsigned int data_size,
         const char *keys[],
         unsigned int keys_size,
-        const unsigned char fg_info[],
-        unsigned int fg_info_size,
         void *decrypted_data,
         callback_rust callback);
 

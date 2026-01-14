@@ -1,1 +1,3 @@
-https://bitmovin-a.akamaihd.net/content/art-of-motion_drm/mpds/11331.mpd
+url = https://bitmovin-a.akamaihd.net/content/art-of-motion_drm/mpds/11331.mpd
+kid = eb676abbcb345e96bbcf616630f1a3da
+key = 100b6c20940f779a4589152b57d2dacb

@@ -29,8 +29,6 @@ unsafe extern "C" {
         data_size: c_uint,
         keys: *mut *const c_char,
         keys_size: c_uint,
-        fg_info: *const c_uchar,
-        fg_info_size: c_uint,
         decrypted_data: *mut Vec<u8>,
         callback_rust: extern "C" fn(*mut Vec<u8>, *const c_uchar, c_uint),
     ) -> c_int;
@@ -70,7 +68,6 @@ extern "C" fn callback_rust(decrypted_stream: *mut Vec<u8>, data: *const c_uchar
 pub fn mp4decrypt(
     data: &[u8],
     keys: &HashMap<String, String>,
-    fragments_info: Option<&[u8]>,
 ) -> Result<Vec<u8>, Error> {
     let data_size = u32::try_from(data.len()).map_err(|_| Error {
         msg: "the input data stream is too large.".to_owned(),
@@ -84,38 +81,15 @@ pub fn mp4decrypt(
     let mut c_keys = c_keys.iter().map(|x| x.as_ptr()).collect::<Vec<_>>();
     let mut decrypted_data: Box<Vec<u8>> = Box::default();
 
-    let result = if let Some(fragments_info_data) = fragments_info {
-        let fragments_info_data_size =
-            u32::try_from(fragments_info_data.len()).map_err(|_| Error {
-                msg: "the fragments info data stream is too large.".to_owned(),
-                err_type: ErrorType::DataTooLarge,
-            })?;
-
-        unsafe {
-            ap4_mp4decrypt(
-                data.as_ptr(),
-                data_size,
-                c_keys.as_mut_ptr(),
-                c_keys.len() as u32,
-                fragments_info_data.as_ptr(),
-                fragments_info_data_size,
-                &mut *decrypted_data,
-                callback_rust,
-            )
-        }
-    } else {
-        unsafe {
-            ap4_mp4decrypt(
-                data.as_ptr(),
-                data_size,
-                c_keys.as_mut_ptr(),
-                c_keys.len() as u32,
-                std::ptr::null(),
-                0,
-                &mut *decrypted_data,
-                callback_rust,
-            )
-        }
+    let result = unsafe {
+        ap4_mp4decrypt(
+            data.as_ptr(),
+            data_size,
+            c_keys.as_mut_ptr(),
+            c_keys.len() as u32,
+            &mut *decrypted_data,
+            callback_rust,
+        )
     };
 
     if result == 0 {
