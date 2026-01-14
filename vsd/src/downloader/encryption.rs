@@ -60,13 +60,11 @@ impl Decrypter {
                     writer
                 }
             },
-            // FIX - Handle errors
+            // FIX - Cloning
             Decrypter::Mp4Decrypt(kid_key_pairs) => Mp4Decrypter::new()
-                .keys(kid_key_pairs.clone())
-                .unwrap()
+                .keys(kid_key_pairs.clone())?
                 .input_data(data)
-                .decrypt()
-                .unwrap(),
+                .decrypt()?,
             Decrypter::None => data,
         })
     }
