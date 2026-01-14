@@ -30,8 +30,8 @@ pub enum Error {
     #[error("Hex decode error: {0}")]
     HexDecode(#[from] hex::FromHexError),
 
-    #[error("No input data provided")]
-    NoInputData,
+    #[error("No data provided")]
+    NoData,
 
     #[error("No keys provided")]
     NoKeys,

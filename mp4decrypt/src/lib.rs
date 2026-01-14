@@ -131,7 +131,7 @@ impl Mp4Decrypter {
             data.append(&mut init_data);
         }
 
-        let input_data = self.input_data.ok_or(Error::NoInputData)?;
+        let input_data = self.input_data.ok_or(Error::NoData)?;
         data.extend(input_data);
 
         let data_size = u32::try_from(data.len()).map_err(|_| Error::DataTooLarge)?;
