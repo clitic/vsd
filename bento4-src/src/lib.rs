@@ -6,7 +6,7 @@ pub use cc;
 use std::{env, path::PathBuf};
 
 pub fn version() -> String {
-    "1.6.0-641".to_owned()
+    "1.6.0-641+dc26485".to_owned()
 }
 
 pub fn includes() -> Vec<PathBuf> {

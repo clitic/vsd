@@ -191,7 +191,7 @@ checksum = "77c6d128af408d8ebd08331f0331cf2cf20d19e6c44a7aec58791641ecc8c0b5"
 
 [[package]]
 name = "bento4-src"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "cc",
 ]

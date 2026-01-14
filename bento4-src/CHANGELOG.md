@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Bento4 version 1.6.0-641 -> 1.6.0-641+dc26485
+
 ## [0.1.4] - 2025-06-09
 
 ### Changed

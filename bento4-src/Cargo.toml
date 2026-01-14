@@ -23,7 +23,7 @@ include = [
 name = "bento4-src"
 readme = "README.md"
 repository = "https://github.com/clitic/vsd/tree/main/bento4-src"
-version = "0.1.4"
+version = "0.1.5"
 
 [dependencies]
 cc = { version = "1", features = ["parallel"] }
