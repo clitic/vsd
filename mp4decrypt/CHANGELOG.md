@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- New builder based api i.e. `Mp4Decrypter`.
+
 ## [0.5.1] - 2025-06-10
 
 ### Changed

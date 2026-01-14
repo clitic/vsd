@@ -29,7 +29,7 @@ hex = "0.4"
 iori-ssa = "0.2.0"
 log = "0.4"
 m3u8-rs = "6.0.0"
-mp4decrypt = { version = "0.5.2", path = "../mp4decrypt" }
+mp4decrypt = { version = "0.6.0", path = "../mp4decrypt" }
 regex = "1"
 requestty = "0.6.3"
 reqwest = { version = "0.13", default-features = false, features = ["cookies", "query", "socks"] }
