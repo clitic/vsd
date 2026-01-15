@@ -22,22 +22,22 @@ use std::{collections::HashMap, ffi::CString, fs, path::Path, ptr, sync::Mutex};
 static BENTO4_LOCK: Mutex<()> = Mutex::new(());
 
 unsafe extern "C" {
-    fn ap4_context_new(keys: *const c_uchar, keys_count: c_uint) -> *mut c_void;
-    fn ap4_decrypt(
-        ctx: *mut c_void,
-        data: *const c_uchar,
-        data_size: c_uint,
-        out_data: *mut *mut c_uchar,
-        out_size: *mut c_uint,
-    ) -> c_int;
+    fn ap4_processor_new(keys: *const c_uchar, size: c_uint) -> *mut c_void;
+    fn ap4_processor_free(ctx: *mut c_void);
+    fn ap4_free(ptr: *mut c_uchar);
     fn ap4_decrypt_file(
         ctx: *mut c_void,
-        init_path: *const c_char,
         input_path: *const c_char,
         output_path: *const c_char,
+        init_path: *const c_char,
     ) -> c_int;
-    fn ap4_context_free(ctx: *mut c_void);
-    fn ap4_free(ptr: *mut c_uchar);
+    fn ap4_decrypt_memory(
+        ctx: *mut c_void,
+        input_data: *const c_uchar,
+        input_size: c_uint,
+        output_data: *mut *mut c_uchar,
+        output_size: *mut c_uint,
+    ) -> c_int;
 }
 
 fn verify_hex(input: String) -> Result<[u8; 16], Error> {
@@ -118,7 +118,7 @@ impl Ap4Context {
         let result = {
             let _lock = BENTO4_LOCK.lock().unwrap();
             unsafe {
-                ap4_decrypt(
+                ap4_decrypt_memory(
                     self.ptr,
                     data.as_ptr(),
                     data_size,
@@ -176,9 +176,9 @@ impl Ap4Context {
             unsafe {
                 ap4_decrypt_file(
                     self.ptr,
-                    init_ptr,
                     input_cstr.as_ptr(),
                     output_cstr.as_ptr(),
+                    init_ptr,
                 )
             }
         };
@@ -200,7 +200,7 @@ impl Default for Ap4ContextBuilder {
 impl Drop for Ap4Context {
     fn drop(&mut self) {
         let _lock = BENTO4_LOCK.lock().unwrap();
-        unsafe { ap4_context_free(self.ptr) }
+        unsafe { ap4_processor_free(self.ptr) }
     }
 }
 
@@ -241,7 +241,7 @@ impl Ap4ContextBuilder {
 
         let ptr = {
             let _lock = BENTO4_LOCK.lock().unwrap();
-            unsafe { ap4_context_new(keys_buffer.as_ptr(), keys_count as c_uint) }
+            unsafe { ap4_processor_new(keys_buffer.as_ptr(), keys_count as c_uint) }
         };
 
         Ok(Ap4Context { ptr })
