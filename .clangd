@@ -1,0 +1,6 @@
+CompileFlags:
+  Add:
+    - -IC:/Users/apoor/usr/workdesk/public/vsd/bento4-src/Bento4/Source/C++/Core
+    - -IC:/Users/apoor/usr/workdesk/public/vsd/bento4-src/Bento4/Source/C++/Codecs
+    - -IC:/Users/apoor/usr/workdesk/public/vsd/bento4-src/Bento4/Source/C++/Crypto
+    - -IC:/Users/apoor/usr/workdesk/public/vsd/bento4-src/Bento4/Source/C++/MetaData
