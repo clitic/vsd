@@ -12,23 +12,32 @@
 #include <cstdlib>
 #include <cstring>
 
-int ap4_mp4decrypt(const unsigned char data[], unsigned int data_size,
-                   const unsigned char *keys, unsigned int keys_count,
-                   unsigned char **out_data, unsigned int *out_size) {
+struct Ap4Context {
   AP4_ProtectionKeyMap key_map;
+  AP4_CencDecryptingProcessor *processor;
+};
+
+Ap4Context *ap4_context_new(const unsigned char *keys,
+                            unsigned int keys_count) {
+  Ap4Context *ctx = new Ap4Context();
 
   for (unsigned int i = 0; i < keys_count; i++) {
     const unsigned char *kid = keys + (i * 32);
     const unsigned char *key = keys + (i * 32) + 16;
-    key_map.SetKeyForKid(kid, key, 16);
+    ctx->key_map.SetKeyForKid(kid, key, 16);
   }
 
-  AP4_ByteStream *input = new AP4_MemoryByteStream(data, data_size);
-  AP4_Processor *processor = new AP4_CencDecryptingProcessor(&key_map);
-  AP4_MemoryByteStream *output = new AP4_MemoryByteStream();
-  AP4_Result result = processor->Process(*input, *output, NULL);
+  ctx->processor = new AP4_CencDecryptingProcessor(&ctx->key_map);
+  return ctx;
+}
 
-  delete processor;
+int ap4_decrypt(Ap4Context *ctx, const unsigned char *data,
+                unsigned int data_size, unsigned char **out_data,
+                unsigned int *out_size) {
+  AP4_ByteStream *input = new AP4_MemoryByteStream(data, data_size);
+  AP4_MemoryByteStream *output = new AP4_MemoryByteStream();
+  AP4_Result result = ctx->processor->Process(*input, *output, NULL);
+
   input->Release();
 
   if (AP4_FAILED(result)) {
@@ -36,13 +45,17 @@ int ap4_mp4decrypt(const unsigned char data[], unsigned int data_size,
     return result;
   }
 
-  // Allocate and copy output for Rust to own
   *out_size = static_cast<unsigned int>(output->GetDataSize());
   *out_data = static_cast<unsigned char *>(malloc(*out_size));
   memcpy(*out_data, output->GetData(), *out_size);
 
   output->Release();
   return 0;
+}
+
+void ap4_context_free(Ap4Context *ctx) {
+  delete ctx->processor;
+  delete ctx;
 }
 
 void ap4_free(unsigned char *ptr) { free(ptr); }
