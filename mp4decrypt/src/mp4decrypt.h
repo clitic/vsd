@@ -2,19 +2,16 @@
 #define __MP4_DECRYPT_H__
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
-    typedef void (*callback_rust)(void *, const unsigned char *data, unsigned int length);
+typedef void (*callback_rust)(void *, const unsigned char *data,
+                              unsigned int length);
 
-    int ap4_mp4decrypt(
-        const unsigned char data[],
-        unsigned int data_size,
-        const char *keys[],
-        unsigned int keys_size,
-        void *decrypted_data,
-        callback_rust callback);
+int ap4_mp4decrypt(const unsigned char data[], unsigned int data_size,
+                   const char **kid_raw, const char **key_raw,
+                   unsigned int keys_size, void *decrypted_data,
+                   callback_rust callback);
 
 #ifdef __cplusplus
 }

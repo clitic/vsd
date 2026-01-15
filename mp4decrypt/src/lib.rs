@@ -24,7 +24,8 @@ unsafe extern "C" {
     fn ap4_mp4decrypt(
         data: *const c_uchar,
         data_size: c_uint,
-        keys: *mut *const c_char,
+        kid_raw: *const *const c_char,
+        key_raw: *const *const c_char,
         keys_size: c_uint,
         decrypted_data: *mut Vec<u8>,
         callback_rust: extern "C" fn(*mut Vec<u8>, *const c_uchar, c_uint),
@@ -37,7 +38,7 @@ extern "C" fn callback_rust(decrypted_stream: *mut Vec<u8>, data: *const c_uchar
     }
 }
 
-fn verify_hex(input: String) -> Result<String, Error> {
+fn verify_hex(input: String) -> Result<[u8; 16], Error> {
     let bytes = hex::decode(&input)?;
 
     if bytes.len() != 16 {
@@ -47,7 +48,9 @@ fn verify_hex(input: String) -> Result<String, Error> {
         });
     }
 
-    Ok(input)
+    let mut data = [0u8; 16];
+    data.copy_from_slice(&bytes);
+    Ok(data)
 }
 
 /// A builder for decrypting encrypted MP4 streams.
@@ -69,19 +72,9 @@ fn verify_hex(input: String) -> Result<String, Error> {
 /// # Ok::<(), mp4decrypt::Error>(())
 /// ```
 pub struct Mp4Decrypter {
-    keys: HashMap<String, String>,
+    keys: HashMap<[u8; 16], [u8; 16]>,
     init_data: Option<Vec<u8>>,
     input_data: Option<Vec<u8>>,
-}
-
-impl Clone for Mp4Decrypter {
-    fn clone(&self) -> Self {
-        Self {
-            keys: self.keys.clone(),
-            init_data: None,
-            input_data: None,
-        }
-    }
 }
 
 impl Mp4Decrypter {
@@ -210,22 +203,28 @@ impl Mp4Decrypter {
 
         let data_size = u32::try_from(data.len()).map_err(|_| Error::DataTooLarge)?;
 
-        let c_keys = self
+        let (kid_raw, key_raw): (Vec<CString>, Vec<CString>) = self
             .keys
             .iter()
             .map(|(kid, key)| {
-                CString::new(format!("{}:{}", kid, key)).map_err(|_| Error::FfiString)
+                (
+                    CString::new(hex::encode(kid)).unwrap(),
+                    CString::new(hex::encode(key)).unwrap(),
+                )
             })
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut c_keys = c_keys.iter().map(|x| x.as_ptr()).collect::<Vec<_>>();
+            .unzip();
+
+        let kid_ptr: Vec<*const c_char> = kid_raw.iter().map(|s| s.as_ptr()).collect();
+        let key_ptr: Vec<*const c_char> = key_raw.iter().map(|s| s.as_ptr()).collect();
         let mut decrypted_data: Box<Vec<u8>> = Box::default();
 
         let result = unsafe {
             ap4_mp4decrypt(
                 data.as_ptr(),
                 data_size,
-                c_keys.as_mut_ptr(),
-                c_keys.len() as u32,
+                kid_ptr.as_ptr(),
+                key_ptr.as_ptr(),
+                kid_ptr.len() as c_uint,
                 &mut *decrypted_data,
                 callback_rust,
             )
