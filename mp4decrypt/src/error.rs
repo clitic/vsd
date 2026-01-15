@@ -9,29 +9,11 @@ pub enum Error {
     #[error("Failed to decrypt data with error code {0}")]
     DecryptionFailed(i32),
 
-    #[error("Internal string conversion error")]
-    FfiString,
-
-    #[error("Failed to read file '{path}': {source}")]
-    FileRead {
-        path: String,
-        source: std::io::Error,
-    },
-
-    #[error("Failed to write file '{path}': {source}")]
-    FileWrite {
-        path: String,
-        source: std::io::Error,
-    },
-
     #[error("Invalid hex format '{input}': {message}")]
     InvalidHex { input: String, message: String },
 
     #[error("Hex decode error: {0}")]
     HexDecode(#[from] hex::FromHexError),
-
-    #[error("No data provided")]
-    NoData,
 
     #[error("No keys provided")]
     NoKeys,

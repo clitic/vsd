@@ -1,5 +1,4 @@
-use mp4decrypt::Ap4Context;
-use mp4decrypt::{Error, Mp4Decrypter};
+use mp4decrypt::{Ap4CencDecryptingProcessor, Error};
 use std::{fs, path::PathBuf, sync::Arc, thread};
 
 const VIDEO_KID: &str = "eb676abbcb345e96bbcf616630f1a3da";
@@ -19,85 +18,109 @@ fn output_dir() -> PathBuf {
 
 #[test]
 fn test_cenc_multi_video() -> Result<(), Error> {
-    Mp4Decrypter::new()
+    Ap4CencDecryptingProcessor::new()
         .key(VIDEO_KID, VIDEO_KEY)?
         .key(AUDIO_KID, AUDIO_KEY)?
-        .init_file(samples_dir().join("cenc-multi/video_init.mp4"))?
-        .input_file(samples_dir().join("cenc-multi/video_1.m4s"))?
-        .decrypt_to_file(output_dir().join("cenc-multi-video.mp4"))?;
+        .build()?
+        .decrypt_file(
+            &samples_dir().join("cenc-multi/video_1.m4s"),
+            &output_dir().join("cenc-multi-video.mp4"),
+            Some(&samples_dir().join("cenc-multi/video_init.mp4")),
+        )?;
     Ok(())
 }
 
 #[test]
 fn test_cenc_multi_audio() -> Result<(), Error> {
-    Mp4Decrypter::new()
+    Ap4CencDecryptingProcessor::new()
         .key(VIDEO_KID, VIDEO_KEY)?
         .key(AUDIO_KID, AUDIO_KEY)?
-        .init_file(samples_dir().join("cenc-multi/audio_init.mp4"))?
-        .input_file(samples_dir().join("cenc-multi/audio_1.m4s"))?
-        .decrypt_to_file(output_dir().join("cenc-multi-audio.mp4"))?;
+        .build()?
+        .decrypt_file(
+            &samples_dir().join("cenc-multi/audio_1.m4s"),
+            &output_dir().join("cenc-multi-audio.mp4"),
+            Some(&samples_dir().join("cenc-multi/audio_init.mp4")),
+        )?;
     Ok(())
 }
 
 #[test]
 fn test_cenc_single_video() -> Result<(), Error> {
-    Mp4Decrypter::new()
+    Ap4CencDecryptingProcessor::new()
         .key(VIDEO_KID, VIDEO_KEY)?
-        .init_file(samples_dir().join("cenc-single/video_init.mp4"))?
-        .input_file(samples_dir().join("cenc-single/video_1.m4s"))?
-        .decrypt_to_file(output_dir().join("cenc-single-video.mp4"))?;
+        .build()?
+        .decrypt_file(
+            &samples_dir().join("cenc-single/video_1.m4s"),
+            &output_dir().join("cenc-single-video.mp4"),
+            Some(&samples_dir().join("cenc-single/video_init.mp4")),
+        )?;
     Ok(())
 }
 
 #[test]
 fn test_cenc_single_audio() -> Result<(), Error> {
-    Mp4Decrypter::new()
+    Ap4CencDecryptingProcessor::new()
         .key(VIDEO_KID, VIDEO_KEY)?
-        .init_file(samples_dir().join("cenc-single/audio_init.mp4"))?
-        .input_file(samples_dir().join("cenc-single/audio_1.m4s"))?
-        .decrypt_to_file(output_dir().join("cenc-single-audio.mp4"))?;
+        .build()?
+        .decrypt_file(
+            &samples_dir().join("cenc-single/audio_1.m4s"),
+            &output_dir().join("cenc-single-audio.mp4"),
+            Some(&samples_dir().join("cenc-single/audio_init.mp4")),
+        )?;
     Ok(())
 }
 
 #[test]
 fn test_cbcs_multi_video() -> Result<(), Error> {
-    Mp4Decrypter::new()
+    Ap4CencDecryptingProcessor::new()
         .key(VIDEO_KID, VIDEO_KEY)?
         .key(AUDIO_KID, AUDIO_KEY)?
-        .init_file(samples_dir().join("cbcs-multi/video_init.mp4"))?
-        .input_file(samples_dir().join("cbcs-multi/video_1.m4s"))?
-        .decrypt_to_file(output_dir().join("cbcs-multi-video.mp4"))?;
+        .build()?
+        .decrypt_file(
+            &samples_dir().join("cbcs-multi/video_1.m4s"),
+            &output_dir().join("cbcs-multi-video.mp4"),
+            Some(&samples_dir().join("cbcs-multi/video_init.mp4")),
+        )?;
     Ok(())
 }
 
 #[test]
 fn test_cbcs_multi_audio() -> Result<(), Error> {
-    Mp4Decrypter::new()
+    Ap4CencDecryptingProcessor::new()
         .key(VIDEO_KID, VIDEO_KEY)?
         .key(AUDIO_KID, AUDIO_KEY)?
-        .init_file(samples_dir().join("cbcs-multi/audio_init.mp4"))?
-        .input_file(samples_dir().join("cbcs-multi/audio_1.m4s"))?
-        .decrypt_to_file(output_dir().join("cbcs-multi-audio.mp4"))?;
+        .build()?
+        .decrypt_file(
+            &samples_dir().join("cbcs-multi/audio_1.m4s"),
+            &output_dir().join("cbcs-multi-audio.mp4"),
+            Some(&samples_dir().join("cbcs-multi/audio_init.mp4")),
+        )?;
     Ok(())
 }
 
 #[test]
 fn test_cbcs_single_video() -> Result<(), Error> {
-    Mp4Decrypter::new()
+    Ap4CencDecryptingProcessor::new()
         .key(VIDEO_KID, VIDEO_KEY)?
-        .init_file(samples_dir().join("cbcs-single/video_init.mp4"))?
-        .input_file(samples_dir().join("cbcs-single/video_1.m4s"))?
-        .decrypt_to_file(output_dir().join("cbcs-single-video.mp4"))?;
+        .build()?
+        .decrypt_file(
+            &samples_dir().join("cbcs-single/video_1.m4s"),
+            &output_dir().join("cbcs-single-video.mp4"),
+            Some(&samples_dir().join("cbcs-single/video_init.mp4")),
+        )?;
     Ok(())
 }
 
 #[test]
 fn test_cbcs_single_audio() -> Result<(), Error> {
-    Mp4Decrypter::new()
+    Ap4CencDecryptingProcessor::new()
         .key(VIDEO_KID, VIDEO_KEY)?
-        .init_file(samples_dir().join("cbcs-single/audio_init.mp4"))?
-        .input_file(samples_dir().join("cbcs-single/audio_1.m4s"))?
-        .decrypt_to_file(output_dir().join("cbcs-single-audio.mp4"))?;
+        .build()?
+        .decrypt_file(
+            &samples_dir().join("cbcs-single/audio_1.m4s"),
+            &output_dir().join("cbcs-single-audio.mp4"),
+            Some(&samples_dir().join("cbcs-single/audio_init.mp4")),
+        )?;
     Ok(())
 }
 
@@ -110,7 +133,7 @@ fn test_multithreaded_decryption() -> Result<(), Error> {
     fs::create_dir_all(&*out_dir).unwrap();
 
     let ctx = Arc::new(
-        Ap4Context::new()
+        Ap4CencDecryptingProcessor::new()
             .key(VIDEO_KID, VIDEO_KEY)?
             .key(AUDIO_KID, AUDIO_KEY)?
             .build()?,
@@ -125,7 +148,7 @@ fn test_multithreaded_decryption() -> Result<(), Error> {
 
             thread::spawn(move || {
                 for j in 0..5 {
-                    let result = ctx.decrypt(&init, &segment);
+                    let result = ctx.decrypt(segment.as_slice(), Some(init.as_slice()));
                     assert!(
                         result.is_ok(),
                         "Thread {} iteration {} failed: {:?}",
@@ -155,16 +178,18 @@ fn test_multithreaded_decryption() -> Result<(), Error> {
 
 #[test]
 fn test_file_based_decryption() -> Result<(), Error> {
-    let ctx = Ap4Context::new().key(VIDEO_KID, VIDEO_KEY)?.build()?;
+    let ctx = Ap4CencDecryptingProcessor::new()
+        .key(VIDEO_KID, VIDEO_KEY)?
+        .build()?;
 
     let out_dir = output_dir().join("file-based");
     fs::create_dir_all(&out_dir).unwrap();
 
     let decrypted_segment = out_dir.join("video_segment.m4s");
     ctx.decrypt_file(
-        Some(&samples_dir().join("cenc-single/video_init.mp4")),
         &samples_dir().join("cenc-single/video_1.m4s"),
         &decrypted_segment,
+        Some(&samples_dir().join("cenc-single/video_init.mp4")),
     )?;
 
     // Merge init + decrypted segment for a playable file
