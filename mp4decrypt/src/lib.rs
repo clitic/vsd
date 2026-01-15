@@ -17,16 +17,15 @@ mod error;
 
 pub use error::Error;
 
-use core::ffi::{c_char, c_int, c_uchar, c_uint};
-use std::{collections::HashMap, ffi::CString, fs, path::Path};
+use core::ffi::{c_int, c_uchar, c_uint};
+use std::{collections::HashMap, fs, path::Path};
 
 unsafe extern "C" {
     fn ap4_mp4decrypt(
         data: *const c_uchar,
         data_size: c_uint,
-        kid_raw: *const *const c_char,
-        key_raw: *const *const c_char,
-        keys_size: c_uint,
+        keys: *const c_uchar,
+        keys_count: c_uint,
         decrypted_data: *mut Vec<u8>,
         callback_rust: extern "C" fn(*mut Vec<u8>, *const c_uchar, c_uint),
     ) -> c_int;
@@ -203,28 +202,22 @@ impl Mp4Decrypter {
 
         let data_size = u32::try_from(data.len()).map_err(|_| Error::DataTooLarge)?;
 
-        let (kid_raw, key_raw): (Vec<CString>, Vec<CString>) = self
-            .keys
-            .iter()
-            .map(|(kid, key)| {
-                (
-                    CString::new(hex::encode(kid)).unwrap(),
-                    CString::new(hex::encode(key)).unwrap(),
-                )
-            })
-            .unzip();
+        let keys_count = self.keys.len();
+        let mut keys_buffer = Vec::with_capacity(keys_count * 32);
 
-        let kid_ptr: Vec<*const c_char> = kid_raw.iter().map(|s| s.as_ptr()).collect();
-        let key_ptr: Vec<*const c_char> = key_raw.iter().map(|s| s.as_ptr()).collect();
+        for (kid, key) in &self.keys {
+            keys_buffer.extend_from_slice(kid);
+            keys_buffer.extend_from_slice(key);
+        }
+
         let mut decrypted_data: Box<Vec<u8>> = Box::default();
 
         let result = unsafe {
             ap4_mp4decrypt(
                 data.as_ptr(),
                 data_size,
-                kid_ptr.as_ptr(),
-                key_ptr.as_ptr(),
-                kid_ptr.len() as c_uint,
+                keys_buffer.as_ptr(),
+                keys_count as c_uint,
                 &mut *decrypted_data,
                 callback_rust,
             )

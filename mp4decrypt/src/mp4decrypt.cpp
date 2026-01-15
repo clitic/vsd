@@ -7,24 +7,17 @@
 
 */
 
-#include <iostream>
-#include <stdio.h>
-#include <stdlib.h>
-
-#include "Ap4.h" // IWYU pragma: keep
 #include "mp4decrypt.h"
+#include "Ap4.h" // IWYU pragma: keep
 
 int ap4_mp4decrypt(const unsigned char data[], unsigned int data_size,
-                   const char **kid_raw, const char **key_raw,
-                   unsigned int keys_size, void *decrypted_data,
-                   callback_rust callback) {
+                   const unsigned char *keys, unsigned int keys_count,
+                   void *decrypted_data, callback_rust callback) {
   AP4_ProtectionKeyMap key_map;
 
-  for (int i = 0; i < keys_size; i++) {
-    unsigned char kid[16];
-    unsigned char key[16];
-    AP4_ParseHex(kid_raw[i], kid, 16);
-    AP4_ParseHex(key_raw[i], key, 16);
+  for (unsigned int i = 0; i < keys_count; i++) {
+    const unsigned char *kid = keys + (i * 32);
+    const unsigned char *key = keys + (i * 32) + 16;
     key_map.SetKeyForKid(kid, key, 16);
   }
 

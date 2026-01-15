@@ -9,12 +9,11 @@ typedef void (*callback_rust)(void *, const unsigned char *data,
                               unsigned int length);
 
 int ap4_mp4decrypt(const unsigned char data[], unsigned int data_size,
-                   const char **kid_raw, const char **key_raw,
-                   unsigned int keys_size, void *decrypted_data,
-                   callback_rust callback);
+                   const unsigned char *keys, unsigned int keys_count,
+                   void *decrypted_data, callback_rust callback);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __MP4_DECRYPT_H__ */
+#endif
