@@ -47,9 +47,15 @@ int ap4_decrypt(Ap4Context *ctx, const unsigned char *data,
 
   *out_size = static_cast<unsigned int>(output->GetDataSize());
   *out_data = static_cast<unsigned char *>(malloc(*out_size));
-  memcpy(*out_data, output->GetData(), *out_size);
 
+  if (*out_data == NULL) {
+    output->Release();
+    return -1;
+  }
+
+  memcpy(*out_data, output->GetData(), *out_size);
   output->Release();
+
   return 0;
 }
 
