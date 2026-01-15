@@ -59,6 +59,53 @@ int ap4_decrypt(Ap4Context *ctx, const unsigned char *data,
   return 0;
 }
 
+int ap4_decrypt_file(Ap4Context *ctx, const char *init_path,
+                     const char *input_path, const char *output_path) {
+  AP4_Result result;
+
+  // Open input file
+  AP4_ByteStream *input = NULL;
+  result = AP4_FileByteStream::Create(
+      input_path, AP4_FileByteStream::STREAM_MODE_READ, input);
+  if (AP4_FAILED(result)) {
+    return result;
+  }
+
+  // Open output file
+  AP4_ByteStream *output = NULL;
+  result = AP4_FileByteStream::Create(
+      output_path, AP4_FileByteStream::STREAM_MODE_WRITE, output);
+  if (AP4_FAILED(result)) {
+    input->Release();
+    return result;
+  }
+
+  // Open init/fragments info file if provided
+  AP4_ByteStream *fragments_info = NULL;
+  if (init_path != NULL) {
+    result = AP4_FileByteStream::Create(
+        init_path, AP4_FileByteStream::STREAM_MODE_READ, fragments_info);
+    if (AP4_FAILED(result)) {
+      input->Release();
+      output->Release();
+      return result;
+    }
+  }
+
+  // Process the file
+  if (fragments_info) {
+    result = ctx->processor->Process(*input, *output, *fragments_info, NULL);
+    fragments_info->Release();
+  } else {
+    result = ctx->processor->Process(*input, *output, NULL);
+  }
+
+  input->Release();
+  output->Release();
+
+  return result;
+}
+
 void ap4_context_free(Ap4Context *ctx) {
   delete ctx->processor;
   delete ctx;

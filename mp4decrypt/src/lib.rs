@@ -15,8 +15,8 @@ mod error;
 
 pub use error::Error;
 
-use core::ffi::{c_int, c_uchar, c_uint, c_void};
-use std::{collections::HashMap, fs, path::Path, ptr, sync::Mutex};
+use core::ffi::{c_char, c_int, c_uchar, c_uint, c_void};
+use std::{collections::HashMap, ffi::CString, fs, path::Path, ptr, sync::Mutex};
 
 // Bento4 has global state that is not thread-safe
 static BENTO4_LOCK: Mutex<()> = Mutex::new(());
@@ -29,6 +29,12 @@ unsafe extern "C" {
         data_size: c_uint,
         out_data: *mut *mut c_uchar,
         out_size: *mut c_uint,
+    ) -> c_int;
+    fn ap4_decrypt_file(
+        ctx: *mut c_void,
+        init_path: *const c_char,
+        input_path: *const c_char,
+        output_path: *const c_char,
     ) -> c_int;
     fn ap4_context_free(ctx: *mut c_void);
     fn ap4_free(ptr: *mut c_uchar);
@@ -130,6 +136,55 @@ impl Ap4Context {
                 vec
             };
             Ok(decrypted)
+        } else {
+            Err(Error::DecryptionFailed(result))
+        }
+    }
+
+    /// Decrypts a file using streaming I/O (no memory size limit).
+    ///
+    /// # Arguments
+    ///
+    /// * `init` - Optional path to init segment (for DASH/HLS with separate init)
+    /// * `input` - Path to the encrypted input file
+    /// * `output` - Path to write the decrypted output
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if file operations or decryption fail.
+    pub fn decrypt_file(
+        &self,
+        init: Option<&Path>,
+        input: &Path,
+        output: &Path,
+    ) -> Result<(), Error> {
+        let init_cstr = init
+            .map(|p| CString::new(p.to_string_lossy().as_bytes()).ok())
+            .flatten();
+        let input_cstr =
+            CString::new(input.to_string_lossy().as_bytes()).map_err(|_| Error::FfiString)?;
+        let output_cstr =
+            CString::new(output.to_string_lossy().as_bytes()).map_err(|_| Error::FfiString)?;
+
+        let init_ptr = init_cstr
+            .as_ref()
+            .map(|s| s.as_ptr())
+            .unwrap_or(ptr::null());
+
+        let result = {
+            let _lock = BENTO4_LOCK.lock().unwrap();
+            unsafe {
+                ap4_decrypt_file(
+                    self.ptr,
+                    init_ptr,
+                    input_cstr.as_ptr(),
+                    output_cstr.as_ptr(),
+                )
+            }
+        };
+
+        if result == 0 {
+            Ok(())
         } else {
             Err(Error::DecryptionFailed(result))
         }

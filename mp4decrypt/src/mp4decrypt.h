@@ -17,6 +17,11 @@ int ap4_decrypt(Ap4Context *ctx, const unsigned char *data,
                 unsigned int data_size, unsigned char **out_data,
                 unsigned int *out_size);
 
+// Decrypt file using streaming I/O (no memory limit)
+// init_path: optional init segment path (NULL if input contains init)
+int ap4_decrypt_file(Ap4Context *ctx, const char *init_path,
+                     const char *input_path, const char *output_path);
+
 // Free the decryption context
 void ap4_context_free(Ap4Context *ctx);
 

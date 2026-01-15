@@ -12,7 +12,7 @@ fn samples_dir() -> PathBuf {
 }
 
 fn output_dir() -> PathBuf {
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../target/mp4decrypt-sample");
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../target/mp4decrypt-samples");
     fs::create_dir_all(&dir).ok();
     dir
 }
@@ -150,5 +150,30 @@ fn test_multithreaded_decryption() -> Result<(), Error> {
         handle.join().expect("Thread panicked");
     }
 
+    Ok(())
+}
+
+#[test]
+fn test_file_based_decryption() -> Result<(), Error> {
+    let ctx = Ap4Context::new().key(VIDEO_KID, VIDEO_KEY)?.build()?;
+
+    let out_dir = output_dir().join("file-based");
+    fs::create_dir_all(&out_dir).unwrap();
+
+    let decrypted_segment = out_dir.join("video_segment.m4s");
+    ctx.decrypt_file(
+        Some(&samples_dir().join("cenc-single/video_init.mp4")),
+        &samples_dir().join("cenc-single/video_1.m4s"),
+        &decrypted_segment,
+    )?;
+
+    // Merge init + decrypted segment for a playable file
+    let init = fs::read(samples_dir().join("cenc-single/video_init.mp4")).unwrap();
+    let segment = fs::read(&decrypted_segment).unwrap();
+    let mut playable = init;
+    playable.extend(segment);
+    fs::write(out_dir.join("video.mp4"), playable).unwrap();
+
+    assert!(out_dir.join("video.mp4").exists());
     Ok(())
 }
