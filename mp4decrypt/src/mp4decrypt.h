@@ -5,12 +5,11 @@
 extern "C" {
 #endif
 
-typedef void (*callback_rust)(void *, const unsigned char *data,
-                              unsigned int length);
-
 int ap4_mp4decrypt(const unsigned char data[], unsigned int data_size,
                    const unsigned char *keys, unsigned int keys_count,
-                   void *decrypted_data, callback_rust callback);
+                   unsigned char **out_data, unsigned int *out_size);
+
+void ap4_free(unsigned char *ptr);
 
 #ifdef __cplusplus
 }

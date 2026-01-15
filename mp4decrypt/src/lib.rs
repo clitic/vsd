@@ -11,14 +11,12 @@
 //! Additionally, these variables can be prefixed with the upper-cased target architecture (e.g. X86_64_UNKNOWN_LINUX_GNU_BENTO4_DIR),
 //! which can be useful when cross compiling.
 
-#![allow(improper_ctypes)]
-
 mod error;
 
 pub use error::Error;
 
 use core::ffi::{c_int, c_uchar, c_uint};
-use std::{collections::HashMap, fs, path::Path};
+use std::{collections::HashMap, fs, path::Path, ptr};
 
 unsafe extern "C" {
     fn ap4_mp4decrypt(
@@ -26,15 +24,11 @@ unsafe extern "C" {
         data_size: c_uint,
         keys: *const c_uchar,
         keys_count: c_uint,
-        decrypted_data: *mut Vec<u8>,
-        callback_rust: extern "C" fn(*mut Vec<u8>, *const c_uchar, c_uint),
+        out_data: *mut *mut c_uchar,
+        out_size: *mut c_uint,
     ) -> c_int;
-}
 
-extern "C" fn callback_rust(decrypted_stream: *mut Vec<u8>, data: *const c_uchar, size: c_uint) {
-    unsafe {
-        *decrypted_stream = std::slice::from_raw_parts(data, size as usize).to_vec();
-    }
+    fn ap4_free(ptr: *mut c_uchar);
 }
 
 fn verify_hex(input: String) -> Result<[u8; 16], Error> {
@@ -210,7 +204,8 @@ impl Mp4Decrypter {
             keys_buffer.extend_from_slice(key);
         }
 
-        let mut decrypted_data: Box<Vec<u8>> = Box::default();
+        let mut out_data: *mut c_uchar = ptr::null_mut();
+        let mut out_size: c_uint = 0;
 
         let result = unsafe {
             ap4_mp4decrypt(
@@ -218,13 +213,19 @@ impl Mp4Decrypter {
                 data_size,
                 keys_buffer.as_ptr(),
                 keys_count as c_uint,
-                &mut *decrypted_data,
-                callback_rust,
+                &mut out_data,
+                &mut out_size,
             )
         };
 
         if result == 0 {
-            Ok(*decrypted_data)
+            let decrypted = unsafe {
+                let slice = std::slice::from_raw_parts(out_data, out_size as usize);
+                let vec = slice.to_vec();
+                ap4_free(out_data);
+                vec
+            };
+            Ok(decrypted)
         } else {
             Err(Error::DecryptionFailed(result))
         }

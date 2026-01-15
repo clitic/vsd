@@ -9,10 +9,12 @@
 
 #include "mp4decrypt.h"
 #include "Ap4.h" // IWYU pragma: keep
+#include <cstdlib>
+#include <cstring>
 
 int ap4_mp4decrypt(const unsigned char data[], unsigned int data_size,
                    const unsigned char *keys, unsigned int keys_count,
-                   void *decrypted_data, callback_rust callback) {
+                   unsigned char **out_data, unsigned int *out_size) {
   AP4_ProtectionKeyMap key_map;
 
   for (unsigned int i = 0; i < keys_count; i++) {
@@ -26,14 +28,21 @@ int ap4_mp4decrypt(const unsigned char data[], unsigned int data_size,
   AP4_MemoryByteStream *output = new AP4_MemoryByteStream();
   AP4_Result result = processor->Process(*input, *output, NULL);
 
+  delete processor;
+  input->Release();
+
   if (AP4_FAILED(result)) {
+    output->Release();
     return result;
   }
 
-  delete processor;
-  input->Release();
-  callback(decrypted_data, output->GetData(), output->GetDataSize());
-  output->Release();
+  // Allocate and copy output for Rust to own
+  *out_size = static_cast<unsigned int>(output->GetDataSize());
+  *out_data = static_cast<unsigned char *>(malloc(*out_size));
+  memcpy(*out_data, output->GetData(), *out_size);
 
+  output->Release();
   return 0;
 }
+
+void ap4_free(unsigned char *ptr) { free(ptr); }
