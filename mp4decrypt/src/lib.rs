@@ -62,7 +62,7 @@
 //!
 //!             thread::spawn(move || {
 //!                 let segment = fs::read(format!("segment_{}.m4s", i)).unwrap();
-//!                 let decrypted = processor.decrypt(&segment, Some(init.as_slice())).unwrap();
+//!                 let decrypted = processor.decrypt(&segment, Some(&*init)).unwrap();
 //!                 fs::write(format!("decrypted_{}.mp4", i), decrypted).unwrap();
 //!             })
 //!         })
@@ -222,7 +222,7 @@ impl Ap4CencDecryptingProcessor {
     /// fs::write("output.mp4", decrypted)?;
     ///
     /// // Without initialization segment (raw decrypted segment)
-    /// let decrypted_raw = processor.decrypt(&segment, None::<&[u8]>)?;
+    /// let decrypted_raw = processor.decrypt(&segment, None::<&Vec<u8>>)?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     ///
