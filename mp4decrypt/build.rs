@@ -66,11 +66,4 @@ fn main() {
         .includes(includes)
         .file("src/mp4decrypt.cpp")
         .compile("ap4_mp4decrypt");
-
-    // let bindings = bindgen::Builder::default()
-    //     .header("src/mp4decrypt.h")
-    //     .generate()
-    //     .unwrap()
-    //     .write_to_file("bindings.rs")
-    //     .unwrap();
 }
