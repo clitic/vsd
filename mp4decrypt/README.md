@@ -15,7 +15,7 @@
   </a>
 </p>
 
-This crate provides a safe function to decrypt, encrypted mp4 data stream using [Bento4](https://github.com/axiomatic-systems/Bento4).
+This crate provides a safe high-level API to decrypt CENC/CBCS encrypted MP4 data using [Bento4](https://github.com/axiomatic-systems/Bento4).
 
 ## Getting Started
 
@@ -23,7 +23,7 @@ Add this to your Cargo.toml file.
 
 ```toml
 [dependencies]
-mp4decrypt = "0.5.1"
+mp4decrypt = "0.6.0"
 ```
 
 Or add from command line.

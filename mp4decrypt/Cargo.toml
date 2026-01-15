@@ -1,7 +1,7 @@
 [package]
 authors = ["clitic <clitic21@gmail.com>"]
 categories = ["api-bindings", "cryptography"]
-description = "A safe high level api to decrypt mp4 data using Bento4"
+description = "A safe high-level API to decrypt CENC/CBCS encrypted MP4 data using Bento4"
 documentation = "https://docs.rs/mp4decrypt"
 edition = "2024"
 exclude = ["examples/*", "tests/*"]
@@ -13,7 +13,7 @@ repository = "https://github.com/clitic/vsd/tree/main/mp4decrypt"
 version = "0.6.0"
 
 [dependencies]
-hex = "0.4.3"
+hex = "0.4"
 thiserror = "2"
 
 [build-dependencies]

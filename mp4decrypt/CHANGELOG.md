@@ -7,9 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-01-16
+
+### Added
+
+- `Ap4CencDecryptingProcessor` struct with a builder pattern for easier configuration.
+
 ### Changed
 
-- New builder based api i.e. `Mp4Decrypter`.
+- Removed `mp4decrypt` function.
+
+### Fixed
+
+- Memory and thread safety issues.
+- Enhanced error handling with more descriptive messages.
 
 ## [0.5.1] - 2025-06-10
 
@@ -79,7 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.0] - 2022-08-31
 
-[Unreleased]: https://github.com/clitic/vsd/compare/mp4decrypt-0.5.1...HEAD
+[Unreleased]: https://github.com/clitic/vsd/compare/mp4decrypt-0.6.0...HEAD
+[0.6.0]: https://github.com/clitic/vsd/compare/mp4decrypt-0.5.1...mp4decrypt-0.6.0
 [0.5.1]: https://github.com/clitic/vsd/compare/mp4decrypt-v0.5.0...mp4decrypt-0.5.1
 [0.5.0]: https://github.com/clitic/vsd/compare/mp4decrypt-v0.4.2...mp4decrypt-0.5.0
 [0.4.2]: https://github.com/clitic/vsd/compare/mp4decrypt-v0.4.1...mp4decrypt-v0.4.2
