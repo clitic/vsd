@@ -15,7 +15,7 @@
   </a>
 </p>
 
-Source of [bento4](https://github.com/axiomatic-systems/Bento4) and logic to build it.
+Source code of [Bento4](https://github.com/axiomatic-systems/Bento4) and logic to build ap4 library.
 
 ## Getting Started
 
@@ -23,7 +23,7 @@ Add this to your Cargo.toml file.
 
 ```toml
 [build-dependencies]
-bento4-src = "0.1.4"
+bento4-src = "0.1.5"
 ```
 
 Or add from command line.

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-01-16
+
 ### Changed
 
 - Bento4 version 1.6.0-641 -> 1.6.0-641+dc26485
@@ -33,7 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.0] - 2022-05-10
 
-[Unreleased]: https://github.com/clitic/vsd/compare/bento4-src-0.1.4...HEAD
+[Unreleased]: https://github.com/clitic/vsd/compare/bento4-src-0.1.5...HEAD
+[0.1.5]: https://github.com/clitic/vsd/compare/bento4-src-0.1.4...bento4-src-0.1.5
 [0.1.4]: https://github.com/clitic/vsd/compare/bento4-src-0.1.3...bento4-src-0.1.4
 [0.1.3]: https://github.com/clitic/vsd/compare/bento4-src-v0.1.2...bento4-src-0.1.3
 [0.1.2]: https://github.com/clitic/vsd/compare/bento4-src-v0.1.1...bento4-src-v0.1.2

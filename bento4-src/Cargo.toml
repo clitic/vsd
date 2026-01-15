@@ -1,6 +1,6 @@
 [package]
 authors = ["clitic <clitic21@gmail.com>"]
-description = "Source of bento4 and logic to build it."
+description = "Source code of Bento4 and logic to ap4 library"
 documentation = "https://docs.rs/bento4-src"
 edition = "2024"
 license = "MIT OR Apache-2.0"
