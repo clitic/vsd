@@ -7,7 +7,7 @@
 */
 
 use crate::{
-    Error, Reader, Result, bail, parser,
+    Reader, Result, bail, err, parser,
     parser::Mp4Parser,
     text::{
         Cue, Subtitles,
@@ -70,9 +70,7 @@ impl Mp4VttParser {
         if let Some(timescale) = timescale {
             Ok(Self { timescale })
         } else {
-            Err(Error::new(
-                "missing timescale (should exist inside MDHD box).",
-            ))
+            Err(err!("missing timescale (should exist inside MDHD box)."))
         }
     }
 
@@ -189,7 +187,7 @@ fn parse_mdat(
 ) -> Result<impl IntoIterator<Item = Cue>> {
     let mut cues = vec![];
     let mut current_time = base_time;
-    let mut reader = Reader::new_big_endian(raw_payload.to_vec());
+    let mut reader = Reader::new_big_endian(raw_payload);
 
     for presentation in presentations {
         // If one presentation corresponds to multiple payloads, it is assumed

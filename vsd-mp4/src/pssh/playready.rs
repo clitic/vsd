@@ -14,7 +14,7 @@ use base64::Engine;
 use serde::Deserialize;
 
 pub(super) fn parse(data: &[u8]) -> Result<impl IntoIterator<Item = KeyId>> {
-    let mut reader = Reader::new_little_endian(data.to_vec());
+    let mut reader = Reader::new_little_endian(data);
     let size = reader.read_u32()?;
 
     if size as usize != data.len() {

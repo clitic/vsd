@@ -29,16 +29,19 @@ pub enum Error {
     },
 }
 
-impl Error {
-    pub fn new(msg: impl Into<String>) -> Self {
-        Error::Generic(msg.into())
-    }
+/// Creates an `Error::Generic` from a format string (like `anyhow::anyhow!`).
+/// Use in `.map_err(|_| err!("message"))`.
+#[macro_export]
+macro_rules! err {
+    ($($arg:tt)*) => {
+        $crate::Error::Generic(format!($($arg)*))
+    };
 }
 
 /// Creates an `Error::Generic` and returns early (like `anyhow::bail!`).
 #[macro_export]
 macro_rules! bail {
     ($($arg:tt)*) => {
-        return Err($crate::Error::Generic(format!($($arg)*)))
+        return Err($crate::err!($($arg)*))
     };
 }

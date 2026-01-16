@@ -70,7 +70,7 @@ impl Mp4Parser {
         partial_okay: bool,
         stop_on_partial: bool,
     ) -> HandlerResult {
-        let mut reader = Reader::new_big_endian(data.to_vec());
+        let mut reader = Reader::new_big_endian(data);
 
         self.done = false;
 
@@ -164,9 +164,9 @@ impl Mp4Parser {
                 Vec::with_capacity(0)
             };
 
-            let payload_reader = Reader::new_big_endian(payload);
+            let payload_reader = Reader::new_big_endian(&payload);
 
-            let _box = ParsedBox {
+            let box_ = ParsedBox {
                 name,
                 parser: self.clone(),
                 partial_okay,
@@ -179,7 +179,7 @@ impl Mp4Parser {
                 has_64_bit_size,
             };
 
-            box_definition(_box)?;
+            box_definition(box_)?;
         } else {
             // Move the read head to be at the end of the box.
             // If the box is longer than the remaining parts of the file, e.g. the

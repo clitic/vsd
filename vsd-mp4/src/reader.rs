@@ -23,17 +23,17 @@ pub struct Reader {
 }
 
 impl Reader {
-    pub fn new_big_endian(data: Vec<u8>) -> Self {
+    pub fn new_big_endian(data: &[u8]) -> Self {
         Self {
             endian: Endianness::Big,
-            inner: Cursor::new(data),
+            inner: Cursor::new(data.to_vec()),
         }
     }
 
-    pub fn new_little_endian(data: Vec<u8>) -> Self {
+    pub fn new_little_endian(data: &[u8]) -> Self {
         Self {
             endian: Endianness::Little,
-            inner: Cursor::new(data),
+            inner: Cursor::new(data.to_vec()),
         }
     }
 
@@ -66,11 +66,7 @@ impl Reader {
     pub fn read_u8(&mut self) -> Result<u8> {
         let mut buf = [0; 1];
         self.inner.read_exact(&mut buf)?;
-
-        match self.endian {
-            Endianness::Big => Ok(u8::from_be_bytes(buf)),
-            Endianness::Little => Ok(u8::from_le_bytes(buf)),
-        }
+        Ok(buf[0])
     }
 
     pub fn read_u16(&mut self) -> Result<u16> {
