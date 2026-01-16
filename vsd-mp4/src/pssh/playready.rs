@@ -7,7 +7,7 @@
 */
 
 use super::{KeyId, KeyIdSystemType};
-use crate::{Error, Reader, Result};
+use crate::{Error, Reader, Result, bail};
 use base64::Engine;
 use serde::Deserialize;
 
@@ -16,7 +16,7 @@ pub(super) fn parse(data: &[u8]) -> Result<impl IntoIterator<Item = KeyId>> {
     let size = reader.read_u32()?;
 
     if size as usize != data.len() {
-        return Err(Error::new("invalid length of PSSH box playready object."));
+        bail!("Invalid length of PSSH box playready object.");
     }
 
     let count = reader.read_u16()?;
@@ -30,31 +30,20 @@ pub(super) fn parse(data: &[u8]) -> Result<impl IntoIterator<Item = KeyId>> {
 
         match record_type {
             1 => {
-                let xml = String::from_utf16(&record_data).map_err(|_| {
-                    Error::new_decode(
-                    "PSSH box playready object record data as valid utf-16 data (little endian)."
-                )
-                })?;
-                let wrm_header = quick_xml::de::from_str::<WrmHeader>(&xml).map_err(|x| {
-                    Error::new_decode(format!(
-                        "PSSH box playready object record data i.e. {xml}\n\n{x:#?}"
-                    ))
-                })?;
+                let xml = String::from_utf16(&record_data)?;
+                let wrm_header = quick_xml::de::from_str::<WrmHeader>(&xml)
+                    .map_err(|x| Error::XmlDecode { error: x, xml })?;
                 kids.append(&mut wrm_header.kids()?);
             }
             2 | 3 => (),
             _ => {
-                return Err(Error::new(format!(
-                    "invalid PSSH box playready object record type {record_type}."
-                )));
+                bail!("Invalid PSSH box playready object record type {record_type}.");
             }
         }
     }
 
     if reader.has_more_data() {
-        return Err(Error::new(
-            "PSSH box extra data after playready object records.",
-        ));
+        bail!("PSSH box extra data after playready object records.");
     }
 
     Ok(kids.into_iter().map(|x| KeyId {
@@ -138,9 +127,7 @@ impl WrmHeader {
             }
 
             x => {
-                return Err(Error::new(format!(
-                    "unsupported PSSH box playready object header version v{x}."
-                )));
+                bail!("Unsupported PSSH box playready object header version v{x}.");
             }
         }
 

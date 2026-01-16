@@ -11,7 +11,7 @@
 
 use super::{playready, widevine};
 use crate::{
-    Error, Result, parser,
+    Result, bail, parser,
     parser::{Mp4Parser, ParsedBox},
 };
 use std::sync::{Arc, Mutex};
@@ -80,8 +80,8 @@ impl Pssh {
         let pssh_c = pssh.clone();
 
         Mp4Parser::default()
-            .basic_box("moov", Arc::new(parser::children))
-            .basic_box("moof", Arc::new(parser::children))
+            .base_box("moov", Arc::new(parser::children))
+            .base_box("moof", Arc::new(parser::children))
             .full_box(
                 "pssh",
                 Arc::new(move |mut _box| pssh_c.lock().unwrap().parse_pssh_box(&mut _box)),
@@ -105,15 +105,11 @@ impl Pssh {
 
     fn parse_pssh_box(&mut self, _box: &mut ParsedBox) -> Result<()> {
         if _box.version.is_none() {
-            return Err(Error::new(
-                "PSSH boxes are full boxes and must have a valid version.",
-            ));
+            bail!("PSSH boxes are full boxes and must have a valid version.");
         }
 
         if _box.flags.is_none() {
-            return Err(Error::new(
-                "PSSH boxes are full boxes and must have a valid flag.",
-            ));
+            bail!("PSSH boxes are full boxes and must have a valid flag.");
         }
 
         let _box_version = _box.version.unwrap();

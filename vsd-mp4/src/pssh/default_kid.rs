@@ -19,16 +19,16 @@ pub fn default_kid(data: &[u8]) -> Result<Option<String>> {
     let default_kid_c = default_kid.clone();
 
     Mp4Parser::default()
-        .basic_box("moov", Arc::new(parser::children))
-        .basic_box("trak", Arc::new(parser::children))
-        .basic_box("mdia", Arc::new(parser::children))
-        .basic_box("minf", Arc::new(parser::children))
-        .basic_box("stbl", Arc::new(parser::children))
+        .base_box("moov", Arc::new(parser::children))
+        .base_box("trak", Arc::new(parser::children))
+        .base_box("mdia", Arc::new(parser::children))
+        .base_box("minf", Arc::new(parser::children))
+        .base_box("stbl", Arc::new(parser::children))
         .full_box("stsd", Arc::new(parser::sample_description))
-        .basic_box("encv", Arc::new(parser::visual_sample_entry))
-        .basic_box("enca", Arc::new(parser::audio_sample_entry))
-        .basic_box("sinf", Arc::new(parser::children))
-        .basic_box("schi", Arc::new(parser::children))
+        .base_box("encv", Arc::new(parser::visual_sample_entry))
+        .base_box("enca", Arc::new(parser::audio_sample_entry))
+        .base_box("sinf", Arc::new(parser::children))
+        .base_box("schi", Arc::new(parser::children))
         .full_box(
             "tenc",
             Arc::new(move |mut _box| {

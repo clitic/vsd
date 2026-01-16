@@ -6,7 +6,7 @@
 
 */
 
-use crate::{Error, Reader, Result};
+use crate::{Reader, Result};
 
 pub(super) struct TFHDBox {
     /// As per the spec: an integer that uniquely identifies this
@@ -111,8 +111,7 @@ impl MDHDBox {
             (language >> 10) + 0x60,
             ((language & 0x03c0) >> 5) + 0x60,
             (language & 0x1f) + 0x60,
-        ])
-        .map_err(|_| Error::new_decode("MDHD box language as vaild utf-16 data."))?;
+        ])?;
 
         Ok(Self {
             timescale,

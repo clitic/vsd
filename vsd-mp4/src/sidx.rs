@@ -8,7 +8,7 @@
 
 //! Mp4 `SIDX` box parser.
 
-use crate::{Error, Mp4Parser, ParsedBox, Result};
+use crate::{Mp4Parser, ParsedBox, Result, bail};
 use std::sync::{Arc, Mutex};
 
 /// Segment range.
@@ -40,9 +40,7 @@ pub fn parse(data: &[u8], sidx_offset: u64) -> Result<Vec<Range>> {
 
 fn parse_sidx(_box: &mut ParsedBox, sidx_offset: u64) -> Result<Vec<Range>> {
     if _box.version.is_none() {
-        return Err(Error::new(
-            "SIDX is a full box and should have a valid version.",
-        ));
+        bail!("SIDX is a full box and should have a valid version.");
     }
 
     let reader = &mut _box.reader;
@@ -55,7 +53,7 @@ fn parse_sidx(_box: &mut ParsedBox, sidx_offset: u64) -> Result<Vec<Range>> {
     let timescale = reader.read_u32()?;
 
     if timescale == 0 {
-        return Err(Error::new("SIDX box has invalid timescale."));
+        bail!("SIDX box has invalid timescale.");
     }
 
     let _earliest_presentation_time;
@@ -92,7 +90,7 @@ fn parse_sidx(_box: &mut ParsedBox, sidx_offset: u64) -> Result<Vec<Range>> {
         // If |referenceType| is 1 then the reference is to another SIDX.
         // We do not support this.
         if reference_type == 1 {
-            return Err(Error::new("hierarchical SIDXs are not supported."));
+            bail!("Hierarchical SIDXs are not supported.");
         }
 
         // The media timestamps inside the container.

@@ -25,7 +25,7 @@ pub struct Mp4Parser {
 
 impl Mp4Parser {
     /// Declare a box type as a Basic Box.
-    pub fn basic_box(mut self, _type: &str, definition: CallbackType) -> Self {
+    pub fn base_box(mut self, _type: &str, definition: CallbackType) -> Self {
         let type_code = type_from_string(_type);
         self.headers.insert(type_code, BoxType::BasicBox);
         self.box_definitions.insert(type_code, definition);
@@ -99,9 +99,8 @@ impl Mp4Parser {
         }
 
         let mut size = reader.read_u32()? as u64;
-        let _type = reader.read_u32()? as usize;
-        let name = type_to_string(_type)
-            .map_err(|_| Error::new_decode(format!("{_type} (u32) to string.")))?;
+        let type_ = reader.read_u32()? as usize;
+        let name = type_to_string(type_)?;
         let mut has_64_bit_size = false;
         // println!("Parsing MP4 box {}", name);
 
@@ -118,13 +117,13 @@ impl Mp4Parser {
             _ => (),
         }
 
-        let box_definition = self.box_definitions.get(&_type);
+        let box_definition = self.box_definitions.get(&type_);
 
         if let Some(box_definition) = box_definition {
             let mut version = None;
             let mut flags = None;
 
-            if *self.headers.get(&_type).unwrap() == BoxType::FullBox {
+            if *self.headers.get(&type_).unwrap() == BoxType::FullBox {
                 if stop_on_partial && reader.get_position() + 4 > reader.get_length() {
                     self.done = true;
                     return Ok(());
@@ -355,12 +354,12 @@ pub fn type_from_string(name: &str) -> usize {
 
 /// Convert an integer type from a box into an ascii string name.
 /// Useful for debugging.
-pub fn type_to_string(_type: usize) -> Result<String, std::string::FromUtf8Error> {
+pub fn type_to_string(type_: usize) -> Result<String, std::string::FromUtf8Error> {
     String::from_utf8(vec![
-        ((_type >> 24) & 0xff) as u8,
-        ((_type >> 16) & 0xff) as u8,
-        ((_type >> 8) & 0xff) as u8,
-        (_type & 0xff) as u8,
+        ((type_ >> 24) & 0xff) as u8,
+        ((type_ >> 16) & 0xff) as u8,
+        ((type_ >> 8) & 0xff) as u8,
+        (type_ & 0xff) as u8,
     ])
 }
 

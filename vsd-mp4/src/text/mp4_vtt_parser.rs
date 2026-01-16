@@ -10,7 +10,7 @@ use super::{
     Cue, Subtitles,
     boxes::{MDHDBox, TFDTBox, TFHDBox, TRUNBox, TRUNSample},
 };
-use crate::{Error, Reader, Result, parser, parser::Mp4Parser};
+use crate::{Error, Reader, Result, bail, parser, parser::Mp4Parser};
 use std::sync::{Arc, Mutex};
 
 /// Parse vtt subtitles from mp4 files.
@@ -29,25 +29,25 @@ impl Mp4VttParser {
         let timescale_c = timescale.clone();
 
         Mp4Parser::default()
-            .basic_box("moov", Arc::new(parser::children))
-            .basic_box("trak", Arc::new(parser::children))
-            .basic_box("mdia", Arc::new(parser::children))
+            .base_box("moov", Arc::new(parser::children))
+            .base_box("trak", Arc::new(parser::children))
+            .base_box("mdia", Arc::new(parser::children))
             .full_box(
                 "mdhd",
                 Arc::new(move |mut _box| {
                     let _box_version = _box.version.unwrap();
                     if _box_version != 0 && _box_version != 1 {
-                        return Err(Error::new("MDHD box version can only be 0 or 1."));
+                        bail!("MDHD box version can only be 0 or 1.");
                     }
                     let parsed_mdhd_box = MDHDBox::parse(&mut _box.reader, _box_version)?;
                     *timescale_c.lock().unwrap() = Some(parsed_mdhd_box.timescale);
                     Ok(())
                 }),
             )
-            .basic_box("minf", Arc::new(parser::children))
-            .basic_box("stbl", Arc::new(parser::children))
+            .base_box("minf", Arc::new(parser::children))
+            .base_box("stbl", Arc::new(parser::children))
             .full_box("stsd", Arc::new(parser::sample_description))
-            .basic_box(
+            .base_box(
                 "wvtt",
                 Arc::new(move |_box| {
                     // A valid vtt init segment, though we have no actual subtitles yet.
@@ -61,7 +61,7 @@ impl Mp4VttParser {
         let timescale = *timescale.lock().unwrap();
 
         if !saw_wvtt {
-            return Err(Error::new("WVTT box not found."));
+            bail!("WVTT box not found.");
         }
 
         if let Some(timescale) = timescale {
@@ -94,8 +94,8 @@ impl Mp4VttParser {
         let timescale = self.timescale;
 
         Mp4Parser::default()
-            .basic_box("moof", Arc::new(parser::children))
-            .basic_box("traf", Arc::new(parser::children))
+            .base_box("moof", Arc::new(parser::children))
+            .base_box("traf", Arc::new(parser::children))
             .full_box(
                 "tfdt",
                 Arc::new(move |mut _box| {
@@ -103,7 +103,7 @@ impl Mp4VttParser {
 
                     let _box_version = _box.version.unwrap();
                     if _box_version != 0 && _box_version != 1 {
-                        return Err(Error::new("TFDT version can only be 0 or 1."));
+                        bail!("TFDT version can only be 0 or 1.");
                     }
 
                     let parsed_tfdt_box = TFDTBox::parse(&mut _box.reader, _box_version)?;
@@ -115,7 +115,7 @@ impl Mp4VttParser {
                 "tfhd",
                 Arc::new(move |mut _box| {
                     if _box.flags.is_none() {
-                        return Err(Error::new("TFHD box should have a valid flags value."));
+                        bail!("TFHD box should have a valid flags value.");
                     }
 
                     let parsed_tfhd_box = TFHDBox::parse(&mut _box.reader, _box.flags.unwrap())?;
@@ -128,10 +128,10 @@ impl Mp4VttParser {
                 Arc::new(move |mut _box| {
                     *saw_trun_c.lock().unwrap() = true;
                     if _box.version.is_none() {
-                        return Err(Error::new("TRUN box should have a valid version value."));
+                        bail!("TRUN box should have a valid version value.");
                     }
                     if _box.flags.is_none() {
-                        return Err(Error::new("TRUN box should have a valid flags value."));
+                        bail!("TRUN box should have a valid flags value.");
                     }
 
                     let parsed_trun_box = TRUNBox::parse(
@@ -143,7 +143,7 @@ impl Mp4VttParser {
                     Ok(())
                 }),
             )
-            .basic_box(
+            .base_box(
                 "mdat",
                 parser::alldata(Arc::new(move |data| {
                     let base_time = *base_time.lock().unwrap();
@@ -153,9 +153,7 @@ impl Mp4VttParser {
                     let default_duration = *default_duration.lock().unwrap();
 
                     if !saw_tfdt && !saw_trun {
-                        return Err(Error::new(
-                            "some required boxes (either TFDT or TRUN) are missing.",
-                        ));
+                        bail!("Some required boxes (either TFDT or TRUN) are missing.");
                     }
 
                     let parsed_cues = parse_mdat(
@@ -213,8 +211,7 @@ fn parse_mdat(
 
             // Skip the type.
             let payload_type = reader.read_u32()?;
-            let payload_name = parser::type_to_string(payload_type as usize)
-                .map_err(|_| Error::new_decode("payload name as valid utf-8 data."))?;
+            let payload_name = parser::type_to_string(payload_type as usize)?;
 
             // Read the data payload.
             let mut payload = None;
@@ -244,17 +241,13 @@ fn parse_mdat(
                     cues.push(cue);
                 }
             } else {
-                return Err(Error::new(
-                    "WVTT sample duration unknown, and no default found.",
-                ));
+                bail!("WVTT sample duration unknown, and no default found.");
             }
 
             if !(presentation.sample_size.is_none()
                 || total_size <= presentation.sample_size.unwrap_or(0) as i32)
             {
-                return Err(Error::new(
-                    "the samples do not fit evenly into the sample sizes given in the TRUN box.",
-                ));
+                bail!("The samples do not fit evenly into the sample sizes given in the TRUN box.");
             };
 
             // If no sampleSize was specified, it's assumed that this presentation
@@ -268,9 +261,7 @@ fn parse_mdat(
     }
 
     if reader.has_more_data() {
-        return Err(Error::new(
-            "MDAT which contain VTT cues and non-VTT data are not currently supported.",
-        ));
+        bail!("MDAT which contain VTT cues and non-VTT data are not currently supported.");
     };
 
     Ok(cues.into_iter().flatten())
@@ -287,27 +278,24 @@ fn parse_vttc(data: &[u8], start_time: f32, end_time: f32) -> Result<Option<Cue>
     let settings_c = settings.clone();
 
     Mp4Parser::default()
-        .basic_box(
+        .base_box(
             "payl",
             parser::alldata(Arc::new(move |data| {
-                *payload_c.lock().unwrap() = String::from_utf8(data)
-                    .map_err(|_| Error::new_decode("VTTC box payload as valid utf-8 data."))?;
+                *payload_c.lock().unwrap() = String::from_utf8(data)?;
                 Ok(())
             })),
         )
-        .basic_box(
+        .base_box(
             "iden",
             parser::alldata(Arc::new(move |data| {
-                *id_c.lock().unwrap() = String::from_utf8(data)
-                    .map_err(|_| Error::new_decode("VTTC box id as valid utf-8 data."))?;
+                *id_c.lock().unwrap() = String::from_utf8(data)?;
                 Ok(())
             })),
         )
-        .basic_box(
+        .base_box(
             "sttg",
             parser::alldata(Arc::new(move |data| {
-                *settings_c.lock().unwrap() = String::from_utf8(data)
-                    .map_err(|_| Error::new_decode("VTTC box setting as valid utf-8 data."))?;
+                *settings_c.lock().unwrap() = String::from_utf8(data)?;
                 Ok(())
             })),
         )

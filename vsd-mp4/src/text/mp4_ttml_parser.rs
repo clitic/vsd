@@ -7,7 +7,7 @@
 */
 
 use super::{Subtitles, ttml_text_parser};
-use crate::{Error, Result, parser, parser::Mp4Parser};
+use crate::{Error, Result, bail, parser, parser::Mp4Parser};
 use std::sync::{Arc, Mutex};
 
 /// Parse ttml subtitles from mp4 files.
@@ -20,13 +20,13 @@ impl Mp4TtmlParser {
         let saw_stpp_c = saw_stpp.clone();
 
         Mp4Parser::default()
-            .basic_box("moov", Arc::new(parser::children))
-            .basic_box("trak", Arc::new(parser::children))
-            .basic_box("mdia", Arc::new(parser::children))
-            .basic_box("minf", Arc::new(parser::children))
-            .basic_box("stbl", Arc::new(parser::children))
+            .base_box("moov", Arc::new(parser::children))
+            .base_box("trak", Arc::new(parser::children))
+            .base_box("mdia", Arc::new(parser::children))
+            .base_box("minf", Arc::new(parser::children))
+            .base_box("stbl", Arc::new(parser::children))
             .full_box("stsd", Arc::new(parser::sample_description))
-            .basic_box(
+            .base_box(
                 "stpp",
                 Arc::new(move |mut _box| {
                     *saw_stpp_c.lock().unwrap() = true;
@@ -39,7 +39,7 @@ impl Mp4TtmlParser {
         let saw_stpp = *saw_stpp.lock().unwrap();
 
         if !saw_stpp {
-            return Err(Error::new("STPP box not found."));
+            bail!("STPP box not found.");
         }
 
         Ok(Self)
@@ -54,21 +54,16 @@ impl Mp4TtmlParser {
         let cues_c = cues.clone();
 
         Mp4Parser::default()
-            .basic_box(
+            .base_box(
                 "mdat",
                 parser::alldata(Arc::new(move |data| {
                     *saw_mdat_c.lock().unwrap() = true;
                     // Join this to any previous payload, in case the mp4 has multiple
                     // mdats.
-                    let xml = String::from_utf8(data)
-                        .map_err(|_| Error::new_decode("MDAT box payload as valid utf-8 data."))?;
+                    let xml = String::from_utf8(data)?;
                     cues_c.lock().unwrap().append(
                         &mut ttml_text_parser::parse(&xml)
-                            .map_err(|x| {
-                                Error::new_decode(format!(
-                                    "xml string as ttml content.\n\n{xml}\n\n{x:#?}"
-                                ))
-                            })?
+                            .map_err(|x| Error::XmlDecode { error: x, xml })?
                             .into_cues(),
                     );
                     Ok(())
@@ -79,7 +74,7 @@ impl Mp4TtmlParser {
         let saw_mdat = *saw_mdat.lock().unwrap();
 
         if !saw_mdat {
-            return Err(Error::new("MDAT box not found."));
+            bail!("MDAT box not found.");
         }
 
         let cues = cues.lock().unwrap().clone();
