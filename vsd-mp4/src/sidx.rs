@@ -38,13 +38,13 @@ pub fn parse(data: &[u8], sidx_offset: u64) -> Result<Vec<Range>> {
     Ok(references)
 }
 
-fn parse_sidx(_box: &mut ParsedBox, sidx_offset: u64) -> Result<Vec<Range>> {
-    if _box.version.is_none() {
+fn parse_sidx(box_: &mut ParsedBox, sidx_offset: u64) -> Result<Vec<Range>> {
+    if box_.version.is_none() {
         bail!("SIDX is a full box and should have a valid version.");
     }
 
-    let reader = &mut _box.reader;
-    let version = _box.version.unwrap();
+    let reader = &mut box_.reader;
+    let version = box_.version.unwrap();
 
     let mut references = Vec::new();
 
@@ -73,7 +73,7 @@ fn parse_sidx(_box: &mut ParsedBox, sidx_offset: u64) -> Result<Vec<Range>> {
 
     // Subtract the presentation time offset
     // let mut unscaled_start_time = earliest_presentation_time;
-    let mut start_byte = sidx_offset + _box.size as u64 + first_offset;
+    let mut start_byte = sidx_offset + box_.size as u64 + first_offset;
 
     for _ in 0..reference_count {
         // |chunk| is 1 bit for |referenceType|, and 31 bits for |referenceSize|.
@@ -106,6 +106,6 @@ fn parse_sidx(_box: &mut ParsedBox, sidx_offset: u64) -> Result<Vec<Range>> {
         start_byte += reference_size as u64;
     }
 
-    _box.parser.stop();
+    box_.parser.stop();
     Ok(references)
 }

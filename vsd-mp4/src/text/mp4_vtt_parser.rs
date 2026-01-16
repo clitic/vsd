@@ -116,31 +116,31 @@ impl Mp4VttParser {
             )
             .full_box(
                 "tfhd",
-                Arc::new(move |mut _box| {
-                    if _box.flags.is_none() {
+                Arc::new(move |mut box_| {
+                    if box_.flags.is_none() {
                         bail!("TFHD box should have a valid flags value.");
                     }
 
-                    let parsed_tfhd_box = TFHDBox::parse(&mut _box.reader, _box.flags.unwrap())?;
+                    let parsed_tfhd_box = TFHDBox::parse(&mut box_.reader, box_.flags.unwrap())?;
                     *default_duration_c.lock().unwrap() = parsed_tfhd_box.default_sample_duration;
                     Ok(())
                 }),
             )
             .full_box(
                 "trun",
-                Arc::new(move |mut _box| {
+                Arc::new(move |mut box_| {
                     *saw_trun_c.lock().unwrap() = true;
-                    if _box.version.is_none() {
+                    if box_.version.is_none() {
                         bail!("TRUN box should have a valid version value.");
                     }
-                    if _box.flags.is_none() {
+                    if box_.flags.is_none() {
                         bail!("TRUN box should have a valid flags value.");
                     }
 
                     let parsed_trun_box = TRUNBox::parse(
-                        &mut _box.reader,
-                        _box.version.unwrap(),
-                        _box.flags.unwrap(),
+                        &mut box_.reader,
+                        box_.version.unwrap(),
+                        box_.flags.unwrap(),
                     )?;
                     *presentations_c.lock().unwrap() = parsed_trun_box.sample_data;
                     Ok(())

@@ -42,8 +42,8 @@ pub fn default_kid(data: &[u8]) -> Result<Option<String>> {
     Ok(default_kid.clone())
 }
 
-fn parse_tenc(_box: &mut ParsedBox) -> Result<String> {
-    let reader = &mut _box.reader;
+fn parse_tenc(box_: &mut ParsedBox) -> Result<String> {
+    let reader = &mut box_.reader;
 
     // reader.read_u8()?; // TENC box reserved
     // reader.read_u8()?; // TENC box

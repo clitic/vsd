@@ -30,7 +30,7 @@ pub enum Error {
 }
 
 impl Error {
-    pub fn new<T: Into<String>>(msg: T) -> Self {
+    pub fn new(msg: impl Into<String>) -> Self {
         Error::Generic(msg.into())
     }
 }

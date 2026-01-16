@@ -103,18 +103,18 @@ impl Pssh {
         })
     }
 
-    fn parse_pssh_box(&mut self, _box: &mut ParsedBox) -> Result<()> {
-        if _box.version.is_none() {
+    fn parse_pssh_box(&mut self, box_: &mut ParsedBox) -> Result<()> {
+        if box_.version.is_none() {
             bail!("PSSH boxes are full boxes and must have a valid version.");
         }
 
-        if _box.flags.is_none() {
+        if box_.flags.is_none() {
             bail!("PSSH boxes are full boxes and must have a valid flag.");
         }
 
-        let _box_version = _box.version.unwrap();
+        let box_version = box_.version.unwrap();
 
-        if _box_version > 1 {
+        if box_version > 1 {
             // println!("Unrecognized PSSH version found!");
             return Ok(());
         }
@@ -128,13 +128,13 @@ impl Pssh {
         // );
         // self.data = view(_box.reader.clone(), - 12, _box.size as i64);
 
-        let system_id = hex::encode(_box.reader.read_bytes_u8(16)?);
+        let system_id = hex::encode(box_.reader.read_bytes_u8(16)?);
 
-        if _box_version > 0 {
-            let num_key_ids = _box.reader.read_u32()?;
+        if box_version > 0 {
+            let num_key_ids = box_.reader.read_u32()?;
 
             for _ in 0..num_key_ids {
-                let key_id = hex::encode(_box.reader.read_bytes_u8(16)?);
+                let key_id = hex::encode(box_.reader.read_bytes_u8(16)?);
                 self.key_ids.push(KeyId {
                     value: key_id,
                     system_type: if system_id == COMMAN_SYSTEM_ID {
@@ -146,8 +146,8 @@ impl Pssh {
             }
         }
 
-        let pssh_data_size = _box.reader.read_u32()?;
-        let pssh_data = _box.reader.read_bytes_u8(pssh_data_size as usize)?;
+        let pssh_data_size = box_.reader.read_u32()?;
+        let pssh_data = box_.reader.read_bytes_u8(pssh_data_size as usize)?;
 
         match system_id.as_str() {
             PLAYREADY_SYSTEM_ID => self.key_ids.extend(playready::parse(&pssh_data)?),

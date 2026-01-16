@@ -198,17 +198,17 @@ impl Mp4Parser {
 
 /// A callback that tells the Mp4 parser to treat the body of a box as a series
 /// of boxes. The number of boxes is limited by the size of the parent box.
-pub fn children(mut _box: ParsedBox) -> HandlerResult {
+pub fn children(mut box_: ParsedBox) -> HandlerResult {
     // The "reader" starts at the payload, so we need to add the header to the
     // start position.  The header size varies.
-    let header_size = _box.header_size();
+    let header_size = box_.header_size();
 
-    while _box.reader.has_more_data() && !_box.parser.done {
-        _box.parser.parse_next(
-            _box.start + header_size,
-            &mut _box.reader,
-            _box.partial_okay,
-            _box.stop_on_partial,
+    while box_.reader.has_more_data() && !box_.parser.done {
+        box_.parser.parse_next(
+            box_.start + header_size,
+            &mut box_.reader,
+            box_.partial_okay,
+            box_.stop_on_partial,
         )?;
     }
 
@@ -219,21 +219,21 @@ pub fn children(mut _box: ParsedBox) -> HandlerResult {
 /// description. A sample description box has a fixed number of children. The
 /// number of children is represented by a 4 byte unsigned integer. Each child
 /// is a box.
-pub fn sample_description(mut _box: ParsedBox) -> HandlerResult {
+pub fn sample_description(mut box_: ParsedBox) -> HandlerResult {
     // The "reader" starts at the payload, so we need to add the header to the
     // start position.  The header size varies.
-    let header_size = _box.header_size();
-    let count = _box.reader.read_u32()?;
+    let header_size = box_.header_size();
+    let count = box_.reader.read_u32()?;
 
     for _ in 0..count {
-        _box.parser.parse_next(
-            _box.start + header_size,
-            &mut _box.reader,
-            _box.partial_okay,
-            _box.stop_on_partial,
+        box_.parser.parse_next(
+            box_.start + header_size,
+            &mut box_.reader,
+            box_.partial_okay,
+            box_.stop_on_partial,
         )?;
 
-        if _box.parser.done {
+        if box_.parser.done {
             break;
         }
     }
@@ -245,10 +245,10 @@ pub fn sample_description(mut _box: ParsedBox) -> HandlerResult {
 /// sample entry. A visual sample entry has some fixed-sized fields
 /// describing the video codec parameters, followed by an arbitrary number of
 /// appended children. Each child is a box.
-pub fn visual_sample_entry(mut _box: ParsedBox) -> HandlerResult {
+pub fn visual_sample_entry(mut box_: ParsedBox) -> HandlerResult {
     // The "reader" starts at the payload, so we need to add the header to the
     // start position.  The header size varies.
-    let header_size = _box.header_size();
+    let header_size = box_.header_size();
 
     // Skip 6 reserved bytes.
     // Skip 2-byte data reference index.
@@ -262,14 +262,14 @@ pub fn visual_sample_entry(mut _box: ParsedBox) -> HandlerResult {
     // Skip 2 more reserved bytes (0xff)
     // 78 bytes total.
     // See also https://github.com/shaka-project/shaka-packager/blob/d5ca6e84/packager/media/formats/mp4/box_definitions.cc#L1544
-    _box.reader.skip(78)?;
+    box_.reader.skip(78)?;
 
-    while _box.reader.has_more_data() && !_box.parser.done {
-        _box.parser.parse_next(
-            _box.start + header_size,
-            &mut _box.reader,
-            _box.partial_okay,
-            _box.stop_on_partial,
+    while box_.reader.has_more_data() && !box_.parser.done {
+        box_.parser.parse_next(
+            box_.start + header_size,
+            &mut box_.reader,
+            box_.partial_okay,
+            box_.stop_on_partial,
         )?;
     }
 
@@ -280,20 +280,20 @@ pub fn visual_sample_entry(mut _box: ParsedBox) -> HandlerResult {
 /// sample entry.  A audio sample entry has some fixed-sized fields
 /// describing the audio codec parameters, followed by an arbitrary number of
 /// ppended children.  Each child is a box.
-pub fn audio_sample_entry(mut _box: ParsedBox) -> HandlerResult {
+pub fn audio_sample_entry(mut box_: ParsedBox) -> HandlerResult {
     // The "reader" starts at the payload, so we need to add the header to the
     // start position.  The header size varies.
-    let header_size = _box.header_size();
+    let header_size = box_.header_size();
 
     // 6 bytes reserved
     // 2 bytes data reference index
-    _box.reader.skip(8)?;
+    box_.reader.skip(8)?;
 
     // 2 bytes version
-    let version = _box.reader.read_u16()?;
+    let version = box_.reader.read_u16()?;
     // 2 bytes revision (0, could be ignored)
     // 4 bytes reserved
-    _box.reader.skip(6)?;
+    box_.reader.skip(6)?;
 
     if version == 2 {
         // 16 bytes hard-coded values with no comments
@@ -304,7 +304,7 @@ pub fn audio_sample_entry(mut _box: ParsedBox) -> HandlerResult {
         // 4 bytes lpcm flags
         // 4 bytes sample size
         // 4 bytes samples per packet
-        _box.reader.skip(48)?;
+        box_.reader.skip(48)?;
     } else {
         // 2 bytes channel count
         // 2 bytes bits per sample
@@ -312,7 +312,7 @@ pub fn audio_sample_entry(mut _box: ParsedBox) -> HandlerResult {
         // 2 bytes packet size
         // 2 bytes sample rate
         // 2 byte reserved
-        _box.reader.skip(12)?;
+        box_.reader.skip(12)?;
     }
 
     if version == 1 {
@@ -320,15 +320,15 @@ pub fn audio_sample_entry(mut _box: ParsedBox) -> HandlerResult {
         // 4 bytes bytes per packet
         // 4 bytes bytes per frame
         // 4 bytes bytes per sample
-        _box.reader.skip(16)?;
+        box_.reader.skip(16)?;
     }
 
-    while _box.reader.has_more_data() && !_box.parser.done {
-        _box.parser.parse_next(
-            _box.start + header_size,
-            &mut _box.reader,
-            _box.partial_okay,
-            _box.stop_on_partial,
+    while box_.reader.has_more_data() && !box_.parser.done {
+        box_.parser.parse_next(
+            box_.start + header_size,
+            &mut box_.reader,
+            box_.partial_okay,
+            box_.stop_on_partial,
         )?;
     }
 

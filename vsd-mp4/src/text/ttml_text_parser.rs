@@ -10,7 +10,7 @@
 
 */
 
-use super::{Cue, Subtitles};
+use crate::text::{Cue, Subtitles};
 use serde::Deserialize;
 
 pub use quick_xml::de::DeError;
