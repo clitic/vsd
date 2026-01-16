@@ -9,10 +9,10 @@
 
 */
 
-use super::{playready, widevine};
 use crate::{
     Result, bail, parser,
     parser::{Mp4Parser, ParsedBox},
+    pssh::{playready, widevine},
 };
 use std::sync::{Arc, Mutex};
 
@@ -79,7 +79,7 @@ impl Pssh {
         }));
         let pssh_c = pssh.clone();
 
-        Mp4Parser::default()
+        Mp4Parser::new()
             .base_box("moov", Arc::new(parser::children))
             .base_box("moof", Arc::new(parser::children))
             .full_box(

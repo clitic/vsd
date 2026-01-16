@@ -6,8 +6,10 @@
 
 */
 
-use super::{KeyId, KeyIdSystemType};
-use crate::{Error, Reader, Result, bail};
+use crate::{
+    Error, Reader, Result, bail,
+    pssh::{KeyId, KeyIdSystemType},
+};
 use base64::Engine;
 use serde::Deserialize;
 

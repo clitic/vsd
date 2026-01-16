@@ -24,7 +24,7 @@ pub fn parse(data: &[u8], sidx_offset: u64) -> Result<Vec<Range>> {
     let references = Arc::new(Mutex::new(Vec::new()));
     let references_c = references.clone();
 
-    Mp4Parser::default()
+    Mp4Parser::new()
         .full_box(
             "sidx",
             Arc::new(move |mut _box| {

@@ -16,7 +16,7 @@ pub type HandlerResult = Result<(), Error>;
 pub type CallbackType = Arc<dyn Fn(ParsedBox) -> HandlerResult>;
 
 /// Mp4 file parser.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Mp4Parser {
     pub headers: HashMap<usize, BoxType>,
     pub box_definitions: HashMap<usize, CallbackType>,
@@ -24,17 +24,26 @@ pub struct Mp4Parser {
 }
 
 impl Mp4Parser {
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        Self {
+            headers: HashMap::new(),
+            box_definitions: HashMap::new(),
+            done: false,
+        }
+    }
+
     /// Declare a box type as a Basic Box.
-    pub fn base_box(mut self, _type: &str, definition: CallbackType) -> Self {
-        let type_code = type_from_string(_type);
+    pub fn base_box(mut self, type_: &str, definition: CallbackType) -> Self {
+        let type_code = type_from_string(type_);
         self.headers.insert(type_code, BoxType::BasicBox);
         self.box_definitions.insert(type_code, definition);
         self
     }
 
     /// Declare a box type as a Full Box.
-    pub fn full_box(mut self, _type: &str, definition: CallbackType) -> Self {
-        let type_code = type_from_string(_type);
+    pub fn full_box(mut self, type_: &str, definition: CallbackType) -> Self {
+        let type_code = type_from_string(type_);
         self.headers.insert(type_code, BoxType::FullBox);
         self.box_definitions.insert(type_code, definition);
         self
@@ -372,7 +381,6 @@ pub enum BoxType {
 }
 
 /// Parsed mp4 box.
-#[derive(Clone, Default)]
 pub struct ParsedBox {
     /// The box name, a 4-character string (fourcc).
     pub name: String,

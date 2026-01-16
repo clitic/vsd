@@ -18,7 +18,7 @@ pub fn default_kid(data: &[u8]) -> Result<Option<String>> {
     let default_kid = Arc::new(Mutex::new(None));
     let default_kid_c = default_kid.clone();
 
-    Mp4Parser::default()
+    Mp4Parser::new()
         .base_box("moov", Arc::new(parser::children))
         .base_box("trak", Arc::new(parser::children))
         .base_box("mdia", Arc::new(parser::children))

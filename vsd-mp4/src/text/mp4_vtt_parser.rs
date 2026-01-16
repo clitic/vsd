@@ -6,11 +6,14 @@
 
 */
 
-use super::{
-    Cue, Subtitles,
-    boxes::{MDHDBox, TFDTBox, TFHDBox, TRUNBox, TRUNSample},
+use crate::{
+    Error, Reader, Result, bail, parser,
+    parser::Mp4Parser,
+    text::{
+        Cue, Subtitles,
+        boxes::{MDHDBox, TFDTBox, TFHDBox, TRUNBox, TRUNSample},
+    },
 };
-use crate::{Error, Reader, Result, bail, parser, parser::Mp4Parser};
 use std::sync::{Arc, Mutex};
 
 /// Parse vtt subtitles from mp4 files.
@@ -28,7 +31,7 @@ impl Mp4VttParser {
         let saw_wvtt_c = saw_wvtt.clone();
         let timescale_c = timescale.clone();
 
-        Mp4Parser::default()
+        Mp4Parser::new()
             .base_box("moov", Arc::new(parser::children))
             .base_box("trak", Arc::new(parser::children))
             .base_box("mdia", Arc::new(parser::children))
@@ -93,7 +96,7 @@ impl Mp4VttParser {
 
         let timescale = self.timescale;
 
-        Mp4Parser::default()
+        Mp4Parser::new()
             .base_box("moof", Arc::new(parser::children))
             .base_box("traf", Arc::new(parser::children))
             .full_box(
@@ -277,7 +280,7 @@ fn parse_vttc(data: &[u8], start_time: f32, end_time: f32) -> Result<Option<Cue>
     let id_c = id.clone();
     let settings_c = settings.clone();
 
-    Mp4Parser::default()
+    Mp4Parser::new()
         .base_box(
             "payl",
             parser::alldata(Arc::new(move |data| {

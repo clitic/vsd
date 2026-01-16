@@ -9,7 +9,7 @@
 use std::io::{Cursor, Error, ErrorKind, Read, Result};
 
 #[derive(Clone, Default)]
-pub enum Endianness {
+enum Endianness {
     #[default]
     Big,
     Little,
@@ -113,7 +113,6 @@ impl Reader {
         Ok(self
             .read_bytes_u8(bytes)?
             .chunks_exact(2)
-            .into_iter()
             .map(|x| match self.endian {
                 Endianness::Big => u16::from_be_bytes([x[0], x[1]]),
                 Endianness::Little => u16::from_le_bytes([x[0], x[1]]),

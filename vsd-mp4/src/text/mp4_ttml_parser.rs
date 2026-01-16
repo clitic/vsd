@@ -6,8 +6,11 @@
 
 */
 
-use super::{Subtitles, ttml_text_parser};
-use crate::{Error, Result, bail, parser, parser::Mp4Parser};
+use crate::{
+    Error, Result, bail, parser,
+    parser::Mp4Parser,
+    text::{Subtitles, ttml_text_parser},
+};
 use std::sync::{Arc, Mutex};
 
 /// Parse ttml subtitles from mp4 files.
@@ -19,7 +22,7 @@ impl Mp4TtmlParser {
         let saw_stpp = Arc::new(Mutex::new(false));
         let saw_stpp_c = saw_stpp.clone();
 
-        Mp4Parser::default()
+        Mp4Parser::new()
             .base_box("moov", Arc::new(parser::children))
             .base_box("trak", Arc::new(parser::children))
             .base_box("mdia", Arc::new(parser::children))
@@ -53,7 +56,7 @@ impl Mp4TtmlParser {
         let saw_mdat_c = saw_mdat.clone();
         let cues_c = cues.clone();
 
-        Mp4Parser::default()
+        Mp4Parser::new()
             .base_box(
                 "mdat",
                 parser::alldata(Arc::new(move |data| {

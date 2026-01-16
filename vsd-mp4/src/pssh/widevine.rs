@@ -1,5 +1,7 @@
-use super::{KeyId, KeyIdSystemType};
-use crate::Result;
+use crate::{
+    Result,
+    pssh::{KeyId, KeyIdSystemType},
+};
 use prost::Message;
 
 include!(concat!(env!("OUT_DIR"), "/widevine.rs"));
