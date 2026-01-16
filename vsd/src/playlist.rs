@@ -87,7 +87,7 @@ pub struct Key {
 #[derive(Clone, PartialEq, Serialize)]
 pub enum KeyMethod {
     Aes128,
-    Mp4Decrypt,
+    CencCbcs,
     None,
     Other(String),
     SampleAes,

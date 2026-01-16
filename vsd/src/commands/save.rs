@@ -1,7 +1,7 @@
 use crate::{
     automation::{self, InteractionType, SelectOptions},
     cookie::{CookieJar, CookieParam},
-    downloader::{self, Decrypter, MAX_RETRIES, MAX_THREADS, SKIP_DECRYPT, SKIP_MERGE},
+    downloader::{self, MAX_RETRIES, MAX_THREADS, SKIP_DECRYPT, SKIP_MERGE},
 };
 use anyhow::Result;
 use clap::Args;
@@ -118,7 +118,7 @@ pub struct Save {
     /// Keys for decrypting encrypted streams.
     /// KID:KEY should be specified in hex format.
     #[arg(long, help_heading = "Decrypt Options", value_name = "KID:KEY;...", default_value = "", hide_default_value = true, value_parser = keys_parser)]
-    pub keys: Decrypter,
+    pub keys: HashMap<String, String>,
 
     /// Download encrypted streams without decrypting them.
     /// Note that --output flag is ignored if this flag is used.
@@ -223,8 +223,8 @@ impl Save {
             downloader::download(
                 self.base_url,
                 client,
-                self.keys,
                 self.directory,
+                self.keys,
                 self.output,
                 self.query,
                 streams,
@@ -257,12 +257,12 @@ fn cookie_parser(s: &str) -> Result<CookieParams, String> {
     }
 }
 
-fn keys_parser(s: &str) -> Result<Decrypter, String> {
-    if s.is_empty() {
-        return Ok(Decrypter::None);
-    }
+fn keys_parser(s: &str) -> Result<HashMap<String, String>, String> {
+    let mut keys = HashMap::new();
 
-    let mut kid_key_pairs = HashMap::new();
+    if s.is_empty() {
+        return Ok(keys);
+    }
 
     for pair in s.split(';') {
         if let Some((kid, key)) = pair.split_once(':') {
@@ -274,14 +274,14 @@ fn keys_parser(s: &str) -> Result<Decrypter, String> {
                 && kid.chars().all(|c| c.is_ascii_hexdigit())
                 && key.chars().all(|c| c.is_ascii_hexdigit())
             {
-                kid_key_pairs.insert(kid, key);
+                keys.insert(kid, key);
             } else {
                 return Err("invalid kid key format used.".to_owned());
             }
         }
     }
 
-    Ok(Decrypter::Mp4Decrypt(kid_key_pairs))
+    Ok(keys)
 }
 
 fn proxy_address_parser(s: &str) -> Result<Proxy, String> {

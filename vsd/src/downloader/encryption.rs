@@ -5,92 +5,52 @@ use colored::Colorize;
 use log::info;
 use mp4decrypt::Ap4CencDecryptingProcessor;
 use reqwest::{Client, Url, header};
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 use vsd_mp4::pssh::Pssh;
 
 type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum Decrypter {
-    HlsAes([u8; 16], [u8; 16], EncryptionType),
-    Mp4Decrypt(HashMap<String, String>),
+    Aes128([u8; 16], [u8; 16]),
+    CencCbcs(Arc<Ap4CencDecryptingProcessor>),
+    SampleAes([u8; 16], [u8; 16]),
     None,
 }
 
-#[derive(Clone, Debug)]
-pub enum EncryptionType {
-    Aes128,
-    NotDefined,
-    SampleAes,
-}
-
-impl std::fmt::Display for Decrypter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::HlsAes(_, _, _) => write!(f, "hls-aes"),
-            Self::Mp4Decrypt(_) => write!(f, "mp4decrypt"),
-            Self::None => write!(f, "none"),
-        }
-    }
-}
-
 impl Decrypter {
-    pub fn new_hls_aes(key: [u8; 16], iv: [u8; 16], enc_type: &KeyMethod) -> Self {
-        let enc_type = match enc_type {
-            KeyMethod::Aes128 => EncryptionType::Aes128,
-            KeyMethod::SampleAes => EncryptionType::SampleAes,
-            _ => EncryptionType::NotDefined,
-        };
-
-        Self::HlsAes(key, iv, enc_type)
-    }
-
     pub fn decrypt(&self, mut data: Vec<u8>) -> Result<Vec<u8>> {
         Ok(match self {
-            Decrypter::HlsAes(key, iv, enc_type) => match enc_type {
-                EncryptionType::Aes128 => Aes128CbcDec::new(key.into(), iv.into())
-                    .decrypt_padded_mut::<Pkcs7>(&mut data)
-                    .map(|x| x.to_vec())
-                    .map_err(|x| anyhow!("{}", x))?,
-                EncryptionType::NotDefined => data,
-                EncryptionType::SampleAes => {
-                    let mut reader = std::io::Cursor::new(data);
-                    let mut writer = Vec::new();
-                    iori_ssa::decrypt(&mut reader, &mut writer, *key, *iv)?;
-                    writer
-                }
-            },
-            // FIX - Cloning
-            Decrypter::Mp4Decrypt(kid_key_pairs) => Ap4CencDecryptingProcessor::new()
-                .keys(kid_key_pairs)?
-                .build()?
-                .decrypt(data, None)?,
+            Decrypter::CencCbcs(processor) => processor.decrypt(data, None)?,
+            Decrypter::Aes128(key, iv) => Aes128CbcDec::new(key.into(), iv.into())
+                .decrypt_padded_mut::<Pkcs7>(&mut data)
+                .map(|x| x.to_vec())
+                .map_err(|x| anyhow!("{}", x))?,
+            Decrypter::SampleAes(key, iv) => {
+                let mut reader = std::io::Cursor::new(data);
+                let mut writer = Vec::new();
+                iori_ssa::decrypt(&mut reader, &mut writer, *key, *iv)?;
+                writer
+            }
             Decrypter::None => data,
         })
     }
 
-    pub fn is_none(&self) -> bool {
-        matches!(self, Self::None)
-    }
-
     pub fn increment_iv(&mut self) {
-        if let Self::HlsAes(_, iv, EncryptionType::SampleAes) = self {
+        if let Self::SampleAes(_, iv) = self {
             *iv = (u128::from_be_bytes(*iv) + 1).to_be_bytes();
         }
     }
 }
 
 pub fn check_key_exists_for_kid(
-    decrypter: &Decrypter,
+    keys: &HashMap<String, String>,
     default_kids: &HashSet<String>,
 ) -> Result<()> {
-    let user_kids = match decrypter {
-        Decrypter::Mp4Decrypt(kid_key_pairs) => kid_key_pairs
-            .keys()
-            .map(|x| x.to_owned())
-            .collect::<Vec<String>>(),
-        _ => Vec::new(),
-    };
+    let user_kids = keys.keys().map(|x| x.to_owned()).collect::<Vec<String>>();
 
     for kid in default_kids {
         if !user_kids.iter().any(|x| x == kid) {

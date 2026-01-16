@@ -15,7 +15,7 @@ pub use reqwest;
 
 use crate::{
     automation::{InteractionType, SelectOptions},
-    downloader::{Decrypter, MAX_RETRIES, MAX_THREADS, SKIP_DECRYPT, SKIP_MERGE},
+    downloader::{MAX_RETRIES, MAX_THREADS, SKIP_DECRYPT, SKIP_MERGE},
 };
 use anyhow::{Ok, Result};
 use reqwest::{Client, Url};
@@ -30,7 +30,7 @@ pub struct Downloader {
     output: Option<PathBuf>,
     subs_codec: String,
     select_options: SelectOptions,
-    decrypter: Decrypter,
+    keys: HashMap<String, String>,
 }
 
 impl Downloader {
@@ -43,7 +43,7 @@ impl Downloader {
             output: None,
             subs_codec: "copy".to_owned(),
             select_options: SelectOptions::parse("v=best:s=en"),
-            decrypter: Decrypter::None,
+            keys: HashMap::new(),
         }
     }
 
@@ -95,23 +95,8 @@ impl Downloader {
 
     /// Keys for decrypting encrypted streams.
     /// KID:KEY should be specified in hex format.
-    pub fn keys(mut self, keys: &HashMap<String, String>) -> Self {
-        let mut kid_key_pairs = HashMap::new();
-
-        for (kid, key) in keys {
-            let kid = kid.to_ascii_lowercase().replace('-', "");
-            let key = key.to_ascii_lowercase().replace('-', "");
-
-            if kid.len() == 32
-                && key.len() == 32
-                && kid.chars().all(|c| c.is_ascii_hexdigit())
-                && key.chars().all(|c| c.is_ascii_hexdigit())
-            {
-                kid_key_pairs.insert(kid, key);
-            }
-        }
-
-        self.decrypter = Decrypter::Mp4Decrypt(kid_key_pairs);
+    pub fn keys(mut self, keys: HashMap<String, String>) -> Self {
+        self.keys = keys;
         self
     }
 
@@ -159,15 +144,15 @@ impl Downloader {
         downloader::download(
             self.base_url,
             self.client,
-            self.decrypter,
             self.directory,
+            self.keys,
             self.output,
             query,
             streams,
             self.subs_codec,
         )
         .await?;
-    
+
         Ok(())
     }
 }

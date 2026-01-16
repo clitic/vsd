@@ -5,23 +5,29 @@ use crate::{
     playlist::{KeyMethod, MediaPlaylist, MediaType},
     progress::Progress,
 };
-use anyhow::{Result, bail};
+use anyhow::{Result, anyhow, bail};
 use colored::Colorize;
 use log::{debug, error, info, warn};
+use mp4decrypt::Ap4CencDecryptingProcessor;
 use reqwest::{Client, RequestBuilder, StatusCode, Url, header};
-use std::{collections::HashMap, path::PathBuf, sync::atomic::Ordering};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, atomic::Ordering},
+};
 use tokio::{
     fs::{self, File},
     io::{self, AsyncWriteExt},
     task::JoinSet,
 };
+use vsd_mp4::pssh::{self, Pssh};
 
 #[allow(clippy::too_many_arguments)]
 pub async fn download_streams(
     base_url: &Option<Url>,
     client: &Client,
-    decrypter: Decrypter,
     directory: Option<&PathBuf>,
+    keys: &HashMap<String, String>,
     query: &HashMap<String, String>,
     streams: Vec<MediaPlaylist>,
     temp_files: &mut Vec<Stream>,
@@ -58,7 +64,7 @@ pub async fn download_streams(
         download_stream(
             base_url,
             client,
-            decrypter.clone(),
+            &keys,
             Progress::new("0", stream.segments.len()),
             query,
             stream,
@@ -75,7 +81,7 @@ pub async fn download_streams(
 async fn download_stream(
     base_url: &Option<Url>,
     client: &Client,
-    decrypter: Decrypter,
+    keys: &HashMap<String, String>,
     pb: Progress,
     query: &HashMap<String, String>,
     stream: MediaPlaylist,
@@ -89,8 +95,7 @@ async fn download_stream(
     let mut threads = Vec::with_capacity(stream.segments.len());
 
     let mut default_kid = None;
-    let mut widevine_kid = None;
-    let mut stream_decrypter = decrypter.clone();
+    let mut decrypter = Decrypter::None;
     let temp_dir = temp_file.with_extension("");
     let extension = stream.extension();
     let total = stream.segments.len();
@@ -108,66 +113,76 @@ async fn download_stream(
             let response = request.send().await?;
             let bytes = response.bytes().await?;
 
-            default_kid = vsd_mp4::pssh::default_kid(&bytes)?.or(stream.default_kid());
-            widevine_kid = vsd_mp4::pssh::Pssh::new(&bytes)?
-                .key_ids
-                .into_iter()
-                .find_map(|x| match x.system_type {
-                    vsd_mp4::pssh::KeyIdSystemType::WideVine => Some(x.value),
-                    _ => None,
-                });
-
+            default_kid = pssh::default_kid(&bytes)?.or(stream.default_kid());
             init_seg = Some(bytes.to_vec())
         }
 
         if should_decrypt {
             if increment_iv {
-                stream_decrypter.increment_iv();
+                decrypter.increment_iv();
             }
 
             if let Some(key) = &segment.key {
                 match key.method {
-                    KeyMethod::Aes128 | KeyMethod::SampleAes => {
+                    KeyMethod::Aes128 => {
                         let url = base_url.join(key.uri.as_ref().unwrap())?;
                         let request = client.get(url).query(query);
                         let response = request.send().await?;
                         let bytes = response.bytes().await?;
 
-                        stream_decrypter = Decrypter::new_hls_aes(
-                            key.key(&bytes)?,
-                            key.iv(stream.media_sequence)?,
-                            &key.method,
-                        );
-
-                        if key.method == KeyMethod::SampleAes && key.iv.is_none() {
-                            increment_iv = true;
-                        }
+                        decrypter =
+                            Decrypter::Aes128(key.key(&bytes)?, key.iv(stream.media_sequence)?);
                     }
-                    KeyMethod::Mp4Decrypt => {
-                        if let Decrypter::Mp4Decrypt(kid_key_pairs) = &decrypter {
-                            // We already checked this before hand so unwraping is safe.
-                            if let Some(default_kid) = &default_kid {
-                                let key = if default_kid == "00000000000000000000000000000000" {
-                                    if widevine_kid.is_none() {
-                                        bail!(
-                                            "couldn't determine which widevine key to be mapped for this stream's zero kid."
-                                        );
-                                    }
+                    KeyMethod::CencCbcs => {
+                        if keys.is_empty() {
+                            bail!("custom keys (KID:KEY;...) are required to continue further.");
+                        }
 
-                                    kid_key_pairs.get(widevine_kid.as_ref().unwrap()).unwrap()
-                                } else {
-                                    kid_key_pairs.get(default_kid).unwrap()
-                                };
+                        let default_kid = default_kid.as_ref().ok_or_else(|| {
+                            anyhow!("couldn't determine default kid for this stream.")
+                        })?;
 
-                                stream_decrypter = Decrypter::Mp4Decrypt(HashMap::from([(
-                                    default_kid.to_owned(),
-                                    key.to_owned(),
-                                )]));
+                        let mut key = None;
 
-                                info!("Using key: {}:{}", default_kid, key);
-                            }
+                        if keys.contains_key(default_kid) {
+                            key = Some(keys.get(default_kid).unwrap().to_owned())
                         } else {
-                            bail!("custom keys (KID:KEY;...) are required to continue further.",);
+                            warn!(
+                                "Missing stream key (default_kid: {}). Falling back to PSSH data to resolve KID.",
+                                default_kid
+                            );
+
+                            if let Some(init_seg) = &init_seg {
+                                for kid in Pssh::new(init_seg)?.key_ids.into_iter() {
+                                    if keys.contains_key(&kid.value) {
+                                        key = Some(keys.get(&kid.value).unwrap().to_owned());
+                                    }
+                                }
+                            }
+                        }
+
+                        let key =
+                            key.ok_or_else(|| anyhow!("couldn't determine key for this stream."))?;
+
+                        decrypter = Decrypter::CencCbcs(Arc::new(
+                            Ap4CencDecryptingProcessor::new()
+                                .key(default_kid, &key)?
+                                .build()?,
+                        ));
+
+                        info!("Using key: {}:{}", default_kid, key);
+                    }
+                    KeyMethod::SampleAes => {
+                        let url = base_url.join(key.uri.as_ref().unwrap())?;
+                        let request = client.get(url).query(query);
+                        let response = request.send().await?;
+                        let bytes = response.bytes().await?;
+
+                        decrypter =
+                            Decrypter::SampleAes(key.key(&bytes)?, key.iv(stream.media_sequence)?);
+
+                        if key.iv.is_none() {
+                            increment_iv = true;
                         }
                     }
                     _ => (),
@@ -183,14 +198,14 @@ async fn download_stream(
         }
 
         threads.push(Thread {
-            decrypter: stream_decrypter.clone(),
+            decrypter: decrypter.clone(),
             init_seg: init_seg.clone(),
             pb: pb.clone(),
             request,
             temp_file: temp_dir.join(format!("{}.{}.part", i, extension)),
         });
 
-        if stream_decrypter.is_none() {
+        if let Decrypter::None = decrypter {
             init_seg = None;
         }
     }

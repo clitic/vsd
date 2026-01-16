@@ -482,7 +482,7 @@ pub(crate) async fn push_segments(
                             if encryption_type == KeyMethod::None
                                 && content_protection.value.is_some()
                             {
-                                encryption_type = KeyMethod::Mp4Decrypt;
+                                encryption_type = KeyMethod::CencCbcs;
                             }
                         }
 
@@ -496,7 +496,7 @@ pub(crate) async fn push_segments(
                                 if encryption_type == KeyMethod::None
                                     && content_protection.value.is_some()
                                 {
-                                    encryption_type = KeyMethod::Mp4Decrypt;
+                                    encryption_type = KeyMethod::CencCbcs;
                                 }
                             }
                         }

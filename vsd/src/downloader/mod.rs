@@ -6,7 +6,6 @@ mod parse;
 mod stream;
 mod subtitle;
 
-pub use encryption::Decrypter;
 pub use fetch::fetch_playlist;
 pub use parse::{list_all_streams, parse_all_streams, parse_selected_streams};
 pub use subtitle::download_subtitle_streams;
@@ -35,8 +34,8 @@ pub static SKIP_MERGE: AtomicBool = AtomicBool::new(false);
 pub async fn download(
     base_url: Option<Url>,
     client: Client,
-    decrypter: Decrypter,
     directory: Option<PathBuf>,
+    keys: HashMap<String, String>,
     output: Option<PathBuf>,
     query: HashMap<String, String>,
     mut streams: Vec<MediaPlaylist>,
@@ -52,7 +51,7 @@ pub async fn download(
         encryption::check_unsupported_encryptions(&streams)?;
         let default_kids =
             encryption::extract_default_kids(&base_url, &client, &streams, &query).await?;
-        encryption::check_key_exists_for_kid(&decrypter, &default_kids)?;
+        encryption::check_key_exists_for_kid(&keys, &default_kids)?;
     }
 
     if let Some(directory) = &directory
@@ -94,8 +93,8 @@ pub async fn download(
     stream::download_streams(
         &base_url,
         &client,
-        decrypter,
         directory.as_ref(),
+        &keys,
         &query,
         streams,
         &mut temp_files,
