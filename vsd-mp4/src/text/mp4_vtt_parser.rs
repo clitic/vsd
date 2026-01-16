@@ -14,7 +14,7 @@ use crate::{
         boxes::{MDHDBox, TFDTBox, TFHDBox, TRUNBox, TRUNSample},
     },
 };
-use std::sync::{Arc, Mutex};
+use std::{cell::RefCell, rc::Rc};
 
 /// Parse vtt subtitles from mp4 files.
 pub struct Mp4VttParser {
@@ -25,43 +25,43 @@ pub struct Mp4VttParser {
 impl Mp4VttParser {
     /// Parse intialization segment, a valid `wvtt` box should be present.
     pub fn parse_init(data: &[u8]) -> Result<Self> {
-        let saw_wvtt = Arc::new(Mutex::new(false));
-        let timescale = Arc::new(Mutex::new(None));
+        let saw_wvtt = Rc::new(RefCell::new(false));
+        let timescale = Rc::new(RefCell::new(None));
 
         let saw_wvtt_c = saw_wvtt.clone();
         let timescale_c = timescale.clone();
 
         Mp4Parser::new()
-            .base_box("moov", Arc::new(parser::children))
-            .base_box("trak", Arc::new(parser::children))
-            .base_box("mdia", Arc::new(parser::children))
+            .base_box("moov", Rc::new(parser::children))
+            .base_box("trak", Rc::new(parser::children))
+            .base_box("mdia", Rc::new(parser::children))
             .full_box(
                 "mdhd",
-                Arc::new(move |mut _box| {
+                Rc::new(move |mut _box| {
                     let _box_version = _box.version.unwrap();
                     if _box_version != 0 && _box_version != 1 {
                         bail!("MDHD box version can only be 0 or 1.");
                     }
                     let parsed_mdhd_box = MDHDBox::parse(&mut _box.reader, _box_version)?;
-                    *timescale_c.lock().unwrap() = Some(parsed_mdhd_box.timescale);
+                    *timescale_c.borrow_mut() = Some(parsed_mdhd_box.timescale);
                     Ok(())
                 }),
             )
-            .base_box("minf", Arc::new(parser::children))
-            .base_box("stbl", Arc::new(parser::children))
-            .full_box("stsd", Arc::new(parser::sample_description))
+            .base_box("minf", Rc::new(parser::children))
+            .base_box("stbl", Rc::new(parser::children))
+            .full_box("stsd", Rc::new(parser::sample_description))
             .base_box(
                 "wvtt",
-                Arc::new(move |_box| {
+                Rc::new(move |_box| {
                     // A valid vtt init segment, though we have no actual subtitles yet.
-                    *saw_wvtt_c.lock().unwrap() = true;
+                    *saw_wvtt_c.borrow_mut() = true;
                     Ok(())
                 }),
             )
             .parse(data, false, false)?;
 
-        let saw_wvtt = *saw_wvtt.lock().unwrap();
-        let timescale = *timescale.lock().unwrap();
+        let saw_wvtt = *saw_wvtt.borrow();
+        let timescale = *timescale.borrow();
 
         if !saw_wvtt {
             bail!("WVTT box not found.");
@@ -78,12 +78,12 @@ impl Mp4VttParser {
     pub fn parse_media(&self, data: &[u8], period_start: Option<f32>) -> Result<Subtitles> {
         let period_start = period_start.unwrap_or(0.0);
 
-        let base_time = Arc::new(Mutex::new(0_u64));
-        let presentations = Arc::new(Mutex::new(vec![]));
-        let saw_tfdt = Arc::new(Mutex::new(false));
-        let saw_trun = Arc::new(Mutex::new(false));
-        let default_duration = Arc::new(Mutex::new(None));
-        let cues = Arc::new(Mutex::new(vec![]));
+        let base_time = Rc::new(RefCell::new(0_u64));
+        let presentations = Rc::new(RefCell::new(vec![]));
+        let saw_tfdt = Rc::new(RefCell::new(false));
+        let saw_trun = Rc::new(RefCell::new(false));
+        let default_duration = Rc::new(RefCell::new(None));
+        let cues = Rc::new(RefCell::new(vec![]));
 
         let base_time_c = base_time.clone();
         let presentations_c = presentations.clone();
@@ -95,12 +95,12 @@ impl Mp4VttParser {
         let timescale = self.timescale;
 
         Mp4Parser::new()
-            .base_box("moof", Arc::new(parser::children))
-            .base_box("traf", Arc::new(parser::children))
+            .base_box("moof", Rc::new(parser::children))
+            .base_box("traf", Rc::new(parser::children))
             .full_box(
                 "tfdt",
-                Arc::new(move |mut _box| {
-                    *saw_tfdt_c.lock().unwrap() = true;
+                Rc::new(move |mut _box| {
+                    *saw_tfdt_c.borrow_mut() = true;
 
                     let _box_version = _box.version.unwrap();
                     if _box_version != 0 && _box_version != 1 {
@@ -108,26 +108,26 @@ impl Mp4VttParser {
                     }
 
                     let parsed_tfdt_box = TFDTBox::parse(&mut _box.reader, _box_version)?;
-                    *base_time_c.lock().unwrap() = parsed_tfdt_box.base_media_decode_time;
+                    *base_time_c.borrow_mut() = parsed_tfdt_box.base_media_decode_time;
                     Ok(())
                 }),
             )
             .full_box(
                 "tfhd",
-                Arc::new(move |mut box_| {
+                Rc::new(move |mut box_| {
                     if box_.flags.is_none() {
                         bail!("TFHD box should have a valid flags value.");
                     }
 
                     let parsed_tfhd_box = TFHDBox::parse(&mut box_.reader, box_.flags.unwrap())?;
-                    *default_duration_c.lock().unwrap() = parsed_tfhd_box.default_sample_duration;
+                    *default_duration_c.borrow_mut() = parsed_tfhd_box.default_sample_duration;
                     Ok(())
                 }),
             )
             .full_box(
                 "trun",
-                Arc::new(move |mut box_| {
-                    *saw_trun_c.lock().unwrap() = true;
+                Rc::new(move |mut box_| {
+                    *saw_trun_c.borrow_mut() = true;
                     if box_.version.is_none() {
                         bail!("TRUN box should have a valid version value.");
                     }
@@ -140,18 +140,18 @@ impl Mp4VttParser {
                         box_.version.unwrap(),
                         box_.flags.unwrap(),
                     )?;
-                    *presentations_c.lock().unwrap() = parsed_trun_box.sample_data;
+                    *presentations_c.borrow_mut() = parsed_trun_box.sample_data;
                     Ok(())
                 }),
             )
             .base_box(
                 "mdat",
-                parser::alldata(Arc::new(move |data| {
-                    let base_time = *base_time.lock().unwrap();
-                    let presentations = presentations.lock().unwrap();
-                    let saw_tfdt = *saw_tfdt.lock().unwrap();
-                    let saw_trun = *saw_trun.lock().unwrap();
-                    let default_duration = *default_duration.lock().unwrap();
+                parser::alldata(Rc::new(move |data| {
+                    let base_time = *base_time.borrow();
+                    let presentations = presentations.borrow();
+                    let saw_tfdt = *saw_tfdt.borrow();
+                    let saw_trun = *saw_trun.borrow();
+                    let default_duration = *default_duration.borrow();
 
                     if !saw_tfdt && !saw_trun {
                         bail!("Some required boxes (either TFDT or TRUN) are missing.");
@@ -165,14 +165,14 @@ impl Mp4VttParser {
                         &presentations,
                         &data,
                     )?;
-                    cues_c.lock().unwrap().extend(parsed_cues);
+                    cues_c.borrow_mut().extend(parsed_cues);
 
                     Ok(())
                 })),
             )
             .parse(data, false, false)?;
 
-        let cues = cues.lock().unwrap().clone();
+        let cues = cues.borrow().clone();
         Ok(Subtitles::new(cues))
     }
 }
@@ -270,9 +270,9 @@ fn parse_mdat(
 
 /// Parses a vttc box into a cue.
 fn parse_vttc(data: &[u8], start_time: f32, end_time: f32) -> Result<Option<Cue>> {
-    let payload = Arc::new(Mutex::new(String::new()));
-    let id = Arc::new(Mutex::new(String::new()));
-    let settings = Arc::new(Mutex::new(String::new()));
+    let payload = Rc::new(RefCell::new(String::new()));
+    let id = Rc::new(RefCell::new(String::new()));
+    let settings = Rc::new(RefCell::new(String::new()));
 
     let payload_c = payload.clone();
     let id_c = id.clone();
@@ -281,32 +281,32 @@ fn parse_vttc(data: &[u8], start_time: f32, end_time: f32) -> Result<Option<Cue>
     Mp4Parser::new()
         .base_box(
             "payl",
-            parser::alldata(Arc::new(move |data| {
-                *payload_c.lock().unwrap() = String::from_utf8(data)?;
+            parser::alldata(Rc::new(move |data| {
+                *payload_c.borrow_mut() = String::from_utf8(data)?;
                 Ok(())
             })),
         )
         .base_box(
             "iden",
-            parser::alldata(Arc::new(move |data| {
-                *id_c.lock().unwrap() = String::from_utf8(data)?;
+            parser::alldata(Rc::new(move |data| {
+                *id_c.borrow_mut() = String::from_utf8(data)?;
                 Ok(())
             })),
         )
         .base_box(
             "sttg",
-            parser::alldata(Arc::new(move |data| {
-                *settings_c.lock().unwrap() = String::from_utf8(data)?;
+            parser::alldata(Rc::new(move |data| {
+                *settings_c.borrow_mut() = String::from_utf8(data)?;
                 Ok(())
             })),
         )
         .parse(data, false, false)?;
 
-    let payload = payload.lock().unwrap().to_owned();
+    let payload = payload.borrow().to_owned();
 
     if !payload.is_empty() {
-        let id = id.lock().unwrap().to_owned();
-        let settings = settings.lock().unwrap().to_owned();
+        let id = id.borrow().to_owned();
+        let settings = settings.borrow().to_owned();
         return Ok(Some(Cue {
             payload,
             _id: id,

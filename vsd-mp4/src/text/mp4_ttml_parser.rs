@@ -11,7 +11,7 @@ use crate::{
     parser::Mp4Parser,
     text::{Subtitles, ttml_text_parser},
 };
-use std::sync::{Arc, Mutex};
+use std::{cell::RefCell, rc::Rc};
 
 /// Parse ttml subtitles from mp4 files.
 pub struct Mp4TtmlParser;
@@ -19,27 +19,27 @@ pub struct Mp4TtmlParser;
 impl Mp4TtmlParser {
     /// Parse intialization segment, a valid `stpp` box should be present.
     pub fn parse_init(data: &[u8]) -> Result<Self> {
-        let saw_stpp = Arc::new(Mutex::new(false));
+        let saw_stpp = Rc::new(RefCell::new(false));
         let saw_stpp_c = saw_stpp.clone();
 
         Mp4Parser::new()
-            .base_box("moov", Arc::new(parser::children))
-            .base_box("trak", Arc::new(parser::children))
-            .base_box("mdia", Arc::new(parser::children))
-            .base_box("minf", Arc::new(parser::children))
-            .base_box("stbl", Arc::new(parser::children))
-            .full_box("stsd", Arc::new(parser::sample_description))
+            .base_box("moov", Rc::new(parser::children))
+            .base_box("trak", Rc::new(parser::children))
+            .base_box("mdia", Rc::new(parser::children))
+            .base_box("minf", Rc::new(parser::children))
+            .base_box("stbl", Rc::new(parser::children))
+            .full_box("stsd", Rc::new(parser::sample_description))
             .base_box(
                 "stpp",
-                Arc::new(move |mut _box| {
-                    *saw_stpp_c.lock().unwrap() = true;
+                Rc::new(move |mut _box| {
+                    *saw_stpp_c.borrow_mut() = true;
                     _box.parser.stop();
                     Ok(())
                 }),
             )
             .parse(data, false, false)?;
 
-        let saw_stpp = *saw_stpp.lock().unwrap();
+        let saw_stpp = *saw_stpp.borrow();
 
         if !saw_stpp {
             bail!("STPP box not found.");
@@ -50,8 +50,8 @@ impl Mp4TtmlParser {
 
     /// Parse media segments, only if valid `mdat` box(s) are present.
     pub fn parse_media(&self, data: &[u8]) -> Result<Subtitles> {
-        let saw_mdat = Arc::new(Mutex::new(false));
-        let cues = Arc::new(Mutex::new(vec![]));
+        let saw_mdat = Rc::new(RefCell::new(false));
+        let cues = Rc::new(RefCell::new(vec![]));
 
         let saw_mdat_c = saw_mdat.clone();
         let cues_c = cues.clone();
@@ -59,12 +59,12 @@ impl Mp4TtmlParser {
         Mp4Parser::new()
             .base_box(
                 "mdat",
-                parser::alldata(Arc::new(move |data| {
-                    *saw_mdat_c.lock().unwrap() = true;
+                parser::alldata(Rc::new(move |data| {
+                    *saw_mdat_c.borrow_mut() = true;
                     // Join this to any previous payload, in case the mp4 has multiple
                     // mdats.
                     let xml = String::from_utf8(data)?;
-                    cues_c.lock().unwrap().append(
+                    cues_c.borrow_mut().append(
                         &mut ttml_text_parser::parse(&xml)
                             .map_err(|x| Error::XmlDecode { error: x, xml })?
                             .into_cues(),
@@ -74,13 +74,13 @@ impl Mp4TtmlParser {
             )
             .parse(data, false, false)?;
 
-        let saw_mdat = *saw_mdat.lock().unwrap();
+        let saw_mdat = *saw_mdat.borrow();
 
         if !saw_mdat {
             bail!("MDAT box not found.");
         }
 
-        let cues = cues.lock().unwrap().clone();
+        let cues = cues.borrow().clone();
         Ok(Subtitles::new(cues))
     }
 }

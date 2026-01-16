@@ -9,7 +9,7 @@
 //! Mp4 `SIDX` box parser.
 
 use crate::{Mp4Parser, ParsedBox, Result, bail};
-use std::sync::{Arc, Mutex};
+use std::{cell::RefCell, rc::Rc};
 
 /// Segment range.
 #[derive(Clone)]
@@ -21,20 +21,20 @@ pub struct Range {
 /// Mp4 `SegmentBase@indexRange` parser.
 /// `sidx_offset` is the starting byte of sidx box.
 pub fn parse(data: &[u8], sidx_offset: u64) -> Result<Vec<Range>> {
-    let references = Arc::new(Mutex::new(Vec::new()));
+    let references = Rc::new(RefCell::new(Vec::new()));
     let references_c = references.clone();
 
     Mp4Parser::new()
         .full_box(
             "sidx",
-            Arc::new(move |mut _box| {
-                *references_c.lock().unwrap() = parse_sidx(&mut _box, sidx_offset)?;
+            Rc::new(move |mut _box| {
+                *references_c.borrow_mut() = parse_sidx(&mut _box, sidx_offset)?;
                 Ok(())
             }),
         )
         .parse(data, false, false)?;
 
-    let references = references.lock().unwrap().to_vec();
+    let references = references.borrow().to_vec();
     Ok(references)
 }
 

@@ -8,12 +8,12 @@
 */
 
 use crate::{Error, Reader};
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, rc::Rc};
 
 /// `Result` type returned when parsing an mp4 file.
 pub type HandlerResult = Result<(), Error>;
 /// Callback type for parsing an mp4 file.
-pub type CallbackType = Arc<dyn Fn(ParsedBox) -> HandlerResult>;
+pub type CallbackType = Rc<dyn Fn(ParsedBox) -> HandlerResult>;
 
 /// Mp4 file parser.
 #[derive(Clone, Default)]
@@ -332,9 +332,9 @@ pub fn audio_sample_entry(mut box_: ParsedBox) -> HandlerResult {
 
 /// Create a callback that tells the Mp4 parser to treat the body of a box as a
 /// binary blob and to parse the body's contents using the provided callback.
-#[allow(clippy::arc_with_non_send_sync)]
-pub fn alldata(callback: Arc<dyn Fn(Vec<u8>) -> HandlerResult>) -> CallbackType {
-    Arc::new(move |mut _box| {
+#[allow(clippy::rc_buffer)]
+pub fn alldata(callback: Rc<dyn Fn(Vec<u8>) -> HandlerResult>) -> CallbackType {
+    Rc::new(move |mut _box| {
         let all = _box.reader.get_length() - _box.reader.get_position();
         callback(_box.reader.read_bytes_u8(all as usize)?)
     })

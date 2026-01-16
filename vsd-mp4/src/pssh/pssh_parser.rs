@@ -14,7 +14,7 @@ use crate::{
     parser::{Mp4Parser, ParsedBox},
     pssh::{playready, widevine},
 };
-use std::sync::{Arc, Mutex};
+use std::{cell::RefCell, rc::Rc};
 
 const COMMON_SYSTEM_ID: &str = "1077efecc0b24d02ace33c1e52e2fb4b";
 const PLAYREADY_SYSTEM_ID: &str = "9a04f07998404286ab92e65be0885f95";
@@ -73,22 +73,22 @@ pub struct Pssh {
 
 impl Pssh {
     pub fn new(data: &[u8]) -> Result<Self> {
-        let pssh = Arc::new(Mutex::new(Self {
+        let pssh = Rc::new(RefCell::new(Self {
             system_ids: vec![],
             key_ids: vec![],
         }));
         let pssh_c = pssh.clone();
 
         Mp4Parser::new()
-            .base_box("moov", Arc::new(parser::children))
-            .base_box("moof", Arc::new(parser::children))
+            .base_box("moov", Rc::new(parser::children))
+            .base_box("moof", Rc::new(parser::children))
             .full_box(
                 "pssh",
-                Arc::new(move |mut _box| pssh_c.lock().unwrap().parse_pssh_box(&mut _box)),
+                Rc::new(move |mut _box| pssh_c.borrow_mut().parse_pssh_box(&mut _box)),
             )
             .parse(data, false, false)?;
 
-        let pssh = pssh.lock().unwrap();
+        let pssh = pssh.borrow();
         let mut key_ids: Vec<KeyId> = vec![];
 
         for key_id in &pssh.key_ids {

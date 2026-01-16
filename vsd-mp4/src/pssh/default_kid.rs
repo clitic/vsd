@@ -11,34 +11,34 @@ use crate::{
     Result, parser,
     parser::{Mp4Parser, ParsedBox},
 };
-use std::sync::{Arc, Mutex};
+use std::{cell::RefCell, rc::Rc};
 
 /// Parse default kid from mp4 `TENC` box.
 pub fn default_kid(data: &[u8]) -> Result<Option<String>> {
-    let default_kid = Arc::new(Mutex::new(None));
+    let default_kid = Rc::new(RefCell::new(None));
     let default_kid_c = default_kid.clone();
 
     Mp4Parser::new()
-        .base_box("moov", Arc::new(parser::children))
-        .base_box("trak", Arc::new(parser::children))
-        .base_box("mdia", Arc::new(parser::children))
-        .base_box("minf", Arc::new(parser::children))
-        .base_box("stbl", Arc::new(parser::children))
-        .full_box("stsd", Arc::new(parser::sample_description))
-        .base_box("encv", Arc::new(parser::visual_sample_entry))
-        .base_box("enca", Arc::new(parser::audio_sample_entry))
-        .base_box("sinf", Arc::new(parser::children))
-        .base_box("schi", Arc::new(parser::children))
+        .base_box("moov", Rc::new(parser::children))
+        .base_box("trak", Rc::new(parser::children))
+        .base_box("mdia", Rc::new(parser::children))
+        .base_box("minf", Rc::new(parser::children))
+        .base_box("stbl", Rc::new(parser::children))
+        .full_box("stsd", Rc::new(parser::sample_description))
+        .base_box("encv", Rc::new(parser::visual_sample_entry))
+        .base_box("enca", Rc::new(parser::audio_sample_entry))
+        .base_box("sinf", Rc::new(parser::children))
+        .base_box("schi", Rc::new(parser::children))
         .full_box(
             "tenc",
-            Arc::new(move |mut _box| {
-                *default_kid_c.lock().unwrap() = Some(parse_tenc(&mut _box)?);
+            Rc::new(move |mut _box| {
+                *default_kid_c.borrow_mut() = Some(parse_tenc(&mut _box)?);
                 Ok(())
             }),
         )
         .parse(data, true, false)?;
 
-    let default_kid = default_kid.lock().unwrap();
+    let default_kid = default_kid.borrow();
     Ok(default_kid.clone())
 }
 
