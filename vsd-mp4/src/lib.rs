@@ -29,7 +29,7 @@ pub mod sidx;
 #[cfg_attr(docsrs, doc(cfg(any(feature = "text-ttml", feature = "text-vtt"))))]
 pub mod text;
 
-pub use error::{Error, ErrorType};
+pub use error::Error;
 pub use parser::*;
 pub use reader::Reader;
 

@@ -8,7 +8,7 @@
 */
 
 use crate::{
-    Error, Result, parser,
+    Result, parser,
     parser::{Mp4Parser, ParsedBox},
 };
 use std::sync::{Arc, Mutex};
@@ -45,26 +45,14 @@ pub fn default_kid(data: &[u8]) -> Result<Option<String>> {
 fn parse_tenc(_box: &mut ParsedBox) -> Result<String> {
     let reader = &mut _box.reader;
 
-    // reader
-    //     .read_u8()
-    //     .map_err(|_| Error::new_read("TENC box reserved (u8)."))?;
-    // reader
-    //     .read_u8()
-    //     .map_err(|_| Error::new_read("TENC box (u8)."))?;
-    // reader
-    //     .read_u8()
-    //     .map_err(|_| Error::new_read("TENC box is protected (u8)."))?;
-    // reader
-    //     .read_u8()
-    //     .map_err(|_| Error::new_read("TENC box per sample iv size (u8)."))?;
+    // reader.read_u8()?; // TENC box reserved
+    // reader.read_u8()?; // TENC box
+    // reader.read_u8()?; // TENC box is protected
+    // reader.read_u8()?; // TENC box per sample iv size
 
-    reader
-        .skip(4)
-        .map_err(|_| Error::new_read("TENC box (4 bytes)."))?;
+    reader.skip(4)?;
 
-    let default_kid = reader
-        .read_bytes_u8(16)
-        .map_err(|_| Error::new_read("TENC box default kid (16 bytes)."))?;
+    let default_kid = reader.read_bytes_u8(16)?;
     let default_kid = hex::encode(default_kid);
 
     Ok(default_kid)

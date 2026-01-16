@@ -61,7 +61,7 @@ impl Mp4Parser {
         partial_okay: bool,
         stop_on_partial: bool,
     ) -> HandlerResult {
-        let mut reader = Reader::new(data, false);
+        let mut reader = Reader::new_big_endian(data.to_vec());
 
         self.done = false;
 
@@ -98,12 +98,8 @@ impl Mp4Parser {
             return Ok(());
         }
 
-        let mut size = reader
-            .read_u32()
-            .map_err(|_| Error::new_read("box size (u32)."))? as u64;
-        let _type = reader
-            .read_u32()
-            .map_err(|_| Error::new_read("box type (u32)."))? as usize;
+        let mut size = reader.read_u32()? as u64;
+        let _type = reader.read_u32()? as usize;
         let name = type_to_string(_type)
             .map_err(|_| Error::new_decode(format!("{_type} (u32) to string.")))?;
         let mut has_64_bit_size = false;
@@ -116,9 +112,7 @@ impl Mp4Parser {
                     self.done = true;
                     return Ok(());
                 }
-                size = reader
-                    .read_u64()
-                    .map_err(|_| Error::new_read("box size (u64)."))?;
+                size = reader.read_u64()?;
                 has_64_bit_size = true;
             }
             _ => (),
@@ -136,9 +130,7 @@ impl Mp4Parser {
                     return Ok(());
                 }
 
-                let version_and_flags = reader
-                    .read_u32()
-                    .map_err(|_| Error::new_read("box version and flags (u32)."))?;
+                let version_and_flags = reader.read_u32()?;
                 version = Some(version_and_flags >> 24);
                 flags = Some(version_and_flags & 0xFFFFFF);
             }
@@ -159,14 +151,12 @@ impl Mp4Parser {
 
             let payload_size = end - reader.get_position();
             let payload = if payload_size > 0 {
-                reader
-                    .read_bytes_u8(payload_size as usize)
-                    .map_err(|_| Error::new_read(format!("box payload ({payload_size} bytes).")))?
+                reader.read_bytes_u8(payload_size as usize)?
             } else {
                 Vec::with_capacity(0)
             };
 
-            let payload_reader = Reader::new(&payload, false);
+            let payload_reader = Reader::new_big_endian(payload);
 
             let _box = ParsedBox {
                 name,
@@ -189,9 +179,7 @@ impl Mp4Parser {
             // ended in the middle of a box, just skip to the end.
             let skip_length = (start + size - reader.get_position())
                 .min(reader.get_length() - reader.get_position());
-            reader
-                .skip(skip_length)
-                .map_err(|_| Error::new_read(format!("{skip_length} bytes.")))?;
+            reader.skip(skip_length)?;
         }
 
         Ok(())
@@ -227,10 +215,7 @@ pub fn sample_description(mut _box: ParsedBox) -> HandlerResult {
     // The "reader" starts at the payload, so we need to add the header to the
     // start position.  The header size varies.
     let header_size = _box.header_size();
-    let count = _box
-        .reader
-        .read_u32()
-        .map_err(|_| Error::new_read("sample description count (u32)."))?;
+    let count = _box.reader.read_u32()?;
 
     for _ in 0..count {
         _box.parser.parse_next(
@@ -269,9 +254,7 @@ pub fn visual_sample_entry(mut _box: ParsedBox) -> HandlerResult {
     // Skip 2 more reserved bytes (0xff)
     // 78 bytes total.
     // See also https://github.com/shaka-project/shaka-packager/blob/d5ca6e84/packager/media/formats/mp4/box_definitions.cc#L1544
-    _box.reader
-        .skip(78)
-        .map_err(|_| Error::new_read("visual sample entry reserved 78 bytes."))?;
+    _box.reader.skip(78)?;
 
     while _box.reader.has_more_data() && !_box.parser.done {
         _box.parser.parse_next(
@@ -296,20 +279,13 @@ pub fn audio_sample_entry(mut _box: ParsedBox) -> HandlerResult {
 
     // 6 bytes reserved
     // 2 bytes data reference index
-    _box.reader
-        .skip(8)
-        .map_err(|_| Error::new_read("audio sample entry reserved (6+2 bytes)."))?;
+    _box.reader.skip(8)?;
 
     // 2 bytes version
-    let version = _box
-        .reader
-        .read_u16()
-        .map_err(|_| Error::new_read("audio sample entry version (u16)."))?;
+    let version = _box.reader.read_u16()?;
     // 2 bytes revision (0, could be ignored)
     // 4 bytes reserved
-    _box.reader
-        .skip(6)
-        .map_err(|_| Error::new_read("audio sample entry reserved (2+4 bytes)."))?;
+    _box.reader.skip(6)?;
 
     if version == 2 {
         // 16 bytes hard-coded values with no comments
@@ -320,9 +296,7 @@ pub fn audio_sample_entry(mut _box: ParsedBox) -> HandlerResult {
         // 4 bytes lpcm flags
         // 4 bytes sample size
         // 4 bytes samples per packet
-        _box.reader
-            .skip(48)
-            .map_err(|_| Error::new_read("audio sample entry reserved (48 bytes)."))?;
+        _box.reader.skip(48)?;
     } else {
         // 2 bytes channel count
         // 2 bytes bits per sample
@@ -330,9 +304,7 @@ pub fn audio_sample_entry(mut _box: ParsedBox) -> HandlerResult {
         // 2 bytes packet size
         // 2 bytes sample rate
         // 2 byte reserved
-        _box.reader
-            .skip(12)
-            .map_err(|_| Error::new_read("audio sample entry reserved (12 bytes)."))?;
+        _box.reader.skip(12)?;
     }
 
     if version == 1 {
@@ -340,9 +312,7 @@ pub fn audio_sample_entry(mut _box: ParsedBox) -> HandlerResult {
         // 4 bytes bytes per packet
         // 4 bytes bytes per frame
         // 4 bytes bytes per sample
-        _box.reader
-            .skip(16)
-            .map_err(|_| Error::new_read("audio sample entry reserved (16 bytes)."))?;
+        _box.reader.skip(16)?;
     }
 
     while _box.reader.has_more_data() && !_box.parser.done {
@@ -363,11 +333,7 @@ pub fn audio_sample_entry(mut _box: ParsedBox) -> HandlerResult {
 pub fn alldata(callback: Arc<dyn Fn(Vec<u8>) -> HandlerResult>) -> CallbackType {
     Arc::new(move |mut _box| {
         let all = _box.reader.get_length() - _box.reader.get_position();
-        callback(
-            _box.reader
-                .read_bytes_u8(all as usize)
-                .map_err(|_| Error::new_read(format!("all data {all} bytes.")))?,
-        )
+        callback(_box.reader.read_bytes_u8(all as usize)?)
     })
 }
 

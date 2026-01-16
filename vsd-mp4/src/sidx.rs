@@ -50,13 +50,9 @@ fn parse_sidx(_box: &mut ParsedBox, sidx_offset: u64) -> Result<Vec<Range>> {
 
     let mut references = Vec::new();
 
-    reader
-        .skip(4)
-        .map_err(|_| Error::new_read("SIDX box skip reference ID (32 bits)."))?;
+    reader.skip(4)?;
 
-    let timescale = reader
-        .read_u32()
-        .map_err(|_| Error::new_read("SIDX box timescale (u32)."))?;
+    let timescale = reader.read_u32()?;
 
     if timescale == 0 {
         return Err(Error::new("SIDX box has invalid timescale."));
@@ -66,30 +62,16 @@ fn parse_sidx(_box: &mut ParsedBox, sidx_offset: u64) -> Result<Vec<Range>> {
     let first_offset;
 
     if version == 0 {
-        _earliest_presentation_time = reader
-            .read_u32()
-            .map_err(|_| Error::new_read("SIDX box earliest presentation time (u32)."))?
-            as u64;
-        first_offset = reader
-            .read_u32()
-            .map_err(|_| Error::new_read("SIDX box first offset (u32)."))?
-            as u64;
+        _earliest_presentation_time = reader.read_u32()? as u64;
+        first_offset = reader.read_u32()? as u64;
     } else {
-        _earliest_presentation_time = reader
-            .read_u64()
-            .map_err(|_| Error::new_read("SIDX box earliest presentation time (u64)."))?;
-        first_offset = reader
-            .read_u64()
-            .map_err(|_| Error::new_read("SIDX box first offset (u64)."))?;
+        _earliest_presentation_time = reader.read_u64()?;
+        first_offset = reader.read_u64()?;
     }
 
-    reader
-        .skip(2)
-        .map_err(|_| Error::new_read("SIDX box skip reserved (16 bits)."))?;
+    reader.skip(2)?;
 
-    let reference_count = reader
-        .read_u16()
-        .map_err(|_| Error::new_read("SIDX box reference count (u16)."))?;
+    let reference_count = reader.read_u16()?;
 
     // Subtract the presentation time offset
     // let mut unscaled_start_time = earliest_presentation_time;
@@ -97,21 +79,15 @@ fn parse_sidx(_box: &mut ParsedBox, sidx_offset: u64) -> Result<Vec<Range>> {
 
     for _ in 0..reference_count {
         // |chunk| is 1 bit for |referenceType|, and 31 bits for |referenceSize|.
-        let chunk = reader
-            .read_u32()
-            .map_err(|_| Error::new_read("SIDX box chunk (u32)."))?;
+        let chunk = reader.read_u32()?;
         let reference_type = (chunk & 0x80000000) >> 31;
         let reference_size = chunk & 0x7FFFFFFF;
 
-        let _subsegment_duration = reader
-            .read_u32()
-            .map_err(|_| Error::new_read("SIDX box subsegment duration (u32)."))?;
+        let _subsegment_duration = reader.read_u32()?;
 
         // Skipping 1 bit for |startsWithSap|, 3 bits for |sapType|, and 28 bits
         // for |sapDelta|.
-        reader
-            .skip(4)
-            .map_err(|_| Error::new_read("SIDX box skip (32 bits)."))?;
+        reader.skip(4)?;
 
         // If |referenceType| is 1 then the reference is to another SIDX.
         // We do not support this.

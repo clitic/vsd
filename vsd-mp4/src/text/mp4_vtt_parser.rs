@@ -188,7 +188,7 @@ fn parse_mdat(
 ) -> Result<impl IntoIterator<Item = Cue>> {
     let mut cues = vec![];
     let mut current_time = base_time;
-    let mut reader = Reader::new(raw_payload, false);
+    let mut reader = Reader::new_big_endian(raw_payload.to_vec());
 
     for presentation in presentations {
         // If one presentation corresponds to multiple payloads, it is assumed
@@ -208,16 +208,11 @@ fn parse_mdat(
         let mut total_size = 0;
         loop {
             // Read the payload size.
-            let payload_size = reader
-                .read_u32()
-                .map_err(|_| Error::new_read("payload size (u32)."))?
-                as i32;
+            let payload_size = reader.read_u32()? as i32;
             total_size += payload_size;
 
             // Skip the type.
-            let payload_type = reader
-                .read_u32()
-                .map_err(|_| Error::new_read("payload type (u32)."))?;
+            let payload_type = reader.read_u32()?;
             let payload_name = parser::type_to_string(payload_type as usize)
                 .map_err(|_| Error::new_decode("payload name as valid utf-8 data."))?;
 
@@ -225,21 +220,15 @@ fn parse_mdat(
             let mut payload = None;
             if payload_name == "vttc" {
                 if payload_size > 8 {
-                    payload = Some(reader.read_bytes_u8((payload_size - 8) as usize).map_err(
-                        |_| Error::new_read(format!("payload data ({} bytes).", payload_size - 8)),
-                    )?);
+                    payload = Some(reader.read_bytes_u8((payload_size - 8) as usize)?);
                 }
             } else if payload_name == "vtte" {
                 // It's a vtte, which is a vtt cue that is empty. Ignore any data that
                 // does exist.
-                reader.skip((payload_size - 8) as u64).map_err(|_| {
-                    Error::new_read(format!("payload data ({} bytes).", payload_size - 8))
-                })?;
+                reader.skip((payload_size - 8) as u64)?;
             } else {
                 // println!("Unknown box {} ! Skipping!", payload_name);
-                reader.skip((payload_size - 8) as u64).map_err(|_| {
-                    Error::new_read(format!("payload data ({} bytes).", payload_size - 8))
-                })?;
+                reader.skip((payload_size - 8) as u64)?;
             }
 
             if duration.is_some() {

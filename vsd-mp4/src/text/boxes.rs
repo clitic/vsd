@@ -29,42 +29,26 @@ impl TFHDBox {
         let mut default_sample_size = None;
         let mut base_data_offset = None;
 
-        let track_id = reader
-            .read_u32()
-            .map_err(|_| Error::new_read("TFHD box track id (u32)."))?;
+        let track_id = reader.read_u32()?;
 
         // Skip "base_data_offset" if present.
         if (flags & 0x000001) != 0 {
-            base_data_offset = Some(
-                reader
-                    .read_u64()
-                    .map_err(|_| Error::new_read("TFHD box data offset (u64)."))?,
-            );
+            base_data_offset = Some(reader.read_u64()?);
         }
 
         // Skip "sample_description_index" if present.
         if (flags & 0x000002) != 0 {
-            reader.skip(4).map_err(|_| {
-                Error::new_read("TFHD box sample description index data (4 bytes).")
-            })?;
+            reader.skip(4)?;
         }
 
         // Read "default_sample_duration" if present.
         if (flags & 0x000008) != 0 {
-            default_sample_duration = Some(
-                reader
-                    .read_u32()
-                    .map_err(|_| Error::new_read("TFHD box default sample duration (u32)."))?,
-            );
+            default_sample_duration = Some(reader.read_u32()?);
         }
 
         // Read "default_sample_size" if present.
         if (flags & 0x000010) != 0 {
-            default_sample_size = Some(
-                reader
-                    .read_u32()
-                    .map_err(|_| Error::new_read("TFHD box default sample size (u32)."))?,
-            );
+            default_sample_size = Some(reader.read_u32()?);
         }
 
         Ok(Self {
@@ -87,14 +71,9 @@ impl TFDTBox {
     pub(super) fn parse(reader: &mut Reader, version: u32) -> Result<Self> {
         Ok(Self {
             base_media_decode_time: if version == 1 {
-                reader
-                    .read_u64()
-                    .map_err(|_| Error::new_read("TFDT box base media decode time (u64)."))?
+                reader.read_u64()?
             } else {
-                reader
-                    .read_u32()
-                    .map_err(|_| Error::new_read("TFDT box base media decode time (u32)."))?
-                    as u64
+                reader.read_u32()? as u64
             },
         })
     }
@@ -112,32 +91,18 @@ impl MDHDBox {
     /// Parses a MDHD Box.
     pub(super) fn parse(reader: &mut Reader, version: u32) -> Result<Self> {
         if version == 1 {
-            reader
-                .skip(8)
-                .map_err(|_| Error::new_read("MDHD box creation time data (8 bytes)."))?;
-            reader
-                .skip(8)
-                .map_err(|_| Error::new_read("MDHD box modification time data (8 bytes)."))?;
+            reader.skip(8)?;
+            reader.skip(8)?;
         } else {
-            reader
-                .skip(4)
-                .map_err(|_| Error::new_read("MDHD box creation time data (4 bytes)."))?;
-            reader
-                .skip(4)
-                .map_err(|_| Error::new_read("MDHD box modification time data (4 bytes)."))?;
+            reader.skip(4)?;
+            reader.skip(4)?;
         }
 
-        let timescale = reader
-            .read_u32()
-            .map_err(|_| Error::new_read("MDHD box timescale (u32)."))?;
+        let timescale = reader.read_u32()?;
 
-        reader
-            .skip(4)
-            .map_err(|_| Error::new_read("MDHD box duration data (4 bytes)."))?;
+        reader.skip(4)?;
 
-        let language = reader
-            .read_u16()
-            .map_err(|_| Error::new_read("MDHD box language data (u16)."))?;
+        let language = reader.read_u16()?;
 
         // language is stored as an ISO-639-2/T code in an array of three
         // 5-bit fields each field is the packed difference between its ASCII
@@ -168,26 +133,18 @@ pub(super) struct TRUNBox {
 impl TRUNBox {
     /// Parses a TRUN Box.
     pub(super) fn parse(reader: &mut Reader, version: u32, flags: u32) -> Result<Self> {
-        let sample_count = reader
-            .read_u32()
-            .map_err(|_| Error::new_read("TRUN box sample count (u32)."))?;
+        let sample_count = reader.read_u32()?;
         let mut sample_data = vec![];
         let mut data_offset = None;
 
         // "data_offset"
         if (flags & 0x000001) != 0 {
-            data_offset = Some(
-                reader
-                    .read_u32()
-                    .map_err(|_| Error::new_read("TRUN box data offset (u32)."))?,
-            );
+            data_offset = Some(reader.read_u32()?);
         }
 
         // Skip "first_sample_flags" if present.
         if (flags & 0x000004) != 0 {
-            reader
-                .skip(4)
-                .map_err(|_| Error::new_read("TRUN box first sample flags (4 bytes)."))?;
+            reader.skip(4)?;
         }
 
         for _ in 0..sample_count {
@@ -199,40 +156,25 @@ impl TRUNBox {
 
             // Read "sample duration" if present.
             if (flags & 0x000100) != 0 {
-                sample.sample_duration = Some(
-                    reader
-                        .read_u32()
-                        .map_err(|_| Error::new_read("TRUN box sample duration (u32)."))?,
-                );
+                sample.sample_duration = Some(reader.read_u32()?);
             }
 
             // Read "sample_size" if present.
             if (flags & 0x000200) != 0 {
-                sample.sample_size = Some(
-                    reader
-                        .read_u32()
-                        .map_err(|_| Error::new_read("TRUN box sample size (u32)."))?,
-                );
+                sample.sample_size = Some(reader.read_u32()?);
             }
 
             // Skip "sample_flags" if present.
             if (flags & 0x000400) != 0 {
-                reader
-                    .skip(4)
-                    .map_err(|_| Error::new_read("TRUN box sample flags (u32)."))?;
+                reader.skip(4)?;
             }
 
             // Read "sample_time_offset" if present.
             if (flags & 0x000800) != 0 {
                 sample.sample_composition_time_offset = Some(if version == 0 {
-                    reader
-                        .read_u32()
-                        .map_err(|_| Error::new_read("TRUN box sample time offset (u32)."))?
-                        as i32
+                    reader.read_u32()? as i32
                 } else {
-                    reader
-                        .read_i32()
-                        .map_err(|_| Error::new_read("TRUN box sample time offset (i32)."))?
+                    reader.read_i32()?
                 });
             }
 

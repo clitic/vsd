@@ -132,24 +132,13 @@ impl Pssh {
         // );
         // self.data = view(_box.reader.clone(), - 12, _box.size as i64);
 
-        let system_id = hex::encode(
-            _box.reader
-                .read_bytes_u8(16)
-                .map_err(|_| Error::new_read("PSSH box system id (16 bytes)."))?,
-        );
+        let system_id = hex::encode(_box.reader.read_bytes_u8(16)?);
 
         if _box_version > 0 {
-            let num_key_ids = _box
-                .reader
-                .read_u32()
-                .map_err(|_| Error::new_read("PSSH box number of key ids (u32)."))?;
+            let num_key_ids = _box.reader.read_u32()?;
 
             for _ in 0..num_key_ids {
-                let key_id = hex::encode(
-                    _box.reader
-                        .read_bytes_u8(16)
-                        .map_err(|_| Error::new_read("PSSH box key id (16 bytes)."))?,
-                );
+                let key_id = hex::encode(_box.reader.read_bytes_u8(16)?);
                 self.key_ids.push(KeyId {
                     value: key_id,
                     system_type: if system_id == COMMAN_SYSTEM_ID {
@@ -161,14 +150,8 @@ impl Pssh {
             }
         }
 
-        let pssh_data_size = _box
-            .reader
-            .read_u32()
-            .map_err(|_| Error::new_read("PSSH box data size (u32)."))?;
-        let pssh_data = _box
-            .reader
-            .read_bytes_u8(pssh_data_size as usize)
-            .map_err(|_| Error::new_read(format!("PSSH box data ({pssh_data_size} bytes).")))?;
+        let pssh_data_size = _box.reader.read_u32()?;
+        let pssh_data = _box.reader.read_bytes_u8(pssh_data_size as usize)?;
 
         match system_id.as_str() {
             PLAYREADY_SYSTEM_ID => self.key_ids.extend(playready::parse(&pssh_data)?),

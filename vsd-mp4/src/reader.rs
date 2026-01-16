@@ -8,18 +8,32 @@
 
 use std::io::{Cursor, Error, ErrorKind, Read, Result};
 
+#[derive(Clone, Default)]
+pub enum Endianness {
+    #[default]
+    Big,
+    Little,
+}
+
 /// Reader for parsing mp4 files.
 #[derive(Clone, Default)]
 pub struct Reader {
+    endian: Endianness,
     inner: Cursor<Vec<u8>>,
-    little_endian: bool,
 }
 
 impl Reader {
-    pub fn new(data: &[u8], little_endian: bool) -> Self {
+    pub fn new_big_endian(data: Vec<u8>) -> Self {
         Self {
-            inner: Cursor::new(data.to_vec()),
-            little_endian,
+            endian: Endianness::Big,
+            inner: Cursor::new(data),
+        }
+    }
+
+    pub fn new_little_endian(data: Vec<u8>) -> Self {
+        Self {
+            endian: Endianness::Little,
+            inner: Cursor::new(data),
         }
     }
 
@@ -35,14 +49,27 @@ impl Reader {
         self.inner.position()
     }
 
+    pub fn skip(&mut self, bytes: u64) -> Result<()> {
+        let position = self.get_position() + bytes;
+
+        if position > self.get_length() {
+            return Err(Error::new(
+                ErrorKind::OutOfMemory,
+                "Reader skips out of memory bounds.",
+            ));
+        }
+
+        self.inner.set_position(position);
+        Ok(())
+    }
+
     pub fn read_u8(&mut self) -> Result<u8> {
         let mut buf = [0; 1];
         self.inner.read_exact(&mut buf)?;
 
-        if self.little_endian {
-            Ok(u8::from_le_bytes(buf))
-        } else {
-            Ok(u8::from_be_bytes(buf))
+        match self.endian {
+            Endianness::Big => Ok(u8::from_be_bytes(buf)),
+            Endianness::Little => Ok(u8::from_le_bytes(buf)),
         }
     }
 
@@ -50,21 +77,9 @@ impl Reader {
         let mut buf = [0; 2];
         self.inner.read_exact(&mut buf)?;
 
-        if self.little_endian {
-            Ok(u16::from_le_bytes(buf))
-        } else {
-            Ok(u16::from_be_bytes(buf))
-        }
-    }
-
-    pub fn read_i32(&mut self) -> Result<i32> {
-        let mut buf = [0; 4];
-        self.inner.read_exact(&mut buf)?;
-
-        if self.little_endian {
-            Ok(i32::from_le_bytes(buf))
-        } else {
-            Ok(i32::from_be_bytes(buf))
+        match self.endian {
+            Endianness::Big => Ok(u16::from_be_bytes(buf)),
+            Endianness::Little => Ok(u16::from_le_bytes(buf)),
         }
     }
 
@@ -72,10 +87,9 @@ impl Reader {
         let mut buf = [0; 4];
         self.inner.read_exact(&mut buf)?;
 
-        if self.little_endian {
-            Ok(u32::from_le_bytes(buf))
-        } else {
-            Ok(u32::from_be_bytes(buf))
+        match self.endian {
+            Endianness::Big => Ok(u32::from_be_bytes(buf)),
+            Endianness::Little => Ok(u32::from_le_bytes(buf)),
         }
     }
 
@@ -83,10 +97,9 @@ impl Reader {
         let mut buf = [0; 8];
         self.inner.read_exact(&mut buf)?;
 
-        if self.little_endian {
-            Ok(u64::from_le_bytes(buf))
-        } else {
-            Ok(u64::from_be_bytes(buf))
+        match self.endian {
+            Endianness::Big => Ok(u64::from_be_bytes(buf)),
+            Endianness::Little => Ok(u64::from_le_bytes(buf)),
         }
     }
 
@@ -96,32 +109,25 @@ impl Reader {
         Ok(buf)
     }
 
-    // https://stackoverflow.com/questions/73176253/how-to-reencode-a-utf-16-byte-array-as-utf-8
     pub fn read_bytes_u16(&mut self, bytes: usize) -> Result<Vec<u16>> {
         Ok(self
             .read_bytes_u8(bytes)?
-            .chunks(2)
-            .map(|x| {
-                if self.little_endian {
-                    u16::from_le_bytes(x.try_into().unwrap())
-                } else {
-                    u16::from_be_bytes(x.try_into().unwrap())
-                }
+            .chunks_exact(2)
+            .into_iter()
+            .map(|x| match self.endian {
+                Endianness::Big => u16::from_be_bytes([x[0], x[1]]),
+                Endianness::Little => u16::from_le_bytes([x[0], x[1]]),
             })
-            .collect::<Vec<_>>())
+            .collect())
     }
 
-    pub fn skip(&mut self, bytes: u64) -> Result<()> {
-        let position = self.get_position() + bytes;
+    pub fn read_i32(&mut self) -> Result<i32> {
+        let mut buf = [0; 4];
+        self.inner.read_exact(&mut buf)?;
 
-        if position > self.get_length() {
-            return Err(Error::new(
-                ErrorKind::OutOfMemory,
-                "mp4reader: out of bounds",
-            ));
+        match self.endian {
+            Endianness::Big => Ok(i32::from_be_bytes(buf)),
+            Endianness::Little => Ok(i32::from_le_bytes(buf)),
         }
-
-        self.inner.set_position(position);
-        Ok(())
     }
 }

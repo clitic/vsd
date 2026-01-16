@@ -12,33 +12,21 @@ use base64::Engine;
 use serde::Deserialize;
 
 pub(super) fn parse(data: &[u8]) -> Result<impl IntoIterator<Item = KeyId>> {
-    let mut reader = Reader::new(data, true);
-    let size = reader
-        .read_u32()
-        .map_err(|_| Error::new_read("PSSH box playready object size (u32)."))?;
+    let mut reader = Reader::new_little_endian(data.to_vec());
+    let size = reader.read_u32()?;
 
     if size as usize != data.len() {
         return Err(Error::new("invalid length of PSSH box playready object."));
     }
 
-    let count = reader
-        .read_u16()
-        .map_err(|_| Error::new_read("PSSH box playready object record count (u16)."))?;
+    let count = reader.read_u16()?;
 
     let mut kids = vec![];
 
     for _ in 0..count {
-        let record_type = reader
-            .read_u16()
-            .map_err(|_| Error::new_read("PSSH box playready object record type (u16)."))?;
-        let record_len = reader
-            .read_u16()
-            .map_err(|_| Error::new_read("PSSH box playready object record size (u16)."))?;
-        let record_data = reader.read_bytes_u16(record_len as usize).map_err(|_| {
-            Error::new_read(format!(
-                "PSSH box playready object record data ({record_len} bytes)."
-            ))
-        })?;
+        let record_type = reader.read_u16()?;
+        let record_len = reader.read_u16()?;
+        let record_data = reader.read_bytes_u16(record_len as usize)?;
 
         match record_type {
             1 => {
@@ -64,7 +52,7 @@ pub(super) fn parse(data: &[u8]) -> Result<impl IntoIterator<Item = KeyId>> {
     }
 
     if reader.has_more_data() {
-        return Err(Error::new_read(
+        return Err(Error::new(
             "PSSH box extra data after playready object records.",
         ));
     }
