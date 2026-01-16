@@ -16,7 +16,7 @@ use crate::{
 };
 use std::sync::{Arc, Mutex};
 
-const COMMAN_SYSTEM_ID: &str = "1077efecc0b24d02ace33c1e52e2fb4b";
+const COMMON_SYSTEM_ID: &str = "1077efecc0b24d02ace33c1e52e2fb4b";
 const PLAYREADY_SYSTEM_ID: &str = "9a04f07998404286ab92e65be0885f95";
 const WIDEVINE_SYSTEM_ID: &str = "edef8ba979d64acea3c827dcd51d21ed";
 
@@ -31,11 +31,11 @@ impl KeyId {
     pub fn uuid(&self) -> String {
         format!(
             "{}-{}-{}-{}-{}",
-            self.value.get(..8).unwrap(),
-            self.value.get(8..12).unwrap(),
-            self.value.get(12..16).unwrap(),
-            self.value.get(16..20).unwrap(),
-            self.value.get(20..).unwrap()
+            &self.value[..8],
+            &self.value[8..12],
+            &self.value[12..16],
+            &self.value[16..20],
+            &self.value[20..]
         )
     }
 }
@@ -43,7 +43,7 @@ impl KeyId {
 /// System id type parsed from `pssh` box.
 #[derive(Clone)]
 pub enum KeyIdSystemType {
-    Comman,
+    Common,
     Other(String),
     PlayReady,
     WideVine,
@@ -55,7 +55,7 @@ impl std::fmt::Display for KeyIdSystemType {
             f,
             "{}",
             match self {
-                KeyIdSystemType::Comman => "comman",
+                KeyIdSystemType::Common => "common",
                 KeyIdSystemType::Other(x) => x,
                 KeyIdSystemType::PlayReady => "playready",
                 KeyIdSystemType::WideVine => "widevine",
@@ -137,8 +137,8 @@ impl Pssh {
                 let key_id = hex::encode(box_.reader.read_bytes_u8(16)?);
                 self.key_ids.push(KeyId {
                     value: key_id,
-                    system_type: if system_id == COMMAN_SYSTEM_ID {
-                        KeyIdSystemType::Comman
+                    system_type: if system_id == COMMON_SYSTEM_ID {
+                        KeyIdSystemType::Common
                     } else {
                         KeyIdSystemType::Other(system_id.clone())
                     },

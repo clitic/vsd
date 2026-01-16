@@ -16,21 +16,16 @@ pub type HandlerResult = Result<(), Error>;
 pub type CallbackType = Arc<dyn Fn(ParsedBox) -> HandlerResult>;
 
 /// Mp4 file parser.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Mp4Parser {
-    pub headers: HashMap<usize, BoxType>,
-    pub box_definitions: HashMap<usize, CallbackType>,
-    pub done: bool,
+    headers: HashMap<usize, BoxType>,
+    box_definitions: HashMap<usize, CallbackType>,
+    done: bool,
 }
 
 impl Mp4Parser {
-    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        Self {
-            headers: HashMap::new(),
-            box_definitions: HashMap::new(),
-            done: false,
-        }
+        Self::default()
     }
 
     /// Declare a box type as a Basic Box.
