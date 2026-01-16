@@ -9,8 +9,7 @@ struct ProgressInner {
     counter: usize,
     id: String,
     total: usize,
-    last_bytes: usize,
-    last_time: Instant,
+    timer: Instant,
     total_bytes: usize,
 }
 
@@ -26,8 +25,7 @@ impl Progress {
                 counter: 0,
                 id: id.to_owned(),
                 total,
-                last_bytes: 0,
-                last_time: Instant::now(),
+                timer: Instant::now(),
                 total_bytes: 0,
             })),
         }
@@ -39,24 +37,20 @@ impl Progress {
         inner.counter += 1;
         inner.total_bytes += chunk_bytes;
 
-        let now = Instant::now();
-        let elapsed_secs = now.duration_since(inner.last_time).as_secs_f64();
         let remaining_bytes =
             ((inner.total_bytes as f64 / inner.counter as f64) * inner.total as f64) as usize;
+
         let percent = if inner.total > 0 {
             (inner.counter as f64 / inner.total as f64 * 100.0) as usize
         } else {
             100
         };
 
-        // FIX - Speed and ETA smoothning
-        let speed = if elapsed_secs > 0.0 {
-            (inner.total_bytes.saturating_sub(inner.last_bytes)) as f64 / elapsed_secs
-        } else {
-            0.0
-        };
-        let eta_secs = (inner.total.saturating_sub(inner.counter) as f64 * elapsed_secs) as usize;
-        // let eta_secs = (remaining_bytes as f64 / speed) as usize;
+        let elapsed_secs = inner.timer.elapsed().as_secs_f64();
+        let rate = inner.counter as f64 / elapsed_secs;
+
+        let speed = inner.total_bytes as f64 / elapsed_secs;
+        let eta_secs = (inner.total.saturating_sub(inner.counter) as f64 / rate) as usize;
 
         let stderr = io::stderr();
         let mut handle = stderr.lock();
@@ -75,9 +69,6 @@ impl Progress {
         )
         .unwrap();
         handle.flush().unwrap();
-
-        inner.last_bytes = inner.total_bytes;
-        inner.last_time = now;
     }
 }
 
