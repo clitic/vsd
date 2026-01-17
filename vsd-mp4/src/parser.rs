@@ -2,8 +2,9 @@
     REFERENCES
     ----------
 
-    1. https://github.com/shaka-project/shaka-player/blob/7098f43f70119226bca2e5583833aaf27b498e33/lib/util/mp4_box_parsers.js
+    1. https://github.com/shaka-project/shaka-player/blob/7098f43f70119226bca2e5583833aaf27b498e33/lib/util/mp4_parser.js
     2. https://github.com/shaka-project/shaka-player/blob/7098f43f70119226bca2e5583833aaf27b498e33/externs/shaka/mp4_parser.js
+    3. https://github.com/shaka-project/shaka-player/blob/7098f43f70119226bca2e5583833aaf27b498e33/lib/util/mp4_box_parsers.js
 
 */
 
@@ -16,10 +17,10 @@ pub type HandlerResult = Result<(), Error>;
 pub type CallbackType = Rc<dyn Fn(ParsedBox) -> HandlerResult>;
 
 /// Mp4 file parser.
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct Mp4Parser {
-    headers: HashMap<usize, BoxType>,
-    box_definitions: HashMap<usize, CallbackType>,
+    // headers: HashMap<usize, BoxType>,
+    box_definitions: HashMap<usize, (BoxType, CallbackType)>,
     done: bool,
 }
 
@@ -31,16 +32,16 @@ impl Mp4Parser {
     /// Declare a box type as a Basic Box.
     pub fn base_box(mut self, type_: &str, definition: CallbackType) -> Self {
         let type_code = type_from_string(type_);
-        self.headers.insert(type_code, BoxType::BasicBox);
-        self.box_definitions.insert(type_code, definition);
+        self.box_definitions
+            .insert(type_code, (BoxType::BasicBox, definition));
         self
     }
 
     /// Declare a box type as a Full Box.
     pub fn full_box(mut self, type_: &str, definition: CallbackType) -> Self {
         let type_code = type_from_string(type_);
-        self.headers.insert(type_code, BoxType::FullBox);
-        self.box_definitions.insert(type_code, definition);
+        self.box_definitions
+            .insert(type_code, (BoxType::FullBox, definition));
         self
     }
 
@@ -106,7 +107,6 @@ impl Mp4Parser {
         let type_ = reader.read_u32()? as usize;
         let name = type_to_string(type_)?;
         let mut has_64_bit_size = false;
-        // println!("Parsing MP4 box {}", name);
 
         match size {
             0 => size = reader.get_length() - start,
@@ -121,13 +121,14 @@ impl Mp4Parser {
             _ => (),
         }
 
-        let box_definition = self.box_definitions.get(&type_);
+        let box_definition = self.box_definitions.get(&type_).cloned();
+        // let header_type = self.headers.get(&type_).cloned();
 
-        if let Some(box_definition) = box_definition {
+        if let Some((header_type, box_definition)) = box_definition {
             let mut version = None;
             let mut flags = None;
 
-            if *self.headers.get(&type_).unwrap() == BoxType::FullBox {
+            if let BoxType::FullBox = header_type {
                 if stop_on_partial && reader.get_position() + 4 > reader.get_length() {
                     self.done = true;
                     return Ok(());
@@ -163,7 +164,7 @@ impl Mp4Parser {
 
             let box_ = ParsedBox {
                 name,
-                parser: self.clone(),
+                parser: self,
                 partial_okay,
                 stop_on_partial,
                 version,
@@ -332,11 +333,10 @@ pub fn audio_sample_entry(mut box_: ParsedBox) -> HandlerResult {
 
 /// Create a callback that tells the Mp4 parser to treat the body of a box as a
 /// binary blob and to parse the body's contents using the provided callback.
-#[allow(clippy::rc_buffer)]
 pub fn alldata(callback: Rc<dyn Fn(Vec<u8>) -> HandlerResult>) -> CallbackType {
-    Rc::new(move |mut _box| {
-        let all = _box.reader.get_length() - _box.reader.get_position();
-        callback(_box.reader.read_bytes_u8(all as usize)?)
+    Rc::new(move |mut box_| {
+        let all = box_.reader.get_length() - box_.reader.get_position();
+        callback(box_.reader.read_bytes_u8(all as usize)?)
     })
 }
 
@@ -369,20 +369,20 @@ pub fn type_to_string(type_: usize) -> Result<String, std::string::FromUtf8Error
 
 /// An enum used to track the type of box so that the correct values can be
 /// read from the header.
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub enum BoxType {
     BasicBox,
     FullBox,
 }
 
 /// Parsed mp4 box.
-pub struct ParsedBox {
+pub struct ParsedBox<'a> {
     /// The box name, a 4-character string (fourcc).
     pub name: String,
     /// The parser that parsed this box. The parser can be used to parse child
     /// boxes where the configuration of the current parser is needed to parsed
     /// other boxes.
-    pub parser: Mp4Parser,
+    pub parser: &'a mut Mp4Parser,
     /// If true, allows reading partial payloads from some boxes. If the goal is a
     /// child box, we can sometimes find it without enough data to find all child
     /// boxes. This property allows the partialOkay flag from parse() to be
@@ -407,7 +407,7 @@ pub struct ParsedBox {
     pub has_64_bit_size: bool,
 }
 
-impl ParsedBox {
+impl<'a> ParsedBox<'a> {
     /// Find the header size of the box.
     /// Useful for modifying boxes in place or finding the exact offset of a field.
     pub fn header_size(&self) -> u64 {

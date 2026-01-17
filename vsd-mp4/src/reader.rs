@@ -55,7 +55,7 @@ impl Reader {
         if position > self.get_length() {
             return Err(Error::new(
                 ErrorKind::OutOfMemory,
-                "Reader skips out of memory bounds.",
+                "skips out of memory bounds.",
             ));
         }
 
