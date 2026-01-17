@@ -47,12 +47,7 @@ tokio = { version = "1", features = [
     "rt-multi-thread",
     "signal",
 ] }
-vsd-mp4 = { version = "0.2.0", path = "../vsd-mp4", features = [
-    "pssh",
-    "sidx",
-    "text-ttml",
-    "text-vtt",
-] }
+vsd-mp4 = { version = "0.2.0", path = "../vsd-mp4", features = ["full"] }
 
 [features]
 default = ["browser", "rustls"]

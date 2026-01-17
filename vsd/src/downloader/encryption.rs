@@ -9,7 +9,7 @@ use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
-use vsd_mp4::pssh::Pssh;
+use vsd_mp4::{parsers::TencBox, pssh::Pssh};
 
 type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
@@ -115,7 +115,7 @@ pub async fn extract_default_kids(
             let response = request.send().await?;
             let bytes = response.bytes().await?;
 
-            let default_kid = vsd_mp4::pssh::default_kid(&bytes)?;
+            let default_kid = TencBox::new().parse(&bytes)?;
             let pssh = Pssh::new(&bytes).map_err(|x| anyhow!(x))?;
 
             for kid in pssh.key_ids {

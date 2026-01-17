@@ -15,7 +15,7 @@ readme = "README.md"
 base64 = { version = "0.22", optional = true }
 hex = { version = "0.4", optional = true }
 prost = { version = "0.14", optional = true }
-quick-xml = { version = "0.38", features = ["serialize"], optional = true }
+quick-xml = { version = "0.39", features = ["serialize"], optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 thiserror = { version = "2" }
 
@@ -23,11 +23,12 @@ thiserror = { version = "2" }
 prost-build = { version = "0.14", optional = true }
 
 [features]
+full = ["pssh", "sidx", "tenc", "text-ttml", "text-vtt"]
 pssh = ["dep:base64", "dep:hex", "dep:prost", "dep:prost-build", "dep:serde"]
 sidx = []
+tenc = ["dep:hex"]
 text-ttml = ["dep:serde", "dep:quick-xml"]
 text-vtt = []
-# default = ["pssh", "sidx", "text-ttml", "text-vtt"]
 
 [package.metadata.docs.rs]
 all-features = true
