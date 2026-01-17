@@ -11,16 +11,13 @@
 use crate::{Error, Reader};
 use std::{collections::HashMap, rc::Rc};
 
-/// `Result` type returned when parsing an mp4 file.
-pub type HandlerResult = Result<(), Error>;
-/// Callback type for parsing an mp4 file.
-pub type CallbackType = Rc<dyn Fn(ParsedBox) -> HandlerResult>;
+type CallbackResult = Result<(), Error>;
 
 /// Mp4 file parser.
 #[derive(Default)]
 pub struct Mp4Parser {
     // headers: HashMap<usize, BoxType>,
-    box_definitions: HashMap<usize, (BoxType, CallbackType)>,
+    box_definitions: HashMap<usize, (BoxType, Rc<dyn Fn(ParsedBox) -> CallbackResult>)>,
     done: bool,
 }
 
@@ -33,7 +30,7 @@ impl Mp4Parser {
     pub fn base_box(
         mut self,
         type_: &str,
-        definition: impl Fn(ParsedBox) -> HandlerResult + 'static,
+        definition: impl Fn(ParsedBox) -> CallbackResult + 'static,
     ) -> Self {
         let type_code = type_from_string(type_);
         self.box_definitions
@@ -45,7 +42,7 @@ impl Mp4Parser {
     pub fn full_box(
         mut self,
         type_: &str,
-        definition: impl Fn(ParsedBox) -> HandlerResult + 'static,
+        definition: impl Fn(ParsedBox) -> CallbackResult + 'static,
     ) -> Self {
         let type_code = type_from_string(type_);
         self.box_definitions
@@ -73,7 +70,7 @@ impl Mp4Parser {
         data: &[u8],
         partial_okay: bool,
         stop_on_partial: bool,
-    ) -> HandlerResult {
+    ) -> CallbackResult {
         let mut reader = Reader::new_big_endian(data);
 
         self.done = false;
@@ -102,7 +99,7 @@ impl Mp4Parser {
         reader: &mut Reader,
         partial_okay: bool,
         stop_on_partial: bool,
-    ) -> HandlerResult {
+    ) -> CallbackResult {
         let start = reader.get_position();
 
         // size(4 bytes) + type(4 bytes) = 8 bytes
@@ -202,7 +199,7 @@ impl Mp4Parser {
 
 /// A callback that tells the Mp4 parser to treat the body of a box as a series
 /// of boxes. The number of boxes is limited by the size of the parent box.
-pub fn children(mut box_: ParsedBox) -> HandlerResult {
+pub fn children(mut box_: ParsedBox) -> CallbackResult {
     // The "reader" starts at the payload, so we need to add the header to the
     // start position.  The header size varies.
     let header_size = box_.header_size();
@@ -223,7 +220,7 @@ pub fn children(mut box_: ParsedBox) -> HandlerResult {
 /// description. A sample description box has a fixed number of children. The
 /// number of children is represented by a 4 byte unsigned integer. Each child
 /// is a box.
-pub fn sample_description(mut box_: ParsedBox) -> HandlerResult {
+pub fn sample_description(mut box_: ParsedBox) -> CallbackResult {
     // The "reader" starts at the payload, so we need to add the header to the
     // start position.  The header size varies.
     let header_size = box_.header_size();
@@ -249,7 +246,7 @@ pub fn sample_description(mut box_: ParsedBox) -> HandlerResult {
 /// sample entry. A visual sample entry has some fixed-sized fields
 /// describing the video codec parameters, followed by an arbitrary number of
 /// appended children. Each child is a box.
-pub fn visual_sample_entry(mut box_: ParsedBox) -> HandlerResult {
+pub fn visual_sample_entry(mut box_: ParsedBox) -> CallbackResult {
     // The "reader" starts at the payload, so we need to add the header to the
     // start position.  The header size varies.
     let header_size = box_.header_size();
@@ -284,7 +281,7 @@ pub fn visual_sample_entry(mut box_: ParsedBox) -> HandlerResult {
 /// sample entry.  A audio sample entry has some fixed-sized fields
 /// describing the audio codec parameters, followed by an arbitrary number of
 /// ppended children.  Each child is a box.
-pub fn audio_sample_entry(mut box_: ParsedBox) -> HandlerResult {
+pub fn audio_sample_entry(mut box_: ParsedBox) -> CallbackResult {
     // The "reader" starts at the payload, so we need to add the header to the
     // start position.  The header size varies.
     let header_size = box_.header_size();
@@ -342,8 +339,8 @@ pub fn audio_sample_entry(mut box_: ParsedBox) -> HandlerResult {
 /// Create a callback that tells the Mp4 parser to treat the body of a box as a
 /// binary blob and to parse the body's contents using the provided callback.
 pub fn alldata(
-    callback: impl Fn(Vec<u8>) -> HandlerResult + 'static,
-) -> impl Fn(ParsedBox) -> HandlerResult + 'static {
+    callback: impl Fn(Vec<u8>) -> CallbackResult + 'static,
+) -> impl Fn(ParsedBox) -> CallbackResult + 'static {
     move |mut box_| {
         let all = box_.reader.get_length() - box_.reader.get_position();
         callback(box_.reader.read_bytes_u8(all as usize)?)
