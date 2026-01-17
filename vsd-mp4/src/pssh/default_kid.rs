@@ -19,23 +19,20 @@ pub fn default_kid(data: &[u8]) -> Result<Option<String>> {
     let default_kid_c = default_kid.clone();
 
     Mp4Parser::new()
-        .base_box("moov", Rc::new(parser::children))
-        .base_box("trak", Rc::new(parser::children))
-        .base_box("mdia", Rc::new(parser::children))
-        .base_box("minf", Rc::new(parser::children))
-        .base_box("stbl", Rc::new(parser::children))
-        .full_box("stsd", Rc::new(parser::sample_description))
-        .base_box("encv", Rc::new(parser::visual_sample_entry))
-        .base_box("enca", Rc::new(parser::audio_sample_entry))
-        .base_box("sinf", Rc::new(parser::children))
-        .base_box("schi", Rc::new(parser::children))
-        .full_box(
-            "tenc",
-            Rc::new(move |mut _box| {
-                *default_kid_c.borrow_mut() = Some(parse_tenc(&mut _box)?);
-                Ok(())
-            }),
-        )
+        .base_box("moov", parser::children)
+        .base_box("trak", parser::children)
+        .base_box("mdia", parser::children)
+        .base_box("minf", parser::children)
+        .base_box("stbl", parser::children)
+        .full_box("stsd", parser::sample_description)
+        .base_box("encv", parser::visual_sample_entry)
+        .base_box("enca", parser::audio_sample_entry)
+        .base_box("sinf", parser::children)
+        .base_box("schi", parser::children)
+        .full_box("tenc", move |mut _box| {
+            *default_kid_c.borrow_mut() = Some(parse_tenc(&mut _box)?);
+            Ok(())
+        })
         .parse(data, true, false)?;
 
     let default_kid = default_kid.borrow();

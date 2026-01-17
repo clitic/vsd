@@ -30,18 +30,26 @@ impl Mp4Parser {
     }
 
     /// Declare a box type as a Basic Box.
-    pub fn base_box(mut self, type_: &str, definition: CallbackType) -> Self {
+    pub fn base_box(
+        mut self,
+        type_: &str,
+        definition: impl Fn(ParsedBox) -> HandlerResult + 'static,
+    ) -> Self {
         let type_code = type_from_string(type_);
         self.box_definitions
-            .insert(type_code, (BoxType::BasicBox, definition));
+            .insert(type_code, (BoxType::BasicBox, Rc::new(definition)));
         self
     }
 
     /// Declare a box type as a Full Box.
-    pub fn full_box(mut self, type_: &str, definition: CallbackType) -> Self {
+    pub fn full_box(
+        mut self,
+        type_: &str,
+        definition: impl Fn(ParsedBox) -> HandlerResult + 'static,
+    ) -> Self {
         let type_code = type_from_string(type_);
         self.box_definitions
-            .insert(type_code, (BoxType::FullBox, definition));
+            .insert(type_code, (BoxType::FullBox, Rc::new(definition)));
         self
     }
 
@@ -333,11 +341,13 @@ pub fn audio_sample_entry(mut box_: ParsedBox) -> HandlerResult {
 
 /// Create a callback that tells the Mp4 parser to treat the body of a box as a
 /// binary blob and to parse the body's contents using the provided callback.
-pub fn alldata(callback: Rc<dyn Fn(Vec<u8>) -> HandlerResult>) -> CallbackType {
-    Rc::new(move |mut box_| {
+pub fn alldata(
+    callback: impl Fn(Vec<u8>) -> HandlerResult + 'static,
+) -> impl Fn(ParsedBox) -> HandlerResult + 'static {
+    move |mut box_| {
         let all = box_.reader.get_length() - box_.reader.get_position();
         callback(box_.reader.read_bytes_u8(all as usize)?)
-    })
+    }
 }
 
 // UTILS

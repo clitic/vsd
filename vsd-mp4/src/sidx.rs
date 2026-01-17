@@ -25,13 +25,10 @@ pub fn parse(data: &[u8], sidx_offset: u64) -> Result<Vec<Range>> {
     let references_c = references.clone();
 
     Mp4Parser::new()
-        .full_box(
-            "sidx",
-            Rc::new(move |mut _box| {
-                *references_c.borrow_mut() = parse_sidx(&mut _box, sidx_offset)?;
-                Ok(())
-            }),
-        )
+        .full_box("sidx", move |mut _box| {
+            *references_c.borrow_mut() = parse_sidx(&mut _box, sidx_offset)?;
+            Ok(())
+        })
         .parse(data, false, false)?;
 
     let references = references.borrow().to_vec();

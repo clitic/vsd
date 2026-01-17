@@ -32,32 +32,26 @@ impl Mp4VttParser {
         let timescale_c = timescale.clone();
 
         Mp4Parser::new()
-            .base_box("moov", Rc::new(parser::children))
-            .base_box("trak", Rc::new(parser::children))
-            .base_box("mdia", Rc::new(parser::children))
-            .full_box(
-                "mdhd",
-                Rc::new(move |mut _box| {
-                    let _box_version = _box.version.unwrap();
-                    if _box_version != 0 && _box_version != 1 {
-                        bail!("MDHD box version can only be 0 or 1.");
-                    }
-                    let parsed_mdhd_box = MDHDBox::parse(&mut _box.reader, _box_version)?;
-                    *timescale_c.borrow_mut() = Some(parsed_mdhd_box.timescale);
-                    Ok(())
-                }),
-            )
-            .base_box("minf", Rc::new(parser::children))
-            .base_box("stbl", Rc::new(parser::children))
-            .full_box("stsd", Rc::new(parser::sample_description))
-            .base_box(
-                "wvtt",
-                Rc::new(move |_box| {
-                    // A valid vtt init segment, though we have no actual subtitles yet.
-                    *saw_wvtt_c.borrow_mut() = true;
-                    Ok(())
-                }),
-            )
+            .base_box("moov", parser::children)
+            .base_box("trak", parser::children)
+            .base_box("mdia", parser::children)
+            .full_box("mdhd", move |mut _box| {
+                let _box_version = _box.version.unwrap();
+                if _box_version != 0 && _box_version != 1 {
+                    bail!("MDHD box version can only be 0 or 1.");
+                }
+                let parsed_mdhd_box = MDHDBox::parse(&mut _box.reader, _box_version)?;
+                *timescale_c.borrow_mut() = Some(parsed_mdhd_box.timescale);
+                Ok(())
+            })
+            .base_box("minf", parser::children)
+            .base_box("stbl", parser::children)
+            .full_box("stsd", parser::sample_description)
+            .base_box("wvtt", move |_box| {
+                // A valid vtt init segment, though we have no actual subtitles yet.
+                *saw_wvtt_c.borrow_mut() = true;
+                Ok(())
+            })
             .parse(data, false, false)?;
 
         let saw_wvtt = *saw_wvtt.borrow();
@@ -95,58 +89,46 @@ impl Mp4VttParser {
         let timescale = self.timescale;
 
         Mp4Parser::new()
-            .base_box("moof", Rc::new(parser::children))
-            .base_box("traf", Rc::new(parser::children))
-            .full_box(
-                "tfdt",
-                Rc::new(move |mut _box| {
-                    *saw_tfdt_c.borrow_mut() = true;
+            .base_box("moof", parser::children)
+            .base_box("traf", parser::children)
+            .full_box("tfdt", move |mut _box| {
+                *saw_tfdt_c.borrow_mut() = true;
 
-                    let _box_version = _box.version.unwrap();
-                    if _box_version != 0 && _box_version != 1 {
-                        bail!("TFDT version can only be 0 or 1.");
-                    }
+                let _box_version = _box.version.unwrap();
+                if _box_version != 0 && _box_version != 1 {
+                    bail!("TFDT version can only be 0 or 1.");
+                }
 
-                    let parsed_tfdt_box = TFDTBox::parse(&mut _box.reader, _box_version)?;
-                    *base_time_c.borrow_mut() = parsed_tfdt_box.base_media_decode_time;
-                    Ok(())
-                }),
-            )
-            .full_box(
-                "tfhd",
-                Rc::new(move |mut box_| {
-                    if box_.flags.is_none() {
-                        bail!("TFHD box should have a valid flags value.");
-                    }
+                let parsed_tfdt_box = TFDTBox::parse(&mut _box.reader, _box_version)?;
+                *base_time_c.borrow_mut() = parsed_tfdt_box.base_media_decode_time;
+                Ok(())
+            })
+            .full_box("tfhd", move |mut box_| {
+                if box_.flags.is_none() {
+                    bail!("TFHD box should have a valid flags value.");
+                }
 
-                    let parsed_tfhd_box = TFHDBox::parse(&mut box_.reader, box_.flags.unwrap())?;
-                    *default_duration_c.borrow_mut() = parsed_tfhd_box.default_sample_duration;
-                    Ok(())
-                }),
-            )
-            .full_box(
-                "trun",
-                Rc::new(move |mut box_| {
-                    *saw_trun_c.borrow_mut() = true;
-                    if box_.version.is_none() {
-                        bail!("TRUN box should have a valid version value.");
-                    }
-                    if box_.flags.is_none() {
-                        bail!("TRUN box should have a valid flags value.");
-                    }
+                let parsed_tfhd_box = TFHDBox::parse(&mut box_.reader, box_.flags.unwrap())?;
+                *default_duration_c.borrow_mut() = parsed_tfhd_box.default_sample_duration;
+                Ok(())
+            })
+            .full_box("trun", move |mut box_| {
+                *saw_trun_c.borrow_mut() = true;
+                if box_.version.is_none() {
+                    bail!("TRUN box should have a valid version value.");
+                }
+                if box_.flags.is_none() {
+                    bail!("TRUN box should have a valid flags value.");
+                }
 
-                    let parsed_trun_box = TRUNBox::parse(
-                        &mut box_.reader,
-                        box_.version.unwrap(),
-                        box_.flags.unwrap(),
-                    )?;
-                    *presentations_c.borrow_mut() = parsed_trun_box.sample_data;
-                    Ok(())
-                }),
-            )
+                let parsed_trun_box =
+                    TRUNBox::parse(&mut box_.reader, box_.version.unwrap(), box_.flags.unwrap())?;
+                *presentations_c.borrow_mut() = parsed_trun_box.sample_data;
+                Ok(())
+            })
             .base_box(
                 "mdat",
-                parser::alldata(Rc::new(move |data| {
+                parser::alldata(move |data| {
                     let base_time = *base_time.borrow();
                     let presentations = presentations.borrow();
                     let saw_tfdt = *saw_tfdt.borrow();
@@ -168,7 +150,7 @@ impl Mp4VttParser {
                     cues_c.borrow_mut().extend(parsed_cues);
 
                     Ok(())
-                })),
+                }),
             )
             .parse(data, false, false)?;
 
@@ -281,24 +263,24 @@ fn parse_vttc(data: &[u8], start_time: f32, end_time: f32) -> Result<Option<Cue>
     Mp4Parser::new()
         .base_box(
             "payl",
-            parser::alldata(Rc::new(move |data| {
+            parser::alldata(move |data| {
                 *payload_c.borrow_mut() = String::from_utf8(data)?;
                 Ok(())
-            })),
+            }),
         )
         .base_box(
             "iden",
-            parser::alldata(Rc::new(move |data| {
+            parser::alldata(move |data| {
                 *id_c.borrow_mut() = String::from_utf8(data)?;
                 Ok(())
-            })),
+            }),
         )
         .base_box(
             "sttg",
-            parser::alldata(Rc::new(move |data| {
+            parser::alldata(move |data| {
                 *settings_c.borrow_mut() = String::from_utf8(data)?;
                 Ok(())
-            })),
+            }),
         )
         .parse(data, false, false)?;
 

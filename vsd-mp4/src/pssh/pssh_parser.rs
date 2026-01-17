@@ -80,12 +80,11 @@ impl Pssh {
         let pssh_c = pssh.clone();
 
         Mp4Parser::new()
-            .base_box("moov", Rc::new(parser::children))
-            .base_box("moof", Rc::new(parser::children))
-            .full_box(
-                "pssh",
-                Rc::new(move |mut _box| pssh_c.borrow_mut().parse_pssh_box(&mut _box)),
-            )
+            .base_box("moov", parser::children)
+            .base_box("moof", parser::children)
+            .full_box("pssh", move |mut _box| {
+                pssh_c.borrow_mut().parse_pssh_box(&mut _box)
+            })
             .parse(data, false, false)?;
 
         let pssh = pssh.borrow();

@@ -23,20 +23,17 @@ impl Mp4TtmlParser {
         let saw_stpp_c = saw_stpp.clone();
 
         Mp4Parser::new()
-            .base_box("moov", Rc::new(parser::children))
-            .base_box("trak", Rc::new(parser::children))
-            .base_box("mdia", Rc::new(parser::children))
-            .base_box("minf", Rc::new(parser::children))
-            .base_box("stbl", Rc::new(parser::children))
-            .full_box("stsd", Rc::new(parser::sample_description))
-            .base_box(
-                "stpp",
-                Rc::new(move |mut _box| {
-                    *saw_stpp_c.borrow_mut() = true;
-                    _box.parser.stop();
-                    Ok(())
-                }),
-            )
+            .base_box("moov", parser::children)
+            .base_box("trak", parser::children)
+            .base_box("mdia", parser::children)
+            .base_box("minf", parser::children)
+            .base_box("stbl", parser::children)
+            .full_box("stsd", parser::sample_description)
+            .base_box("stpp", move |mut _box| {
+                *saw_stpp_c.borrow_mut() = true;
+                _box.parser.stop();
+                Ok(())
+            })
             .parse(data, false, false)?;
 
         let saw_stpp = *saw_stpp.borrow();
@@ -59,7 +56,7 @@ impl Mp4TtmlParser {
         Mp4Parser::new()
             .base_box(
                 "mdat",
-                parser::alldata(Rc::new(move |data| {
+                parser::alldata(move |data| {
                     *saw_mdat_c.borrow_mut() = true;
                     // Join this to any previous payload, in case the mp4 has multiple
                     // mdats.
@@ -70,7 +67,7 @@ impl Mp4TtmlParser {
                             .into_cues(),
                     );
                     Ok(())
-                })),
+                }),
             )
             .parse(data, false, false)?;
 
