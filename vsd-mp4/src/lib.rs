@@ -13,8 +13,11 @@
 //! - **text-ttml**: Enables support for extracting ttml subtitles.
 //! - **text-vtt**: Enables support for extracting vtt subtitles.
 
-#[cfg(any(feature = "sidx", feature = "tenc"))]
-#[cfg_attr(docsrs, doc(cfg(any(feature = "sidx", feature = "tenc"))))]
+#[cfg(any(feature = "sidx", feature = "tenc", feature = "text-vtt"))]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(any(feature = "sidx", feature = "tenc", feature = "text-vtt")))
+)]
 pub mod parsers;
 
 #[cfg(feature = "pssh")]

@@ -8,7 +8,6 @@
 
 */
 
-mod boxes;
 mod subtitles;
 
 use subtitles::Cue;

@@ -11,3 +11,31 @@ mod tenc;
 #[cfg(feature = "tenc")]
 #[cfg_attr(docsrs, doc(cfg(feature = "tenc")))]
 pub use tenc::TencBox;
+
+#[cfg(feature = "text-vtt")]
+mod mdhd;
+
+#[cfg(feature = "text-vtt")]
+#[cfg_attr(docsrs, doc(cfg(feature = "text-vtt")))]
+pub use mdhd::MDHDBox;
+
+#[cfg(feature = "text-vtt")]
+mod tfdt;
+
+#[cfg(feature = "text-vtt")]
+#[cfg_attr(docsrs, doc(cfg(feature = "text-vtt")))]
+pub use tfdt::TFDTBox;
+
+#[cfg(feature = "text-vtt")]
+mod tfhd;
+
+#[cfg(feature = "text-vtt")]
+#[cfg_attr(docsrs, doc(cfg(feature = "text-vtt")))]
+pub use tfhd::TFHDBox;
+
+#[cfg(feature = "text-vtt")]
+mod trun;
+
+#[cfg(feature = "text-vtt")]
+#[cfg_attr(docsrs, doc(cfg(feature = "text-vtt")))]
+pub use trun::{TRUNBox, TRUNSample};
