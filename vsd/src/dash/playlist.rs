@@ -14,7 +14,7 @@ use anyhow::{Result, anyhow, bail};
 use dash_mpd::MPD;
 use reqwest::{Client, Url, header};
 use std::collections::HashMap;
-use vsd_mp4::parsers::SidxBox;
+use vsd_mp4::boxes::SidxBox;
 
 pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
     let mut streams = vec![];
@@ -441,7 +441,10 @@ pub(crate) async fn push_segments(
                                 })
                             }
 
-                            for range in SidxBox::new(index_range.start).parse(&bytes)? {
+                            for range in SidxBox::from_init(&bytes, index_range.start)?
+                                .map(|x| x.ranges)
+                                .unwrap_or(Vec::with_capacity(0))
+                            {
                                 playlist.segments.push(Segment {
                                     range: Some(Range {
                                         end: range.end,

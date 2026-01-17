@@ -18,7 +18,7 @@
     docsrs,
     doc(cfg(any(feature = "sidx", feature = "tenc", feature = "text-vtt")))
 )]
-pub mod parsers;
+pub mod boxes;
 
 #[cfg(feature = "pssh")]
 #[cfg_attr(docsrs, doc(cfg(feature = "pssh")))]

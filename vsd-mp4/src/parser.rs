@@ -17,6 +17,7 @@ type CallbackResult = Result<(), Error>;
 #[derive(Default)]
 pub struct Mp4Parser {
     // headers: HashMap<usize, BoxType>,
+    #[allow(clippy::type_complexity)]
     box_definitions: HashMap<usize, (BoxType, Rc<dyn Fn(ParsedBox) -> CallbackResult>)>,
     done: bool,
 }

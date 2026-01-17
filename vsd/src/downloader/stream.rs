@@ -20,7 +20,7 @@ use tokio::{
     io::{self, AsyncWriteExt},
     task::JoinSet,
 };
-use vsd_mp4::{parsers::TencBox, pssh::Pssh};
+use vsd_mp4::{boxes::TencBox, pssh::Pssh};
 
 #[allow(clippy::too_many_arguments)]
 pub async fn download_streams(
@@ -113,7 +113,9 @@ async fn download_stream(
             let response = request.send().await?;
             let bytes = response.bytes().await?;
 
-            default_kid = TencBox::new().parse(&bytes)?.or(stream.default_kid());
+            default_kid = TencBox::from_init(&bytes)?
+                .map(|x| x.default_kid)
+                .or(stream.default_kid());
             init_seg = Some(bytes.to_vec())
         }
 

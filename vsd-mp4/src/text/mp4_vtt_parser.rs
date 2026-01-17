@@ -7,9 +7,10 @@
 */
 
 use crate::{
-    Reader, Result, bail, err, parser,
+    Reader, Result, bail,
+    boxes::{MdhdBox, TfdtBox, TfhdBox, TrunBox, TrunSample},
+    err, parser,
     parser::Mp4Parser,
-    parsers::{MDHDBox, TFDTBox, TFHDBox, TRUNBox, TRUNSample},
     text::{Cue, Subtitles},
 };
 use std::{cell::RefCell, rc::Rc};
@@ -38,7 +39,7 @@ impl Mp4VttParser {
                 if _box_version != 0 && _box_version != 1 {
                     bail!("MDHD box version can only be 0 or 1.");
                 }
-                let parsed_mdhd_box = MDHDBox::new(&mut _box.reader, _box_version)?;
+                let parsed_mdhd_box = MdhdBox::new(&mut _box)?;
                 *timescale_c.borrow_mut() = Some(parsed_mdhd_box.timescale);
                 Ok(())
             })
@@ -97,7 +98,7 @@ impl Mp4VttParser {
                     bail!("TFDT version can only be 0 or 1.");
                 }
 
-                let parsed_tfdt_box = TFDTBox::new(&mut _box.reader, _box_version)?;
+                let parsed_tfdt_box = TfdtBox::new(&mut _box)?;
                 *base_time_c.borrow_mut() = parsed_tfdt_box.base_media_decode_time;
                 Ok(())
             })
@@ -106,7 +107,7 @@ impl Mp4VttParser {
                     bail!("TFHD box should have a valid flags value.");
                 }
 
-                let parsed_tfhd_box = TFHDBox::new(&mut box_.reader, box_.flags.unwrap())?;
+                let parsed_tfhd_box = TfhdBox::new(&mut box_)?;
                 *default_duration_c.borrow_mut() = parsed_tfhd_box.default_sample_duration;
                 Ok(())
             })
@@ -119,8 +120,7 @@ impl Mp4VttParser {
                     bail!("TRUN box should have a valid flags value.");
                 }
 
-                let parsed_trun_box =
-                    TRUNBox::new(&mut box_.reader, box_.version.unwrap(), box_.flags.unwrap())?;
+                let parsed_trun_box = TrunBox::new(&mut box_)?;
                 *presentations_c.borrow_mut() = parsed_trun_box.sample_data;
                 Ok(())
             })
@@ -162,7 +162,7 @@ fn parse_mdat(
     period_start: f32,
     base_time: u64,
     default_duration: Option<u32>,
-    presentations: &[TRUNSample],
+    presentations: &[TrunSample],
     raw_payload: &[u8],
 ) -> Result<impl IntoIterator<Item = Cue>> {
     let mut cues = vec![];
