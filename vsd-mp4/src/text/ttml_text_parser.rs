@@ -22,11 +22,11 @@ pub fn parse(xml: &str) -> Result<TT, DeError> {
 
 #[derive(Debug, Deserialize)]
 pub struct TT {
-    #[serde(rename = "body")]
+    #[serde(rename = "body", default)]
     pub body: Body,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct Body {
     #[serde(rename = "div", default)]
     pub divs: Vec<Div>,

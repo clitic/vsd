@@ -70,7 +70,7 @@ async fn download_subtitle_stream(
     let mut codec = None;
 
     if let Some(codecs) = &stream.codecs {
-        match codecs.as_str() {
+        match codecs.to_lowercase().as_str() {
             "vtt" => {
                 ext = "vtt";
                 codec = Some(SubtitleType::VttText);
@@ -79,7 +79,7 @@ async fn download_subtitle_stream(
                 ext = "vtt";
                 codec = Some(SubtitleType::Mp4Vtt);
             }
-            "stpp" | "stpp.ttml" | "stpp.ttml.im1t" | "stpp.TTML.im1t" => {
+            "stpp" | "stpp.ttml" | "stpp.ttml.im1t" => {
                 ext = "srt";
                 codec = Some(SubtitleType::Mp4Ttml);
             }
@@ -87,7 +87,7 @@ async fn download_subtitle_stream(
         }
     }
 
-    let mut temp_file = PathBuf::new();
+    let mut temp_file = stream.path(directory);
     let mut first_run = true;
     let mut subs_data = vec![];
 
@@ -149,7 +149,7 @@ async fn download_subtitle_stream(
                 }
             }
 
-            temp_file = stream.path(directory);
+            temp_file = temp_file.with_extension(ext);
             temp_files.push(Stream {
                 language: stream.language.clone(),
                 media_type: stream.media_type.clone(),
