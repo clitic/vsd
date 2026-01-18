@@ -1,89 +1,115 @@
-//! Parse ttml content.
-
 /*
     REFERENCES
     ----------
 
     1. https://github.com/shaka-project/shaka-player/blob/db8987d6dfdb59b9f6d187051d47edf6d846a9ed/lib/text/ttml_text_parser.js
-    2. https://w3c.github.io/ttml3
+    2. https://w3c.github.io/ttml2
     3. https://www.speechpad.com/captions/ttml
 
 */
 
+//! Parse ttml content.
+
 use crate::text::{Cue, Subtitles};
-use serde::Deserialize;
-
 pub use quick_xml::de::DeError;
+use serde::Deserialize;
+use std::num::ParseFloatError;
 
-// TODO - Parse span (cdata) in `p` node when quick-xml supports cdata+text parsing.
-// https://docs.rs/quick-xml/latest/quick_xml/de/index.html
 /// Parse xml as ttml content.
 pub fn parse(xml: &str) -> Result<TT, DeError> {
-    let mut xml = xml
-        .replace("<br></br>", "\n")
-        .replace("<br/>", "\n")
-        .replace("<br />", "\n");
-
-    while let (Some(start), Some(end)) = (xml.find("<span"), xml.find("span>")) {
-        let span_match = xml.get(start..(end + 5)).unwrap();
-        let sub_span = xml.get((start + 5)..(end + 5)).unwrap();
-
-        if let (Some(sub_span_start), Some(sub_span_end)) =
-            (sub_span.find("<span"), sub_span.find("span>"))
-        {
-            let sub_span_match = sub_span.get(sub_span_start..(sub_span_end + 5)).unwrap();
-            // println!("sub-span-match: {}", span_match);
-            let span = quick_xml::de::from_str::<Span>(sub_span_match)?;
-            xml = xml.replace(sub_span_match, &span.format());
-            continue;
-        }
-
-        // println!("span-match: {}", span_match);
-        let span = quick_xml::de::from_str::<Span>(span_match)?;
-        xml = xml.replace(span_match, &span.format());
-    }
-
-    quick_xml::de::from_str(&xml)
+    quick_xml::de::from_str(xml)
 }
 
-#[derive(Deserialize)]
-struct Span {
-    #[serde(rename = "@color")]
-    color: Option<String>,
-    #[serde(rename = "@fontStyle")]
-    font_style: Option<String>,
-    #[serde(rename = "@fontWeight")]
-    font_weight: Option<String>,
-    #[serde(rename = "@textDecoration")]
-    text_decoration: Option<String>,
+#[derive(Debug, Deserialize)]
+pub struct TT {
+    #[serde(rename = "body")]
+    pub body: Body,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Body {
+    #[serde(rename = "div", default)]
+    pub divs: Vec<Div>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Div {
+    #[serde(rename = "p", default)]
+    pub paragraphs: Vec<Paragraph>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Paragraph {
+    #[serde(rename = "@begin")]
+    pub begin: String,
+    #[serde(rename = "@end")]
+    pub end: String,
     #[serde(rename = "$value", default)]
-    value: String,
+    pub content: Vec<TtmlContent>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TtmlContent {
+    #[serde(rename = "$text")]
+    Text(String),
+    Span(Span),
+    #[serde(rename = "br")]
+    Br,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Span {
+    #[serde(rename = "@tts:color", alias = "@color")]
+    pub color: Option<String>,
+
+    #[serde(rename = "@tts:fontStyle", alias = "@fontStyle")]
+    pub font_style: Option<String>,
+
+    #[serde(rename = "@tts:fontWeight", alias = "@fontWeight")]
+    pub font_weight: Option<String>,
+
+    #[serde(rename = "@tts:textDecoration", alias = "@textDecoration")]
+    pub text_decoration: Option<String>,
+
+    #[serde(rename = "$value", default)]
+    pub content: Vec<TtmlContent>,
+}
+
+impl TtmlContent {
+    fn format(&self) -> String {
+        match self {
+            TtmlContent::Text(t) => t.clone(),
+            TtmlContent::Br => "\n".to_owned(),
+            TtmlContent::Span(span) => {
+                let inner_text: String = span.content.iter().map(|x| x.format()).collect();
+                span.format(inner_text)
+            }
+        }
+    }
 }
 
 impl Span {
-    fn format(&self) -> String {
-        let mut value = self.value.clone();
-
+    fn format(&self, mut value: String) -> String {
         if let Some(font_weight) = &self.font_weight
             && font_weight == "bold"
         {
-            value = format!("{{b}}{value}{{/b}}");
+            value = format!("<b>{value}<b>");
         }
 
         if let Some(font_style) = &self.font_style
-            && font_style == "italic"
+            && (font_style == "italic" || font_style == "oblique")
         {
-            value = format!("{{i}}{value}{{/i}}");
+            value = format!("<i>{value}</i>");
         }
 
         if let Some(text_decoration) = &self.text_decoration
             && text_decoration == "underline"
         {
-            value = format!("{{u}}{value}{{/u}}");
+            value = format!("<u>{value}</u>");
         }
 
         if let Some(color) = &self.color {
-            value = format!("{{font color=\"{color}\">{value}{{/font}}");
             value = format!("<font color=\"{color}\">{value}</font>");
         }
 
@@ -91,65 +117,18 @@ impl Span {
     }
 }
 
-#[derive(Deserialize)]
-pub struct TT {
-    #[serde(rename = "body")]
-    pub body: Body,
-}
-
-#[derive(Deserialize)]
-pub struct Body {
-    #[serde(rename = "div", default)]
-    pub divs: Vec<Div>,
-}
-
-#[derive(Deserialize)]
-pub struct Div {
-    #[serde(rename = "p", default)]
-    pub paragraphs: Vec<Paragraph>,
-}
-
-#[derive(Deserialize)]
-pub struct Paragraph {
-    #[serde(rename = "@begin")]
-    pub begin: String,
-    #[serde(rename = "@end")]
-    pub end: String,
-    #[serde(rename = "$value")]
-    pub value: String,
-}
-
 impl TT {
     pub(super) fn into_cues(self) -> Vec<Cue> {
-        let mut cues = vec![];
+        let mut cues = Vec::new();
 
         for div in self.body.divs {
             for paragraph in &div.paragraphs {
                 cues.push(Cue {
-                    end_time: duration(&paragraph.end).unwrap_or_else(|_| {
-                        panic!(
-                            "mp4parser.ttmltextparser: could'nt convert {} to seconds.",
-                            paragraph.end
-                        )
-                    }),
+                    end_time: parse_ttml_time(&paragraph.end).unwrap(),
                     _id: String::new(),
-                    payload: paragraph
-                        .value
-                        .replace("{b}", "<b>")
-                        .replace("{/b}", "</b>")
-                        .replace("{i}", "<i>")
-                        .replace("{/i}", "</i>")
-                        .replace("{u}", "<u>")
-                        .replace("{/u}", "</u>")
-                        .replace("{font", "<font")
-                        .replace("{/font}", "</font>"),
+                    payload: paragraph.content.iter().map(|x| x.format()).collect(),
                     settings: String::new(),
-                    start_time: duration(&paragraph.begin).unwrap_or_else(|_| {
-                        panic!(
-                            "mp4parser.ttmltextparser: could'nt convert {} to seconds.",
-                            paragraph.end
-                        )
-                    }),
+                    start_time: parse_ttml_time(&paragraph.begin).unwrap(),
                 });
             }
         }
@@ -162,27 +141,54 @@ impl TT {
     }
 }
 
-fn duration(duration: &str) -> Result<f32, std::num::ParseFloatError> {
-    let duration = duration.replace('s', "").replace(',', ".");
-    let is_frame = duration.split(':').count() >= 4;
-    let mut duration = duration.split(':').rev();
-    let mut total_seconds = 0.0;
+fn parse_ttml_time(input: &str) -> Result<f32, ParseFloatError> {
+    assert!(!input.trim().is_empty());
 
-    if is_frame && let Some(seconds) = duration.next() {
-        total_seconds += seconds.parse::<f32>()? / 1000.0;
+    let seconds = if input.contains(':') {
+        parse_clock_time(input, 30.0)?
+    } else {
+        parse_offset_time(input, 30.0, 1000.0)?
+    };
+
+    Ok(seconds)
+}
+
+/// Handles "HH:MM:SS.mmm" (Standard) and "HH:MM:SS:FF" (SMPTE)
+fn parse_clock_time(input: &str, frame_rate: f32) -> Result<f32, ParseFloatError> {
+    let parts = input.split(':').collect::<Vec<&str>>();
+    assert!(!(parts.len() < 3 || parts.len() > 4));
+
+    let h = parts[0].parse::<f32>()?;
+    let m = parts[1].parse::<f32>()?;
+
+    let (s, frames) = if parts.len() == 4 {
+        let s = parts[2].parse::<f32>()?;
+        let f = parts[3].parse::<f32>()?;
+        (s, f)
+    } else {
+        let s = parts[2].parse::<f32>()?;
+        (s, 0.0)
+    };
+
+    Ok((h * 3600.0) + (m * 60.0) + s + (frames / frame_rate))
+}
+
+/// Handles "10h", "500ms", "24f", etc.
+fn parse_offset_time(input: &str, frame_rate: f32, tick_rate: f32) -> Result<f32, ParseFloatError> {
+    let split_idx = input
+        .rfind(|c: char| c.is_ascii_digit() || c == '.')
+        .unwrap();
+
+    let (value, unit) = input.split_at(split_idx + 1);
+    let value = value.parse::<f32>()?;
+
+    match unit.trim() {
+        "h" => Ok(value * 3600.0),
+        "m" => Ok(value * 60.0),
+        "s" => Ok(value),
+        "ms" => Ok(value / 1000.0),
+        "f" => Ok(value / frame_rate),
+        "t" => Ok(value / tick_rate),
+        _ => unreachable!(),
     }
-
-    if let Some(seconds) = duration.next() {
-        total_seconds += seconds.parse::<f32>()?;
-    }
-
-    if let Some(minutes) = duration.next() {
-        total_seconds += minutes.parse::<f32>()? * 60.0;
-    }
-
-    if let Some(hours) = duration.next() {
-        total_seconds += hours.parse::<f32>()? * 3600.0;
-    }
-
-    Ok(total_seconds)
 }
