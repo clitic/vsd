@@ -10,11 +10,11 @@
 
 use std::fmt::Write;
 
-pub struct Cue {
-    pub end_time: f32,
-    pub payload: String,
-    pub settings: String,
-    pub start_time: f32,
+pub(crate) struct Cue {
+    pub(crate) end_time: f32,
+    pub(crate) payload: String,
+    pub(crate) settings: String,
+    pub(crate) start_time: f32,
 }
 
 /// Subtitles builder.
@@ -24,18 +24,15 @@ pub struct Subtitles {
 }
 
 impl Subtitles {
-    /// Create new empty subtitles.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
-    /// Extend these subtitles with another subtitles.
-    pub fn extend_cues(&mut self, cues: Vec<Cue>) {
+    pub(crate) fn extend_cues(&mut self, cues: Vec<Cue>) {
         self.cues.extend(cues);
     }
 
-    /// Removes duplicate cues.
-    pub fn fix_cues(self) -> Self {
+    pub(crate) fn fix_cues(self) -> Self {
         let mut cues: Vec<Cue> = Vec::new();
 
         for cue in self.cues {

@@ -29,9 +29,9 @@ impl Mp4TtmlParser {
             .base_box("minf", parser::children)
             .base_box("stbl", parser::children)
             .full_box("stsd", parser::sample_description)
-            .base_box("stpp", move |mut _box| {
+            .base_box("stpp", move |box_| {
                 *saw_stpp_c.borrow_mut() = true;
-                _box.parser.stop();
+                box_.parser.stop();
                 Ok(())
             })
             .parse(data, false, false)?;

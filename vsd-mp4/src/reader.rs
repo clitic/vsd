@@ -8,15 +8,12 @@
 
 use std::io::{Cursor, Error, ErrorKind, Read, Result};
 
-#[derive(Clone, Default)]
 enum Endianness {
-    #[default]
     Big,
     Little,
 }
 
 /// Reader for parsing mp4 files.
-#[derive(Clone, Default)]
 pub struct Reader {
     endian: Endianness,
     inner: Cursor<Vec<u8>>,
