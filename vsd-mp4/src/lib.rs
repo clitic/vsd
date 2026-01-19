@@ -1,7 +1,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 //! This crate contains a mp4 parser ported from [shaka-player](https://github.com/shaka-project/shaka-player) project.
-//! Also, some optional features are added for parsing subtitles, `PSSH` and `SIDX` boxes.
+//! Also, some optional features are added for parsing subtitles, `PSSH`, `SIDX` and `TENC` boxes.
 //!
 //! # Optional Features
 //!
@@ -10,6 +10,7 @@
 //!
 //! - **pssh**: Enables support for parsing `PSSH` boxes.
 //! - **sidx**: Enables support for parsing `SIDX` boxes.
+//! - **tenc**: Enables support for parsing `TENC` boxes.
 //! - **text-ttml**: Enables support for extracting ttml subtitles.
 //! - **text-vtt**: Enables support for extracting vtt subtitles.
 
