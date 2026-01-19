@@ -18,7 +18,7 @@ pub struct Mp4TtmlParser;
 
 impl Mp4TtmlParser {
     /// Parse intialization segment, a valid `stpp` box should be present.
-    pub fn parse_init(data: &[u8]) -> Result<Self> {
+    pub fn from_init(data: &[u8]) -> Result<Self> {
         let saw_stpp = Rc::new(RefCell::new(false));
         let saw_stpp_c = saw_stpp.clone();
 
@@ -36,9 +36,7 @@ impl Mp4TtmlParser {
             })
             .parse(data, false, false)?;
 
-        let saw_stpp = *saw_stpp.borrow();
-
-        if !saw_stpp {
+        if !saw_stpp.take() {
             bail!("STPP box not found.");
         }
 
@@ -46,12 +44,12 @@ impl Mp4TtmlParser {
     }
 
     /// Parse media segments, only if valid `mdat` box(s) are present.
-    pub fn parse_media(&self, data: &[u8]) -> Result<Subtitles> {
+    pub fn parse(&self, data: &[u8]) -> Result<Subtitles> {
         let saw_mdat = Rc::new(RefCell::new(false));
-        let cues = Rc::new(RefCell::new(vec![]));
+        let subtitles = Rc::new(RefCell::new(Subtitles::new()));
 
         let saw_mdat_c = saw_mdat.clone();
-        let cues_c = cues.clone();
+        let subtitles_c = subtitles.clone();
 
         Mp4Parser::new()
             .base_box(
@@ -61,8 +59,8 @@ impl Mp4TtmlParser {
                     // Join this to any previous payload, in case the mp4 has multiple
                     // mdats.
                     let xml = String::from_utf8(data)?;
-                    cues_c.borrow_mut().append(
-                        &mut ttml_text_parser::parse(&xml)
+                    subtitles_c.borrow_mut().extend_cues(
+                        ttml_text_parser::parse(&xml)
                             .map_err(|x| Error::XmlDecode { error: x, xml })?
                             .into_cues(),
                     );
@@ -71,13 +69,10 @@ impl Mp4TtmlParser {
             )
             .parse(data, false, false)?;
 
-        let saw_mdat = *saw_mdat.borrow();
-
-        if !saw_mdat {
+        if !saw_mdat.take() {
             bail!("MDAT box not found.");
         }
 
-        let cues = cues.borrow().clone();
-        Ok(Subtitles::new(cues))
+        Ok(subtitles.take())
     }
 }

@@ -15,11 +15,6 @@ pub use quick_xml::de::DeError;
 use serde::Deserialize;
 use std::num::ParseFloatError;
 
-/// Parse xml as ttml content.
-pub fn parse(xml: &str) -> Result<TT, DeError> {
-    quick_xml::de::from_str(xml)
-}
-
 #[derive(Debug, Deserialize)]
 pub struct TT {
     #[serde(rename = "body", default)]
@@ -125,7 +120,6 @@ impl TT {
             for paragraph in &div.paragraphs {
                 cues.push(Cue {
                     end_time: parse_ttml_time(&paragraph.end).unwrap(),
-                    _id: String::new(),
                     payload: paragraph.content.iter().map(|x| x.format()).collect(),
                     settings: String::new(),
                     start_time: parse_ttml_time(&paragraph.begin).unwrap(),
@@ -137,8 +131,20 @@ impl TT {
     }
 
     pub fn into_subtitles(self) -> Subtitles {
-        Subtitles::new(self.into_cues())
+        let mut subs = Subtitles::new();
+        subs.extend_cues(self.into_cues());
+        subs
     }
+}
+
+/// Parse xml as ttml content.
+pub fn parse(xml: &str) -> Result<TT, DeError> {
+    quick_xml::de::from_str(xml)
+}
+
+/// Parse bytes as ttml content.
+pub fn parse_bytes(bytes: &[u8]) -> Result<TT, DeError> {
+    quick_xml::de::from_reader(bytes)
 }
 
 fn parse_ttml_time(input: &str) -> Result<f32, ParseFloatError> {

@@ -28,10 +28,10 @@ impl Extract {
         let data = std::fs::read(self.input)?;
         let subtitles;
 
-        if let Ok(vtt) = Mp4VttParser::parse_init(&data) {
-            subtitles = vtt.parse_media(&data, None)?;
-        } else if let Ok(ttml) = Mp4TtmlParser::parse_init(&data) {
-            subtitles = ttml.parse_media(&data)?;
+        if let Ok(vtt) = Mp4VttParser::from_init(&data) {
+            subtitles = vtt.parse(&data, None)?;
+        } else if let Ok(ttml) = Mp4TtmlParser::from_init(&data) {
+            subtitles = ttml.parse(&data)?;
         } else {
             bail!("cannot determine subtitles codec because neither WVTT nor STPP box is found.");
         }

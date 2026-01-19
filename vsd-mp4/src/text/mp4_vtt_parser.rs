@@ -23,7 +23,7 @@ pub struct Mp4VttParser {
 
 impl Mp4VttParser {
     /// Parse intialization segment, a valid `wvtt` box should be present.
-    pub fn parse_init(data: &[u8]) -> Result<Self> {
+    pub fn from_init(data: &[u8]) -> Result<Self> {
         let saw_wvtt = Rc::new(RefCell::new(false));
         let timescale = Rc::new(RefCell::new(None));
 
@@ -68,7 +68,7 @@ impl Mp4VttParser {
     }
 
     /// Parse media segments, only if valid `mdat` box(s) are present.
-    pub fn parse_media(&self, data: &[u8], period_start: Option<f32>) -> Result<Subtitles> {
+    pub fn parse(&self, data: &[u8], period_start: Option<f32>) -> Result<Subtitles> {
         let period_start = period_start.unwrap_or(0.0);
 
         let base_time = Rc::new(RefCell::new(0_u64));
@@ -76,14 +76,14 @@ impl Mp4VttParser {
         let saw_tfdt = Rc::new(RefCell::new(false));
         let saw_trun = Rc::new(RefCell::new(false));
         let default_duration = Rc::new(RefCell::new(None));
-        let cues = Rc::new(RefCell::new(vec![]));
+        let subtitles = Rc::new(RefCell::new(Subtitles::new()));
 
         let base_time_c = base_time.clone();
         let presentations_c = presentations.clone();
         let saw_tfdt_c = saw_tfdt.clone();
         let saw_trun_c = saw_trun.clone();
         let default_duration_c = default_duration.clone();
-        let cues_c = cues.clone();
+        let subtitles_c = subtitles.clone();
 
         let timescale = self.timescale;
 
@@ -145,15 +145,14 @@ impl Mp4VttParser {
                         &presentations,
                         &data,
                     )?;
-                    cues_c.borrow_mut().extend(parsed_cues);
+                    subtitles_c.borrow_mut().extend_cues(parsed_cues);
 
                     Ok(())
                 }),
             )
             .parse(data, false, false)?;
 
-        let cues = cues.borrow().clone();
-        Ok(Subtitles::new(cues))
+        Ok(subtitles.take())
     }
 }
 
@@ -164,7 +163,7 @@ fn parse_mdat(
     default_duration: Option<u32>,
     presentations: &[TrunSample],
     raw_payload: &[u8],
-) -> Result<impl IntoIterator<Item = Cue>> {
+) -> Result<Vec<Cue>> {
     let mut cues = vec![];
     let mut current_time = base_time;
     let mut reader = Reader::new_big_endian(raw_payload);
@@ -245,17 +244,15 @@ fn parse_mdat(
         bail!("MDAT which contain VTT cues and non-VTT data are not currently supported.");
     };
 
-    Ok(cues.into_iter().flatten())
+    Ok(cues.into_iter().flatten().collect())
 }
 
 /// Parses a vttc box into a cue.
 fn parse_vttc(data: &[u8], start_time: f32, end_time: f32) -> Result<Option<Cue>> {
     let payload = Rc::new(RefCell::new(String::new()));
-    let id = Rc::new(RefCell::new(String::new()));
     let settings = Rc::new(RefCell::new(String::new()));
 
     let payload_c = payload.clone();
-    let id_c = id.clone();
     let settings_c = settings.clone();
 
     Mp4Parser::new()
@@ -266,13 +263,13 @@ fn parse_vttc(data: &[u8], start_time: f32, end_time: f32) -> Result<Option<Cue>
                 Ok(())
             }),
         )
-        .base_box(
-            "iden",
-            parser::alldata(move |data| {
-                *id_c.borrow_mut() = String::from_utf8(data)?;
-                Ok(())
-            }),
-        )
+        // .base_box(
+        //     "iden",
+        //     parser::alldata(move |data| {
+        //         *id_c.borrow_mut() = String::from_utf8(data)?;
+        //         Ok(())
+        //     }),
+        // )
         .base_box(
             "sttg",
             parser::alldata(move |data| {
@@ -285,11 +282,9 @@ fn parse_vttc(data: &[u8], start_time: f32, end_time: f32) -> Result<Option<Cue>
     let payload = payload.borrow().to_owned();
 
     if !payload.is_empty() {
-        let id = id.borrow().to_owned();
         let settings = settings.borrow().to_owned();
         return Ok(Some(Cue {
             payload,
-            _id: id,
             settings,
             start_time,
             end_time,
