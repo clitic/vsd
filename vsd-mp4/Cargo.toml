@@ -24,7 +24,14 @@ prost-build = { version = "0.14", optional = true }
 
 [features]
 full = ["pssh", "sidx", "tenc", "text-ttml", "text-vtt"]
-pssh = ["dep:base64", "dep:hex", "dep:prost", "dep:prost-build", "dep:serde"]
+pssh = [
+    "dep:base64",
+    "dep:hex",
+    "dep:prost",
+    "dep:prost-build",
+    "dep:serde",
+    "dep:quick-xml",
+]
 sidx = []
 tenc = ["dep:hex"]
 text-ttml = ["dep:serde", "dep:quick-xml"]

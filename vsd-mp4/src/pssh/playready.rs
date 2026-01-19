@@ -12,8 +12,9 @@ use crate::{
 };
 use base64::Engine;
 use serde::Deserialize;
+use std::collections::HashSet;
 
-pub(super) fn parse(data: &[u8]) -> Result<impl IntoIterator<Item = KeyId>> {
+pub fn parse(data: &[u8]) -> Result<HashSet<KeyId>> {
     let mut reader = Reader::new_little_endian(data);
     let size = reader.read_u32()?;
 
@@ -22,8 +23,7 @@ pub(super) fn parse(data: &[u8]) -> Result<impl IntoIterator<Item = KeyId>> {
     }
 
     let count = reader.read_u16()?;
-
-    let mut kids = vec![];
+    let mut kids = HashSet::new();
 
     for _ in 0..count {
         let record_type = reader.read_u16()?;
@@ -35,7 +35,7 @@ pub(super) fn parse(data: &[u8]) -> Result<impl IntoIterator<Item = KeyId>> {
                 let xml = String::from_utf16(&record_data)?;
                 let wrm_header = quick_xml::de::from_str::<WrmHeader>(&xml)
                     .map_err(|x| Error::XmlDecode { error: x, xml })?;
-                kids.append(&mut wrm_header.kids()?);
+                kids.extend(wrm_header.kids()?);
             }
             2 | 3 => (),
             _ => {
@@ -48,15 +48,18 @@ pub(super) fn parse(data: &[u8]) -> Result<impl IntoIterator<Item = KeyId>> {
         bail!("PSSH box extra data after playready object records.");
     }
 
-    Ok(kids.into_iter().map(|x| KeyId {
-        system_type: KeyIdSystemType::PlayReady,
-        value: x,
-    }))
+    Ok(kids
+        .into_iter()
+        .map(|x| KeyId {
+            system_type: KeyIdSystemType::PlayReady,
+            value: x,
+        })
+        .collect())
 }
 
 #[derive(Deserialize)]
 #[serde(rename = "WRMHEADER")]
-pub(super) struct WrmHeader {
+pub struct WrmHeader {
     #[serde(rename = "@version")]
     version: String,
     #[serde(rename = "DATA")]
@@ -64,7 +67,7 @@ pub(super) struct WrmHeader {
 }
 
 #[derive(Deserialize)]
-pub(super) struct Data {
+pub struct Data {
     #[serde(rename = "KID")]
     kid: Option<String>,
     #[serde(rename = "PROTECTINFO")]
@@ -72,7 +75,7 @@ pub(super) struct Data {
 }
 
 #[derive(Deserialize)]
-pub(super) struct ProtectInfo {
+pub struct ProtectInfo {
     #[serde(rename = "KID")]
     kid: Option<KeyID>,
     #[serde(rename = "KIDS", default)]
@@ -80,25 +83,25 @@ pub(super) struct ProtectInfo {
 }
 
 #[derive(Deserialize)]
-pub(super) struct KeyID {
+pub struct KeyID {
     #[serde(rename = "@VALUE")]
     value: String,
 }
 
 #[derive(Deserialize)]
-pub(super) struct KeyIDs {
+pub struct KeyIDs {
     #[serde(rename = "KID", default)]
     kids: Vec<KeyID>,
 }
 
 impl WrmHeader {
-    pub(super) fn kids(&self) -> Result<Vec<String>> {
-        let mut kids = vec![];
+    pub fn kids(&self) -> Result<HashSet<String>> {
+        let mut kids = HashSet::new();
 
         match self.version.as_str() {
             "4.0.0.0" => {
                 if let Some(Data { kid: Some(x), .. }) = &self.data {
-                    kids.push(x.clone());
+                    kids.insert(x.to_owned());
                 }
             }
             "4.1.0.0" => {
@@ -107,7 +110,7 @@ impl WrmHeader {
                     ..
                 }) = &self.data
                 {
-                    kids.push(x.value.clone());
+                    kids.insert(x.value.to_owned());
                 }
             }
             "4.2.0.0" | "4.3.0.0" => {
@@ -116,7 +119,7 @@ impl WrmHeader {
                     ..
                 }) = &self.data
                 {
-                    kids.push(x.value.clone());
+                    kids.insert(x.value.to_owned());
                 }
 
                 if let Some(Data {
@@ -124,7 +127,9 @@ impl WrmHeader {
                     ..
                 }) = &self.data
                 {
-                    kids.extend(x.kids.iter().map(|x| x.value.clone()));
+                    for kid in &x.kids {
+                        kids.insert(kid.value.to_owned());
+                    }
                 }
             }
 

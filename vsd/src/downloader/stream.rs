@@ -20,7 +20,7 @@ use tokio::{
     io::{self, AsyncWriteExt},
     task::JoinSet,
 };
-use vsd_mp4::{boxes::TencBox, pssh::Pssh};
+use vsd_mp4::{boxes::TencBox, pssh::PsshBox};
 
 #[allow(clippy::too_many_arguments)]
 pub async fn download_streams(
@@ -155,7 +155,7 @@ async fn download_stream(
                             );
 
                             if let Some(init_seg) = &init_seg {
-                                for kid in Pssh::new(init_seg)?.key_ids.into_iter() {
+                                for kid in PsshBox::from_init(init_seg)?.key_ids.into_iter() {
                                     if keys.contains_key(&kid.value) {
                                         key = Some(keys.get(&kid.value).unwrap().to_owned());
                                     }

@@ -14,17 +14,113 @@ use crate::{
     parser::{Mp4Parser, ParsedBox},
     pssh::{playready, widevine},
 };
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashSet, rc::Rc};
 
 const COMMON_SYSTEM_ID: &str = "1077efecc0b24d02ace33c1e52e2fb4b";
 const PLAYREADY_SYSTEM_ID: &str = "9a04f07998404286ab92e65be0885f95";
 const WIDEVINE_SYSTEM_ID: &str = "edef8ba979d64acea3c827dcd51d21ed";
 
+/// Parse `PSSH` box from mp4 files.
+#[derive(Default)]
+pub struct PsshBox {
+    pub key_ids: HashSet<KeyId>,
+    pub system_ids: HashSet<String>,
+}
+
+impl PsshBox {
+    pub fn from_init(data: &[u8]) -> Result<Self> {
+        let pssh = Rc::new(RefCell::new(Self {
+            key_ids: HashSet::new(),
+            system_ids: HashSet::new(),
+        }));
+        let pssh_c = pssh.clone();
+
+        Mp4Parser::new()
+            .base_box("moov", parser::children)
+            .base_box("moof", parser::children)
+            .full_box("pssh", move |mut _box| {
+                pssh_c.borrow_mut().parse(&mut _box)?;
+                Ok(())
+            })
+            .parse(data, false, false)?;
+
+        Ok(pssh.take())
+    }
+
+    fn parse(&mut self, box_: &mut ParsedBox) -> Result<()> {
+        if box_.version.is_none() {
+            bail!("PSSH boxes are full boxes and must have a valid version.");
+        }
+
+        if box_.flags.is_none() {
+            bail!("PSSH boxes are full boxes and must have a valid flag.");
+        }
+
+        let box_version = box_.version.unwrap();
+
+        if box_version > 1 {
+            bail!("Unrecognized PSSH version found!");
+        }
+
+        // The "reader" gives us a view on the payload of the box.  Create a new
+        // view that contains the whole box.
+        // let mut data_view = _box.reader.clone();
+        // assert!(
+        //     data_view.get_position() >= 12,
+        //     "DataView at incorrect position"
+        // );
+        // self.data = view(_box.reader.clone(), - 12, _box.size as i64);
+
+        let system_id = hex::encode(box_.reader.read_bytes_u8(16)?);
+
+        if box_version > 0 {
+            let num_key_ids = box_.reader.read_u32()?;
+
+            for _ in 0..num_key_ids {
+                let key_id = hex::encode(box_.reader.read_bytes_u8(16)?);
+                self.key_ids.insert(KeyId {
+                    value: key_id,
+                    system_type: if system_id == COMMON_SYSTEM_ID {
+                        KeyIdSystemType::Common
+                    } else {
+                        KeyIdSystemType::Other(system_id.to_owned())
+                    },
+                });
+            }
+        }
+
+        let pssh_data_size = box_.reader.read_u32()?;
+        let pssh_data = box_.reader.read_bytes_u8(pssh_data_size as usize)?;
+
+        match system_id.as_str() {
+            PLAYREADY_SYSTEM_ID => self.key_ids.extend(playready::parse(&pssh_data)?),
+            WIDEVINE_SYSTEM_ID => self.key_ids.extend(widevine::parse(&pssh_data)?),
+            _ => (),
+        }
+
+        self.system_ids.insert(system_id);
+        Ok(())
+    }
+}
+
 /// Key id parsed from `pssh` box.
-#[derive(Clone)]
 pub struct KeyId {
     pub system_type: KeyIdSystemType,
     pub value: String,
+}
+
+impl Eq for KeyId {}
+
+impl PartialEq for KeyId {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
+impl std::hash::Hash for KeyId {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.value.hash(state);
+    }
 }
 
 impl KeyId {
@@ -41,7 +137,6 @@ impl KeyId {
 }
 
 /// System id type parsed from `pssh` box.
-#[derive(Clone)]
 pub enum KeyIdSystemType {
     Common,
     Other(String),
@@ -61,101 +156,5 @@ impl std::fmt::Display for KeyIdSystemType {
                 KeyIdSystemType::WideVine => "widevine",
             }
         )
-    }
-}
-
-/// Parse `PSSH` box from mp4 files.
-pub struct Pssh {
-    pub key_ids: Vec<KeyId>,
-    /// In hex.
-    pub system_ids: Vec<String>,
-}
-
-impl Pssh {
-    pub fn new(data: &[u8]) -> Result<Self> {
-        let pssh = Rc::new(RefCell::new(Self {
-            system_ids: vec![],
-            key_ids: vec![],
-        }));
-        let pssh_c = pssh.clone();
-
-        Mp4Parser::new()
-            .base_box("moov", parser::children)
-            .base_box("moof", parser::children)
-            .full_box("pssh", move |mut _box| {
-                pssh_c.borrow_mut().parse_pssh_box(&mut _box)
-            })
-            .parse(data, false, false)?;
-
-        let pssh = pssh.borrow();
-        let mut key_ids: Vec<KeyId> = vec![];
-
-        for key_id in &pssh.key_ids {
-            if !key_ids.iter().any(|x| x.value == key_id.value) {
-                key_ids.push(key_id.clone())
-            }
-        }
-
-        Ok(Self {
-            key_ids,
-            system_ids: pssh.system_ids.clone(),
-        })
-    }
-
-    fn parse_pssh_box(&mut self, box_: &mut ParsedBox) -> Result<()> {
-        if box_.version.is_none() {
-            bail!("PSSH boxes are full boxes and must have a valid version.");
-        }
-
-        if box_.flags.is_none() {
-            bail!("PSSH boxes are full boxes and must have a valid flag.");
-        }
-
-        let box_version = box_.version.unwrap();
-
-        if box_version > 1 {
-            // println!("Unrecognized PSSH version found!");
-            return Ok(());
-        }
-
-        // The "reader" gives us a view on the payload of the box.  Create a new
-        // view that contains the whole box.
-        // let mut data_view = _box.reader.clone();
-        // assert!(
-        //     data_view.get_position() >= 12,
-        //     "DataView at incorrect position"
-        // );
-        // self.data = view(_box.reader.clone(), - 12, _box.size as i64);
-
-        let system_id = hex::encode(box_.reader.read_bytes_u8(16)?);
-
-        if box_version > 0 {
-            let num_key_ids = box_.reader.read_u32()?;
-
-            for _ in 0..num_key_ids {
-                let key_id = hex::encode(box_.reader.read_bytes_u8(16)?);
-                self.key_ids.push(KeyId {
-                    value: key_id,
-                    system_type: if system_id == COMMON_SYSTEM_ID {
-                        KeyIdSystemType::Common
-                    } else {
-                        KeyIdSystemType::Other(system_id.clone())
-                    },
-                });
-            }
-        }
-
-        let pssh_data_size = box_.reader.read_u32()?;
-        let pssh_data = box_.reader.read_bytes_u8(pssh_data_size as usize)?;
-
-        match system_id.as_str() {
-            PLAYREADY_SYSTEM_ID => self.key_ids.extend(playready::parse(&pssh_data)?),
-            WIDEVINE_SYSTEM_ID => self.key_ids.extend(widevine::parse(&pssh_data)?),
-            _ => (),
-        }
-
-        self.system_ids.push(system_id);
-
-        Ok(())
     }
 }

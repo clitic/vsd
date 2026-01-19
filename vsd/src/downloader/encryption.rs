@@ -9,7 +9,7 @@ use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
-use vsd_mp4::{boxes::TencBox, pssh::Pssh};
+use vsd_mp4::{boxes::TencBox, pssh::PsshBox};
 
 type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
@@ -116,7 +116,7 @@ pub async fn extract_default_kids(
             let bytes = response.bytes().await?;
 
             let default_kid = TencBox::from_init(&bytes)?.map(|x| x.default_kid);
-            let pssh = Pssh::new(&bytes).map_err(|x| anyhow!(x))?;
+            let pssh = PsshBox::from_init(&bytes).map_err(|x| anyhow!(x))?;
 
             for kid in pssh.key_ids {
                 if default_kid == Some("00000000000000000000000000000000".to_owned())
