@@ -3,8 +3,7 @@
     ----------
 
     1. https://github.com/shaka-project/shaka-player/blob/9ce2f675d88d5de6f779f2a62a4f4af2bcc14611/lib/text/cue.js
-    2. https://w3c.github.io/webvtt
-    3. https://developer.mozilla.org/en-US/docs/Web/API/WebVTT_API
+    2. https://www.w3.org/TR/webvtt1/
 
 */
 
