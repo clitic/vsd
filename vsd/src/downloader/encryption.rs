@@ -116,7 +116,7 @@ pub async fn extract_default_kids(
             let bytes = response.bytes().await?;
 
             let default_kid = TencBox::from_init(&bytes)?.map(|x| x.default_kid);
-            let pssh = PsshBox::from_init(&bytes).map_err(|x| anyhow!(x))?;
+            let pssh = PsshBox::from_init(&bytes)?;
 
             for kid in pssh.key_ids {
                 if default_kid == Some("00000000000000000000000000000000".to_owned())
