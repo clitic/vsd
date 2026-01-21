@@ -1,4 +1,4 @@
-//! This crate provides a safe high-level API to decrypt CENC/CBCS encrypted MP4 data
+//! This crate provides a safe high-level API to decrypt CENC/CENS/CBC1/CBCS encrypted MP4 data
 //! using [Bento4](https://github.com/axiomatic-systems/Bento4).
 //!
 //! ## Environment Variables
@@ -184,6 +184,7 @@ impl Ap4CencDecryptingProcessor {
     ///     .build()?;
     /// # Ok::<(), mp4decrypt::Error>(())
     /// ```
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> Ap4CencDecryptingProcessorBuilder {
         Ap4CencDecryptingProcessorBuilder::default()
     }
@@ -369,14 +370,6 @@ impl Drop for Ap4CencDecryptingProcessor {
     }
 }
 
-impl Default for Ap4CencDecryptingProcessorBuilder {
-    fn default() -> Self {
-        Self {
-            keys: HashMap::new(),
-        }
-    }
-}
-
 /// Builder for creating [`Ap4CencDecryptingProcessor`] instances.
 ///
 /// Use this builder to configure decryption keys before creating the processor.
@@ -405,6 +398,7 @@ impl Default for Ap4CencDecryptingProcessorBuilder {
 ///     .build()?;
 /// # Ok::<(), mp4decrypt::Error>(())
 /// ```
+#[derive(Default)]
 pub struct Ap4CencDecryptingProcessorBuilder {
     keys: HashMap<[u8; 16], [u8; 16]>,
 }

@@ -64,7 +64,7 @@ pub async fn download_streams(
         download_stream(
             base_url,
             client,
-            &keys,
+            keys,
             Progress::new("0", stream.segments.len()),
             query,
             stream,
