@@ -10,12 +10,14 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  build-linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
             submodules: true
+      - name: Setup upload environment
+        uses: benjlevesque/short-sha@v3.0
       - name: Cache cargo
         uses: actions/cache@v4
         with:
@@ -24,18 +26,42 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Install x86_64-pc-windows-gnu target
-        run: rustup target add x86_64-pc-windows-gnu
       - name: Install protoc
         uses: arduino/setup-protoc@v3
         with:
           version: "33.4"
       - name: Build vsd
-        run: cargo build -p vsd --target x86_64-pc-windows-gnu
-      - name: Set up upload environment
+        run: cargo build -p vsd
+      - name: Upload linux build
+        uses: actions/upload-artifact@v4
+        with:
+          name: "vsd-${{ env.SHA }}-debug-x86_64-unknown-linux-gnu"
+          path: target/debug/vsd
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+            submodules: true
+      - name: Setup upload environment
         uses: benjlevesque/short-sha@v3.0
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "33.4"
+      - name: Build vsd
+        run: cargo build -p vsd
       - name: Upload windows build
         uses: actions/upload-artifact@v4
         with:
-          name: "vsd-${{ env.SHA }}-debug-x86_64-pc-windows-gnu"
-          path: target/x86_64-pc-windows-gnu/debug/vsd.exe
+          name: "vsd-${{ env.SHA }}-debug-x86_64-pc-windows-msvc"
+          path: target/debug/vsd.exe
