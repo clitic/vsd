@@ -10,12 +10,35 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-latest
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            binary_name: vsd
+            target_suffix: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            binary_name: vsd.exe
+            target_suffix: x86_64-pc-windows-msvc
+
     steps:
       - uses: actions/checkout@v4
         with:
-            submodules: true
+          submodules: true
+
+      - name: Set SHORT_SHA
+        shell: bash
+        run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "33.4"
+
       - name: Cache cargo
         uses: actions/cache@v4
         with:
@@ -24,40 +47,12 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "33.4"
+
       - name: Build vsd
-        run: cargo build -p vsd
-      - name: Upload linux build
+        run: cargo build -p vsd --release
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: "vsd-${GITHUB_SHA::7}-debug-x86_64-unknown-linux-gnu"
-          path: target/debug/vsd
-
-  # build-windows:
-  #   runs-on: windows-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #       with:
-  #           submodules: true
-  #     - name: Cache cargo
-  #       uses: actions/cache@v4
-  #       with:
-  #         path: |
-  #           ~/.cargo/registry
-  #           ~/.cargo/git
-  #           target
-  #         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-  #     - name: Install protoc
-  #       uses: arduino/setup-protoc@v3
-  #       with:
-  #         version: "33.4"
-  #     - name: Build vsd
-  #       run: cargo build -p vsd
-  #     - name: Upload windows build
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: "vsd-${GITHUB_SHA::7}-debug-x86_64-pc-windows-msvc"
-  #         path: target/debug/vsd.exe
+          name: vsd-${{ env.SHORT_SHA }}-${{ matrix.target_suffix }}
+          path: target/release/${{ matrix.binary_name }}
