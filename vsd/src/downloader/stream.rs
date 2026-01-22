@@ -114,7 +114,7 @@ async fn download_stream(
             let bytes = response.bytes().await?;
 
             default_kid = TencBox::from_init(&bytes)?
-                .map(|x| x.default_kid)
+                .map(|x| x.default_kid_hex())
                 .or(stream.default_kid());
             init_seg = Some(bytes.to_vec())
         }

@@ -1,16 +1,30 @@
+#[cfg(feature = "decrypt")]
+mod schm;
+
+#[cfg(feature = "decrypt")]
+#[cfg_attr(docsrs, doc(cfg(feature = "decrypt")))]
+pub use schm::SchmBox;
+
+#[cfg(feature = "decrypt")]
+mod senc;
+
+#[cfg(feature = "decrypt")]
+#[cfg_attr(docsrs, doc(cfg(feature = "decrypt")))]
+pub use senc::{SencBox, SencSample, SencSubsample};
+
+#[cfg(feature = "decrypt")]
+mod tenc;
+
+#[cfg(feature = "decrypt")]
+#[cfg_attr(docsrs, doc(cfg(feature = "decrypt")))]
+pub use tenc::TencBox;
+
 #[cfg(feature = "sidx")]
 mod sidx;
 
 #[cfg(feature = "sidx")]
 #[cfg_attr(docsrs, doc(cfg(feature = "sidx")))]
 pub use sidx::{SidxBox, SidxRange};
-
-#[cfg(feature = "tenc")]
-mod tenc;
-
-#[cfg(feature = "tenc")]
-#[cfg_attr(docsrs, doc(cfg(feature = "tenc")))]
-pub use tenc::TencBox;
 
 #[cfg(feature = "text-vtt")]
 mod mdhd;

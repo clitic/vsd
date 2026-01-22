@@ -115,11 +115,11 @@ pub async fn extract_default_kids(
             let response = request.send().await?;
             let bytes = response.bytes().await?;
 
-            let default_kid = TencBox::from_init(&bytes)?.map(|x| x.default_kid);
+            let default_kid = TencBox::from_init(&bytes)?.map(|x| x.default_kid_hex());
             let pssh = PsshBox::from_init(&bytes)?;
 
             for kid in pssh.key_ids {
-                if default_kid == Some("00000000000000000000000000000000".to_owned())
+                if default_kid.as_deref() == Some("00000000000000000000000000000000")
                     && matches!(kid.system_type, vsd_mp4::pssh::KeyIdSystemType::WideVine)
                 {
                     default_kids.insert(kid.value.clone());

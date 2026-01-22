@@ -3,6 +3,11 @@ use thiserror::Error;
 /// The returned error type.
 #[derive(Debug, Error)]
 pub enum Error {
+    #[cfg(feature = "decrypt")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "decrypt")))]
+    #[error("{0}")]
+    Decrypt(#[from] crate::decrypt::DecryptError),
+
     #[error("{0}")]
     Generic(String),
 
