@@ -11,18 +11,18 @@ env:
 
 jobs:
   build:
-    name: Build (${{ matrix.os }})
+    name: Build ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
-            binary_name: vsd
-            target_suffix: x86_64-unknown-linux-gnu
+            bin: vsd
+            target: x86_64-unknown-linux-gnu
           - os: windows-latest
-            binary_name: vsd.exe
-            target_suffix: x86_64-pc-windows-msvc
+            bin: vsd.exe
+            target: x86_64-pc-windows-msvc
 
     steps:
       - uses: actions/checkout@v4
@@ -54,5 +54,5 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vsd-${{ env.SHORT_SHA }}-${{ matrix.target_suffix }}
-          path: target/release/${{ matrix.binary_name }}
+          name: vsd-${{ env.SHORT_SHA }}-${{ matrix.target }}
+          path: target/release/${{ matrix.bin }}
