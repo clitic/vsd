@@ -177,13 +177,11 @@ impl<'a> DecryptionSession<'a> {
             .ok_or_else(|| DecryptError::KeyNotFound(hex::encode(kid)))?;
 
         let cipher_mode = CipherMode::from_scheme_type(self.scheme_type);
-        let reset_iv = CipherMode::resets_iv_per_subsample(self.scheme_type);
         let mut decrypter = SingleSampleDecrypter::new(
             cipher_mode,
             key,
             self.tenc.crypt_byte_block,
             self.tenc.skip_byte_block,
-            reset_iv,
         )?;
 
         let data_start = {

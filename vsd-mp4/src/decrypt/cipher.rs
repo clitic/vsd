@@ -19,10 +19,6 @@ impl CipherMode {
             _ => CipherMode::None,
         }
     }
-
-    pub fn resets_iv_per_subsample(scheme_type: u32) -> bool {
-        scheme_type == 0x63626373 // 'cbcs'
-    }
 }
 
 type Aes128Ctr = ctr::Ctr128BE<Aes128>;
@@ -178,6 +174,10 @@ impl Cipher {
 
     pub fn is_cbc_mode(&self) -> bool {
         matches!(self, Cipher::Cbc1 { .. } | Cipher::Cbcs { .. })
+    }
+
+    pub fn resets_iv_per_subsample(&self) -> bool {
+        matches!(self, Cipher::Cbcs { .. })
     }
 
     fn apply_ctr(

@@ -5,24 +5,16 @@ use crate::decrypt::{
 
 pub struct SingleSampleDecrypter {
     cipher: Cipher,
-    reset_iv_at_each_subsample: bool,
 }
 
 impl SingleSampleDecrypter {
-    pub fn new(
-        mode: CipherMode,
-        key: &[u8],
-        crypt_byte_block: u8,
-        skip_byte_block: u8,
-        reset_iv_at_each_subsample: bool,
-    ) -> Result<Self> {
+    pub fn new(mode: CipherMode, key: &[u8], crypt_blocks: u8, skip_blocks: u8) -> Result<Self> {
         if key.len() != 16 {
             return Err(DecryptError::InvalidKeySize(key.len()));
         }
 
         Ok(Self {
-            cipher: Cipher::new(mode, key, crypt_byte_block, skip_byte_block)?,
-            reset_iv_at_each_subsample,
+            cipher: Cipher::new(mode, key, crypt_blocks, skip_blocks)?,
         })
     }
 
@@ -91,7 +83,7 @@ impl SingleSampleDecrypter {
             }
 
             if encrypted_size > 0 {
-                if self.reset_iv_at_each_subsample {
+                if self.cipher.resets_iv_per_subsample() {
                     self.cipher.set_iv(iv)?;
                 }
 
