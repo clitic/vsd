@@ -3,7 +3,7 @@ use crate::{
     boxes::{SchmBox, SencBox, TencBox, TrunBox},
     data,
     decrypt::{
-        decrypter::SingleSampleDecrypter,
+        decrypter::Decrypter,
         error::{DecryptError, Result},
     },
     parser,
@@ -175,7 +175,7 @@ impl<'a> DecryptionSession<'a> {
             .get(&kid)
             .ok_or_else(|| DecryptError::KeyNotFound(hex::encode(kid)))?;
 
-        let mut decrypter = SingleSampleDecrypter::new(
+        let mut decrypter = Decrypter::new(
             self.scheme_type,
             key,
             self.tenc.crypt_byte_block,
@@ -205,13 +205,13 @@ impl<'a> DecryptionSession<'a> {
             let (subsample_count, clear, encrypted) = senc_sample.subsample_info();
 
             let encrypted_sample = output[offset..end].to_vec();
-            let decrypted = decrypter.decrypt_sample_data(
+            let decrypted = decrypter.decrypt_sample(
                 &encrypted_sample,
                 &iv,
                 subsample_count,
                 &clear,
                 &encrypted,
-            )?;
+            );
 
             output[offset..end].copy_from_slice(&decrypted);
             offset = end;

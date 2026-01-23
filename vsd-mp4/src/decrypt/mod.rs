@@ -1,4 +1,3 @@
-mod cipher;
 mod decrypter;
 mod error;
 mod processor;
