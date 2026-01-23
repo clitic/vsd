@@ -47,11 +47,11 @@ mod tfhd;
 #[cfg_attr(docsrs, doc(cfg(feature = "text-vtt")))]
 pub use tfhd::TfhdBox;
 
-#[cfg(feature = "text-vtt")]
+#[cfg(any(feature = "decrypt", feature = "text-vtt"))]
 mod trun;
 
-#[cfg(feature = "text-vtt")]
-#[cfg_attr(docsrs, doc(cfg(feature = "text-vtt")))]
+#[cfg(any(feature = "decrypt", feature = "text-vtt"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "decrypt", feature = "text-vtt"))))]
 pub use trun::{TrunBox, TrunSample};
 
 #[macro_export]

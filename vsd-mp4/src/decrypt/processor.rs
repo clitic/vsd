@@ -12,6 +12,7 @@ use crate::{
         error::{DecryptError, Result},
         sample_info::SampleInfoTable,
     },
+    parser,
 };
 use std::collections::HashMap;
 
@@ -222,20 +223,20 @@ impl<'a> DecryptionState<'a> {
         let tenc_box_c = tenc_box.clone();
 
         let result = Mp4Parser::new()
-            .base_box("moov", crate::parser::children)
-            .base_box("trak", crate::parser::children)
-            .base_box("mdia", crate::parser::children)
-            .base_box("minf", crate::parser::children)
-            .base_box("stbl", crate::parser::children)
-            .full_box("stsd", crate::parser::sample_description)
-            .base_box("encv", crate::parser::visual_sample_entry)
-            .base_box("enca", crate::parser::audio_sample_entry)
-            .base_box("sinf", crate::parser::children)
+            .base_box("moov", parser::children)
+            .base_box("trak", parser::children)
+            .base_box("mdia", parser::children)
+            .base_box("minf", parser::children)
+            .base_box("stbl", parser::children)
+            .full_box("stsd", parser::sample_description)
+            .base_box("encv", parser::visual_sample_entry)
+            .base_box("enca", parser::audio_sample_entry)
+            .base_box("sinf", parser::children)
             .full_box("schm", move |mut box_| {
                 *schm_box_c.borrow_mut() = Some(SchmBox::new(&mut box_)?);
                 Ok(())
             })
-            .base_box("schi", crate::parser::children)
+            .base_box("schi", parser::children)
             .full_box("tenc", move |mut box_| {
                 *tenc_box_c.borrow_mut() = Some(TencBox::new(&mut box_)?);
                 Ok(())
@@ -270,131 +271,92 @@ impl<'a> DecryptionState<'a> {
 
     /// Parse segment and decrypt mdat boxes.
     fn parse_and_decrypt_segment(&mut self, output: &mut [u8], init_size: usize) -> Result<()> {
-        use std::cell::RefCell;
-        use std::rc::Rc;
+        use crate::boxes::{SencBox, TrunBox};
 
         // Copy segment data for parsing (avoid mutable borrow conflict later)
         let segment_data = output[init_size..].to_vec();
-        let sample_info = Rc::new(RefCell::new(None::<SampleInfoTable>));
-        let sample_sizes = Rc::new(RefCell::new(Vec::<u32>::new()));
-        let data_offset = Rc::new(RefCell::new(0u64));
-        let moof_start = Rc::new(RefCell::new(0u64));
+
+        let moof_start = data!(0u64);
+        let trun_box = data!();
+        let senc_box = data!();
+
+        let moof_start_c = moof_start.clone();
+        let trun_box_c = trun_box.clone();
 
         // per_sample_iv_size is the IV size in senc (0 for CBCS with constant IV)
         let iv_size = self.per_sample_iv_size;
         let constant_iv = self.default_constant_iv.clone();
+        let senc_box_c = senc_box.clone();
 
         // Parse moof to get sample info
         let _ = Mp4Parser::new()
             .base_box("moof", {
-                let moof_start = moof_start.clone();
+                let moof_start = moof_start_c.clone();
                 move |box_| {
                     *moof_start.borrow_mut() = box_.start;
-                    crate::parser::children(box_)
+                    parser::children(box_)
                 }
             })
-            .base_box("traf", crate::parser::children)
+            .base_box("traf", parser::children)
             .full_box("tfhd", |_| Ok(()))
             .full_box("tfdt", |_| Ok(()))
-            .full_box("trun", {
-                let sample_sizes = sample_sizes.clone();
-                let data_offset = data_offset.clone();
-                let moof_start = moof_start.clone();
-                move |mut box_| {
-                    let reader = &mut box_.reader;
-                    let flags = box_.flags.unwrap_or(0);
-
-                    let sample_count = reader.read_u32()?;
-
-                    // Data offset (if present)
-                    if flags & 0x000001 != 0 {
-                        let offset = reader.read_i32()?;
-                        *data_offset.borrow_mut() =
-                            (*moof_start.borrow() as i64 + offset as i64) as u64;
-                    }
-
-                    // First sample flags (skip if present)
-                    if flags & 0x000004 != 0 {
-                        reader.skip(4)?;
-                    }
-
-                    let mut sizes = sample_sizes.borrow_mut();
-                    for _ in 0..sample_count {
-                        // Sample duration (skip if present)
-                        if flags & 0x000100 != 0 {
-                            reader.skip(4)?;
-                        }
-                        // Sample size
-                        let size = if flags & 0x000200 != 0 {
-                            reader.read_u32()?
-                        } else {
-                            0 // Default sample size from tfhd
-                        };
-                        sizes.push(size);
-                        // Sample flags (skip if present)
-                        if flags & 0x000400 != 0 {
-                            reader.skip(4)?;
-                        }
-                        // Sample composition time offset (skip if present)
-                        if flags & 0x000800 != 0 {
-                            reader.skip(4)?;
-                        }
-                    }
-
-                    Ok(())
-                }
+            .full_box("trun", move |mut box_| {
+                *trun_box_c.borrow_mut() = Some(TrunBox::new(&mut box_)?);
+                Ok(())
             })
-            .full_box("senc", {
-                let sample_info = sample_info.clone();
-                move |mut box_| {
-                    let reader = &mut box_.reader;
-                    let flags = box_.flags.unwrap_or(0);
-
-                    let sample_count = reader.read_u32()?;
-                    let has_subsamples = flags & 0x02 != 0;
-
-                    let effective_iv_size = if iv_size > 0 {
-                        iv_size
-                    } else {
-                        constant_iv.as_ref().map(|v| v.len() as u8).unwrap_or(8)
-                    };
-
-                    let mut table = SampleInfoTable::new(
-                        (flags & 0xFF) as u8,
-                        0, // crypt_byte_block (from tenc)
-                        0, // skip_byte_block (from tenc)
-                        sample_count,
-                        effective_iv_size,
-                    );
-
-                    for i in 0..sample_count {
-                        // Read per-sample IV
-                        if iv_size > 0 {
-                            if let Ok(iv) = reader.read_bytes_u8(iv_size as usize) {
-                                let _ = table.set_iv(i, &iv);
-                            }
-                        } else if let Some(ref civ) = constant_iv {
-                            let _ = table.set_iv(i, civ);
-                        }
-
-                        // Read subsamples if present
-                        if has_subsamples
-                            && let Ok(subsample_count) = reader.read_u16()
-                            && let Ok(subsample_data) =
-                                reader.read_bytes_u8(subsample_count as usize * 6)
-                        {
-                            let _ = table.add_subsample_data(subsample_count, &subsample_data);
-                        }
-                    }
-
-                    *sample_info.borrow_mut() = Some(table);
-                    Ok(())
-                }
+            .full_box("senc", move |mut box_| {
+                *senc_box_c.borrow_mut() =
+                    Some(SencBox::new(&mut box_, iv_size, constant_iv.as_deref())?);
+                Ok(())
             })
             .parse(&segment_data, true, true);
 
-        self.sample_info = sample_info.take();
-        self.sample_sizes = sample_sizes.take();
+        // Extract sample sizes from TrunBox
+        if let Some(trun) = trun_box.borrow().as_ref() {
+            self.sample_sizes = trun
+                .sample_data
+                .iter()
+                .map(|s| s.sample_size.unwrap_or(0))
+                .collect();
+        }
+
+        // Convert SencBox to SampleInfoTable
+        if let Some(senc) = senc_box.borrow().as_ref() {
+            let effective_iv_size = if self.per_sample_iv_size > 0 {
+                self.per_sample_iv_size
+            } else {
+                self.default_constant_iv
+                    .as_ref()
+                    .map(|v| v.len() as u8)
+                    .unwrap_or(8)
+            };
+
+            let mut table = SampleInfoTable::new(
+                (senc.flags & 0xFF) as u8,
+                0, // crypt_byte_block (from tenc)
+                0, // skip_byte_block (from tenc)
+                senc.samples.len() as u32,
+                effective_iv_size,
+            );
+
+            for (i, sample) in senc.samples.iter().enumerate() {
+                let _ = table.set_iv(i as u32, &sample.iv);
+
+                if !sample.subsamples.is_empty() {
+                    // Convert subsamples to raw bytes format
+                    let mut subsample_data = Vec::with_capacity(sample.subsamples.len() * 6);
+                    for sub in &sample.subsamples {
+                        subsample_data.extend_from_slice(&sub.bytes_of_clear_data.to_be_bytes());
+                        subsample_data
+                            .extend_from_slice(&sub.bytes_of_encrypted_data.to_be_bytes());
+                    }
+                    let _ =
+                        table.add_subsample_data(sample.subsamples.len() as u16, &subsample_data);
+                }
+            }
+
+            self.sample_info = Some(table);
+        }
 
         // Now find and decrypt mdat
         if let Some(ref info) = self.sample_info {
@@ -421,8 +383,13 @@ impl<'a> DecryptionState<'a> {
             // Find mdat and decrypt samples
             let mdat_offset = find_box_offset(&segment_data, b"mdat");
             if let Some((_mdat_start, _mdat_header_size)) = mdat_offset {
-                // data_offset is already relative to segment_data (moof_start + trun offset)
-                let data_start = *data_offset.borrow() as usize;
+                // Calculate data_start from moof_start + trun data_offset
+                let data_start = if let Some(trun) = trun_box.borrow().as_ref() {
+                    let offset = trun.data_offset.unwrap_or(0) as i64;
+                    (*moof_start.borrow() as i64 + offset) as usize
+                } else {
+                    0
+                };
                 let mut current_offset = data_start;
 
                 for (sample_idx, &sample_size) in self.sample_sizes.iter().enumerate() {
