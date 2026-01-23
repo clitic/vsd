@@ -3,6 +3,7 @@ use std::{
     fs::{self, File},
     io::Write,
     path::PathBuf,
+    process::Command,
     sync::LazyLock,
 };
 use vsd_mp4::decrypt::CencDecryptingProcessor;
@@ -25,6 +26,28 @@ static OUTPUT_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     dir
 });
 
+fn verify(path: &PathBuf) -> Result<(), Box<dyn Error>> {
+    let output = Command::new("ffprobe")
+        .args(["-v", "error", "-show_entries", "stream=codec_type"])
+        .arg(path)
+        .output()?;
+
+    if !output.status.success() {
+        panic!(
+            "ffprobe test failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    if !stdout.contains("codec_type=") {
+        panic!("ffprobe test failed: no valid streams found.");
+    }
+
+    Ok(())
+}
+
 macro_rules! sample {
     ($test_name: ident, $scheme: literal, $mode: literal, $track: literal) => {
         #[test]
@@ -45,16 +68,13 @@ macro_rules! sample {
             let decrypted = processor.decrypt(&segment_data, Some(&init_data))?;
             fs::create_dir_all(OUTPUT_DIR.join(concat!($scheme, "-", $mode)))?;
 
-            let mut f =
-                File::create(OUTPUT_DIR.join(concat!($scheme, "-", $mode, "/", $track, ".mp4")))?;
+            let output_path = OUTPUT_DIR.join(concat!($scheme, "-", $mode, "/", $track, ".mp4"));
+
+            let mut f = File::create(&output_path)?;
             f.write_all(&init_data)?;
             f.write_all(&decrypted)?;
 
-            // fs::write(
-            //     OUTPUT_DIR.join(concat!($scheme, "-", $mode, "/", $track, ".mp4")),
-            //     decrypted,
-            // )?;
-
+            verify(&output_path)?;
             Ok(())
         }
     };
