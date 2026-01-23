@@ -1,5 +1,5 @@
 use crate::decrypt::{
-    cipher::{Cipher, CipherMode},
+    cipher::Cipher,
     error::{DecryptError, Result},
 };
 
@@ -8,13 +8,13 @@ pub struct SingleSampleDecrypter {
 }
 
 impl SingleSampleDecrypter {
-    pub fn new(mode: CipherMode, key: &[u8], crypt_blocks: u8, skip_blocks: u8) -> Result<Self> {
+    pub fn new(scheme_type: u32, key: &[u8], crypt_blocks: u8, skip_blocks: u8) -> Result<Self> {
         if key.len() != 16 {
             return Err(DecryptError::InvalidKeySize(key.len()));
         }
 
         Ok(Self {
-            cipher: Cipher::new(mode, key, crypt_blocks, skip_blocks)?,
+            cipher: Cipher::new(scheme_type, key, crypt_blocks, skip_blocks)?,
         })
     }
 

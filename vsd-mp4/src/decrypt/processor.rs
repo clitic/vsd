@@ -3,7 +3,6 @@ use crate::{
     boxes::{SchmBox, SencBox, TencBox, TrunBox},
     data,
     decrypt::{
-        cipher::CipherMode,
         decrypter::SingleSampleDecrypter,
         error::{DecryptError, Result},
     },
@@ -176,9 +175,8 @@ impl<'a> DecryptionSession<'a> {
             .get(&kid)
             .ok_or_else(|| DecryptError::KeyNotFound(hex::encode(kid)))?;
 
-        let cipher_mode = CipherMode::from_scheme_type(self.scheme_type);
         let mut decrypter = SingleSampleDecrypter::new(
-            cipher_mode,
+            self.scheme_type,
             key,
             self.tenc.crypt_byte_block,
             self.tenc.skip_byte_block,

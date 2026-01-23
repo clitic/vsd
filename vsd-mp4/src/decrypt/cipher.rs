@@ -4,23 +4,6 @@ use aes::{
     cipher::{BlockDecrypt, KeyInit, KeyIvInit, StreamCipher, generic_array::GenericArray},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CipherMode {
-    None,
-    AesCtr,
-    AesCbc,
-}
-
-impl CipherMode {
-    pub fn from_scheme_type(scheme_type: u32) -> Self {
-        match scheme_type {
-            0x63656E63 | 0x63656E73 => CipherMode::AesCtr, // 'cenc' | 'cens'
-            0x63626331 | 0x63626373 => CipherMode::AesCbc, // 'cbc1' | 'cbcs'
-            _ => CipherMode::None,
-        }
-    }
-}
-
 type Aes128Ctr = ctr::Ctr128BE<Aes128>;
 
 pub enum Cipher {
@@ -50,35 +33,39 @@ pub enum Cipher {
 }
 
 impl Cipher {
-    pub fn new(mode: CipherMode, key: &[u8], crypt_blocks: u8, skip_blocks: u8) -> Result<Self> {
+    pub fn new(scheme_type: u32, key: &[u8], crypt_blocks: u8, skip_blocks: u8) -> Result<Self> {
         if key.len() != 16 {
             return Err(DecryptError::InvalidKeySize(key.len()));
         }
 
         let key: [u8; 16] = key.try_into().unwrap();
-        let has_pattern = crypt_blocks > 0 || skip_blocks > 0;
 
-        Ok(match mode {
-            CipherMode::None => Cipher::None,
-            CipherMode::AesCtr if has_pattern => Cipher::Cens {
+        Ok(match scheme_type {
+            // 'cenc' - AES-CTR full sample
+            0x63656E63 => Cipher::Cenc {
+                key,
+                iv: [0u8; 16],
+                cipher: None,
+            },
+            // 'cens' - AES-CTR pattern
+            0x63656E73 => Cipher::Cens {
                 key,
                 iv: [0u8; 16],
                 cipher: None,
                 crypt_blocks,
                 skip_blocks,
             },
-            CipherMode::AesCtr => Cipher::Cenc {
-                key,
-                iv: [0u8; 16],
-                cipher: None,
-            },
-            CipherMode::AesCbc if has_pattern => Cipher::Cbcs {
+            // 'cbc1' - AES-CBC full sample
+            0x63626331 => Cipher::Cbc1 { key, iv: [0u8; 16] },
+            // 'cbcs' - AES-CBC pattern
+            0x63626373 => Cipher::Cbcs {
                 key,
                 iv: [0u8; 16],
                 crypt_blocks,
                 skip_blocks,
             },
-            CipherMode::AesCbc => Cipher::Cbc1 { key, iv: [0u8; 16] },
+            // Unknown scheme
+            _ => Cipher::None,
         })
     }
 
@@ -215,7 +202,6 @@ impl Cipher {
             prev = ciphertext;
         }
 
-        // Copy partial block
         let partial_start = block_count * 16;
         if partial_start < input.len() {
             output[partial_start..input.len()].copy_from_slice(&input[partial_start..]);
@@ -240,7 +226,6 @@ impl Cipher {
 
         let mut offset = 0;
         while offset < input.len() {
-            // Encrypt blocks
             let to_encrypt = (input.len() - offset).min(crypt_size);
             if to_encrypt > 0 {
                 encrypt_fn(
@@ -254,7 +239,6 @@ impl Cipher {
                 break;
             }
 
-            // Skip blocks (copy as-is)
             let to_skip = (input.len() - offset).min(skip_size);
             if to_skip > 0 {
                 copy_fn(
