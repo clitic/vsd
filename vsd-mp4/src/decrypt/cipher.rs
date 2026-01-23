@@ -278,13 +278,13 @@ impl CbcStreamCipher {
 ///
 /// CBCS uses a pattern of encrypted and unencrypted 16-byte blocks.
 /// The default pattern is 1:9 (crypt 1 block, skip 9 blocks).
-pub struct PatternStreamCipher {
+pub struct CbcPatternStreamCipher {
     inner: CbcStreamCipher,
     crypt_byte_block: u8,
     skip_byte_block: u8,
 }
 
-impl PatternStreamCipher {
+impl CbcPatternStreamCipher {
     /// Create a new pattern cipher.
     ///
     /// # Arguments
