@@ -1,9 +1,10 @@
 use aes::{
     Aes128,
-    cipher::{BlockDecrypt, KeyInit, KeyIvInit, StreamCipher, generic_array::GenericArray},
+    cipher::{BlockDecryptMut, KeyIvInit, StreamCipher},
 };
 
 type Aes128Ctr = ctr::Ctr128BE<Aes128>;
+type Aes128Cbc = cbc::Decryptor<Aes128>;
 
 pub enum CipherMode {
     Cenc,
@@ -50,7 +51,7 @@ impl Cipher {
         matches!(self.mode, CipherMode::Cbcs)
     }
 
-    pub fn process_buffer(&mut self, input: &[u8], output: &mut [u8]) {
+    pub fn process(&mut self, input: &[u8], output: &mut [u8]) {
         match self.mode {
             CipherMode::Cenc => {
                 Self::apply_ctr(&self.key, &self.iv, input, output);
@@ -102,8 +103,8 @@ impl Cipher {
 
     fn apply_ctr(key: &[u8; 16], iv: &[u8; 16], input: &[u8], output: &mut [u8]) {
         output[..input.len()].copy_from_slice(input);
-        let mut c = Aes128Ctr::new(key.into(), iv.into());
-        c.apply_keystream(&mut output[..input.len()]);
+        let mut cipher = Aes128Ctr::new(key.into(), iv.into());
+        cipher.apply_keystream(&mut output[..input.len()]);
     }
 
     fn apply_cbc(key: &[u8; 16], iv: &[u8; 16], input: &[u8], output: &mut [u8]) {
@@ -112,24 +113,14 @@ impl Cipher {
             return;
         }
 
-        let cipher = Aes128::new(key.into());
-        let mut prev = *iv;
+        let encrypted_size = block_count * 16;
+        output[..encrypted_size].copy_from_slice(&input[..encrypted_size]);
+        Aes128Cbc::new(key.into(), iv.into())
+            .decrypt_padded_mut::<cipher::block_padding::NoPadding>(&mut output[..encrypted_size])
+            .unwrap();
 
-        for i in 0..block_count {
-            let (start, end) = (i * 16, (i + 1) * 16);
-            let ciphertext: [u8; 16] = input[start..end].try_into().unwrap();
-            let mut block = GenericArray::clone_from_slice(&ciphertext);
-            cipher.decrypt_block(&mut block);
-
-            for j in 0..16 {
-                output[start + j] = block[j] ^ prev[j];
-            }
-            prev = ciphertext;
-        }
-
-        let partial_start = block_count * 16;
-        if partial_start < input.len() {
-            output[partial_start..input.len()].copy_from_slice(&input[partial_start..]);
+        if encrypted_size < input.len() {
+            output[encrypted_size..input.len()].copy_from_slice(&input[encrypted_size..]);
         }
     }
 
