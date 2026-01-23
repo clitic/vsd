@@ -364,9 +364,68 @@ impl CbcsCipher {
 }
 
 pub enum Cipher {
+    None,
     Cenc(CencCipher),
     Cens(CensCipher),
     Cbc1(Cbc1Cipher),
     Cbcs(CbcsCipher),
-    None,
+}
+
+impl Cipher {
+    pub fn new(
+        mode: CipherMode,
+        key: &[u8],
+        crypt_byte_block: u8,
+        skip_byte_block: u8,
+    ) -> Result<Self> {
+        match mode {
+            CipherMode::None => Ok(Cipher::None),
+            CipherMode::AesCtr => {
+                if crypt_byte_block > 0 || skip_byte_block > 0 {
+                    Ok(Cipher::Cens(CensCipher::new(
+                        key,
+                        crypt_byte_block,
+                        skip_byte_block,
+                    )?))
+                } else {
+                    Ok(Cipher::Cenc(CencCipher::new(key, 16)?))
+                }
+            }
+            CipherMode::AesCbc => {
+                if crypt_byte_block > 0 || skip_byte_block > 0 {
+                    Ok(Cipher::Cbcs(CbcsCipher::new(
+                        key,
+                        crypt_byte_block,
+                        skip_byte_block,
+                    )?))
+                } else {
+                    Ok(Cipher::Cbc1(Cbc1Cipher::new(key)?))
+                }
+            }
+        }
+    }
+
+    pub fn set_iv(&mut self, iv: &[u8]) -> Result<()> {
+        match self {
+            Cipher::None => Ok(()),
+            Cipher::Cenc(c) => c.set_iv(iv),
+            Cipher::Cens(c) => c.set_iv(iv),
+            Cipher::Cbc1(c) => c.set_iv(iv),
+            Cipher::Cbcs(c) => c.set_iv(iv),
+        }
+    }
+
+    pub fn process_buffer(&mut self, input: &[u8], output: &mut [u8]) {
+        match self {
+            Cipher::None => output[..input.len()].copy_from_slice(input),
+            Cipher::Cenc(c) => c.process_buffer(input, output),
+            Cipher::Cens(c) => c.process_buffer(input, output),
+            Cipher::Cbc1(c) => c.process_buffer(input, output),
+            Cipher::Cbcs(c) => c.process_buffer(input, output),
+        }
+    }
+
+    pub fn is_cbc_mode(&self) -> bool {
+        matches!(self, Cipher::Cbc1(_) | Cipher::Cbcs(_))
+    }
 }

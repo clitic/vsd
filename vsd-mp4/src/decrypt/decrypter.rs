@@ -1,11 +1,10 @@
 use crate::decrypt::{
-    cipher::{Cbc1Cipher, CbcsCipher, CencCipher, CensCipher, Cipher, CipherMode},
+    cipher::{Cipher, CipherMode},
     error::{DecryptError, Result},
 };
 
 pub struct SingleSampleDecrypter {
     cipher: Cipher,
-    full_blocks_only: bool,
     reset_iv_at_each_subsample: bool,
 }
 
@@ -21,31 +20,8 @@ impl SingleSampleDecrypter {
             return Err(DecryptError::InvalidKeySize(key.len()));
         }
 
-        let (cipher, full_blocks_only) = match mode {
-            CipherMode::None => (Cipher::None, false),
-            CipherMode::AesCtr => {
-                if crypt_byte_block > 0 || skip_byte_block > 0 {
-                    let c = CensCipher::new(key, crypt_byte_block, skip_byte_block)?;
-                    (Cipher::Cens(c), false)
-                } else {
-                    let c = CencCipher::new(key, 16)?;
-                    (Cipher::Cenc(c), false)
-                }
-            }
-            CipherMode::AesCbc => {
-                if crypt_byte_block > 0 || skip_byte_block > 0 {
-                    let c = CbcsCipher::new(key, crypt_byte_block, skip_byte_block)?;
-                    (Cipher::Cbcs(c), true)
-                } else {
-                    let c = Cbc1Cipher::new(key)?;
-                    (Cipher::Cbc1(c), true)
-                }
-            }
-        };
-
         Ok(Self {
-            cipher,
-            full_blocks_only,
+            cipher: Cipher::new(mode, key, crypt_byte_block, skip_byte_block)?,
             reset_iv_at_each_subsample,
         })
     }
@@ -63,7 +39,7 @@ impl SingleSampleDecrypter {
         }
 
         let mut data_out = vec![0u8; data_in.len()];
-        self.set_iv(iv)?;
+        self.cipher.set_iv(iv)?;
 
         if subsample_count > 0 {
             self.decrypt_subsamples(
@@ -73,24 +49,13 @@ impl SingleSampleDecrypter {
                 bytes_of_cleartext_data,
                 bytes_of_encrypted_data,
             )?;
-        } else if self.full_blocks_only {
+        } else if self.cipher.is_cbc_mode() {
             self.decrypt_full_blocks(data_in, &mut data_out)?;
         } else {
-            self.decrypt_full_sample(data_in, &mut data_out)?;
+            self.cipher.process_buffer(data_in, &mut data_out);
         }
 
         Ok(data_out)
-    }
-
-    fn set_iv(&mut self, iv: &[u8]) -> Result<()> {
-        match &mut self.cipher {
-            Cipher::None => {}
-            Cipher::Cenc(c) => c.set_iv(iv)?,
-            Cipher::Cens(c) => c.set_iv(iv)?,
-            Cipher::Cbc1(c) => c.set_iv(iv)?,
-            Cipher::Cbcs(c) => c.set_iv(iv)?,
-        }
-        Ok(())
     }
 
     fn decrypt_subsamples(
@@ -111,9 +76,9 @@ impl SingleSampleDecrypter {
             if in_offset + cleartext_size + encrypted_size > data_in.len() {
                 let remaining = &data_in[in_offset..];
                 let remaining_out = &mut data_out[out_offset..];
-                if self.full_blocks_only && remaining.len() >= 16 {
-                    let _ = self.set_iv(iv);
-                    self.process_buffer(remaining, remaining_out)?;
+                if self.cipher.is_cbc_mode() && remaining.len() >= 16 {
+                    let _ = self.cipher.set_iv(iv);
+                    self.cipher.process_buffer(remaining, remaining_out);
                 } else {
                     remaining_out.copy_from_slice(remaining);
                 }
@@ -127,7 +92,7 @@ impl SingleSampleDecrypter {
 
             if encrypted_size > 0 {
                 if self.reset_iv_at_each_subsample {
-                    self.set_iv(iv)?;
+                    self.cipher.set_iv(iv)?;
                 }
 
                 let encrypted_in = &data_in
@@ -135,7 +100,7 @@ impl SingleSampleDecrypter {
                 let encrypted_out = &mut data_out
                     [out_offset + cleartext_size..out_offset + cleartext_size + encrypted_size];
 
-                self.process_buffer(encrypted_in, encrypted_out)?;
+                self.cipher.process_buffer(encrypted_in, encrypted_out);
             }
 
             in_offset += cleartext_size + encrypted_size;
@@ -155,7 +120,8 @@ impl SingleSampleDecrypter {
 
         if block_count > 0 {
             let encrypted_size = block_count * 16;
-            self.process_buffer(&data_in[..encrypted_size], &mut data_out[..encrypted_size])?;
+            self.cipher
+                .process_buffer(&data_in[..encrypted_size], &mut data_out[..encrypted_size]);
 
             if encrypted_size < data_in.len() {
                 data_out[encrypted_size..].copy_from_slice(&data_in[encrypted_size..]);
@@ -164,21 +130,6 @@ impl SingleSampleDecrypter {
             data_out.copy_from_slice(data_in);
         }
 
-        Ok(())
-    }
-
-    fn decrypt_full_sample(&mut self, data_in: &[u8], data_out: &mut [u8]) -> Result<()> {
-        self.process_buffer(data_in, data_out)
-    }
-
-    fn process_buffer(&mut self, input: &[u8], output: &mut [u8]) -> Result<()> {
-        match &mut self.cipher {
-            Cipher::None => output[..input.len()].copy_from_slice(input),
-            Cipher::Cenc(c) => c.process_buffer(input, output),
-            Cipher::Cens(c) => c.process_buffer(input, output),
-            Cipher::Cbc1(c) => c.process_buffer(input, output),
-            Cipher::Cbcs(c) => c.process_buffer(input, output),
-        }
         Ok(())
     }
 }
