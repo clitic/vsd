@@ -18,10 +18,8 @@ pub enum DecryptError {
     InvalidHex(#[from] hex::FromHexError),
 
     /// Hex string has wrong length.
-    #[error(
-        "hex string has wrong length: expected {expected} bytes (32 hex chars), got {actual} bytes"
-    )]
-    HexWrongLength { expected: usize, actual: usize },
+    #[error("hex string has wrong length: expected 16 bytes (32 hex chars), got {0} bytes")]
+    HexWrongLength(usize),
 
     /// Invalid MP4 format.
     #[error("invalid MP4 format: {0}")]

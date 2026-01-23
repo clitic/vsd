@@ -18,6 +18,35 @@ pub struct SencSample {
     pub subsamples: Vec<SencSubsample>,
 }
 
+impl SencSample {
+    /// Convert IV to a 16-byte array, padding with zeros if needed.
+    pub fn iv_as_array(&self) -> [u8; 16] {
+        let mut iv = [0u8; 16];
+        let len = self.iv.len().min(16);
+        iv[..len].copy_from_slice(&self.iv[..len]);
+        iv
+    }
+
+    /// Get subsample info as (count, clear_bytes, encrypted_bytes) tuple.
+    pub fn subsample_info(&self) -> (usize, Vec<u16>, Vec<u32>) {
+        if self.subsamples.is_empty() {
+            (0, Vec::new(), Vec::new())
+        } else {
+            (
+                self.subsamples.len(),
+                self.subsamples
+                    .iter()
+                    .map(|s| s.bytes_of_clear_data)
+                    .collect(),
+                self.subsamples
+                    .iter()
+                    .map(|s| s.bytes_of_encrypted_data)
+                    .collect(),
+            )
+        }
+    }
+}
+
 /// Sample Encryption Box (senc) - contains per-sample encryption info.
 ///
 /// This box provides the IV (initialization vector) and optional subsample
