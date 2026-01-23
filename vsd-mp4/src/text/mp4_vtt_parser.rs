@@ -9,6 +9,7 @@
 use crate::{
     Error, Reader, Result, bail,
     boxes::{MdhdBox, TfdtBox, TfhdBox, TrunBox, TrunSample},
+    data,
     parser::{self, Mp4Parser},
     text::{Cue, Subtitles},
 };
@@ -23,8 +24,8 @@ pub struct Mp4VttParser {
 impl Mp4VttParser {
     /// Parse intialization segment, a valid `wvtt` box should be present.
     pub fn from_init(data: &[u8]) -> Result<Self> {
-        let saw_wvtt = Rc::new(RefCell::new(false));
-        let timescale = Rc::new(RefCell::new(None));
+        let saw_wvtt = data!(false);
+        let timescale = data!();
 
         let saw_wvtt_c = saw_wvtt.clone();
         let timescale_c = timescale.clone();
@@ -72,12 +73,12 @@ impl Mp4VttParser {
         let period_start = period_start.unwrap_or_default();
         let timescale = self.timescale;
 
-        let base_time = Rc::new(RefCell::new(0_u64));
-        let default_duration = Rc::new(RefCell::new(None));
-        let presentations = Rc::new(RefCell::new(Vec::new()));
-        let saw_tfdt = Rc::new(RefCell::new(false));
-        let saw_trun = Rc::new(RefCell::new(false));
-        let subtitles = Rc::new(RefCell::new(Subtitles::new()));
+        let base_time = data!(0_u64);
+        let default_duration = data!();
+        let presentations = data!(Vec::new());
+        let saw_tfdt = data!(false);
+        let saw_trun = data!(false);
+        let subtitles = data!(Subtitles::new());
 
         let base_time_c = base_time.clone();
         let default_duration_c = default_duration.clone();

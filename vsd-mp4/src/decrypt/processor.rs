@@ -3,8 +3,9 @@
 //! Provides a simple API for decrypting CENC-encrypted MP4 data.
 
 use crate::{
-    Mp4Box, Mp4Parser,
+    Mp4Parser,
     boxes::{SchmBox, TencBox},
+    data,
     decrypt::{
         SingleSampleDecrypter,
         cipher::CipherMode,
@@ -12,7 +13,7 @@ use crate::{
         sample_info::SampleInfoTable,
     },
 };
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::collections::HashMap;
 
 /// Builder for creating [`CencDecryptingProcessor`] instances.
 ///
@@ -214,10 +215,8 @@ impl<'a> DecryptionState<'a> {
 
     /// Parse the init segment to extract encryption parameters.
     fn parse_init_segment(&mut self, data: &[u8]) -> Result<()> {
-        let schm_box: Mp4Box<SchmBox> = crate::Mp4Box::new(None);
-
-        // let schm_box: Rc<RefCell<Option<SchmBox>>> = Rc::new(RefCell::new(None));
-        let tenc_box: Rc<RefCell<Option<TencBox>>> = Rc::new(RefCell::new(None));
+        let schm_box = data!();
+        let tenc_box = data!();
 
         let schm_box_c = schm_box.clone();
         let tenc_box_c = tenc_box.clone();

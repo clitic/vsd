@@ -53,3 +53,13 @@ mod trun;
 #[cfg(feature = "text-vtt")]
 #[cfg_attr(docsrs, doc(cfg(feature = "text-vtt")))]
 pub use trun::{TrunBox, TrunSample};
+
+#[macro_export]
+macro_rules! data {
+    () => {
+        std::rc::Rc::new(std::cell::RefCell::new(None))
+    };
+    ($val:expr) => {
+        std::rc::Rc::new(std::cell::RefCell::new($val))
+    };
+}

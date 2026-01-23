@@ -14,11 +14,6 @@
 //! - **text-ttml**: Enables support for extracting ttml subtitles.
 //! - **text-vtt**: Enables support for extracting vtt subtitles.
 
-#[cfg(any(feature = "decrypt", feature = "sidx", feature = "text-vtt"))]
-#[cfg_attr(
-    docsrs,
-    doc(cfg(any(feature = "decrypt", feature = "sidx", feature = "text-vtt")))
-)]
 pub mod boxes;
 
 #[cfg(feature = "decrypt")]
@@ -43,5 +38,3 @@ pub use reader::Reader;
 
 /// A `Result` alias where the `Err` case is `vsd_mp4::Error`.
 pub type Result<T> = std::result::Result<T, Error>;
-
-pub type Mp4Box<T> = std::rc::Rc<std::cell::RefCell<Option<T>>>;

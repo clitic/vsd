@@ -7,7 +7,7 @@
     2. https://github.com/shaka-project/shaka-player/blob/main/lib/util/mp4_box_parsers.js
 */
 
-use crate::{ParsedBox, Result};
+use crate::{Mp4Parser, ParsedBox, Result, data, parser};
 
 /// Track Encryption Box (tenc) - default encryption parameters for a track.
 ///
@@ -37,10 +37,7 @@ impl TencBox {
     /// This method navigates through the MP4 box hierarchy to find and parse
     /// the tenc box.
     pub fn from_init(data: &[u8]) -> Result<Option<Self>> {
-        use crate::parser::{self, Mp4Parser};
-        use std::{cell::RefCell, rc::Rc};
-
-        let tenc_box = Rc::new(RefCell::new(None));
+        let tenc_box = data!();
         let tenc_box_c = tenc_box.clone();
 
         Mp4Parser::new()

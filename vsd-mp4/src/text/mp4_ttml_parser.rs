@@ -7,11 +7,10 @@
 */
 
 use crate::{
-    Error, Result, bail, parser,
+    Error, Result, bail, data, parser,
     parser::Mp4Parser,
     text::{Subtitles, ttml_text_parser},
 };
-use std::{cell::RefCell, rc::Rc};
 
 /// Parse ttml subtitles from mp4 files.
 pub struct Mp4TtmlParser;
@@ -19,7 +18,7 @@ pub struct Mp4TtmlParser;
 impl Mp4TtmlParser {
     /// Parse intialization segment, a valid `stpp` box should be present.
     pub fn from_init(data: &[u8]) -> Result<Self> {
-        let saw_stpp = Rc::new(RefCell::new(false));
+        let saw_stpp = data!(false);
         let saw_stpp_c = saw_stpp.clone();
 
         Mp4Parser::new()
@@ -45,8 +44,8 @@ impl Mp4TtmlParser {
 
     /// Parse media segments, only if valid `mdat` box(s) are present.
     pub fn parse(&self, data: &[u8]) -> Result<Subtitles> {
-        let saw_mdat = Rc::new(RefCell::new(false));
-        let subtitles = Rc::new(RefCell::new(Subtitles::new()));
+        let saw_mdat = data!(false);
+        let subtitles = data!(Subtitles::new());
 
         let saw_mdat_c = saw_mdat.clone();
         let subtitles_c = subtitles.clone();

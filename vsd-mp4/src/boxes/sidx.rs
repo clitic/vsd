@@ -8,8 +8,7 @@
 
 //! Mp4 `SIDX` box parser.
 
-use crate::{Mp4Parser, ParsedBox, Result, bail};
-use std::{cell::RefCell, rc::Rc};
+use crate::{Mp4Parser, ParsedBox, Result, bail, data};
 
 /// Segment range.
 pub struct SidxRange {
@@ -25,7 +24,7 @@ pub struct SidxBox {
 
 impl SidxBox {
     pub fn from_init(data: &[u8], offset: u64) -> Result<Option<Self>> {
-        let sidx_box = Rc::new(RefCell::new(None));
+        let sidx_box = data!();
         let sidx_box_c = sidx_box.clone();
 
         Mp4Parser::new()
