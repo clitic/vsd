@@ -39,7 +39,7 @@ impl Decrypter {
         }
     }
 
-    pub fn process(&mut self, input: &[u8], output: &mut [u8]) {
+    fn process(&mut self, input: &[u8], output: &mut [u8]) {
         match self.mode {
             CipherMode::Cenc => self.process_ctr(input, output),
             CipherMode::Cens => self.process_cens_pattern(input, output),
@@ -135,34 +135,34 @@ impl Decrypter {
 
     pub fn decrypt_sample(
         &mut self,
-        data_in: &[u8],
+        input: &[u8],
         iv: &[u8; 16],
         subsample_count: usize,
         bytes_of_cleartext_data: &[u16],
         bytes_of_encrypted_data: &[u32],
     ) -> Vec<u8> {
         if let CipherMode::None = self.mode {
-            return data_in.to_vec();
+            return input.to_vec();
         }
 
-        let mut data_out = vec![0u8; data_in.len()];
+        let mut output = vec![0u8; input.len()];
         self.iv = *iv;
 
         if subsample_count > 0 {
             self.decrypt_subsamples(
-                data_in,
-                &mut data_out,
+                input,
+                &mut output,
                 iv,
                 bytes_of_cleartext_data,
                 bytes_of_encrypted_data,
             );
         } else if let CipherMode::Cbc1 | CipherMode::Cbcs = self.mode {
-            self.decrypt_full_blocks(data_in, &mut data_out);
+            self.decrypt_full_blocks(input, &mut output);
         } else {
-            self.process(data_in, &mut data_out);
+            self.process(input, &mut output);
         }
 
-        data_out
+        output
     }
 
     fn decrypt_subsamples(
