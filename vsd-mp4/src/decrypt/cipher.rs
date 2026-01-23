@@ -43,14 +43,6 @@ impl Cipher {
         self.iv = *iv;
     }
 
-    pub fn is_cbc_mode(&self) -> bool {
-        matches!(self.mode, CipherMode::Cbc1 | CipherMode::Cbcs)
-    }
-
-    pub fn is_cbcs(&self) -> bool {
-        matches!(self.mode, CipherMode::Cbcs)
-    }
-
     pub fn process(&mut self, input: &[u8], output: &mut [u8]) {
         match self.mode {
             CipherMode::Cenc => self.process_ctr(input, output),

@@ -33,7 +33,7 @@ impl SingleSampleDecrypter {
                 bytes_of_cleartext_data,
                 bytes_of_encrypted_data,
             )?;
-        } else if self.0.is_cbc_mode() {
+        } else if let CipherMode::Cbc1 | CipherMode::Cbcs = self.0.mode {
             self.decrypt_full_blocks(data_in, &mut data_out)?;
         } else {
             self.0.process(data_in, &mut data_out);
@@ -60,7 +60,7 @@ impl SingleSampleDecrypter {
             if in_offset + cleartext_size + encrypted_size > data_in.len() {
                 let remaining = &data_in[in_offset..];
                 let remaining_out = &mut data_out[out_offset..];
-                if self.0.is_cbc_mode() && remaining.len() >= 16 {
+                if let CipherMode::Cbc1 | CipherMode::Cbcs = self.0.mode {
                     let _ = self.0.set_iv(iv);
                     self.0.process(remaining, remaining_out);
                 } else {
@@ -75,7 +75,7 @@ impl SingleSampleDecrypter {
             }
 
             if encrypted_size > 0 {
-                if self.0.is_cbcs() {
+                if let CipherMode::Cbcs = self.0.mode {
                     self.0.set_iv(iv);
                 }
 
