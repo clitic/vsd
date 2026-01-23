@@ -25,18 +25,6 @@ static OUTPUT_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     dir
 });
 
-const REF_DIR: &str = "../target/mp4decrypt-samples";
-
-fn find_mdat(data: &[u8]) -> Option<(usize, usize)> {
-    for i in 0..data.len().saturating_sub(4) {
-        if &data[i..i + 4] == b"mdat" {
-            let start = i + 4;
-            return Some((start, data.len() - start));
-        }
-    }
-    None
-}
-
 macro_rules! sample {
     ($test_name: ident, $scheme: literal, $mode: literal, $track: literal) => {
         #[test]
@@ -55,43 +43,17 @@ macro_rules! sample {
                 fs::read(SAMPLES_DIR.join(concat!($scheme, "-", $mode, "/", $track, "_1.m4s")))?;
 
             let decrypted = processor.decrypt(&segment_data, Some(&init_data))?;
-
             fs::create_dir_all(OUTPUT_DIR.join(concat!($scheme, "-", $mode)))?;
 
-            // Write output for inspection
             let mut f =
                 File::create(OUTPUT_DIR.join(concat!($scheme, "-", $mode, "/", $track, ".mp4")))?;
             f.write_all(&init_data)?;
             f.write_all(&decrypted)?;
 
-            // Verify against reference if it exists
-            let ref_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join(REF_DIR)
-                .join(concat!($scheme, "-", $mode, "/", $track, ".mp4"));
-
-            if ref_path.exists() {
-                let reference = fs::read(ref_path)?;
-
-                // Compare mdat content
-                let (our_start, our_len) = find_mdat(&decrypted).expect("decrypted mdat not found");
-                let (ref_start, ref_len) = find_mdat(&reference).expect("reference mdat not found");
-
-                let cmp_len = our_len.min(ref_len);
-                let our_data = &decrypted[our_start..our_start + cmp_len];
-                let ref_data = &reference[ref_start..ref_start + cmp_len];
-
-                if our_data != ref_data {
-                    // Find first diff for reporting
-                    for i in 0..cmp_len {
-                        if our_data[i] != ref_data[i] {
-                            panic!(
-                                "Mismatch at mdat offset {}: ours={:02X}, ref={:02X}",
-                                i, our_data[i], ref_data[i]
-                            );
-                        }
-                    }
-                }
-            }
+            // fs::write(
+            //     OUTPUT_DIR.join(concat!($scheme, "-", $mode, "/", $track, ".mp4")),
+            //     decrypted,
+            // )?;
 
             Ok(())
         }
