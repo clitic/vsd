@@ -43,3 +43,5 @@ pub use reader::Reader;
 
 /// A `Result` alias where the `Err` case is `vsd_mp4::Error`.
 pub type Result<T> = std::result::Result<T, Error>;
+
+pub type Mp4Box<T> = std::rc::Rc<std::cell::RefCell<Option<T>>>;

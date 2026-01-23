@@ -3,7 +3,7 @@
 //! Provides a simple API for decrypting CENC-encrypted MP4 data.
 
 use crate::{
-    Mp4Parser,
+    Mp4Box, Mp4Parser,
     boxes::{SchmBox, TencBox},
     decrypt::{
         SingleSampleDecrypter,
@@ -214,7 +214,9 @@ impl<'a> DecryptionState<'a> {
 
     /// Parse the init segment to extract encryption parameters.
     fn parse_init_segment(&mut self, data: &[u8]) -> Result<()> {
-        let schm_box: Rc<RefCell<Option<SchmBox>>> = Rc::new(RefCell::new(None));
+        let schm_box: Mp4Box<SchmBox> = crate::Mp4Box::new(None);
+
+        // let schm_box: Rc<RefCell<Option<SchmBox>>> = Rc::new(RefCell::new(None));
         let tenc_box: Rc<RefCell<Option<TencBox>>> = Rc::new(RefCell::new(None));
 
         let schm_box_c = schm_box.clone();
