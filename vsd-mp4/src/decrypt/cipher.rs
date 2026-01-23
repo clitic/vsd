@@ -33,40 +33,40 @@ pub enum Cipher {
 }
 
 impl Cipher {
-    pub fn new(scheme_type: u32, key: &[u8], crypt_blocks: u8, skip_blocks: u8) -> Result<Self> {
-        if key.len() != 16 {
-            return Err(DecryptError::InvalidKeySize(key.len()));
-        }
-
-        let key: [u8; 16] = key.try_into().unwrap();
-
-        Ok(match scheme_type {
-            // 'cenc' - AES-CTR full sample
+    pub fn new(scheme_type: u32, key: &[u8; 16], crypt_blocks: u8, skip_blocks: u8) -> Self {
+        match scheme_type {
             0x63656E63 => Cipher::Cenc {
-                key,
+                key: *key,
                 iv: [0u8; 16],
                 cipher: None,
             },
-            // 'cens' - AES-CTR pattern
             0x63656E73 => Cipher::Cens {
-                key,
+                key: *key,
                 iv: [0u8; 16],
                 cipher: None,
                 crypt_blocks,
                 skip_blocks,
             },
-            // 'cbc1' - AES-CBC full sample
-            0x63626331 => Cipher::Cbc1 { key, iv: [0u8; 16] },
-            // 'cbcs' - AES-CBC pattern
+            0x63626331 => Cipher::Cbc1 {
+                key: *key,
+                iv: [0u8; 16],
+            },
             0x63626373 => Cipher::Cbcs {
-                key,
+                key: *key,
                 iv: [0u8; 16],
                 crypt_blocks,
                 skip_blocks,
             },
-            // Unknown scheme
             _ => Cipher::None,
-        })
+        }
+    }
+
+    pub fn is_cbc_mode(&self) -> bool {
+        matches!(self, Cipher::Cbc1 { .. } | Cipher::Cbcs { .. })
+    }
+
+    pub fn is_cbcs(&self) -> bool {
+        matches!(self, Cipher::Cbcs { .. })
     }
 
     pub fn set_iv(&mut self, iv: &[u8]) -> Result<()> {
@@ -105,8 +105,6 @@ impl Cipher {
 
     pub fn process_buffer(&mut self, input: &[u8], output: &mut [u8]) {
         match self {
-            Cipher::None => output[..input.len()].copy_from_slice(input),
-
             Cipher::Cenc { key, iv, cipher } => {
                 Self::apply_ctr(key, iv, cipher, input, output);
             }
@@ -156,15 +154,9 @@ impl Cipher {
                     |inp, out| out.copy_from_slice(inp),
                 );
             }
+
+            Cipher::None => output[..input.len()].copy_from_slice(input),
         }
-    }
-
-    pub fn is_cbc_mode(&self) -> bool {
-        matches!(self, Cipher::Cbc1 { .. } | Cipher::Cbcs { .. })
-    }
-
-    pub fn resets_iv_per_subsample(&self) -> bool {
-        matches!(self, Cipher::Cbcs { .. })
     }
 
     fn apply_ctr(

@@ -1,21 +1,10 @@
-use crate::decrypt::{
-    cipher::Cipher,
-    error::{DecryptError, Result},
-};
+use crate::decrypt::{cipher::Cipher, error::Result};
 
-pub struct SingleSampleDecrypter {
-    cipher: Cipher,
-}
+pub struct SingleSampleDecrypter(Cipher);
 
 impl SingleSampleDecrypter {
-    pub fn new(scheme_type: u32, key: &[u8], crypt_blocks: u8, skip_blocks: u8) -> Result<Self> {
-        if key.len() != 16 {
-            return Err(DecryptError::InvalidKeySize(key.len()));
-        }
-
-        Ok(Self {
-            cipher: Cipher::new(scheme_type, key, crypt_blocks, skip_blocks)?,
-        })
+    pub fn new(scheme_type: u32, key: &[u8; 16], crypt_blocks: u8, skip_blocks: u8) -> Self {
+        Self(Cipher::new(scheme_type, key, crypt_blocks, skip_blocks))
     }
 
     pub fn decrypt_sample_data(
@@ -26,12 +15,12 @@ impl SingleSampleDecrypter {
         bytes_of_cleartext_data: &[u16],
         bytes_of_encrypted_data: &[u32],
     ) -> Result<Vec<u8>> {
-        if matches!(self.cipher, Cipher::None) {
+        if matches!(self.0, Cipher::None) {
             return Ok(data_in.to_vec());
         }
 
         let mut data_out = vec![0u8; data_in.len()];
-        self.cipher.set_iv(iv)?;
+        self.0.set_iv(iv)?;
 
         if subsample_count > 0 {
             self.decrypt_subsamples(
@@ -41,10 +30,10 @@ impl SingleSampleDecrypter {
                 bytes_of_cleartext_data,
                 bytes_of_encrypted_data,
             )?;
-        } else if self.cipher.is_cbc_mode() {
+        } else if self.0.is_cbc_mode() {
             self.decrypt_full_blocks(data_in, &mut data_out)?;
         } else {
-            self.cipher.process_buffer(data_in, &mut data_out);
+            self.0.process_buffer(data_in, &mut data_out);
         }
 
         Ok(data_out)
@@ -68,9 +57,9 @@ impl SingleSampleDecrypter {
             if in_offset + cleartext_size + encrypted_size > data_in.len() {
                 let remaining = &data_in[in_offset..];
                 let remaining_out = &mut data_out[out_offset..];
-                if self.cipher.is_cbc_mode() && remaining.len() >= 16 {
-                    let _ = self.cipher.set_iv(iv);
-                    self.cipher.process_buffer(remaining, remaining_out);
+                if self.0.is_cbc_mode() && remaining.len() >= 16 {
+                    let _ = self.0.set_iv(iv);
+                    self.0.process_buffer(remaining, remaining_out);
                 } else {
                     remaining_out.copy_from_slice(remaining);
                 }
@@ -83,8 +72,8 @@ impl SingleSampleDecrypter {
             }
 
             if encrypted_size > 0 {
-                if self.cipher.resets_iv_per_subsample() {
-                    self.cipher.set_iv(iv)?;
+                if self.0.is_cbcs() {
+                    self.0.set_iv(iv)?;
                 }
 
                 let encrypted_in = &data_in
@@ -92,7 +81,7 @@ impl SingleSampleDecrypter {
                 let encrypted_out = &mut data_out
                     [out_offset + cleartext_size..out_offset + cleartext_size + encrypted_size];
 
-                self.cipher.process_buffer(encrypted_in, encrypted_out);
+                self.0.process_buffer(encrypted_in, encrypted_out);
             }
 
             in_offset += cleartext_size + encrypted_size;
@@ -112,7 +101,7 @@ impl SingleSampleDecrypter {
 
         if block_count > 0 {
             let encrypted_size = block_count * 16;
-            self.cipher
+            self.0
                 .process_buffer(&data_in[..encrypted_size], &mut data_out[..encrypted_size]);
 
             if encrypted_size < data_in.len() {

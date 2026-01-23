@@ -180,7 +180,7 @@ impl<'a> DecryptionSession<'a> {
             key,
             self.tenc.crypt_byte_block,
             self.tenc.skip_byte_block,
-        )?;
+        );
 
         let data_start = {
             let offset = trun.data_offset.unwrap_or_default() as i64;
