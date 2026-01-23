@@ -1,4 +1,3 @@
-use crate::decrypt::error::{DecryptError, Result};
 use aes::{
     Aes128,
     cipher::{BlockDecrypt, KeyInit, KeyIvInit, StreamCipher, generic_array::GenericArray},
@@ -6,146 +5,88 @@ use aes::{
 
 type Aes128Ctr = ctr::Ctr128BE<Aes128>;
 
-pub enum Cipher {
-    Cenc {
-        key: [u8; 16],
-        iv: [u8; 16],
-        cipher: Option<Aes128Ctr>,
-    },
-    Cens {
-        key: [u8; 16],
-        iv: [u8; 16],
-        cipher: Option<Aes128Ctr>,
-        crypt_blocks: u8,
-        skip_blocks: u8,
-    },
-    Cbc1 {
-        key: [u8; 16],
-        iv: [u8; 16],
-    },
-    Cbcs {
-        key: [u8; 16],
-        iv: [u8; 16],
-        crypt_blocks: u8,
-        skip_blocks: u8,
-    },
+pub enum CipherMode {
+    Cenc,
+    Cens,
+    Cbc1,
+    Cbcs,
     None,
+}
+
+pub struct Cipher {
+    pub mode: CipherMode,
+    key: [u8; 16],
+    iv: [u8; 16],
+    crypt_blocks: u8,
+    skip_blocks: u8,
 }
 
 impl Cipher {
     pub fn new(scheme_type: u32, key: &[u8; 16], crypt_blocks: u8, skip_blocks: u8) -> Self {
-        match scheme_type {
-            0x63656E63 => Cipher::Cenc {
-                key: *key,
-                iv: [0u8; 16],
-                cipher: None,
+        Self {
+            mode: match scheme_type {
+                0x63656E63 => CipherMode::Cenc,
+                0x63656E73 => CipherMode::Cens,
+                0x63626331 => CipherMode::Cbc1,
+                0x63626373 => CipherMode::Cbcs,
+                _ => CipherMode::None,
             },
-            0x63656E73 => Cipher::Cens {
-                key: *key,
-                iv: [0u8; 16],
-                cipher: None,
-                crypt_blocks,
-                skip_blocks,
-            },
-            0x63626331 => Cipher::Cbc1 {
-                key: *key,
-                iv: [0u8; 16],
-            },
-            0x63626373 => Cipher::Cbcs {
-                key: *key,
-                iv: [0u8; 16],
-                crypt_blocks,
-                skip_blocks,
-            },
-            _ => Cipher::None,
+            key: *key,
+            iv: [0u8; 16],
+            crypt_blocks,
+            skip_blocks,
         }
+    }
+
+    pub fn set_iv(&mut self, iv: &[u8; 16]) {
+        self.iv = *iv;
     }
 
     pub fn is_cbc_mode(&self) -> bool {
-        matches!(self, Cipher::Cbc1 { .. } | Cipher::Cbcs { .. })
+        matches!(self.mode, CipherMode::Cbc1 | CipherMode::Cbcs)
     }
 
     pub fn is_cbcs(&self) -> bool {
-        matches!(self, Cipher::Cbcs { .. })
-    }
-
-    pub fn set_iv(&mut self, iv: &[u8]) -> Result<()> {
-        match self {
-            Cipher::None => {}
-            Cipher::Cenc {
-                key,
-                iv: stored_iv,
-                cipher,
-            }
-            | Cipher::Cens {
-                key,
-                iv: stored_iv,
-                cipher,
-                ..
-            } => {
-                *stored_iv = [0u8; 16];
-                stored_iv[..iv.len().min(16)].copy_from_slice(&iv[..iv.len().min(16)]);
-                *cipher = Some(Aes128Ctr::new(
-                    GenericArray::from_slice(key),
-                    GenericArray::from_slice(stored_iv),
-                ));
-            }
-            Cipher::Cbc1 { iv: stored_iv, .. } | Cipher::Cbcs { iv: stored_iv, .. } => {
-                if iv.len() != 16 {
-                    return Err(DecryptError::InvalidIvSize {
-                        expected: 16,
-                        actual: iv.len(),
-                    });
-                }
-                stored_iv.copy_from_slice(iv);
-            }
-        }
-        Ok(())
+        matches!(self.mode, CipherMode::Cbcs)
     }
 
     pub fn process_buffer(&mut self, input: &[u8], output: &mut [u8]) {
-        match self {
-            Cipher::Cenc { key, iv, cipher } => {
-                Self::apply_ctr(key, iv, cipher, input, output);
+        match self.mode {
+            CipherMode::Cenc => {
+                Self::apply_ctr(&self.key, &self.iv, input, output);
             }
 
-            Cipher::Cens {
-                key,
-                iv,
-                cipher,
-                crypt_blocks,
-                skip_blocks,
-            } => {
+            CipherMode::Cens => {
                 Self::process_pattern(
                     input,
                     output,
-                    *crypt_blocks as usize * 16,
-                    *skip_blocks as usize * 16,
-                    |inp, out| Self::apply_ctr(key, iv, cipher, inp, out),
+                    self.crypt_blocks as usize * 16,
+                    self.skip_blocks as usize * 16,
+                    |inp, out| Self::apply_ctr(&self.key, &self.iv, inp, out),
                     |inp, out| out.copy_from_slice(inp),
                 );
             }
 
-            Cipher::Cbc1 { key, iv } => {
-                Self::apply_cbc(key, iv, input, output);
+            CipherMode::Cbc1 => {
+                Self::apply_cbc(&self.key, &self.iv, input, output);
             }
 
-            Cipher::Cbcs {
-                key,
-                iv,
-                crypt_blocks,
-                skip_blocks,
-            } => {
+            CipherMode::Cbcs => {
                 Self::process_pattern(
                     input,
                     output,
-                    *crypt_blocks as usize * 16,
-                    *skip_blocks as usize * 16,
+                    self.crypt_blocks as usize * 16,
+                    self.skip_blocks as usize * 16,
                     |inp, out| {
                         let blocks = (inp.len() / 16) * 16;
                         if blocks > 0 {
-                            Self::apply_cbc(key, iv, &inp[..blocks], &mut out[..blocks]);
-                            iv.copy_from_slice(&inp[blocks - 16..blocks]);
+                            Self::apply_cbc(
+                                &self.key,
+                                &self.iv,
+                                &inp[..blocks],
+                                &mut out[..blocks],
+                            );
+                            self.iv.copy_from_slice(&inp[blocks - 16..blocks]);
                         }
                         if blocks < inp.len() {
                             out[blocks..inp.len()].copy_from_slice(&inp[blocks..]);
@@ -155,21 +96,13 @@ impl Cipher {
                 );
             }
 
-            Cipher::None => output[..input.len()].copy_from_slice(input),
+            CipherMode::None => output[..input.len()].copy_from_slice(input),
         }
     }
 
-    fn apply_ctr(
-        key: &[u8; 16],
-        iv: &[u8; 16],
-        cipher: &mut Option<Aes128Ctr>,
-        input: &[u8],
-        output: &mut [u8],
-    ) {
+    fn apply_ctr(key: &[u8; 16], iv: &[u8; 16], input: &[u8], output: &mut [u8]) {
         output[..input.len()].copy_from_slice(input);
-        let c = cipher.get_or_insert_with(|| {
-            Aes128Ctr::new(GenericArray::from_slice(key), GenericArray::from_slice(iv))
-        });
+        let mut c = Aes128Ctr::new(key.into(), iv.into());
         c.apply_keystream(&mut output[..input.len()]);
     }
 
@@ -179,7 +112,7 @@ impl Cipher {
             return;
         }
 
-        let cipher = Aes128::new(GenericArray::from_slice(key));
+        let cipher = Aes128::new(key.into());
         let mut prev = *iv;
 
         for i in 0..block_count {

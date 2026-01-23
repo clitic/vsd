@@ -1,4 +1,7 @@
-use crate::decrypt::{cipher::Cipher, error::Result};
+use crate::decrypt::{
+    cipher::{Cipher, CipherMode},
+    error::Result,
+};
 
 pub struct SingleSampleDecrypter(Cipher);
 
@@ -15,12 +18,12 @@ impl SingleSampleDecrypter {
         bytes_of_cleartext_data: &[u16],
         bytes_of_encrypted_data: &[u32],
     ) -> Result<Vec<u8>> {
-        if matches!(self.0, Cipher::None) {
+        if let CipherMode::None = self.0.mode {
             return Ok(data_in.to_vec());
         }
 
         let mut data_out = vec![0u8; data_in.len()];
-        self.0.set_iv(iv)?;
+        self.0.set_iv(iv);
 
         if subsample_count > 0 {
             self.decrypt_subsamples(
@@ -73,7 +76,7 @@ impl SingleSampleDecrypter {
 
             if encrypted_size > 0 {
                 if self.0.is_cbcs() {
-                    self.0.set_iv(iv)?;
+                    self.0.set_iv(iv);
                 }
 
                 let encrypted_in = &data_in
