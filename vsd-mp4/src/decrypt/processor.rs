@@ -37,7 +37,6 @@ impl CencDecryptingProcessorBuilder {
         if self.keys.is_empty() {
             return Err(DecryptError::NoKeys);
         }
-
         Ok(CencDecryptingProcessor { keys: self.keys })
     }
 }
@@ -51,45 +50,35 @@ impl CencDecryptingProcessor {
         CencDecryptingProcessorBuilder::new()
     }
 
-    pub fn decrypt<T: AsRef<[u8]>>(&self, input_data: T, init_data: Option<T>) -> Result<Vec<u8>> {
-        let init = init_data.as_ref().map(|x| x.as_ref());
-        let input = input_data.as_ref();
+    pub fn session(&self, init_data: &[u8]) -> Result<DecryptionSession<'_>> {
+        DecryptionSession::new(&self.keys, init_data)
+    }
 
-        let mut state = DecryptionState::new(&self.keys);
+    pub fn decrypt<T: AsRef<[u8]>>(&self, input_data: T, init_data: Option<T>) -> Result<Vec<u8>> {
+        let input = input_data.as_ref();
+        let init = init_data.as_ref().map(|x| x.as_ref());
 
         if let Some(init) = init {
-            state.parse_init(init)?;
+            self.session(init)?.decrypt(input)
         } else if !input.is_empty() {
-            state.parse_init(&input[..input.len().min(1000)])?;
+            self.session(&input[..input.len().min(1000)])?
+                .decrypt(input)
+        } else {
+            Ok(Vec::new())
         }
-
-        let mut output = input.to_vec();
-        state.parse_and_decrypt_segment(&mut output)?;
-        Ok(output)
     }
 }
 
-struct DecryptionState<'a> {
+pub struct DecryptionSession<'a> {
     keys: &'a HashMap<[u8; 16], [u8; 16]>,
     scheme_type: u32,
-    tenc: Option<TencBox>,
+    tenc: TencBox,
 }
 
-impl<'a> DecryptionState<'a> {
-    fn new(keys: &'a HashMap<[u8; 16], [u8; 16]>) -> Self {
-        Self {
-            keys,
-            scheme_type: 0,
-            tenc: None,
-        }
-    }
-
-    fn parse_init(&mut self, data: &[u8]) -> Result<()> {
+impl<'a> DecryptionSession<'a> {
+    fn new(keys: &'a HashMap<[u8; 16], [u8; 16]>, init_data: &[u8]) -> Result<Self> {
         let schm_box = data!();
         let tenc_box = data!();
-
-        let schm_box_c = schm_box.clone();
-        let tenc_box_c = tenc_box.clone();
 
         let _ = Mp4Parser::new()
             .base_box("moov", parser::children)
@@ -101,37 +90,49 @@ impl<'a> DecryptionState<'a> {
             .base_box("encv", parser::visual_sample_entry)
             .base_box("enca", parser::audio_sample_entry)
             .base_box("sinf", parser::children)
-            .full_box("schm", move |mut box_| {
-                *schm_box_c.borrow_mut() = Some(SchmBox::new(&mut box_)?);
-                Ok(())
+            .full_box("schm", {
+                let schm_box = schm_box.clone();
+                move |mut box_| {
+                    *schm_box.borrow_mut() = Some(SchmBox::new(&mut box_)?);
+                    Ok(())
+                }
             })
             .base_box("schi", parser::children)
-            .full_box("tenc", move |mut box_| {
-                *tenc_box_c.borrow_mut() = Some(TencBox::new(&mut box_)?);
-                Ok(())
+            .full_box("tenc", {
+                let tenc_box = tenc_box.clone();
+                move |mut box_| {
+                    *tenc_box.borrow_mut() = Some(TencBox::new(&mut box_)?);
+                    Ok(())
+                }
             })
-            .parse(data, true, true);
+            .parse(init_data, true, true);
 
-        if let Some(schm) = schm_box.borrow().as_ref() {
-            self.scheme_type = schm.scheme_type;
-        }
+        let scheme_type = schm_box
+            .borrow()
+            .as_ref()
+            .map(|s| s.scheme_type)
+            .unwrap_or_default();
 
-        self.tenc = tenc_box.take();
-        Ok(())
+        let tenc = tenc_box
+            .take()
+            .ok_or_else(|| DecryptError::InvalidFormat("No tenc box found".into()))?;
+
+        Ok(Self {
+            keys,
+            scheme_type,
+            tenc,
+        })
     }
 
-    fn parse_and_decrypt_segment(&mut self, output: &mut [u8]) -> Result<()> {
-        let tenc = match &self.tenc {
-            Some(t) => t,
-            None => return Ok(()),
-        };
+    pub fn decrypt(&self, segment_data: &[u8]) -> Result<Vec<u8>> {
+        let mut output = segment_data.to_vec();
 
         let moof_start = data!(0u64);
         let trun_box = data!();
         let senc_box = data!();
 
-        let iv_size = tenc.per_sample_iv_size;
-        let constant_iv = tenc.constant_iv.clone();
+        let iv_size = self.tenc.per_sample_iv_size;
+        let constant_iv = self.tenc.constant_iv.clone();
 
         let _ = Mp4Parser::new()
             .base_box("moof", {
@@ -159,22 +160,22 @@ impl<'a> DecryptionState<'a> {
                     Ok(())
                 }
             })
-            .parse(output, true, true);
+            .parse(&output, true, true);
 
         let trun_ref = trun_box.borrow();
         let senc_ref = senc_box.borrow();
 
         let trun = match trun_ref.as_ref() {
             Some(t) => t,
-            None => return Ok(()),
+            None => return Ok(output),
         };
 
         let senc = match senc_ref.as_ref() {
             Some(s) => s,
-            None => return Ok(()),
+            None => return Ok(output),
         };
 
-        let kid = tenc.default_kid;
+        let kid = self.tenc.default_kid;
         let key = self
             .keys
             .get(&kid)
@@ -185,13 +186,13 @@ impl<'a> DecryptionState<'a> {
         let mut decrypter = SingleSampleDecrypter::new(
             cipher_mode,
             key,
-            tenc.crypt_byte_block,
-            tenc.skip_byte_block,
+            self.tenc.crypt_byte_block,
+            self.tenc.skip_byte_block,
             reset_iv,
         )?;
 
         let data_start = {
-            let offset = trun.data_offset.unwrap_or(0) as i64;
+            let offset = trun.data_offset.unwrap_or_default() as i64;
             (*moof_start.borrow() as i64 + offset) as usize
         };
 
@@ -199,7 +200,7 @@ impl<'a> DecryptionState<'a> {
         let output_len = output.len();
 
         for (trun_sample, senc_sample) in trun.sample_data.iter().zip(senc.samples.iter()) {
-            let size = trun_sample.sample_size.unwrap_or(0) as usize;
+            let size = trun_sample.sample_size.unwrap_or_default() as usize;
             if size == 0 {
                 continue;
             }
@@ -225,7 +226,7 @@ impl<'a> DecryptionState<'a> {
             offset = end;
         }
 
-        Ok(())
+        Ok(output)
     }
 }
 
