@@ -3,8 +3,8 @@ use crate::{
     boxes::{SchmBox, SencBox, TencBox, TrunBox},
     data,
     decrypt::{
-        SingleSampleDecrypter,
         cipher::CipherMode,
+        decrypter::SingleSampleDecrypter,
         error::{DecryptError, Result},
     },
     parser,
