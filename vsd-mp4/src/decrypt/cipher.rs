@@ -52,102 +52,44 @@ impl Cipher {
     }
 
     pub fn process(&mut self, input: &[u8], output: &mut [u8]) {
+        let crypt_size = self.crypt_blocks as usize * 16;
+        let skip_size = self.skip_blocks as usize * 16;
+
         match self.mode {
-            CipherMode::Cenc => {
-                Self::apply_ctr(&self.key, &self.iv, input, output);
-            }
-
-            CipherMode::Cens => {
-                Self::process_pattern(
-                    input,
-                    output,
-                    self.crypt_blocks as usize * 16,
-                    self.skip_blocks as usize * 16,
-                    |inp, out| Self::apply_ctr(&self.key, &self.iv, inp, out),
-                    |inp, out| out.copy_from_slice(inp),
-                );
-            }
-
-            CipherMode::Cbc1 => {
-                Self::apply_cbc(&self.key, &self.iv, input, output);
-            }
-
-            CipherMode::Cbcs => {
-                Self::process_pattern(
-                    input,
-                    output,
-                    self.crypt_blocks as usize * 16,
-                    self.skip_blocks as usize * 16,
-                    |inp, out| {
-                        let blocks = (inp.len() / 16) * 16;
-                        if blocks > 0 {
-                            Self::apply_cbc(
-                                &self.key,
-                                &self.iv,
-                                &inp[..blocks],
-                                &mut out[..blocks],
-                            );
-                            self.iv.copy_from_slice(&inp[blocks - 16..blocks]);
-                        }
-                        if blocks < inp.len() {
-                            out[blocks..inp.len()].copy_from_slice(&inp[blocks..]);
-                        }
-                    },
-                    |inp, out| out.copy_from_slice(inp),
-                );
-            }
-
+            CipherMode::Cenc => Self::process_ctr(&self.key, &self.iv, input, output),
+            CipherMode::Cens => self.process_cens_pattern(input, output, crypt_size, skip_size),
+            CipherMode::Cbc1 => Self::process_cbc(&self.key, &self.iv, input, output),
+            CipherMode::Cbcs => self.process_cbcs_pattern(input, output, crypt_size, skip_size),
             CipherMode::None => output[..input.len()].copy_from_slice(input),
         }
     }
 
-    fn apply_ctr(key: &[u8; 16], iv: &[u8; 16], input: &[u8], output: &mut [u8]) {
+    fn process_ctr(key: &[u8; 16], iv: &[u8; 16], input: &[u8], output: &mut [u8]) {
         output[..input.len()].copy_from_slice(input);
-        let mut cipher = Aes128Ctr::new(key.into(), iv.into());
-        cipher.apply_keystream(&mut output[..input.len()]);
+        Aes128Ctr::new(key.into(), iv.into()).apply_keystream(&mut output[..input.len()]);
     }
 
-    fn apply_cbc(key: &[u8; 16], iv: &[u8; 16], input: &[u8], output: &mut [u8]) {
-        let block_count = input.len() / 16;
-        if block_count == 0 {
-            return;
-        }
-
-        let encrypted_size = block_count * 16;
-        output[..encrypted_size].copy_from_slice(&input[..encrypted_size]);
-        Aes128Cbc::new(key.into(), iv.into())
-            .decrypt_padded_mut::<cipher::block_padding::NoPadding>(&mut output[..encrypted_size])
-            .unwrap();
-
-        if encrypted_size < input.len() {
-            output[encrypted_size..input.len()].copy_from_slice(&input[encrypted_size..]);
-        }
-    }
-
-    fn process_pattern<F, G>(
+    fn process_cens_pattern(
+        &self,
         input: &[u8],
         output: &mut [u8],
         crypt_size: usize,
         skip_size: usize,
-        mut encrypt_fn: F,
-        mut copy_fn: G,
-    ) where
-        F: FnMut(&[u8], &mut [u8]),
-        G: FnMut(&[u8], &mut [u8]),
-    {
+    ) {
         if crypt_size == 0 && skip_size == 0 {
-            encrypt_fn(input, output);
+            Self::process_ctr(&self.key, &self.iv, input, output);
             return;
         }
 
+        let mut cipher = Aes128Ctr::new((&self.key).into(), (&self.iv).into());
         let mut offset = 0;
+
         while offset < input.len() {
             let to_encrypt = (input.len() - offset).min(crypt_size);
             if to_encrypt > 0 {
-                encrypt_fn(
-                    &input[offset..offset + to_encrypt],
-                    &mut output[offset..offset + to_encrypt],
-                );
+                output[offset..offset + to_encrypt]
+                    .copy_from_slice(&input[offset..offset + to_encrypt]);
+                cipher.apply_keystream(&mut output[offset..offset + to_encrypt]);
                 offset += to_encrypt;
             }
 
@@ -156,13 +98,66 @@ impl Cipher {
             }
 
             let to_skip = (input.len() - offset).min(skip_size);
-            if to_skip > 0 {
-                copy_fn(
-                    &input[offset..offset + to_skip],
-                    &mut output[offset..offset + to_skip],
+            output[offset..offset + to_skip].copy_from_slice(&input[offset..offset + to_skip]);
+            offset += to_skip;
+        }
+    }
+
+    fn process_cbc(key: &[u8; 16], iv: &[u8; 16], input: &[u8], output: &mut [u8]) {
+        let blocks = (input.len() / 16) * 16;
+        if blocks == 0 {
+            return;
+        }
+
+        output[..blocks].copy_from_slice(&input[..blocks]);
+        Aes128Cbc::new(key.into(), iv.into())
+            .decrypt_padded_mut::<cipher::block_padding::NoPadding>(&mut output[..blocks])
+            .unwrap();
+
+        if blocks < input.len() {
+            output[blocks..input.len()].copy_from_slice(&input[blocks..]);
+        }
+    }
+
+    fn process_cbcs_pattern(
+        &mut self,
+        input: &[u8],
+        output: &mut [u8],
+        crypt_size: usize,
+        skip_size: usize,
+    ) {
+        if crypt_size == 0 && skip_size == 0 {
+            Self::process_cbc(&self.key, &self.iv, input, output);
+            return;
+        }
+
+        let mut offset = 0;
+        while offset < input.len() {
+            let to_encrypt = (input.len() - offset).min(crypt_size);
+            let blocks = (to_encrypt / 16) * 16;
+            if blocks > 0 {
+                Self::process_cbc(
+                    &self.key,
+                    &self.iv,
+                    &input[offset..offset + blocks],
+                    &mut output[offset..offset + blocks],
                 );
-                offset += to_skip;
+                self.iv
+                    .copy_from_slice(&input[offset + blocks - 16..offset + blocks]);
             }
+            if blocks < to_encrypt {
+                output[offset + blocks..offset + to_encrypt]
+                    .copy_from_slice(&input[offset + blocks..offset + to_encrypt]);
+            }
+            offset += to_encrypt;
+
+            if offset >= input.len() {
+                break;
+            }
+
+            let to_skip = (input.len() - offset).min(skip_size);
+            output[offset..offset + to_skip].copy_from_slice(&input[offset..offset + to_skip]);
+            offset += to_skip;
         }
     }
 }
