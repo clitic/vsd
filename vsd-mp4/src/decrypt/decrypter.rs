@@ -167,8 +167,8 @@ impl Decrypter {
 
     fn decrypt_subsamples(
         &mut self,
-        data_in: &[u8],
-        data_out: &mut [u8],
+        input: &[u8],
+        output: &mut [u8],
         iv: &[u8; 16],
         bytes_of_cleartext_data: &[u16],
         bytes_of_encrypted_data: &[u32],
@@ -179,20 +179,20 @@ impl Decrypter {
             let clear_size = clear as usize;
             let enc_size = enc as usize;
 
-            if offset + clear_size + enc_size > data_in.len() {
-                let remaining = &data_in[offset..];
+            if offset + clear_size + enc_size > input.len() {
+                let remaining = &input[offset..];
                 if let CipherMode::Cbc1 | CipherMode::Cbcs = self.mode {
                     self.iv = *iv;
-                    self.process(remaining, &mut data_out[offset..]);
+                    self.process(remaining, &mut output[offset..]);
                 } else {
-                    data_out[offset..].copy_from_slice(remaining);
+                    output[offset..].copy_from_slice(remaining);
                 }
                 return;
             }
 
             if clear_size > 0 {
-                data_out[offset..offset + clear_size]
-                    .copy_from_slice(&data_in[offset..offset + clear_size]);
+                output[offset..offset + clear_size]
+                    .copy_from_slice(&input[offset..offset + clear_size]);
             }
 
             if enc_size > 0 {
@@ -201,26 +201,26 @@ impl Decrypter {
                 }
                 let start = offset + clear_size;
                 self.process(
-                    &data_in[start..start + enc_size],
-                    &mut data_out[start..start + enc_size],
+                    &input[start..start + enc_size],
+                    &mut output[start..start + enc_size],
                 );
             }
 
             offset += clear_size + enc_size;
         }
 
-        if offset < data_in.len() {
-            data_out[offset..].copy_from_slice(&data_in[offset..]);
+        if offset < input.len() {
+            output[offset..].copy_from_slice(&input[offset..]);
         }
     }
 
-    fn decrypt_full_blocks(&mut self, data_in: &[u8], data_out: &mut [u8]) {
-        let blocks = (data_in.len() / 16) * 16;
+    fn decrypt_full_blocks(&mut self, input: &[u8], output: &mut [u8]) {
+        let blocks = (input.len() / 16) * 16;
         if blocks > 0 {
-            self.process(&data_in[..blocks], &mut data_out[..blocks]);
+            self.process(&input[..blocks], &mut output[..blocks]);
         }
-        if blocks < data_in.len() {
-            data_out[blocks..].copy_from_slice(&data_in[blocks..]);
+        if blocks < input.len() {
+            output[blocks..].copy_from_slice(&input[blocks..]);
         }
     }
 }
