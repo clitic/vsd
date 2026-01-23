@@ -26,25 +26,6 @@ impl SencSample {
         iv[..len].copy_from_slice(&self.iv[..len]);
         iv
     }
-
-    /// Get subsample info as (count, clear_bytes, encrypted_bytes) tuple.
-    pub fn subsample_info(&self) -> (usize, Vec<u16>, Vec<u32>) {
-        if self.subsamples.is_empty() {
-            (0, Vec::new(), Vec::new())
-        } else {
-            (
-                self.subsamples.len(),
-                self.subsamples
-                    .iter()
-                    .map(|s| s.bytes_of_clear_data)
-                    .collect(),
-                self.subsamples
-                    .iter()
-                    .map(|s| s.bytes_of_encrypted_data)
-                    .collect(),
-            )
-        }
-    }
 }
 
 /// Sample Encryption Box (senc) - contains per-sample encryption info.

@@ -3,6 +3,8 @@ use aes::{
     cipher::{BlockDecryptMut, KeyIvInit, StreamCipher},
 };
 
+use crate::boxes::{SencSample, SencSubsample};
+
 type Aes128Ctr = ctr::Ctr128BE<Aes128>;
 type Aes128Cbc = cbc::Decryptor<Aes128>;
 
@@ -133,29 +135,17 @@ impl Decrypter {
         }
     }
 
-    pub fn decrypt_sample(
-        &mut self,
-        input: &[u8],
-        iv: &[u8; 16],
-        subsample_count: usize,
-        bytes_of_cleartext_data: &[u16],
-        bytes_of_encrypted_data: &[u32],
-    ) -> Vec<u8> {
+    pub fn decrypt_sample(&mut self, input: &[u8], sample: &SencSample) -> Vec<u8> {
         if let CipherMode::None = self.mode {
             return input.to_vec();
         }
 
+        let iv = sample.iv_as_array();
         let mut output = vec![0u8; input.len()];
-        self.iv = *iv;
+        self.iv = iv;
 
-        if subsample_count > 0 {
-            self.decrypt_subsamples(
-                input,
-                &mut output,
-                iv,
-                bytes_of_cleartext_data,
-                bytes_of_encrypted_data,
-            );
+        if !sample.subsamples.is_empty() {
+            self.decrypt_subsamples(input, &mut output, &iv, &sample.subsamples);
         } else if let CipherMode::Cbc1 | CipherMode::Cbcs = self.mode {
             self.decrypt_full_blocks(input, &mut output);
         } else {
@@ -170,14 +160,13 @@ impl Decrypter {
         input: &[u8],
         output: &mut [u8],
         iv: &[u8; 16],
-        bytes_of_cleartext_data: &[u16],
-        bytes_of_encrypted_data: &[u32],
+        subsamples: &[SencSubsample],
     ) {
         let mut offset = 0;
 
-        for (&clear, &enc) in bytes_of_cleartext_data.iter().zip(bytes_of_encrypted_data) {
-            let clear_size = clear as usize;
-            let enc_size = enc as usize;
+        for sub in subsamples {
+            let clear_size = sub.bytes_of_clear_data as usize;
+            let enc_size = sub.bytes_of_encrypted_data as usize;
 
             if offset + clear_size + enc_size > input.len() {
                 let remaining = &input[offset..];

@@ -201,17 +201,8 @@ impl<'a> DecryptionSession<'a> {
                 break;
             }
 
-            let iv = senc_sample.iv_as_array();
-            let (subsample_count, clear, encrypted) = senc_sample.subsample_info();
-
             let encrypted_sample = output[offset..end].to_vec();
-            let decrypted = decrypter.decrypt_sample(
-                &encrypted_sample,
-                &iv,
-                subsample_count,
-                &clear,
-                &encrypted,
-            );
+            let decrypted = decrypter.decrypt_sample(&encrypted_sample, senc_sample);
 
             output[offset..end].copy_from_slice(&decrypted);
             offset = end;
