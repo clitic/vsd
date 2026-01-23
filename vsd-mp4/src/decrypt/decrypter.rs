@@ -1,15 +1,7 @@
 use crate::decrypt::{
-    cipher::{CbcPatternStreamCipher, CbcStreamCipher, CtrPatternStreamCipher, CtrStreamCipher},
+    cipher::{Cbc1Cipher, CbcsCipher, CencCipher, CensCipher, Cipher, CipherMode},
     error::{DecryptError, Result},
 };
-
-enum Cipher {
-    None,
-    Ctr(CtrStreamCipher),
-    CtrPattern(CtrPatternStreamCipher),
-    Cbc(CbcStreamCipher),
-    CbcPattern(CbcPatternStreamCipher),
-}
 
 pub struct SingleSampleDecrypter {
     cipher: Cipher,
@@ -19,14 +11,12 @@ pub struct SingleSampleDecrypter {
 
 impl SingleSampleDecrypter {
     pub fn new(
-        mode: crate::decrypt::cipher::CipherMode,
+        mode: CipherMode,
         key: &[u8],
         crypt_byte_block: u8,
         skip_byte_block: u8,
         reset_iv_at_each_subsample: bool,
     ) -> Result<Self> {
-        use crate::decrypt::cipher::CipherMode;
-
         if key.len() != 16 {
             return Err(DecryptError::InvalidKeySize(key.len()));
         }
@@ -35,20 +25,20 @@ impl SingleSampleDecrypter {
             CipherMode::None => (Cipher::None, false),
             CipherMode::AesCtr => {
                 if crypt_byte_block > 0 || skip_byte_block > 0 {
-                    let c = CtrPatternStreamCipher::new(key, crypt_byte_block, skip_byte_block)?;
-                    (Cipher::CtrPattern(c), false)
+                    let c = CensCipher::new(key, crypt_byte_block, skip_byte_block)?;
+                    (Cipher::Cens(c), false)
                 } else {
-                    let c = CtrStreamCipher::new(key, 16)?;
-                    (Cipher::Ctr(c), false)
+                    let c = CencCipher::new(key, 16)?;
+                    (Cipher::Cenc(c), false)
                 }
             }
             CipherMode::AesCbc => {
                 if crypt_byte_block > 0 || skip_byte_block > 0 {
-                    let c = CbcPatternStreamCipher::new(key, crypt_byte_block, skip_byte_block)?;
-                    (Cipher::CbcPattern(c), true)
+                    let c = CbcsCipher::new(key, crypt_byte_block, skip_byte_block)?;
+                    (Cipher::Cbcs(c), true)
                 } else {
-                    let c = CbcStreamCipher::new(key)?;
-                    (Cipher::Cbc(c), true)
+                    let c = Cbc1Cipher::new(key)?;
+                    (Cipher::Cbc1(c), true)
                 }
             }
         };
@@ -95,10 +85,10 @@ impl SingleSampleDecrypter {
     fn set_iv(&mut self, iv: &[u8]) -> Result<()> {
         match &mut self.cipher {
             Cipher::None => {}
-            Cipher::Ctr(c) => c.set_iv(iv)?,
-            Cipher::CtrPattern(c) => c.set_iv(iv)?,
-            Cipher::Cbc(c) => c.set_iv(iv)?,
-            Cipher::CbcPattern(c) => c.set_iv(iv)?,
+            Cipher::Cenc(c) => c.set_iv(iv)?,
+            Cipher::Cens(c) => c.set_iv(iv)?,
+            Cipher::Cbc1(c) => c.set_iv(iv)?,
+            Cipher::Cbcs(c) => c.set_iv(iv)?,
         }
         Ok(())
     }
@@ -184,10 +174,10 @@ impl SingleSampleDecrypter {
     fn process_buffer(&mut self, input: &[u8], output: &mut [u8]) -> Result<()> {
         match &mut self.cipher {
             Cipher::None => output[..input.len()].copy_from_slice(input),
-            Cipher::Ctr(c) => c.process_buffer(input, output),
-            Cipher::CtrPattern(c) => c.process_buffer(input, output),
-            Cipher::Cbc(c) => c.process_buffer(input, output),
-            Cipher::CbcPattern(c) => c.process_buffer(input, output),
+            Cipher::Cenc(c) => c.process_buffer(input, output),
+            Cipher::Cens(c) => c.process_buffer(input, output),
+            Cipher::Cbc1(c) => c.process_buffer(input, output),
+            Cipher::Cbcs(c) => c.process_buffer(input, output),
         }
         Ok(())
     }

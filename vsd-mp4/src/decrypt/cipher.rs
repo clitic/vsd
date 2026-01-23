@@ -44,13 +44,13 @@ impl CipherMode {
 type Aes128Ctr = ctr::Ctr128BE<Aes128>;
 
 /// AES-128-CTR stream cipher for CENC decryption.
-pub struct CtrStreamCipher {
+pub struct CencCipher {
     key: [u8; 16],
     iv: [u8; 16],
     cipher: Option<Aes128Ctr>,
 }
 
-impl CtrStreamCipher {
+impl CencCipher {
     /// Create a new CTR cipher with the given key and counter size.
     ///
     /// # Arguments
@@ -126,13 +126,13 @@ impl CtrStreamCipher {
 ///
 /// CENS uses a pattern of encrypted and unencrypted 16-byte blocks with CTR mode.
 /// The pattern works the same as CBCS but with CTR instead of CBC.
-pub struct CtrPatternStreamCipher {
-    inner: CtrStreamCipher,
+pub struct CensCipher {
+    inner: CencCipher,
     crypt_byte_block: u8,
     skip_byte_block: u8,
 }
 
-impl CtrPatternStreamCipher {
+impl CensCipher {
     /// Create a new CTR pattern cipher.
     ///
     /// # Arguments
@@ -142,7 +142,7 @@ impl CtrPatternStreamCipher {
     /// * `skip_byte_block` - Number of 16-byte blocks to skip (typically 9)
     pub fn new(key: &[u8], crypt_byte_block: u8, skip_byte_block: u8) -> Result<Self> {
         Ok(Self {
-            inner: CtrStreamCipher::new(key, 16)?,
+            inner: CencCipher::new(key, 16)?,
             crypt_byte_block,
             skip_byte_block,
         })
@@ -200,12 +200,12 @@ impl CtrPatternStreamCipher {
 }
 
 /// AES-128-CBC stream cipher for CBCS decryption.
-pub struct CbcStreamCipher {
+pub struct Cbc1Cipher {
     key: [u8; 16],
     iv: [u8; 16],
 }
 
-impl CbcStreamCipher {
+impl Cbc1Cipher {
     /// Create a new CBC cipher with the given key.
     pub fn new(key: &[u8]) -> Result<Self> {
         if key.len() != 16 {
@@ -278,13 +278,13 @@ impl CbcStreamCipher {
 ///
 /// CBCS uses a pattern of encrypted and unencrypted 16-byte blocks.
 /// The default pattern is 1:9 (crypt 1 block, skip 9 blocks).
-pub struct CbcPatternStreamCipher {
-    inner: CbcStreamCipher,
+pub struct CbcsCipher {
+    inner: Cbc1Cipher,
     crypt_byte_block: u8,
     skip_byte_block: u8,
 }
 
-impl CbcPatternStreamCipher {
+impl CbcsCipher {
     /// Create a new pattern cipher.
     ///
     /// # Arguments
@@ -294,7 +294,7 @@ impl CbcPatternStreamCipher {
     /// * `skip_byte_block` - Number of 16-byte blocks to skip (typically 9)
     pub fn new(key: &[u8], crypt_byte_block: u8, skip_byte_block: u8) -> Result<Self> {
         Ok(Self {
-            inner: CbcStreamCipher::new(key)?,
+            inner: Cbc1Cipher::new(key)?,
             crypt_byte_block,
             skip_byte_block,
         })
@@ -361,4 +361,12 @@ impl CbcPatternStreamCipher {
             }
         }
     }
+}
+
+pub enum Cipher {
+    Cenc(CencCipher),
+    Cens(CensCipher),
+    Cbc1(Cbc1Cipher),
+    Cbcs(CbcsCipher),
+    None,
 }
