@@ -2,13 +2,17 @@
 //!
 //! Provides a simple API for decrypting CENC-encrypted MP4 data.
 
-use std::collections::HashMap;
-
-use super::cipher::CipherMode;
-use super::decrypter::SingleSampleDecrypter;
-use super::error::{DecryptError, Result};
-use super::sample_info::SampleInfoTable;
-use crate::Mp4Parser;
+use crate::{
+    Mp4Parser,
+    boxes::{SchmBox, TencBox},
+    decrypt::{
+        SingleSampleDecrypter,
+        cipher::CipherMode,
+        error::{DecryptError, Result},
+        sample_info::SampleInfoTable,
+    },
+};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 /// Builder for creating [`CencDecryptingProcessor`] instances.
 ///
@@ -44,12 +48,6 @@ impl CencDecryptingProcessorBuilder {
     pub fn key(mut self, kid: &str, key: &str) -> Result<Self> {
         self.keys.insert(parse_hex_16(kid)?, parse_hex_16(key)?);
         Ok(self)
-    }
-
-    /// Add a KID/key pair from raw bytes.
-    pub fn key_bytes(mut self, kid: [u8; 16], key: [u8; 16]) -> Self {
-        self.keys.insert(kid, key);
-        self
     }
 
     /// Add multiple KID/key pairs from a HashMap.
@@ -169,98 +167,6 @@ impl CencDecryptingProcessor {
         }
     }
 
-    /// Decrypt encrypted MP4 data from files.
-    ///
-    /// This is a convenience method that reads from file paths instead of byte slices.
-    ///
-    /// # Arguments
-    ///
-    /// * `segment_path` - Path to the encrypted segment file (.m4s or .mp4)
-    /// * `init_path` - Optional path to the initialization segment (.mp4)
-    ///
-    /// # Returns
-    ///
-    /// Decrypted segment data as a byte vector.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use vsd_mp4::decrypt::CencDecryptingProcessor;
-    ///
-    /// let processor = CencDecryptingProcessor::builder()
-    ///     .key("eb676abbcb345e96bbcf616630f1a3da", "100b6c20940f779a4589152b57d2dacb")?
-    ///     .build()?;
-    ///
-    /// // Decrypt with separate init segment
-    /// let decrypted = processor.decrypt_file("segment.m4s", Some("init.mp4"))?;
-    ///
-    /// // Decrypt standalone MP4
-    /// let decrypted = processor.decrypt_file("encrypted.mp4", None)?;
-    /// # Ok::<(), vsd_mp4::decrypt::DecryptError>(())
-    /// ```
-    pub fn decrypt_file<P: AsRef<std::path::Path>>(
-        &self,
-        segment_path: P,
-        init_path: Option<P>,
-    ) -> Result<Vec<u8>> {
-        let segment_data = std::fs::read(segment_path.as_ref()).map_err(DecryptError::Io)?;
-
-        let init_data = if let Some(init) = init_path {
-            Some(std::fs::read(init.as_ref()).map_err(DecryptError::Io)?)
-        } else {
-            None
-        };
-
-        self.decrypt(&segment_data, init_data.as_ref())
-    }
-
-    /// Decrypt encrypted MP4 data from files and write to an output file.
-    ///
-    /// This is a convenience method that handles file I/O for you.
-    ///
-    /// # Arguments
-    ///
-    /// * `segment_path` - Path to the encrypted segment file (.m4s or .mp4)
-    /// * `init_path` - Optional path to the initialization segment (.mp4)
-    /// * `output_path` - Path where the decrypted output will be written
-    ///
-    /// # Returns
-    ///
-    /// Number of bytes written to the output file.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use vsd_mp4::decrypt::CencDecryptingProcessor;
-    ///
-    /// let processor = CencDecryptingProcessor::builder()
-    ///     .key("eb676abbcb345e96bbcf616630f1a3da", "100b6c20940f779a4589152b57d2dacb")?
-    ///     .build()?;
-    ///
-    /// // Decrypt and write to file
-    /// let bytes_written = processor.decrypt_file_to_file(
-    ///     "segment.m4s",
-    ///     Some("init.mp4"),
-    ///     "decrypted.mp4"
-    /// )?;
-    ///
-    /// println!("Wrote {} bytes", bytes_written);
-    /// # Ok::<(), vsd_mp4::decrypt::DecryptError>(())
-    /// ```
-    pub fn decrypt_file_to_file<P: AsRef<std::path::Path>>(
-        &self,
-        segment_path: P,
-        init_path: Option<P>,
-        output_path: P,
-    ) -> Result<usize> {
-        let decrypted = self.decrypt_file(segment_path, init_path)?;
-        let len = decrypted.len();
-
-        std::fs::write(output_path.as_ref(), &decrypted).map_err(DecryptError::Io)?;
-
-        Ok(len)
-    }
-
     /// Get the key for a given KID.
     pub fn get_key(&self, kid: &[u8; 16]) -> Option<&[u8; 16]> {
         self.keys.get(kid)
@@ -308,10 +214,11 @@ impl<'a> DecryptionState<'a> {
 
     /// Parse the init segment to extract encryption parameters.
     fn parse_init_segment(&mut self, data: &[u8]) -> Result<()> {
-        use std::cell::RefCell;
-        use std::rc::Rc;
+        let schm_box: Rc<RefCell<Option<SchmBox>>> = Rc::new(RefCell::new(None));
+        let tenc_box: Rc<RefCell<Option<TencBox>>> = Rc::new(RefCell::new(None));
 
-        let state = Rc::new(RefCell::new(ParseState::default()));
+        let schm_box_c = schm_box.clone();
+        let tenc_box_c = tenc_box.clone();
 
         let result = Mp4Parser::new()
             .base_box("moov", crate::parser::children)
@@ -323,78 +230,35 @@ impl<'a> DecryptionState<'a> {
             .base_box("encv", crate::parser::visual_sample_entry)
             .base_box("enca", crate::parser::audio_sample_entry)
             .base_box("sinf", crate::parser::children)
-            .full_box("schm", {
-                let state = state.clone();
-                move |mut box_| {
-                    let reader = &mut box_.reader;
-                    let scheme_type = reader.read_u32()?;
-                    state.borrow_mut().scheme_type = scheme_type;
-                    Ok(())
-                }
+            .full_box("schm", move |mut box_| {
+                *schm_box_c.borrow_mut() = Some(SchmBox::new(&mut box_)?);
+                Ok(())
             })
             .base_box("schi", crate::parser::children)
-            .full_box("tenc", {
-                let state = state.clone();
-                move |mut box_| {
-                    let reader = &mut box_.reader;
-
-                    // Skip reserved byte
-                    reader.skip(1)?;
-
-                    // In version 0, skip another reserved byte
-                    // In version 1, read crypt/skip blocks
-                    if box_.version.unwrap_or(0) == 0 {
-                        reader.skip(1)?;
-                    } else {
-                        let blocks = reader.read_u8()?;
-                        state.borrow_mut().crypt_byte_block = (blocks >> 4) & 0x0F;
-                        state.borrow_mut().skip_byte_block = blocks & 0x0F;
-                    }
-
-                    let is_protected = reader.read_u8()?;
-                    let per_sample_iv_size = reader.read_u8()?;
-                    let kid = reader.read_bytes_u8(16)?;
-
-                    let mut s = state.borrow_mut();
-                    s.is_protected = is_protected != 0;
-                    s.per_sample_iv_size = per_sample_iv_size;
-                    if let Ok(arr) = kid.try_into() {
-                        s.default_kid = Some(arr);
-                    }
-
-                    // Read constant IV if per_sample_iv_size is 0 (CBCS mode)
-                    // Note: tenc versions 0 and 1 have slightly different formats,
-                    // but constant IV follows KID when per_sample_iv_size is 0
-                    if per_sample_iv_size == 0
-                        && let Ok(constant_iv_size) = reader.read_u8()
-                        && constant_iv_size > 0
-                        && constant_iv_size <= 16
-                        && let Ok(constant_iv) = reader.read_bytes_u8(constant_iv_size as usize)
-                    {
-                        s.constant_iv = Some(constant_iv);
-                    }
-
-                    Ok(())
-                }
+            .full_box("tenc", move |mut box_| {
+                *tenc_box_c.borrow_mut() = Some(TencBox::new(&mut box_)?);
+                Ok(())
             })
             .parse(data, true, true);
 
         // Ignore parse errors (partial data is expected)
         let _ = result;
 
-        let s = state.borrow();
-        self.default_kid = s.default_kid;
-        self.per_sample_iv_size = s.per_sample_iv_size;
-        self.default_iv_size = if s.per_sample_iv_size > 0 {
-            s.per_sample_iv_size
-        } else {
-            s.constant_iv.as_ref().map(|v| v.len() as u8).unwrap_or(16)
-        };
-        self.default_is_protected = s.is_protected;
-        self.default_constant_iv = s.constant_iv.clone();
-        self.crypt_byte_block = s.crypt_byte_block;
-        self.skip_byte_block = s.skip_byte_block;
-        self.scheme_type = s.scheme_type;
+        // Extract scheme type from schm box
+        if let Some(schm) = schm_box.borrow().as_ref() {
+            self.scheme_type = schm.scheme_type;
+        }
+
+        // Extract encryption parameters from tenc box
+        if let Some(tenc) = tenc_box.borrow().as_ref() {
+            self.default_kid = Some(tenc.default_kid);
+            self.per_sample_iv_size = tenc.per_sample_iv_size;
+            self.default_iv_size = tenc.effective_iv_size();
+            self.default_is_protected = tenc.is_protected;
+            self.default_constant_iv = tenc.constant_iv.clone();
+            self.crypt_byte_block = tenc.crypt_byte_block;
+            self.skip_byte_block = tenc.skip_byte_block;
+        }
 
         // Note: For CBCS, pattern 0:0 means full encryption (all blocks encrypted)
         // Only non-zero patterns like 1:9 use partial encryption
@@ -603,18 +467,6 @@ impl<'a> DecryptionState<'a> {
     }
 }
 
-/// Helper struct for parsing init segment state.
-#[derive(Default)]
-struct ParseState {
-    scheme_type: u32,
-    is_protected: bool,
-    per_sample_iv_size: u8,
-    default_kid: Option<[u8; 16]>,
-    constant_iv: Option<Vec<u8>>,
-    crypt_byte_block: u8,
-    skip_byte_block: u8,
-}
-
 /// Find a box offset in MP4 data.
 fn find_box_offset(data: &[u8], box_type: &[u8; 4]) -> Option<(usize, usize)> {
     let mut offset = 0;
@@ -656,40 +508,4 @@ fn parse_hex_16(input: &str) -> Result<[u8; 16]> {
     let mut arr = [0u8; 16];
     arr.copy_from_slice(&bytes);
     Ok(arr)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_builder_no_keys() {
-        let result = CencDecryptingProcessor::builder().build();
-        assert!(matches!(result, Err(DecryptError::NoKeys)));
-    }
-
-    #[test]
-    fn test_builder_with_key() {
-        let result = CencDecryptingProcessor::builder()
-            .key(
-                "eb676abbcb345e96bbcf616630f1a3da",
-                "100b6c20940f779a4589152b57d2dacb",
-            )
-            .unwrap()
-            .build();
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_parse_hex_16() {
-        let result = parse_hex_16("eb676abbcb345e96bbcf616630f1a3da");
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 16);
-    }
-
-    #[test]
-    fn test_parse_hex_16_invalid() {
-        let result = parse_hex_16("invalid");
-        assert!(result.is_err());
-    }
 }

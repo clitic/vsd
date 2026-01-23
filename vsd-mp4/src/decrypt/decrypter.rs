@@ -2,10 +2,12 @@
 //!
 //! Handles decryption of individual samples with subsample support.
 
-use super::cipher::{
-    CbcStreamCipher, CipherMode, CtrPatternStreamCipher, CtrStreamCipher, PatternStreamCipher,
+use crate::decrypt::{
+    cipher::{
+        CbcStreamCipher, CipherMode, CtrPatternStreamCipher, CtrStreamCipher, PatternStreamCipher,
+    },
+    error::{DecryptError, Result},
 };
-use super::error::{DecryptError, Result};
 
 /// Single sample decrypter for CENC/CBCS encrypted samples.
 ///
