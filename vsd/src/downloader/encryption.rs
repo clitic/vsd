@@ -1,34 +1,31 @@
 use crate::playlist::{KeyMethod, MediaPlaylist, Segment};
-use aes::cipher::{BlockDecryptMut, KeyIvInit, block_padding::Pkcs7};
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Result, bail};
 use colored::Colorize;
 use log::info;
-use mp4decrypt::Ap4CencDecryptingProcessor;
 use reqwest::{Client, Url, header};
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
-use vsd_mp4::{boxes::TencBox, pssh::PsshBox};
-
-type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
+use vsd_mp4::{
+    boxes::TencBox,
+    decrypt::{CencDecryptingProcessor, HlsAes128Decrypter},
+    pssh::PsshBox,
+};
 
 #[derive(Clone)]
 pub enum Decrypter {
-    Aes128([u8; 16], [u8; 16]),
-    CencCbcs(Arc<Ap4CencDecryptingProcessor>),
+    Aes128(Arc<HlsAes128Decrypter>),
+    Cenc(Arc<CencDecryptingProcessor>),
     SampleAes([u8; 16], [u8; 16]),
     None,
 }
 
 impl Decrypter {
-    pub fn decrypt(&self, mut data: Vec<u8>) -> Result<Vec<u8>> {
+    pub fn decrypt(&self, data: Vec<u8>) -> Result<Vec<u8>> {
         Ok(match self {
-            Decrypter::CencCbcs(processor) => processor.decrypt(data, None)?,
-            Decrypter::Aes128(key, iv) => Aes128CbcDec::new(key.into(), iv.into())
-                .decrypt_padded_mut::<Pkcs7>(&mut data)
-                .map(|x| x.to_vec())
-                .map_err(|x| anyhow!("{}", x))?,
+            Decrypter::Cenc(processor) => processor.decrypt(data, None)?,
+            Decrypter::Aes128(processor) => processor.decrypt(data),
             Decrypter::SampleAes(key, iv) => {
                 let mut reader = std::io::Cursor::new(data);
                 let mut writer = Vec::new();

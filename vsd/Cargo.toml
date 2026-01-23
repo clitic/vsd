@@ -13,11 +13,9 @@ version = "0.5.0"
 readme = "README.md"
 
 [dependencies]
-aes = "0.8"
 anyhow = "1"
 base64 = "0.22"
 blake3 = "1.8"
-cbc = "0.1"
 chrono = "0.4"
 clap = { version = "4", features = ["derive", "wrap_help"] }
 colored = "3"
@@ -29,7 +27,7 @@ hex = "0.4"
 iori-ssa = "0.2.0"
 log = "0.4"
 m3u8-rs = "6.0.0"
-mp4decrypt = { version = "0.6.0", path = "../mp4decrypt" }
+# mp4decrypt = { version = "0.6.0", path = "../mp4decrypt" }
 regex = "1"
 requestty = "0.6.3"
 reqwest = { version = "0.13", default-features = false, features = [

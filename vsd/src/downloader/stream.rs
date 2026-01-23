@@ -8,7 +8,6 @@ use crate::{
 use anyhow::{Result, anyhow, bail};
 use colored::Colorize;
 use log::{debug, error, info, warn};
-use mp4decrypt::Ap4CencDecryptingProcessor;
 use reqwest::{Client, RequestBuilder, StatusCode, Url, header};
 use std::{
     collections::HashMap,
@@ -20,7 +19,11 @@ use tokio::{
     io::{self, AsyncWriteExt},
     task::JoinSet,
 };
-use vsd_mp4::{boxes::TencBox, pssh::PsshBox};
+use vsd_mp4::{
+    boxes::TencBox,
+    decrypt::{CencDecryptingProcessor, HlsAes128Decrypter},
+    pssh::PsshBox,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub async fn download_streams(
@@ -132,8 +135,10 @@ async fn download_stream(
                         let response = request.send().await?;
                         let bytes = response.bytes().await?;
 
-                        decrypter =
-                            Decrypter::Aes128(key.key(&bytes)?, key.iv(stream.media_sequence)?);
+                        decrypter = Decrypter::Aes128(Arc::new(HlsAes128Decrypter::new(
+                            &key.key(&bytes)?,
+                            &key.iv(stream.media_sequence)?,
+                        )));
                     }
                     KeyMethod::CencCbcs => {
                         if keys.is_empty() {
@@ -166,8 +171,8 @@ async fn download_stream(
                         let key =
                             key.ok_or_else(|| anyhow!("couldn't determine key for this stream."))?;
 
-                        decrypter = Decrypter::CencCbcs(Arc::new(
-                            Ap4CencDecryptingProcessor::new()
+                        decrypter = Decrypter::Cenc(Arc::new(
+                            CencDecryptingProcessor::builder()
                                 .key(default_kid, &key)?
                                 .build()?,
                         ));

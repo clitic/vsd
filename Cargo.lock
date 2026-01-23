@@ -1326,6 +1326,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "id3"
+version = "1.16.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "965c5e6a62a241f2f673df956ea5f52c27780bc1031855890a551ed9b869e2d1"
+dependencies = [
+ "bitflags 2.10.0",
+ "byteorder",
+ "flate2",
+]
+
+[[package]]
 name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1387,12 +1398,13 @@ dependencies = [
 
 [[package]]
 name = "iori-ssa"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c377dc4fd1860cadfe3e3b67a23f7ece9984d68bf6f2c76f96bc921ae68889a"
+checksum = "286319de9d513ffeff1b81db286c9e90650e4112bfc872854d7af72763064d95"
 dependencies = [
  "aes",
  "cbc",
+ "id3",
  "log",
  "memchr",
  "mpeg2ts",
@@ -3024,11 +3036,9 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 name = "vsd"
 version = "0.5.0"
 dependencies = [
- "aes",
  "anyhow",
  "base64",
  "blake3",
- "cbc",
  "chrono",
  "clap",
  "colored",
@@ -3040,7 +3050,6 @@ dependencies = [
  "iori-ssa",
  "log",
  "m3u8-rs",
- "mp4decrypt",
  "regex",
  "requestty",
  "reqwest",
