@@ -165,14 +165,9 @@ impl<'a> DecryptionSession<'a> {
         let trun_ref = trun_box.borrow();
         let senc_ref = senc_box.borrow();
 
-        let trun = match trun_ref.as_ref() {
-            Some(t) => t,
-            None => return Ok(output),
-        };
-
-        let senc = match senc_ref.as_ref() {
-            Some(s) => s,
-            None => return Ok(output),
+        let (trun, senc) = match (trun_ref.as_ref(), senc_ref.as_ref()) {
+            (Some(t), Some(s)) => (t, s),
+            _ => return Ok(output),
         };
 
         let kid = self.tenc.default_kid;
@@ -232,12 +227,7 @@ impl<'a> DecryptionSession<'a> {
 
 fn parse_hex_16(input: &str) -> Result<[u8; 16]> {
     let bytes = hex::decode(input)?;
-
-    if bytes.len() != 16 {
-        return Err(DecryptError::HexWrongLength(bytes.len()));
-    }
-
-    let mut arr = [0u8; 16];
-    arr.copy_from_slice(&bytes);
-    Ok(arr)
+    bytes
+        .try_into()
+        .map_err(|v: Vec<u8>| DecryptError::HexWrongLength(v.len()))
 }
