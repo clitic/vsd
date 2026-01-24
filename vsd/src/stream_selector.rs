@@ -56,9 +56,9 @@ impl StreamSelector {
     }
 
     pub fn select(mut self, select_opts: &mut SelectOptions) -> Result<Vec<MediaPlaylist>> {
-        self.apply_video_selection(select_opts);
-        self.apply_audio_selection(select_opts);
-        self.apply_subtitle_selection(select_opts);
+        self.select_vid(select_opts);
+        self.select_aud(select_opts);
+        self.select_sub(select_opts);
 
         let (choices, ranges) = self.build_stream_choices();
 
@@ -69,129 +69,121 @@ impl StreamSelector {
         }
     }
 
-    /// Applies video selection preferences.
-    fn apply_video_selection(&mut self, select_opts: &mut SelectOptions) {
-        if select_opts.video.all {
+    fn select_vid(&mut self, opts: &SelectOptions) {
+        // Select all
+        if opts.video.all {
             for (i, _) in &self.streams.vid_streams {
                 self.selected_indices.insert(*i);
             }
             return;
         }
 
-        let mut selected_vstreams = HashSet::new();
+        let mut indices = HashSet::new();
 
         // Select by stream number
         for (i, _) in &self.streams.vid_streams {
-            if select_opts.stream_numbers.iter().any(|x| (*x - 1) == *i) {
-                selected_vstreams.insert(*i);
+            if opts.stream_numbers.iter().any(|x| (*x - 1) == *i) {
+                indices.insert(*i);
             }
         }
 
-        // Apply preference (best/worst)
-        match &select_opts.video.preference {
+        // Select by quality preference
+        match &opts.video.preference {
             VideoPreference::Best => {
                 if let Some((i, _)) = self.streams.vid_streams.first() {
-                    selected_vstreams.insert(*i);
+                    indices.insert(*i);
                 }
             }
             VideoPreference::None => (),
             VideoPreference::Worst => {
                 if let Some((i, _)) = self.streams.vid_streams.last() {
-                    selected_vstreams.insert(*i);
+                    indices.insert(*i);
                 }
             }
         }
 
-        // Select by resolution
+        // Select by resolution preference
         for (i, stream) in &self.streams.vid_streams {
             if let Some((w, h)) = &stream.resolution
-                && select_opts
-                    .video
-                    .resolutions
-                    .contains(&(*w as u16, *h as u16))
+                && opts.video.resolutions.contains(&(*w as u16, *h as u16))
             {
-                selected_vstreams.insert(*i);
+                indices.insert(*i);
             }
         }
 
-        // Apply skip logic or merge selections
-        if select_opts.video.skip && !selected_vstreams.is_empty() {
+        // Select inverted when skip is enabled
+        if opts.video.skip && !indices.is_empty() {
             for (i, _) in &self.streams.vid_streams {
-                if !selected_vstreams.contains(i) {
+                if !indices.contains(i) {
                     self.selected_indices.insert(*i);
                 }
             }
-        } else if !select_opts.video.skip {
-            // Default to first stream if nothing selected
-            if selected_vstreams.is_empty() {
+        } else if !opts.video.skip {
+            if indices.is_empty() {
                 if let Some((i, _)) = self.streams.vid_streams.first() {
-                    selected_vstreams.insert(*i);
+                    indices.insert(*i);
                 }
             }
-            for i in selected_vstreams {
+            for i in indices {
                 self.selected_indices.insert(i);
             }
-        }
+        } // Skipped
     }
 
-    /// Applies audio selection preferences.
-    fn apply_audio_selection(&mut self, select_opts: &mut SelectOptions) {
-        if select_opts.audio.all {
+    fn select_aud(&mut self, opts: &mut SelectOptions) {
+        if opts.audio.all {
             for (i, _) in &self.streams.aud_streams {
                 self.selected_indices.insert(*i);
             }
             return;
         }
 
-        let mut selected_astreams = HashSet::new();
+        let mut indices = HashSet::new();
 
-        // Select by stream number
         for (i, _) in &self.streams.aud_streams {
-            if select_opts.stream_numbers.iter().any(|x| (*x - 1) == *i) {
-                selected_astreams.insert(*i);
+            if opts.stream_numbers.iter().any(|x| (*x - 1) == *i) {
+                indices.insert(*i);
             }
         }
 
         // Select by exact language match
         for (i, stream) in &self.streams.aud_streams {
             if let Some(stream_lang) = &stream.language
-                && select_opts.audio.contains_exact_lang(stream_lang)
+                && opts.audio.contains_exact_lang(stream_lang)
             {
-                selected_astreams.insert(*i);
+                indices.insert(*i);
             }
         }
 
         // Select by similar language match
         for (i, stream) in &self.streams.aud_streams {
             if let Some(stream_lang) = &stream.language
-                && select_opts.audio.contains_siml_lang(stream_lang)
+                && opts.audio.contains_siml_lang(stream_lang)
             {
-                selected_astreams.insert(*i);
+                indices.insert(*i);
             }
         }
 
-        // Apply skip logic or merge selections
-        if select_opts.audio.skip && !selected_astreams.is_empty() {
+        if opts.audio.skip && !indices.is_empty() {
             for (i, _) in &self.streams.aud_streams {
-                if !selected_astreams.contains(i) {
+                if !indices.contains(i) {
                     self.selected_indices.insert(*i);
                 }
             }
-        } else if !select_opts.audio.skip {
-            if selected_astreams.is_empty() {
+        } else if !opts.audio.skip {
+            if indices.is_empty() {
                 if let Some((i, _)) = self.streams.aud_streams.first() {
-                    selected_astreams.insert(*i);
+                    indices.insert(*i);
                 }
             }
-            for i in selected_astreams {
+            for i in indices {
                 self.selected_indices.insert(i);
             }
         }
     }
 
-    /// Applies subtitle selection preferences.
-    fn apply_subtitle_selection(&mut self, select_opts: &mut SelectOptions) {
-        if select_opts.subs.all {
+    fn select_sub(&mut self, opts: &mut SelectOptions) {
+        if opts.subs.all {
             for (i, _) in &self.streams.sub_streams {
                 self.selected_indices.insert(*i);
             }
@@ -200,9 +192,8 @@ impl StreamSelector {
 
         let mut selected_sstreams = HashSet::new();
 
-        // Select by stream number
         for (i, _) in &self.streams.sub_streams {
-            if select_opts.stream_numbers.iter().any(|x| (*x - 1) == *i) {
+            if opts.stream_numbers.iter().any(|x| (*x - 1) == *i) {
                 selected_sstreams.insert(*i);
             }
         }
@@ -210,7 +201,7 @@ impl StreamSelector {
         // Select by exact language match
         for (i, stream) in &self.streams.sub_streams {
             if let Some(stream_lang) = &stream.language
-                && select_opts.subs.contains_exact_lang(stream_lang)
+                && opts.subs.contains_exact_lang(stream_lang)
             {
                 selected_sstreams.insert(*i);
             }
@@ -219,20 +210,19 @@ impl StreamSelector {
         // Select by similar language match
         for (i, stream) in &self.streams.sub_streams {
             if let Some(stream_lang) = &stream.language
-                && select_opts.subs.contains_siml_lang(stream_lang)
+                && opts.subs.contains_siml_lang(stream_lang)
             {
                 selected_sstreams.insert(*i);
             }
         }
 
-        // Apply skip logic or merge selections
-        if select_opts.subs.skip && !selected_sstreams.is_empty() {
+        if opts.subs.skip && !selected_sstreams.is_empty() {
             for (i, _) in &self.streams.sub_streams {
                 if !selected_sstreams.contains(i) {
                     self.selected_indices.insert(*i);
                 }
             }
-        } else if !select_opts.subs.skip {
+        } else if !opts.subs.skip {
             if selected_sstreams.is_empty() {
                 if let Some((i, _)) = self.streams.sub_streams.first() {
                     selected_sstreams.insert(*i);
