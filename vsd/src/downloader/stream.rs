@@ -103,7 +103,7 @@ async fn download_stream(
     let mut increment_media_sequence = false;
     let mut media_sequence = stream.media_sequence;
 
-    let init_seg = stream.init(&base_url, client, query).await?;
+    let init_seg = stream.init_seg(&base_url, client, query).await?;
 
     let default_kid = if let Some(init_seg) = &init_seg {
         TencBox::from_init(init_seg)?.map(|x| x.default_kid_hex())
@@ -259,16 +259,23 @@ struct Task {
 impl Task {
     async fn execute(self) -> Result<()> {
         let segment = self.segment().await?;
-        let chunk_bytes = segment.len();
+        let segment_bytes = segment.len();
         let segment = fix::fake_png_header(segment);
-        let segment = self.decrypter.decrypt(segment, self.init_seg)?;
+        let segment = self
+            .decrypter
+            .decrypt(segment, self.init_seg.as_ref().map(|x| x.as_ref().to_vec()))?;
 
-        let mut file = File::create(&self.temp_file).await?;
-        file.write_all(&segment).await?;
-        file.flush().await?;
+        let mut f = File::create(&self.temp_file).await?;
+
+        if let Some(init_seg) = self.init_seg {
+            f.write_all(&init_seg).await?;
+        }
+
+        f.write_all(&segment).await?;
+        f.flush().await?;
         fs::rename(&self.temp_file, self.temp_file.with_extension("")).await?;
 
-        self.pb.update(chunk_bytes);
+        self.pb.update(segment_bytes);
         Ok(())
     }
 
@@ -277,7 +284,7 @@ impl Task {
             let response = match self.request.try_clone().unwrap().send().await {
                 Ok(response) => response,
                 Err(error) => {
-                    debug!("{}", check_reqwest_error(&error)?);
+                    debug!("{}", check(&error)?);
                     continue;
                 }
             };
@@ -285,18 +292,18 @@ impl Task {
             let status = response.status();
 
             if status.is_client_error() || status.is_server_error() {
-                bail!("failed to fetch segments.");
+                bail!("{} (HTTP {})", response.url(), status);
             }
 
-            let data = response.bytes().await?.to_vec();
-            return Ok(data);
+            let bytes = response.bytes().await?;
+            return Ok(bytes.to_vec());
         }
 
         bail!("reached max retries to download a segment.");
     }
 }
 
-fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
+fn check(error: &reqwest::Error) -> Result<String> {
     let url = error.url().unwrap();
 
     if error.is_connect() {
@@ -308,12 +315,12 @@ fn check_reqwest_error(error: &reqwest::Error) -> Result<String> {
     if let Some(status) = error.status() {
         match status {
             StatusCode::GATEWAY_TIMEOUT => Ok(format!("{url} (gateway timeout)")),
-            StatusCode::REQUEST_TIMEOUT => Ok(format!("{url} (timeout)")),
+            StatusCode::REQUEST_TIMEOUT => Ok(format!("{url} (requesttimeout)")),
             StatusCode::SERVICE_UNAVAILABLE => Ok(format!("{url} (service unavailable)")),
             StatusCode::TOO_MANY_REQUESTS => Ok(format!("{url} (too many requests)")),
-            _ => bail!("download failed {} (HTTP {})", url, status),
+            _ => bail!("{} (HTTP {})", url, status),
         }
     } else {
-        bail!("download failed {}", url)
+        bail!("{} (HTTP error)", url)
     }
 }

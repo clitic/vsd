@@ -541,7 +541,7 @@ impl MasterPlaylist {
 }
 
 impl MediaPlaylist {
-    pub async fn init(
+    pub async fn init_seg(
         &self,
         base_url: &Url,
         client: &Client,
