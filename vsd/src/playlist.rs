@@ -11,6 +11,7 @@ use std::{
     fmt::Display,
     io::Write,
     path::PathBuf,
+    sync::Arc,
 };
 
 use crate::{
@@ -540,6 +541,28 @@ impl MasterPlaylist {
 }
 
 impl MediaPlaylist {
+    pub async fn init(
+        &self,
+        base_url: &Url,
+        client: &Client,
+        query: &HashMap<String, String>,
+    ) -> Result<Option<Arc<Vec<u8>>>> {
+        if let Some(Segment { map: Some(map), .. }) = self.segments.first() {
+            let url = base_url.join(&map.uri)?;
+            let mut request = client.get(url).query(query);
+
+            if let Some(range) = &map.range {
+                request = request.header(header::RANGE, range.as_header_value());
+            }
+
+            let response = request.send().await?;
+            let bytes = response.bytes().await?;
+            return Ok(Some(Arc::new(bytes.to_vec())));
+        }
+
+        Ok(None)
+    }
+
     pub fn default_kid(&self) -> Option<String> {
         if let Some(Segment {
             key: Some(Key {

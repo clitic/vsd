@@ -90,13 +90,11 @@ async fn download_stream(
     stream: MediaPlaylist,
     temp_file: &PathBuf,
 ) -> Result<()> {
-    let mut init_seg = None;
     let base_url = base_url
         .clone()
         .unwrap_or(stream.uri.parse::<Url>().unwrap());
-    let mut threads = Vec::with_capacity(stream.segments.len());
+    let mut tasks = Vec::with_capacity(stream.segments.len());
 
-    let mut default_kid = None;
     let mut decrypter = Decrypter::None;
     let temp_dir = temp_file.with_extension("");
     let extension = stream.extension();
@@ -105,24 +103,15 @@ async fn download_stream(
     let mut increment_media_sequence = false;
     let mut media_sequence = stream.media_sequence;
 
+    let init_seg = stream.init(&base_url, client, query).await?;
+
+    let default_kid = if let Some(init_seg) = &init_seg {
+        TencBox::from_init(init_seg)?.map(|x| x.default_kid_hex())
+    } else {
+        stream.default_kid()
+    };
+
     for (i, segment) in stream.segments.iter().enumerate() {
-        if let Some(map) = &segment.map {
-            let url = base_url.join(&map.uri)?;
-            let mut request = client.get(url).query(query);
-
-            if let Some(range) = &map.range {
-                request = request.header(header::RANGE, range.as_header_value());
-            }
-
-            let response = request.send().await?;
-            let bytes = response.bytes().await?;
-
-            default_kid = TencBox::from_init(&bytes)?
-                .map(|x| x.default_kid_hex())
-                .or(stream.default_kid());
-            init_seg = Some(bytes.to_vec())
-        }
-
         if should_decrypt {
             if decrypter.is_hls() && segment.key.is_none() && increment_media_sequence {
                 decrypter.increment_iv();
@@ -206,17 +195,13 @@ async fn download_stream(
             request = request.header(header::RANGE, range.as_header_value());
         }
 
-        threads.push(Thread {
+        tasks.push(Task {
             decrypter: decrypter.clone(),
             init_seg: init_seg.clone(),
             pb: pb.clone(),
             request,
             temp_file: temp_dir.join(format!("{}.{}.part", i, extension)),
         });
-
-        if let Decrypter::None = decrypter {
-            init_seg = None;
-        }
     }
 
     fs::create_dir_all(&temp_dir).await?;
@@ -224,12 +209,12 @@ async fn download_stream(
     let mut set = JoinSet::new();
     let max_threads = MAX_THREADS.load(Ordering::SeqCst) as usize;
 
-    for mut thread in threads {
+    for task in tasks {
         while set.len() >= max_threads {
             set.join_next().await;
         }
         set.spawn(async move {
-            if let Err(e) = thread.execute().await {
+            if let Err(e) = task.execute().await {
                 error!("{}", e);
                 std::process::exit(1);
             }
@@ -263,27 +248,20 @@ async fn download_stream(
     Ok(())
 }
 
-struct Thread {
+struct Task {
     decrypter: Decrypter,
-    init_seg: Option<Vec<u8>>,
+    init_seg: Option<Arc<Vec<u8>>>,
     pb: Progress,
     request: RequestBuilder,
     temp_file: PathBuf,
 }
 
-impl Thread {
-    async fn execute(&mut self) -> Result<()> {
-        let mut segment = Vec::new();
-
-        if let Some(init_segment) = &mut self.init_seg {
-            segment.append(init_segment);
-        }
-
-        let data = self.segment().await?;
-        let chunk_bytes = data.len();
-
-        segment.extend_from_slice(fix::fake_png_header(&data));
-        segment = self.decrypter.decrypt(segment)?;
+impl Task {
+    async fn execute(self) -> Result<()> {
+        let segment = self.segment().await?;
+        let chunk_bytes = segment.len();
+        let segment = fix::fake_png_header(segment);
+        let segment = self.decrypter.decrypt(segment, self.init_seg)?;
 
         let mut file = File::create(&self.temp_file).await?;
         file.write_all(&segment).await?;

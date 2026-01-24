@@ -34,12 +34,14 @@ impl Decrypter {
         }
     }
 
-    pub fn decrypt(&self, data: Vec<u8>) -> Result<Vec<u8>> {
+    pub fn decrypt(&self, input: Vec<u8>, init: Option<Arc<Vec<u8>>>) -> Result<Vec<u8>> {
         Ok(match self {
-            Decrypter::Cenc(processor) => processor.decrypt(data, None)?,
-            Decrypter::Aes128(processor) => processor.decrypt(data),
-            Decrypter::SampleAes(processor) => processor.decrypt(data),
-            Decrypter::None => data,
+            Decrypter::Cenc(processor) => {
+                processor.decrypt(input, init.map(|x| x.as_ref().to_vec()))?
+            }
+            Decrypter::Aes128(processor) => processor.decrypt(input),
+            Decrypter::SampleAes(processor) => processor.decrypt(input),
+            Decrypter::None => input,
         })
     }
 }
