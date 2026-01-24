@@ -9,7 +9,6 @@ use requestty::{Question, question::Choice};
 use std::{
     collections::HashSet,
     io::{self, Write},
-    ops::Range,
 };
 
 struct Streams {
@@ -230,107 +229,102 @@ impl StreamSelector {
         }
     }
 
-    fn stream_choices(&self) -> (Vec<Choice<(String, bool)>>, [Range<usize>; 3]) {
-        let mut choices = Vec::new();
-        let mut ranges: [Range<usize>; 3] = [(0..0), (0..0), (0..0)];
-
-        choices.push(requestty::Separator(
-            "─────── Video Streams ────────".to_owned(),
-        ));
-        choices.extend(self.streams.vid_streams.iter().map(|(i, x)| {
-            requestty::Choice((x.display_stream(), self.selected_indices.contains(i)))
-        }));
-        ranges[0] = 1..choices.len();
-
-        choices.push(requestty::Separator(
-            "─────── Audio Streams ────────".to_owned(),
-        ));
-        choices.extend(self.streams.aud_streams.iter().map(|(i, x)| {
-            requestty::Choice((x.display_stream(), self.selected_indices.contains(i)))
-        }));
-
-        if let InteractionType::Modern = self.interaction_type {
-            ranges[1] = (ranges[0].end + 1)..choices.len();
-        } else {
-            ranges[1] = ranges[0].end..(choices.len() - 1);
-        }
-
-        choices.push(requestty::Separator(
-            "────── Subtitle Streams ──────".to_owned(),
-        ));
-        choices.extend(self.streams.sub_streams.iter().map(|(i, x)| {
-            requestty::Choice((x.display_stream(), self.selected_indices.contains(i)))
-        }));
-
-        if let InteractionType::Modern = self.interaction_type {
-            ranges[2] = (ranges[1].end + 1)..choices.len();
-        } else {
-            ranges[2] = ranges[1].end..(choices.len() - 2);
-        }
-
-        (choices, ranges)
+    fn into_all_streams(self) -> Vec<(usize, MediaPlaylist)> {
+        self.streams
+            .vid_streams
+            .into_iter()
+            .chain(self.streams.aud_streams)
+            .chain(self.streams.sub_streams)
+            .collect()
     }
 
-    fn interact_modern(mut self) -> Result<Vec<MediaPlaylist>> {
-        let (choices, ranges) = self.stream_choices();
+    fn build_choices(&self) -> Vec<Choice<(String, bool)>> {
+        let mut choices = Vec::new();
+
+        choices.push(requestty::Separator(
+            "─────── Video Streams ────────".into(),
+        ));
+        for (i, stream) in &self.streams.vid_streams {
+            choices.push(requestty::Choice((
+                stream.display_stream(),
+                self.selected_indices.contains(i),
+            )));
+        }
+
+        choices.push(requestty::Separator(
+            "─────── Audio Streams ────────".into(),
+        ));
+        for (i, stream) in &self.streams.aud_streams {
+            choices.push(requestty::Choice((
+                stream.display_stream(),
+                self.selected_indices.contains(i),
+            )));
+        }
+
+        choices.push(requestty::Separator(
+            "────── Subtitle Streams ──────".into(),
+        ));
+        for (i, stream) in &self.streams.sub_streams {
+            choices.push(requestty::Choice((
+                stream.display_stream(),
+                self.selected_indices.contains(i),
+            )));
+        }
+
+        choices
+    }
+
+    fn interact_modern(self) -> Result<Vec<MediaPlaylist>> {
+        let choices = self.build_choices();
+        let vid_len = self.streams.vid_streams.len();
+        let aud_len = self.streams.aud_streams.len();
+        let all_streams = self.into_all_streams();
 
         let question = Question::multi_select("streams")
             .should_loop(false)
             .message("Select streams to download")
             .choices_with_default(choices)
             .transform(|choices, _, backend| {
-                backend.write_styled(&requestty::prompt::style::Stylize::cyan(
-                    &choices
-                        .iter()
-                        .map(|x| {
-                            x.text
-                                .split('|')
-                                .map(|x| x.replace(" ", ""))
-                                .collect::<Vec<_>>()
-                                .join(" ")
-                        })
-                        .collect::<Vec<_>>()
-                        .join(" | "),
-                ))
+                let summary = choices
+                    .iter()
+                    .map(|x| {
+                        x.text
+                            .split('|')
+                            .map(|s| s.trim())
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" | ");
+                backend.write_styled(&requestty::prompt::style::Stylize::cyan(&summary))
             })
             .build();
 
         let answer = requestty::prompt_one(question)?;
 
-        let mut streams = Vec::new();
-        let mut vid_offset = 1;
-        let mut aud_offset = vid_offset + self.streams.vid_streams.len() + 1;
-        let mut sub_offset = aud_offset + self.streams.aud_streams.len() + 1;
+        let selected = answer
+            .as_list_items()
+            .unwrap()
+            .iter()
+            .filter_map(|item| {
+                // Subtract separator count: 1 before video, 2 before audio, 3 before subs
+                let idx = item.index;
+                if idx <= vid_len {
+                    Some(idx - 1)
+                } else if idx <= vid_len + 1 + aud_len {
+                    Some(idx - 2)
+                } else {
+                    Some(idx - 3)
+                }
+            })
+            .collect::<HashSet<usize>>();
 
-        for selected_item in answer.as_list_items().unwrap() {
-            if ranges[0].contains(&selected_item.index) {
-                streams.push(
-                    self.streams
-                        .vid_streams
-                        .remove(selected_item.index - vid_offset)
-                        .1,
-                );
-                vid_offset += 1;
-            } else if ranges[1].contains(&selected_item.index) {
-                streams.push(
-                    self.streams
-                        .aud_streams
-                        .remove(selected_item.index - aud_offset)
-                        .1,
-                );
-                aud_offset += 1;
-            } else if ranges[2].contains(&selected_item.index) {
-                streams.push(
-                    self.streams
-                        .sub_streams
-                        .remove(selected_item.index - sub_offset)
-                        .1,
-                );
-                sub_offset += 1;
-            }
-        }
-
-        Ok(streams)
+        Ok(all_streams
+            .into_iter()
+            .enumerate()
+            .filter(|(pos, _)| selected.contains(pos))
+            .map(|(_, (_, stream))| stream)
+            .collect())
     }
 
     fn interact_none(self) -> Result<Vec<MediaPlaylist>> {
@@ -340,92 +334,85 @@ impl StreamSelector {
             .streams
             .vid_streams
             .into_iter()
-            .chain(self.streams.aud_streams.into_iter())
-            .chain(self.streams.sub_streams.into_iter())
+            .chain(self.streams.aud_streams)
+            .chain(self.streams.sub_streams)
         {
-            if self.selected_indices.contains(&i) {
-                info!(
-                    "Stream [{}] {}",
-                    stream.media_type.to_string().yellow(),
+            let selected = self.selected_indices.contains(&i);
+            info!(
+                "Stream [{}] {}",
+                stream.media_type.to_string().yellow(),
+                if selected {
                     stream.display_stream().cyan()
-                );
-                streams.push(stream);
-            } else {
-                info!(
-                    "Stream [{}] {}",
-                    stream.media_type.to_string().yellow(),
+                } else {
                     stream.display_stream().dimmed()
-                );
+                }
+            );
+            if selected {
+                streams.push(stream);
             }
         }
 
         Ok(streams)
     }
 
-    fn interact_raw(mut self) -> Result<Vec<MediaPlaylist>> {
-        let (choices, ranges) = self.stream_choices();
+    fn interact_raw(self) -> Result<Vec<MediaPlaylist>> {
+        let choices = self.build_choices();
+        let all_streams = self.into_all_streams();
 
         info!("Select streams to download:");
 
-        let mut index = 1;
-        let mut selected_indices = Vec::new();
+        let mut choice_idx = 0;
+        let mut defaults = Vec::new();
 
         for choice in &choices {
-            if let requestty::Separator(separator) = choice {
-                info!("{}", separator.replace('─', "-").cyan());
-            } else if let requestty::Choice((message, selected)) = choice {
-                if *selected {
-                    selected_indices.push(index);
+            match choice {
+                requestty::Separator(sep) => info!("{}", sep.replace('─', "-").cyan()),
+                requestty::Choice((msg, selected)) => {
+                    choice_idx += 1;
+                    if *selected {
+                        defaults.push(choice_idx);
+                    }
+                    info!(
+                        "{:2}) [{}] {}",
+                        choice_idx,
+                        if *selected { "x".green() } else { " ".normal() },
+                        msg
+                    );
                 }
-                info!(
-                    "{:2}) [{}] {}",
-                    index,
-                    if *selected { "x".green() } else { " ".normal() },
-                    message
-                );
-                index += 1;
+                _ => (),
             }
         }
 
         info!("{}", "------------------------------".cyan());
-        print!(
-            "Press enter to proceed with defaults.\n\
-                    Or select streams to download (1, 2, etc.): "
-        );
+        print!("Press enter to proceed with defaults.\nOr select streams (1, 2, etc.): ");
         io::stdout().flush()?;
+
         let mut input = String::new();
         io::stdin().read_line(&mut input)?;
         info!("{}", "------------------------------".cyan());
 
-        let input = input.trim();
-
-        if !input.is_empty() {
-            selected_indices = input
+        let user_selection: Vec<usize> = if input.trim().is_empty() {
+            defaults
+        } else {
+            input
+                .trim()
                 .split(',')
-                .filter_map(|x| x.trim().parse::<usize>().ok())
-                .collect::<Vec<usize>>();
-        }
+                .filter_map(|s| s.trim().parse().ok())
+                .collect()
+        };
 
-        let mut streams = Vec::new();
-        let mut vid_offset = 1;
-        let mut aud_offset = vid_offset + self.streams.vid_streams.len();
-        let mut sub_offset = aud_offset + self.streams.aud_streams.len();
+        // Convert 1-based user indices to 0-based flat list positions
+        let selected_positions: HashSet<usize> = user_selection
+            .into_iter()
+            .filter_map(|n| n.checked_sub(1)) // 1-based to 0-based
+            .collect();
 
-        for i in selected_indices {
-            if ranges[0].contains(&i) {
-                let stream = self.streams.vid_streams.remove(i - vid_offset).1;
-                streams.push(stream);
-                vid_offset += 1;
-            } else if ranges[1].contains(&i) {
-                let stream = self.streams.aud_streams.remove(i - aud_offset).1;
-                streams.push(stream);
-                aud_offset += 1;
-            } else if ranges[2].contains(&i) {
-                let stream = self.streams.sub_streams.remove(i - sub_offset).1;
-                streams.push(stream);
-                sub_offset += 1;
-            }
-        }
+        let streams: Vec<MediaPlaylist> = all_streams
+            .into_iter()
+            .enumerate()
+            .filter(|(pos, _)| selected_positions.contains(pos))
+            .map(|(_, (_, stream))| stream)
+            .collect();
 
         for stream in &streams {
             info!(
