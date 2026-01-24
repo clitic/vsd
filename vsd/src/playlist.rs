@@ -263,6 +263,14 @@ impl Display for MediaPlaylist {
 }
 
 impl MediaPlaylist {
+    pub fn display(&self) -> String {
+        self.to_string()
+            .split('|')
+            .map(|x| x.replace(" ", ""))
+            .collect::<Vec<String>>()
+            .join(" ")
+    }
+
     pub async fn init_seg(
         &self,
         base_url: &Url,

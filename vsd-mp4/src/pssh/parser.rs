@@ -150,10 +150,10 @@ impl std::fmt::Display for KeyIdSystemType {
             f,
             "{}",
             match self {
-                KeyIdSystemType::Common => "common",
+                KeyIdSystemType::Common => "cen",
                 KeyIdSystemType::Other(x) => x,
-                KeyIdSystemType::PlayReady => "playready",
-                KeyIdSystemType::WideVine => "widevine",
+                KeyIdSystemType::PlayReady => "prd",
+                KeyIdSystemType::WideVine => "wvd",
             }
         )
     }

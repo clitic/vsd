@@ -8,7 +8,6 @@ use std::{
     sync::Arc,
 };
 use vsd_mp4::{
-    boxes::TencBox,
     decrypt::{CencDecryptingProcessor, HlsAes128Decrypter, HlsSampleAesDecrypter},
     pssh::PsshBox,
 };
@@ -113,26 +112,26 @@ pub async fn extract_default_kids(
             let response = request.send().await?;
             let bytes = response.bytes().await?;
 
-            let default_kid = TencBox::from_init(&bytes)?.map(|x| x.default_kid_hex());
+            // let default_kid = TencBox::from_init(&bytes)?.map(|x| x.default_kid_hex());
             let pssh = PsshBox::from_init(&bytes)?;
 
             for kid in pssh.key_ids {
-                if default_kid.as_deref() == Some("00000000000000000000000000000000")
-                    && matches!(kid.system_type, vsd_mp4::pssh::KeyIdSystemType::WideVine)
-                {
-                    default_kids.insert(kid.value.clone());
-                }
+                // if default_kid.as_deref() == Some("00000000000000000000000000000000")
+                //     && matches!(kid.system_type, vsd_mp4::pssh::KeyIdSystemType::WideVine)
+                // {
+                //     default_kids.insert(kid.value.clone());
+                // }
 
                 if !parsed_kids.contains(&kid.value) {
                     parsed_kids.insert(kid.value.clone());
                     info!(
-                        "Found {:>9} drm: {}{}",
-                        kid.system_type.to_string(),
-                        kid.uuid().bold(),
+                        "DrmKid [{}] {}{}",
+                        kid.system_type.to_string().magenta(),
+                        kid.uuid(),
                         if default_kids.contains(&kid.value) {
-                            " (required)"
+                            " (required)".bold().red()
                         } else {
-                            ""
+                            "".normal()
                         },
                     );
                 }

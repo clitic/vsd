@@ -56,9 +56,9 @@ async fn download_subtitle_stream(
     temp_files: &mut Vec<Stream>,
 ) -> Result<()> {
     info!(
-        "Processing {} stream: {}",
-        stream.media_type.to_string(),
-        stream.to_string().bold(),
+        "Stream [{}] {}",
+        stream.media_type.to_string().green(),
+        stream.display().cyan(),
     );
 
     if stream.segments.is_empty() {
