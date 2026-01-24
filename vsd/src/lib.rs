@@ -7,6 +7,7 @@ mod hls;
 mod logger;
 mod playlist;
 mod progress;
+mod stream_selector;
 mod utils;
 
 #[doc(hidden)]
