@@ -144,13 +144,13 @@ async fn download_stream(
                             increment_media_sequence = false;
                         }
                     }
-                    KeyMethod::CencCbcs => {
+                    KeyMethod::Cenc => {
                         if keys.is_empty() {
-                            bail!("custom keys (KID:KEY;...) are required to continue further.");
+                            bail!("Custom keys are required to proceed further.");
                         }
 
                         let default_kid = default_kid.as_ref().ok_or_else(|| {
-                            anyhow!("couldn't determine default kid for this stream.")
+                            anyhow!("Unable to determine the default KID for this stream.")
                         })?;
 
                         let mut key = None;
@@ -159,7 +159,7 @@ async fn download_stream(
                             key = Some(keys.get(default_kid).unwrap().to_owned())
                         } else {
                             warn!(
-                                "Missing stream key (default_kid: {}). Falling back to PSSH data to resolve KID.",
+                                "No key provided for ({}:?); checking PSSH data to identify other mappable KIDs.",
                                 default_kid
                             );
 
@@ -172,8 +172,9 @@ async fn download_stream(
                             }
                         }
 
-                        let key =
-                            key.ok_or_else(|| anyhow!("couldn't determine key for this stream."))?;
+                        let key = key.ok_or_else(|| {
+                            anyhow!("Unable to determine the key for this stream.")
+                        })?;
 
                         decrypter = Decrypter::Cenc(Arc::new(
                             CencDecryptingProcessor::builder()
@@ -290,16 +291,15 @@ impl Task {
             };
 
             let status = response.status();
-
             if status.is_client_error() || status.is_server_error() {
-                bail!("{} (HTTP {})", response.url(), status);
+                bail!("{} (http {})", response.url(), status);
             }
 
             let bytes = response.bytes().await?;
             return Ok(bytes.to_vec());
         }
 
-        bail!("reached max retries to download a segment.");
+        bail!("Exceeded the maximum retry limit while downloading a segment.");
     }
 }
 
@@ -315,12 +315,12 @@ fn check(error: &reqwest::Error) -> Result<String> {
     if let Some(status) = error.status() {
         match status {
             StatusCode::GATEWAY_TIMEOUT => Ok(format!("{url} (gateway timeout)")),
-            StatusCode::REQUEST_TIMEOUT => Ok(format!("{url} (requesttimeout)")),
+            StatusCode::REQUEST_TIMEOUT => Ok(format!("{url} (request timeout)")),
             StatusCode::SERVICE_UNAVAILABLE => Ok(format!("{url} (service unavailable)")),
             StatusCode::TOO_MANY_REQUESTS => Ok(format!("{url} (too many requests)")),
-            _ => bail!("{} (HTTP {})", url, status),
+            _ => bail!("{} (http {})", url, status),
         }
     } else {
-        bail!("{} (HTTP error)", url)
+        bail!("{} (http error)", url)
     }
 }

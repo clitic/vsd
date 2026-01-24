@@ -486,7 +486,7 @@ pub(crate) async fn push_segments(
                             if encryption_type == KeyMethod::None
                                 && content_protection.value.is_some()
                             {
-                                encryption_type = KeyMethod::CencCbcs;
+                                encryption_type = KeyMethod::Cenc;
                             }
                         }
 
@@ -500,7 +500,7 @@ pub(crate) async fn push_segments(
                                 if encryption_type == KeyMethod::None
                                     && content_protection.value.is_some()
                                 {
-                                    encryption_type = KeyMethod::CencCbcs;
+                                    encryption_type = KeyMethod::Cenc;
                                 }
                             }
                         }

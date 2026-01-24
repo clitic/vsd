@@ -194,7 +194,7 @@ pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, stream: &mut playlist
                     m3u8_rs::KeyMethod::Other(x)
                         if x == "SAMPLE-AES-CENC" || x == "SAMPLE-AES-CTR" =>
                     {
-                        playlist::KeyMethod::CencCbcs
+                        playlist::KeyMethod::Cenc
                     }
                     m3u8_rs::KeyMethod::Other(x) => playlist::KeyMethod::Other(x.to_owned()),
                 };
@@ -213,7 +213,7 @@ pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, stream: &mut playlist
                         "com.apple.streamingkeydelivery"
                         | "com.microsoft.playready"
                         | "urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed" => {
-                            playlist::KeyMethod::CencCbcs
+                            playlist::KeyMethod::Cenc
                         }
                         _ => method,
                     };

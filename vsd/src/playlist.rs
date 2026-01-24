@@ -88,7 +88,7 @@ pub struct Key {
 #[derive(Clone, PartialEq, Serialize)]
 pub enum KeyMethod {
     Aes128,
-    CencCbcs,
+    Cenc,
     None,
     Other(String),
     SampleAes,
@@ -185,31 +185,31 @@ impl MasterPlaylist {
             }
         }
 
-        let mut video_streams = vec![];
-        let mut audio_streams = vec![];
+        let mut vid_streams = vec![];
+        let mut aud_streams = vec![];
         let mut sub_streams = vec![];
-        // TODO - Add support for downloading undefined streams
-        let mut undefined_streams = vec![];
+        // TODO - Add support for downloading und streams
+        let mut und_streams = vec![];
 
         for stream in self.streams.into_iter().enumerate() {
             match stream.1.media_type {
-                MediaType::Audio => audio_streams.push(stream),
+                MediaType::Audio => aud_streams.push(stream),
                 MediaType::Subtitles => sub_streams.push(stream),
-                MediaType::Undefined => undefined_streams.push(stream),
-                MediaType::Video => video_streams.push(stream),
+                MediaType::Undefined => und_streams.push(stream),
+                MediaType::Video => vid_streams.push(stream),
             }
         }
 
         let mut selected_streams = HashSet::new();
 
         if select_opts.video.all {
-            for (i, _) in &video_streams {
+            for (i, _) in &vid_streams {
                 selected_streams.insert(*i);
             }
         } else {
             let mut selected_vstreams = HashSet::new();
 
-            for (i, _) in &video_streams {
+            for (i, _) in &vid_streams {
                 if select_opts.stream_numbers.iter().any(|x| (*x - 1) == *i) {
                     selected_vstreams.insert(*i);
                 }
@@ -217,19 +217,19 @@ impl MasterPlaylist {
 
             match &select_opts.video.preference {
                 VideoPreference::Best => {
-                    if let Some((i, _)) = video_streams.first() {
+                    if let Some((i, _)) = vid_streams.first() {
                         selected_vstreams.insert(*i);
                     }
                 }
                 VideoPreference::None => (),
                 VideoPreference::Worst => {
-                    if let Some((i, _)) = video_streams.last() {
+                    if let Some((i, _)) = vid_streams.last() {
                         selected_vstreams.insert(*i);
                     }
                 }
             };
 
-            for (i, stream) in &video_streams {
+            for (i, stream) in &vid_streams {
                 if let Some((w, h)) = &stream.resolution
                     && select_opts
                         .video
@@ -241,14 +241,14 @@ impl MasterPlaylist {
             }
 
             if select_opts.video.skip && !selected_vstreams.is_empty() {
-                for (i, _) in &video_streams {
+                for (i, _) in &vid_streams {
                     if !selected_vstreams.contains(i) {
                         selected_streams.insert(*i);
                     }
                 }
             } else if !select_opts.video.skip {
                 if selected_vstreams.is_empty()
-                    && let Some((i, _)) = video_streams.first()
+                    && let Some((i, _)) = vid_streams.first()
                 {
                     selected_vstreams.insert(*i);
                 }
@@ -260,19 +260,19 @@ impl MasterPlaylist {
         }
 
         if select_opts.audio.all {
-            for (i, _) in &audio_streams {
+            for (i, _) in &aud_streams {
                 selected_streams.insert(*i);
             }
         } else {
             let mut selected_astreams = HashSet::new();
 
-            for (i, _) in &audio_streams {
+            for (i, _) in &aud_streams {
                 if select_opts.stream_numbers.iter().any(|x| (*x - 1) == *i) {
                     selected_astreams.insert(*i);
                 }
             }
 
-            for (i, stream) in &audio_streams {
+            for (i, stream) in &aud_streams {
                 if let Some(stream_lang) = &stream.language
                     && select_opts.audio.contains_exact_lang(stream_lang)
                 {
@@ -280,7 +280,7 @@ impl MasterPlaylist {
                 }
             }
 
-            for (i, stream) in &audio_streams {
+            for (i, stream) in &aud_streams {
                 if let Some(stream_lang) = &stream.language
                     && select_opts.audio.contains_siml_lang(stream_lang)
                 {
@@ -289,14 +289,14 @@ impl MasterPlaylist {
             }
 
             if select_opts.audio.skip && !selected_astreams.is_empty() {
-                for (i, _) in &audio_streams {
+                for (i, _) in &aud_streams {
                     if !selected_astreams.contains(i) {
                         selected_streams.insert(*i);
                     }
                 }
             } else if !select_opts.audio.skip {
                 if selected_astreams.is_empty()
-                    && let Some((i, _)) = audio_streams.first()
+                    && let Some((i, _)) = aud_streams.first()
                 {
                     selected_astreams.insert(*i);
                 }
@@ -362,14 +362,14 @@ impl MasterPlaylist {
         choices_with_default.push(requestty::Separator(
             "─────── Video Streams ────────".to_owned(),
         ));
-        choices_with_default.extend(video_streams.iter().map(|(i, x)| {
+        choices_with_default.extend(vid_streams.iter().map(|(i, x)| {
             requestty::Choice((x.display_video_stream(), selected_streams.contains(i)))
         }));
         choices_with_default_ranges[0] = 1..choices_with_default.len();
         choices_with_default.push(requestty::Separator(
             "─────── Audio Streams ────────".to_owned(),
         ));
-        choices_with_default.extend(audio_streams.iter().map(|(i, x)| {
+        choices_with_default.extend(aud_streams.iter().map(|(i, x)| {
             requestty::Choice((x.display_audio_stream(), selected_streams.contains(i)))
         }));
 
@@ -405,7 +405,13 @@ impl MasterPlaylist {
                     backend.write_styled(&requestty::prompt::style::Stylize::cyan(
                         &choices
                             .iter()
-                            .map(|x| x.text.split_whitespace().collect::<Vec<_>>().join(" "))
+                            .map(|x| {
+                                x.text
+                                    .split('|')
+                                    .map(|x| x.replace(" ", ""))
+                                    .collect::<Vec<_>>()
+                                    .join(" ")
+                            })
                             .collect::<Vec<_>>()
                             .join(" | "),
                     ))
@@ -416,20 +422,20 @@ impl MasterPlaylist {
 
             let mut selected_streams = vec![];
             let mut video_streams_offset = 1;
-            let mut audio_streams_offset = video_streams_offset + video_streams.len() + 1;
-            let mut subtitle_streams_offset = audio_streams_offset + audio_streams.len() + 1;
+            let mut audio_streams_offset = video_streams_offset + vid_streams.len() + 1;
+            let mut subtitle_streams_offset = audio_streams_offset + aud_streams.len() + 1;
 
             for selected_item in answer.as_list_items().unwrap() {
                 if choices_with_default_ranges[0].contains(&selected_item.index) {
                     selected_streams.push(
-                        video_streams
+                        vid_streams
                             .remove(selected_item.index - video_streams_offset)
                             .1,
                     );
                     video_streams_offset += 1;
                 } else if choices_with_default_ranges[1].contains(&selected_item.index) {
                     selected_streams.push(
-                        audio_streams
+                        aud_streams
                             .remove(selected_item.index - audio_streams_offset)
                             .1,
                     );
@@ -501,12 +507,12 @@ impl MasterPlaylist {
 
             let mut selected_streams = vec![];
             let mut video_streams_offset = 1;
-            let mut audio_streams_offset = video_streams_offset + video_streams.len();
-            let mut subtitle_streams_offset = audio_streams_offset + audio_streams.len();
+            let mut audio_streams_offset = video_streams_offset + vid_streams.len();
+            let mut subtitle_streams_offset = audio_streams_offset + aud_streams.len();
 
             for i in selected_choices_index {
                 if choices_with_default_ranges[0].contains(&i) {
-                    let stream = video_streams.remove(i - video_streams_offset).1;
+                    let stream = vid_streams.remove(i - video_streams_offset).1;
                     info!(
                         "Selected {} stream: {}",
                         stream.media_type,
@@ -515,7 +521,7 @@ impl MasterPlaylist {
                     selected_streams.push(stream);
                     video_streams_offset += 1;
                 } else if choices_with_default_ranges[1].contains(&i) {
-                    let stream = audio_streams.remove(i - audio_streams_offset).1;
+                    let stream = aud_streams.remove(i - audio_streams_offset).1;
                     info!(
                         "Selected {} stream: {}",
                         stream.media_type,
@@ -580,45 +586,46 @@ impl MediaPlaylist {
 
     fn display_audio_stream(&self) -> String {
         let mut extra = format!(
-            "lang: {}",
-            self.language.as_ref().unwrap_or(&"?".to_owned())
+            "{:>9}",
+            truncate(self.language.as_deref().unwrap_or("?").as_ref(), 9)
         );
 
         if let Some(bandwidth) = self.bandwidth {
-            extra += &format!(", bandwidth: {}", ByteSize(bandwidth as usize));
+            extra += &format!(" | {:>9}", ByteSize(bandwidth as usize).to_string());
+        } else {
+            extra += &format!(" | {:>9}", "?");
         }
 
-        if let Some(codecs) = &self.codecs {
-            extra += &format!(", codecs: {codecs}");
-        }
+        extra += &format!(
+            " | {:>10}",
+            truncate(self.codecs.as_deref().unwrap_or("?").as_ref(), 10)
+        );
 
         if let Some(channels) = self.channels {
-            extra += &format!(", channels: {channels}");
+            extra += &format!(" | {channels} ch");
+        } else {
+            extra += " | ? ch";
         }
 
         if self.live {
-            extra += ", live";
+            extra += " | live";
         }
 
         extra
     }
 
     fn display_subs_stream(&self) -> String {
-        let mut extra = format!(
-            "lang: {}",
-            self.language.as_ref().unwrap_or(&"?".to_owned())
-        );
-
-        if let Some(codecs) = &self.codecs {
-            extra += &format!(", codecs: {codecs}");
-        }
-
-        extra
+        format!(
+            "{:>9} | {:>9} | {:>9}",
+            truncate(self.language.as_ref().unwrap_or(&"?".to_owned()), 9),
+            "?KiB",
+            truncate(self.codecs.as_deref().unwrap_or("?").as_ref(), 9)
+        )
     }
 
     fn display_video_stream(&self) -> String {
         let mut extra = format!(
-            "res: {}",
+            "{:>9}",
             if let Some((w, h)) = self.resolution {
                 match (w, h) {
                     (256, 144) => "144p".to_owned(),
@@ -639,26 +646,28 @@ impl MediaPlaylist {
         );
 
         if let Some(bandwidth) = self.bandwidth {
-            extra += &format!(", bandwidth: {}", ByteSize(bandwidth as usize));
+            extra += &format!(" | {:>9}", ByteSize(bandwidth as usize).to_string());
         } else {
-            extra += "bandwidth: ?";
+            extra += &format!(" | {:>9}", "?");
         }
 
         extra += &format!(
-            ", codecs: {}",
-            self.codecs.as_ref().unwrap_or(&"?".to_owned())
+            " | {:>10}",
+            truncate(self.codecs.as_deref().unwrap_or("?").as_ref(), 10)
         );
 
         if let Some(frame_rate) = self.frame_rate {
-            extra += &format!(", frame_rate: {frame_rate}");
-        }
-
-        if self.i_frame {
-            extra += ", iframe";
+            extra += &format!(" | {frame_rate} fps");
+        } else {
+            extra += " | ? fps";
         }
 
         if self.live {
-            extra += ", live";
+            extra += " | live";
+        }
+
+        if self.i_frame {
+            extra += " | iframe";
         }
 
         extra
@@ -671,9 +680,6 @@ impl MediaPlaylist {
             MediaType::Undefined => "".to_owned(),
             MediaType::Video => self.display_video_stream(),
         }
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
     }
 
     pub fn extension(&self) -> &str {
@@ -835,5 +841,15 @@ impl Iterator for PartialRangeIter {
                 end: self.start - 1,
             })
         }
+    }
+}
+
+fn truncate(s: &str, width: usize) -> String {
+    if s.chars().count() > width {
+        let mut truncated = s.chars().take(width - 1).collect::<String>();
+        truncated.push('…');
+        truncated
+    } else {
+        s.to_owned()
     }
 }
