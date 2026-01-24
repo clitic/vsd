@@ -21,7 +21,7 @@ use tokio::{
 };
 use vsd_mp4::{
     boxes::TencBox,
-    decrypt::{CencDecryptingProcessor, HlsAes128Decrypter},
+    decrypt::{CencDecryptingProcessor, HlsAes128Decrypter, HlsSampleAesDecrypter},
     pssh::PsshBox,
 };
 
@@ -91,7 +91,6 @@ async fn download_stream(
     temp_file: &PathBuf,
 ) -> Result<()> {
     let mut init_seg = None;
-    let mut increment_iv = false;
     let base_url = base_url
         .clone()
         .unwrap_or(stream.uri.parse::<Url>().unwrap());
@@ -103,6 +102,8 @@ async fn download_stream(
     let extension = stream.extension();
     let total = stream.segments.len();
     let should_decrypt = !SKIP_DECRYPT.load(Ordering::SeqCst);
+    let mut increment_media_sequence = false;
+    let mut media_sequence = stream.media_sequence;
 
     for (i, segment) in stream.segments.iter().enumerate() {
         if let Some(map) = &segment.map {
@@ -123,22 +124,36 @@ async fn download_stream(
         }
 
         if should_decrypt {
-            if increment_iv {
+            if decrypter.is_hls() && segment.key.is_none() && increment_media_sequence {
                 decrypter.increment_iv();
+                media_sequence += 1;
             }
 
             if let Some(key) = &segment.key {
                 match key.method {
-                    KeyMethod::Aes128 => {
-                        let url = base_url.join(key.uri.as_ref().unwrap())?;
-                        let request = client.get(url).query(query);
-                        let response = request.send().await?;
-                        let bytes = response.bytes().await?;
+                    KeyMethod::Aes128 | KeyMethod::SampleAes => {
+                        match key.method {
+                            KeyMethod::Aes128 => {
+                                decrypter = Decrypter::Aes128(HlsAes128Decrypter::new(
+                                    &key.key(&base_url, client, query).await?,
+                                    &key.iv(media_sequence)?,
+                                ));
+                            }
+                            KeyMethod::SampleAes => {
+                                decrypter = Decrypter::SampleAes(HlsSampleAesDecrypter::new(
+                                    &key.key(&base_url, client, query).await?,
+                                    &key.iv(media_sequence)?,
+                                ));
+                            }
+                            _ => (),
+                        }
 
-                        decrypter = Decrypter::Aes128(Arc::new(HlsAes128Decrypter::new(
-                            &key.key(&bytes)?,
-                            &key.iv(stream.media_sequence)?,
-                        )));
+                        if key.iv.is_none() {
+                            increment_media_sequence = true;
+                            media_sequence += 1;
+                        } else {
+                            increment_media_sequence = false;
+                        }
                     }
                     KeyMethod::CencCbcs => {
                         if keys.is_empty() {
@@ -178,19 +193,6 @@ async fn download_stream(
                         ));
 
                         info!("Using key: {}:{}", default_kid, key);
-                    }
-                    KeyMethod::SampleAes => {
-                        let url = base_url.join(key.uri.as_ref().unwrap())?;
-                        let request = client.get(url).query(query);
-                        let response = request.send().await?;
-                        let bytes = response.bytes().await?;
-
-                        decrypter =
-                            Decrypter::SampleAes(key.key(&bytes)?, key.iv(stream.media_sequence)?);
-
-                        if key.iv.is_none() {
-                            increment_iv = true;
-                        }
                     }
                     _ => (),
                 }

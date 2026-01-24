@@ -9,37 +9,38 @@ use std::{
 };
 use vsd_mp4::{
     boxes::TencBox,
-    decrypt::{CencDecryptingProcessor, HlsAes128Decrypter},
+    decrypt::{CencDecryptingProcessor, HlsAes128Decrypter, HlsSampleAesDecrypter},
     pssh::PsshBox,
 };
 
 #[derive(Clone)]
 pub enum Decrypter {
-    Aes128(Arc<HlsAes128Decrypter>),
+    Aes128(HlsAes128Decrypter),
     Cenc(Arc<CencDecryptingProcessor>),
-    SampleAes([u8; 16], [u8; 16]),
+    SampleAes(HlsSampleAesDecrypter),
     None,
 }
 
 impl Decrypter {
+    pub fn is_hls(&self) -> bool {
+        matches!(self, Decrypter::Aes128(_) | Decrypter::SampleAes(_))
+    }
+
+    pub fn increment_iv(&mut self) {
+        match self {
+            Decrypter::Aes128(processor) => processor.increment_iv(),
+            Decrypter::SampleAes(processor) => processor.increment_iv(),
+            _ => (),
+        }
+    }
+
     pub fn decrypt(&self, data: Vec<u8>) -> Result<Vec<u8>> {
         Ok(match self {
             Decrypter::Cenc(processor) => processor.decrypt(data, None)?,
             Decrypter::Aes128(processor) => processor.decrypt(data),
-            Decrypter::SampleAes(key, iv) => {
-                let mut reader = std::io::Cursor::new(data);
-                let mut writer = Vec::new();
-                iori_ssa::decrypt(&mut reader, &mut writer, *key, *iv)?;
-                writer
-            }
+            Decrypter::SampleAes(processor) => processor.decrypt(data),
             Decrypter::None => data,
         })
-    }
-
-    pub fn increment_iv(&mut self) {
-        if let Self::SampleAes(_, iv) = self {
-            *iv = (u128::from_be_bytes(*iv) + 1).to_be_bytes();
-        }
     }
 }
 

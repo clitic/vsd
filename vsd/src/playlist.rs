@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow, bail};
+use anyhow::Result;
 use colored::Colorize;
 use log::info;
 use reqwest::{
@@ -764,29 +764,29 @@ impl Range {
 }
 
 impl Key {
-    pub fn key(&self, bytes: &[u8]) -> Result<[u8; 16]> {
-        if bytes.len() != 16 {
-            bail!("invalid key size.");
-        }
-
-        let mut key = [0_u8; 16];
-        key.copy_from_slice(bytes);
-        Ok(key)
+    pub async fn key(
+        &self,
+        base_url: &Url,
+        client: &Client,
+        query: &HashMap<String, String>,
+    ) -> Result<[u8; 16]> {
+        let url = base_url.join(self.uri.as_ref().unwrap())?;
+        let request = client.get(url).query(query);
+        let response = request.send().await?;
+        let bytes = response.bytes().await?;
+        Ok(bytes.as_ref().try_into()?)
     }
 
     pub fn iv(&self, sequence: u64) -> Result<[u8; 16]> {
-        Ok(if let Some(actual_iv) = self.iv.as_ref() {
-            let iv = if let Some(stripped_iv) = actual_iv.strip_prefix("0x") {
-                stripped_iv
-            } else {
-                actual_iv
-            };
-            u128::from_str_radix(iv, 16)
-                .map_err(|_| anyhow!("invalid iv size."))?
-                .to_be_bytes()
-        } else {
-            (sequence as u128).to_be_bytes()
-        })
+        if let Some(iv) = self.iv.as_ref() {
+            return Ok(u128::from_str_radix(
+                iv.trim_start_matches("0x").trim_start_matches("0X"),
+                16,
+            )?
+            .to_be_bytes());
+        }
+
+        Ok((sequence as u128).to_be_bytes())
     }
 }
 

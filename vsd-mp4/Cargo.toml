@@ -18,6 +18,7 @@ cbc = { version = "0.1", optional = true }
 cipher = { version = "0.4", optional = true }
 ctr = { version = "0.9", optional = true }
 hex = { version = "0.4", optional = true }
+iori-ssa = { version = "0.2.1", optional = true }
 prost = { version = "0.14", optional = true }
 quick-xml = { version = "0.39", features = ["serialize"], optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
@@ -29,7 +30,14 @@ prost-build = { version = "0.14", optional = true }
 [features]
 default = ["full"]
 full = ["decrypt", "pssh", "sidx", "text-ttml", "text-vtt"]
-decrypt = ["dep:aes", "dep:cbc", "dep:cipher", "dep:ctr", "dep:hex"]
+decrypt = [
+    "dep:aes",
+    "dep:cbc",
+    "dep:cipher",
+    "dep:ctr",
+    "dep:hex",
+    "dep:iori-ssa",
+]
 pssh = [
     "dep:base64",
     "dep:hex",
