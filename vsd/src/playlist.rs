@@ -238,10 +238,10 @@ impl MediaPlaylist {
 
     fn display_subs_stream(&self) -> String {
         format!(
-            "{:>9} | {:>9} | {:>9}",
+            "{:>9} | {:>9} | {:>10}",
             truncate(self.language.as_ref().unwrap_or(&"?".to_owned()), 9),
             "?KiB",
-            truncate(self.codecs.as_deref().unwrap_or("?").as_ref(), 9)
+            truncate(self.codecs.as_deref().unwrap_or("?").as_ref(), 10)
         )
     }
 
