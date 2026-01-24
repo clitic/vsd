@@ -246,7 +246,7 @@ impl StreamSelector {
         ));
         for (i, stream) in &self.streams.vid_streams {
             choices.push(requestty::Choice((
-                stream.display_stream(),
+                stream.to_string(),
                 self.selected_indices.contains(i),
             )));
         }
@@ -256,7 +256,7 @@ impl StreamSelector {
         ));
         for (i, stream) in &self.streams.aud_streams {
             choices.push(requestty::Choice((
-                stream.display_stream(),
+                stream.to_string(),
                 self.selected_indices.contains(i),
             )));
         }
@@ -266,7 +266,7 @@ impl StreamSelector {
         ));
         for (i, stream) in &self.streams.sub_streams {
             choices.push(requestty::Choice((
-                stream.display_stream(),
+                stream.to_string(),
                 self.selected_indices.contains(i),
             )));
         }
@@ -328,23 +328,25 @@ impl StreamSelector {
     }
 
     fn interact_none(self) -> Result<Vec<MediaPlaylist>> {
-        let mut streams = Vec::new();
-
-        for (i, stream) in self
+        let selected_indices = self.selected_indices;
+        let all_streams = self
             .streams
             .vid_streams
             .into_iter()
             .chain(self.streams.aud_streams)
-            .chain(self.streams.sub_streams)
-        {
-            let selected = self.selected_indices.contains(&i);
+            .chain(self.streams.sub_streams);
+
+        let mut streams = Vec::new();
+
+        for (i, stream) in all_streams {
+            let selected = selected_indices.contains(&i);
             info!(
                 "Stream [{}] {}",
                 stream.media_type.to_string().yellow(),
                 if selected {
-                    stream.display_stream().cyan()
+                    stream.to_string().cyan()
                 } else {
-                    stream.display_stream().dimmed()
+                    stream.to_string().dimmed()
                 }
             );
             if selected {
@@ -418,7 +420,7 @@ impl StreamSelector {
             info!(
                 "Stream [{}] {}",
                 stream.media_type.to_string().yellow(),
-                stream.display_stream().cyan()
+                stream.to_string().cyan()
             );
         }
 

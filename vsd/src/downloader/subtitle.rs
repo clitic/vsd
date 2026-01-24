@@ -58,7 +58,7 @@ async fn download_subtitle_stream(
     info!(
         "Processing {} stream: {}",
         stream.media_type.to_string(),
-        stream.display_stream().bold(),
+        stream.to_string().bold(),
     );
 
     if stream.segments.is_empty() {

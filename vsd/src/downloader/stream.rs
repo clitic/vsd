@@ -44,7 +44,7 @@ pub async fn download_streams(
         info!(
             "Processing {:>5} stream: {}",
             stream.media_type.to_string(),
-            stream.display_stream().bold(),
+            stream.to_string().bold(),
         );
 
         if stream.segments.is_empty() {

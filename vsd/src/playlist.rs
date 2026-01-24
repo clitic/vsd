@@ -140,7 +140,7 @@ impl MasterPlaylist {
 
         for (i, stream) in self.streams.iter().enumerate() {
             if stream.media_type == MediaType::Video {
-                info!("{:>2}) {}", i + 1, stream.display_video_stream());
+                info!("{:>2}) {}", i + 1, stream);
             }
         }
 
@@ -148,7 +148,7 @@ impl MasterPlaylist {
 
         for (i, stream) in self.streams.iter().enumerate() {
             if stream.media_type == MediaType::Audio {
-                info!("{:>2}) {}", i + 1, stream.display_audio_stream());
+                info!("{:>2}) {}", i + 1, stream);
             }
         }
 
@@ -156,7 +156,7 @@ impl MasterPlaylist {
 
         for (i, stream) in self.streams.iter().enumerate() {
             if stream.media_type == MediaType::Subtitles {
-                info!("{:>2}) {}", i + 1, stream.display_subs_stream());
+                info!("{:>2}) {}", i + 1, stream);
             }
         }
 
@@ -165,6 +165,100 @@ impl MasterPlaylist {
 
     pub fn select_streams(self, select_opts: &mut SelectOptions) -> Result<Vec<MediaPlaylist>> {
         StreamSelector::new(self.streams).select(select_opts)
+    }
+}
+
+impl Display for MediaPlaylist {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let msg = match self.media_type {
+            MediaType::Audio => {
+                let mut msg = format!(
+                    "{:>9}",
+                    truncate(self.language.as_deref().unwrap_or("?"), 9)
+                );
+
+                if let Some(bandwidth) = self.bandwidth {
+                    msg += &format!(" | {:>9}", ByteSize(bandwidth as usize).to_string());
+                } else {
+                    msg += &format!(" | {:>9}", "?");
+                }
+
+                msg += &format!(
+                    " | {:>10}",
+                    truncate(self.codecs.as_deref().unwrap_or("?"), 10)
+                );
+
+                if let Some(channels) = self.channels {
+                    msg += &format!(" | {channels} ch");
+                } else {
+                    msg += " | ? ch";
+                }
+
+                if self.live {
+                    msg += " | live";
+                }
+
+                msg
+            }
+            MediaType::Subtitles => format!(
+                "{:>9} | {:>9} | {:>10}",
+                truncate(self.language.as_deref().unwrap_or("?"), 9),
+                "?KiB",
+                truncate(self.codecs.as_deref().unwrap_or("?"), 10)
+            ),
+            MediaType::Undefined => format!("{:>9} | {:>9} | {:>10}", "?", "?", "?"),
+            MediaType::Video => {
+                let mut msg = format!(
+                    "{:>9}",
+                    if let Some((w, h)) = self.resolution {
+                        match (w, h) {
+                            (256, 144) => "144p".to_owned(),
+                            (426, 240) => "240p".to_owned(),
+                            (640, 360) => "360p".to_owned(),
+                            (854, 480) => "480p".to_owned(),
+                            (1280, 720) => "720p".to_owned(),
+                            (1920, 1080) => "1080p".to_owned(),
+                            (2048, 1080) => "2K".to_owned(),
+                            (2560, 1440) => "1440p".to_owned(),
+                            (3840, 2160) => "4K".to_owned(),
+                            (7680, 4320) => "8K".to_owned(),
+                            (w, h) => format!("{w}x{h}"),
+                        }
+                    } else {
+                        "?".to_owned()
+                    }
+                );
+
+                if let Some(bandwidth) = self.bandwidth {
+                    msg += &format!(" | {:>9}", ByteSize(bandwidth as usize).to_string());
+                } else {
+                    msg += &format!(" | {:>9}", "?");
+                }
+
+                msg += &format!(
+                    " | {:>10}",
+                    truncate(self.codecs.as_deref().unwrap_or("?"), 10)
+                );
+
+                if let Some(frame_rate) = self.frame_rate {
+                    msg += &format!(" | {frame_rate} fps");
+                } else {
+                    msg += " | ? fps";
+                }
+
+                if self.live {
+                    msg += " | live";
+                }
+
+                if self.i_frame {
+                    msg += " | iframe";
+                }
+
+                msg
+            }
+        };
+
+        write!(f, "{}", msg)
     }
 }
 
@@ -206,104 +300,6 @@ impl MediaPlaylist {
         None
     }
 
-    fn display_audio_stream(&self) -> String {
-        let mut extra = format!(
-            "{:>9}",
-            truncate(self.language.as_deref().unwrap_or("?").as_ref(), 9)
-        );
-
-        if let Some(bandwidth) = self.bandwidth {
-            extra += &format!(" | {:>9}", ByteSize(bandwidth as usize).to_string());
-        } else {
-            extra += &format!(" | {:>9}", "?");
-        }
-
-        extra += &format!(
-            " | {:>10}",
-            truncate(self.codecs.as_deref().unwrap_or("?").as_ref(), 10)
-        );
-
-        if let Some(channels) = self.channels {
-            extra += &format!(" | {channels} ch");
-        } else {
-            extra += " | ? ch";
-        }
-
-        if self.live {
-            extra += " | live";
-        }
-
-        extra
-    }
-
-    fn display_subs_stream(&self) -> String {
-        format!(
-            "{:>9} | {:>9} | {:>10}",
-            truncate(self.language.as_ref().unwrap_or(&"?".to_owned()), 9),
-            "?KiB",
-            truncate(self.codecs.as_deref().unwrap_or("?").as_ref(), 10)
-        )
-    }
-
-    fn display_video_stream(&self) -> String {
-        let mut extra = format!(
-            "{:>9}",
-            if let Some((w, h)) = self.resolution {
-                match (w, h) {
-                    (256, 144) => "144p".to_owned(),
-                    (426, 240) => "240p".to_owned(),
-                    (640, 360) => "360p".to_owned(),
-                    (854, 480) => "480p".to_owned(),
-                    (1280, 720) => "720p".to_owned(),
-                    (1920, 1080) => "1080p".to_owned(),
-                    (2048, 1080) => "2K".to_owned(),
-                    (2560, 1440) => "1440p".to_owned(),
-                    (3840, 2160) => "4K".to_owned(),
-                    (7680, 4320) => "8K".to_owned(),
-                    (w, h) => format!("{w}x{h}"),
-                }
-            } else {
-                "?".to_owned()
-            }
-        );
-
-        if let Some(bandwidth) = self.bandwidth {
-            extra += &format!(" | {:>9}", ByteSize(bandwidth as usize).to_string());
-        } else {
-            extra += &format!(" | {:>9}", "?");
-        }
-
-        extra += &format!(
-            " | {:>10}",
-            truncate(self.codecs.as_deref().unwrap_or("?").as_ref(), 10)
-        );
-
-        if let Some(frame_rate) = self.frame_rate {
-            extra += &format!(" | {frame_rate} fps");
-        } else {
-            extra += " | ? fps";
-        }
-
-        if self.live {
-            extra += " | live";
-        }
-
-        if self.i_frame {
-            extra += " | iframe";
-        }
-
-        extra
-    }
-
-    pub fn display_stream(&self) -> String {
-        match self.media_type {
-            MediaType::Audio => self.display_audio_stream(),
-            MediaType::Subtitles => self.display_subs_stream(),
-            MediaType::Undefined => "".to_owned(),
-            MediaType::Video => self.display_video_stream(),
-        }
-    }
-
     pub fn extension(&self) -> &str {
         if let Some(ext) = &self.extension {
             return ext;
@@ -331,10 +327,10 @@ impl MediaPlaylist {
 
     pub fn path(&self, directory: Option<&PathBuf>) -> PathBuf {
         let prefix = match &self.media_type {
-            MediaType::Audio => "vsd-audio",
-            MediaType::Subtitles => "vsd-subtitles",
-            MediaType::Undefined => "vsd-undefined",
-            MediaType::Video => "vsd-video",
+            MediaType::Audio => "vsd-aud",
+            MediaType::Subtitles => "vsd-sub",
+            MediaType::Undefined => "vsd-und",
+            MediaType::Video => "vsd-vid",
         };
 
         let mut path = PathBuf::from(format!("{}-{}.{}", prefix, self.id, self.extension()));
