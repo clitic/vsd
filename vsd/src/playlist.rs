@@ -177,8 +177,8 @@ impl MasterPlaylist {
         if let InteractionType::None = interactions {
             for stream in &self.streams {
                 info!(
-                    "Found {:>5} stream: {}",
-                    stream.media_type.to_string(),
+                    "Found {} stream: {}",
+                    stream.media_type,
                     stream.display_stream().dimmed(),
                 );
             }
@@ -507,8 +507,8 @@ impl MasterPlaylist {
                 if choices_with_default_ranges[0].contains(&i) {
                     let stream = video_streams.remove(i - video_streams_offset).1;
                     info!(
-                        "Selected {:>5} stream: {}",
-                        stream.media_type.to_string(),
+                        "Selected {} stream: {}",
+                        stream.media_type,
                         stream.display_stream().bold()
                     );
                     selected_streams.push(stream);
@@ -516,8 +516,8 @@ impl MasterPlaylist {
                 } else if choices_with_default_ranges[1].contains(&i) {
                     let stream = audio_streams.remove(i - audio_streams_offset).1;
                     info!(
-                        "Selected {:>5} stream: {}",
-                        stream.media_type.to_string(),
+                        "Selected {} stream: {}",
+                        stream.media_type,
                         stream.display_stream().bold()
                     );
                     selected_streams.push(stream);
@@ -525,8 +525,8 @@ impl MasterPlaylist {
                 } else if choices_with_default_ranges[2].contains(&i) {
                     let stream = sub_streams.remove(i - subtitle_streams_offset).1;
                     info!(
-                        "Selected {:>5} stream: {}",
-                        stream.media_type.to_string(),
+                        "Selected {} stream: {}",
+                        stream.media_type,
                         stream.display_stream().bold()
                     );
                     selected_streams.push(stream);
@@ -748,10 +748,10 @@ impl Display for MediaType {
             f,
             "{}",
             match self {
-                Self::Audio => "audio",
-                Self::Subtitles => "subs",
+                Self::Audio => "aud",
+                Self::Subtitles => "sub",
                 Self::Undefined => "und",
-                Self::Video => "video",
+                Self::Video => "vid",
             }
         )
     }
