@@ -46,7 +46,7 @@ impl StreamSelector {
             .map(|(i, s)| (*i, s.resolution))
             .collect::<Vec<_>>();
 
-        if opts.video.all {
+        if opts.vid.all {
             for (i, _) in &vid_data {
                 self.selected_indices.insert(*i);
             }
@@ -56,12 +56,12 @@ impl StreamSelector {
         let mut indices = HashSet::new();
 
         for (i, _) in &vid_data {
-            if opts.stream_numbers.iter().any(|x| (*x - 1) == *i) {
+            if opts.indices.iter().any(|x| (*x - 1) == *i) {
                 indices.insert(*i);
             }
         }
 
-        match &opts.video.preference {
+        match &opts.vid.preference {
             VideoPreference::Best => {
                 if let Some((i, _)) = vid_data.first() {
                     indices.insert(*i);
@@ -77,19 +77,19 @@ impl StreamSelector {
 
         for (i, resolution) in &vid_data {
             if let Some((w, h)) = resolution {
-                if opts.video.resolutions.contains(&(*w as u16, *h as u16)) {
+                if opts.vid.resolutions.contains(&(*w as u16, *h as u16)) {
                     indices.insert(*i);
                 }
             }
         }
 
-        if opts.video.skip && !indices.is_empty() {
+        if opts.vid.skip && !indices.is_empty() {
             for (i, _) in &vid_data {
                 if !indices.contains(i) {
                     self.selected_indices.insert(*i);
                 }
             }
-        } else if !opts.video.skip {
+        } else if !opts.vid.skip {
             if indices.is_empty() {
                 if let Some((i, _)) = vid_data.first() {
                     indices.insert(*i);
@@ -107,7 +107,7 @@ impl StreamSelector {
             .map(|(i, s)| (*i, s.language.clone()))
             .collect::<Vec<_>>();
 
-        if opts.audio.all {
+        if opts.aud.all {
             for (i, _) in &aud_data {
                 self.selected_indices.insert(*i);
             }
@@ -117,14 +117,14 @@ impl StreamSelector {
         let mut indices = HashSet::new();
 
         for (i, _) in &aud_data {
-            if opts.stream_numbers.iter().any(|x| (*x - 1) == *i) {
+            if opts.indices.iter().any(|x| (*x - 1) == *i) {
                 indices.insert(*i);
             }
         }
 
         for (i, lang) in &aud_data {
             if let Some(lang) = lang {
-                if opts.audio.contains_exact_lang(lang) {
+                if opts.aud.contains_exact_lang(lang) {
                     indices.insert(*i);
                 }
             }
@@ -132,19 +132,19 @@ impl StreamSelector {
 
         for (i, lang) in &aud_data {
             if let Some(lang) = lang {
-                if opts.audio.contains_siml_lang(lang) {
+                if opts.aud.contains_siml_lang(lang) {
                     indices.insert(*i);
                 }
             }
         }
 
-        if opts.audio.skip && !indices.is_empty() {
+        if opts.aud.skip && !indices.is_empty() {
             for (i, _) in &aud_data {
                 if !indices.contains(i) {
                     self.selected_indices.insert(*i);
                 }
             }
-        } else if !opts.audio.skip {
+        } else if !opts.aud.skip {
             if indices.is_empty() {
                 if let Some((i, _)) = aud_data.first() {
                     indices.insert(*i);
@@ -162,7 +162,7 @@ impl StreamSelector {
             .map(|(i, s)| (*i, s.language.clone()))
             .collect::<Vec<_>>();
 
-        if opts.subs.all {
+        if opts.sub.all {
             for (i, _) in &sub_data {
                 self.selected_indices.insert(*i);
             }
@@ -172,14 +172,14 @@ impl StreamSelector {
         let mut indices = HashSet::new();
 
         for (i, _) in &sub_data {
-            if opts.stream_numbers.iter().any(|x| (*x - 1) == *i) {
+            if opts.indices.iter().any(|x| (*x - 1) == *i) {
                 indices.insert(*i);
             }
         }
 
         for (i, lang) in &sub_data {
             if let Some(lang) = lang {
-                if opts.subs.contains_exact_lang(lang) {
+                if opts.sub.contains_exact_lang(lang) {
                     indices.insert(*i);
                 }
             }
@@ -187,19 +187,19 @@ impl StreamSelector {
 
         for (i, lang) in &sub_data {
             if let Some(lang) = lang {
-                if opts.subs.contains_siml_lang(lang) {
+                if opts.sub.contains_siml_lang(lang) {
                     indices.insert(*i);
                 }
             }
         }
 
-        if opts.subs.skip && !indices.is_empty() {
+        if opts.sub.skip && !indices.is_empty() {
             for (i, _) in &sub_data {
                 if !indices.contains(i) {
                     self.selected_indices.insert(*i);
                 }
             }
-        } else if !opts.subs.skip {
+        } else if !opts.sub.skip {
             if indices.is_empty() {
                 if let Some((i, _)) = sub_data.first() {
                     indices.insert(*i);

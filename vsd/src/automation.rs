@@ -26,10 +26,10 @@ pub fn load_interaction_type() -> InteractionType {
 
 #[derive(Debug)]
 pub struct SelectOptions {
-    pub audio: AudioSubs,
-    pub stream_numbers: HashSet<usize>,
-    pub subs: AudioSubs,
-    pub video: Video,
+    pub vid: Video,
+    pub aud: AudioSubs,
+    pub sub: AudioSubs,
+    pub indices: HashSet<usize>,
 }
 
 #[derive(Debug)]
@@ -54,82 +54,92 @@ pub struct AudioSubs {
     pub skip: bool,
 }
 
-impl SelectOptions {
-    pub fn parse(data: &str) -> SelectOptions {
+impl std::str::FromStr for SelectOptions {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut auto = SelectOptions {
-            audio: AudioSubs {
-                all: false,
-                languages: HashSet::new(),
-                skip: false,
-            },
-            stream_numbers: HashSet::new(),
-            subs: AudioSubs {
-                all: false,
-                languages: HashSet::new(),
-                skip: false,
-            },
-            video: Video {
+            vid: Video {
                 all: false,
                 preference: VideoPreference::None,
                 resolutions: HashSet::new(),
                 skip: false,
             },
+            aud: AudioSubs {
+                all: false,
+                languages: HashSet::new(),
+                skip: false,
+            },
+            sub: AudioSubs {
+                all: false,
+                languages: HashSet::new(),
+                skip: false,
+            },
+            indices: HashSet::new(),
         };
 
-        for stream in data.split_terminator(':') {
+        if !s.contains(':') || s.contains(',') {
+            s.split(',')
+                .filter_map(|x| x.trim().parse::<usize>().ok())
+                .for_each(|x| {
+                    let _ = auto.indices.insert(x);
+                });
+        }
+
+        for stream in s.split_terminator(':') {
             if let Some((_type, queries)) = stream.split_once('=') {
                 match _type {
                     "v" => {
                         for query in queries.split_terminator(',') {
                             if let Ok(stream_number) = query.parse::<usize>() {
-                                auto.stream_numbers.insert(stream_number);
+                                auto.indices.insert(stream_number);
                             }
 
                             match query {
-                                "all" => auto.video.all = true,
-                                "skip" => auto.video.skip = true,
+                                "all" => auto.vid.all = true,
+                                "skip" => auto.vid.skip = true,
                                 // resolutions
                                 "best" | "high" | "max" => {
-                                    auto.video.preference = VideoPreference::Best;
+                                    auto.vid.preference = VideoPreference::Best;
                                 }
                                 "low" | "min" | "worst" => {
-                                    auto.video.preference = VideoPreference::Worst;
+                                    auto.vid.preference = VideoPreference::Worst;
                                 }
                                 "144p" => {
-                                    let _ = auto.video.resolutions.insert((256, 144));
+                                    let _ = auto.vid.resolutions.insert((256, 144));
                                 }
                                 "240p" => {
-                                    let _ = auto.video.resolutions.insert((426, 240));
+                                    let _ = auto.vid.resolutions.insert((426, 240));
                                 }
                                 "360p" => {
-                                    let _ = auto.video.resolutions.insert((640, 360));
+                                    let _ = auto.vid.resolutions.insert((640, 360));
                                 }
                                 "480p" => {
-                                    let _ = auto.video.resolutions.insert((854, 480));
+                                    let _ = auto.vid.resolutions.insert((854, 480));
                                 }
                                 "720p" | "hd" => {
-                                    let _ = auto.video.resolutions.insert((1280, 720));
+                                    let _ = auto.vid.resolutions.insert((1280, 720));
                                 }
                                 "1080p" | "fhd" => {
-                                    let _ = auto.video.resolutions.insert((1920, 1080));
+                                    let _ = auto.vid.resolutions.insert((1920, 1080));
                                 }
                                 "2k" => {
-                                    let _ = auto.video.resolutions.insert((2048, 1080));
+                                    let _ = auto.vid.resolutions.insert((2048, 1080));
                                 }
                                 "1440p" | "qhd" => {
-                                    let _ = auto.video.resolutions.insert((2560, 1440));
+                                    let _ = auto.vid.resolutions.insert((2560, 1440));
                                 }
                                 "4k" => {
-                                    let _ = auto.video.resolutions.insert((3840, 2160));
+                                    let _ = auto.vid.resolutions.insert((3840, 2160));
                                 }
                                 "8k" => {
-                                    let _ = auto.video.resolutions.insert((7680, 4320));
+                                    let _ = auto.vid.resolutions.insert((7680, 4320));
                                 }
                                 x => {
                                     if let Some((w, h)) = x.split_once('x')
                                         && let (Ok(w), Ok(h)) = (w.parse::<u16>(), h.parse::<u16>())
                                     {
-                                        auto.video.resolutions.insert((w, h));
+                                        auto.vid.resolutions.insert((w, h));
                                     }
                                 }
                             }
@@ -138,14 +148,14 @@ impl SelectOptions {
                     "a" => {
                         for query in queries.split_terminator(',') {
                             if let Ok(stream_number) = query.parse::<usize>() {
-                                auto.stream_numbers.insert(stream_number);
+                                auto.indices.insert(stream_number);
                             }
 
                             match query {
-                                "all" => auto.audio.all = true,
-                                "skip" => auto.audio.skip = true,
+                                "all" => auto.aud.all = true,
+                                "skip" => auto.aud.skip = true,
                                 x => {
-                                    auto.audio.languages.insert(x.to_owned());
+                                    auto.aud.languages.insert(x.to_owned());
                                 }
                             }
                         }
@@ -153,14 +163,14 @@ impl SelectOptions {
                     "s" => {
                         for query in queries.split_terminator(',') {
                             if let Ok(stream_number) = query.parse::<usize>() {
-                                auto.stream_numbers.insert(stream_number);
+                                auto.indices.insert(stream_number);
                             }
 
                             match query {
-                                "all" => auto.subs.all = true,
-                                "skip" => auto.subs.skip = true,
+                                "all" => auto.sub.all = true,
+                                "skip" => auto.sub.skip = true,
                                 x => {
-                                    auto.subs.languages.insert(x.to_owned());
+                                    auto.sub.languages.insert(x.to_owned());
                                 }
                             }
                         }
@@ -170,7 +180,7 @@ impl SelectOptions {
             }
         }
 
-        auto
+        Ok(auto)
     }
 }
 

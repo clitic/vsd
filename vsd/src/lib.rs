@@ -43,7 +43,7 @@ impl Downloader {
             directory: None,
             output: None,
             subs_codec: "copy".to_owned(),
-            select_options: SelectOptions::parse("v=best:s=en"),
+            select_options: "v=best:s=en".parse().unwrap(),
             keys: HashMap::new(),
         }
     }
@@ -90,7 +90,7 @@ impl Downloader {
 
     /// Filters to be applied for automatic stream selection.
     pub fn select_streams(mut self, select_streams: &str) -> Self {
-        self.select_options = SelectOptions::parse(select_streams);
+        self.select_options = select_streams.parse().unwrap();
         self
     }
 

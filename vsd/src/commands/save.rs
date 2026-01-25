@@ -1,5 +1,5 @@
 use crate::{
-    automation::{self, InteractionType, SelectOptions},
+    automation::{self, InteractionType},
     cookie::{CookieJar, CookieParam},
     downloader::{self, MAX_RETRIES, MAX_THREADS, SKIP_DECRYPT, SKIP_MERGE},
 };
@@ -74,7 +74,7 @@ pub struct Save {
         long,
         help_heading = "Automation Options",
         default_value = "v=best:s=en",
-        long_help = "Filters to be applied for automatic stream selection.\n\nSYNTAX: `v={}:a={}:s={}` where `{}` (in priority order) can contain\n|> all: select all streams.\n|> skip: skip all streams or select inverter.\n|> 1,2: ids obtained by --list-streams flag.\n|> 1080p,1280x720: stream resolution.\n|> en,fr: stream language.\n\nEXAMPLES:\n|> v=skip:a=skip:s=all (download all sub streams)\n|> a:en:s=en (prefer en lang)\n|> v=1080p:a=all:s=skip (1080p with all audio streams)"
+        long_help = "Filters to be applied for automatic stream selection.\n\nSYNTAX: `v={}:a={}:s={}` where `{}` (in priority order) can contain\n|> all: select all streams.\n|> skip: skip all streams or select inverter.\n|> 1,2: indices obtained by --list-streams flag.\n|> 1080p,1280x720: stream resolution.\n|> en,fr: stream language.\n\nEXAMPLES:\n|> v=skip:a=skip:s=all (download all sub streams)\n|> a:en:s=en (prefer en lang)\n|> v=1080p:a=all:s=skip (1080p with all audio streams)"
     )]
     pub select_streams: String,
 
@@ -216,7 +216,7 @@ impl Save {
                 &client,
                 &meta,
                 &self.query,
-                SelectOptions::parse(&self.select_streams),
+                self.select_streams.parse().unwrap(),
             )
             .await?;
 
