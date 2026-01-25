@@ -93,44 +93,44 @@ pub struct Map {
 
 impl MasterPlaylist {
     pub fn sort_streams(mut self) -> Self {
-        let mut video_streams = vec![];
-        let mut audio_streams = vec![];
-        let subtitle_streams = vec![];
-        let mut undefined_streams = vec![];
+        let mut vid_streams = Vec::new();
+        let mut aud_streams = Vec::new();
+        let mut sub_streams = Vec::new();
+        let mut und_streams = Vec::new();
 
         for stream in self.streams {
             match stream.media_type {
                 MediaType::Audio => {
-                    let bandwidth = stream.bandwidth.unwrap_or(0);
-                    let channels = stream.channels.unwrap_or(0.0);
-                    audio_streams.push((stream, bandwidth, channels));
+                    let bandwidth = stream.bandwidth.unwrap_or_default();
+                    let channels = stream.channels.unwrap_or_default();
+                    aud_streams.push((stream, bandwidth, channels));
                 }
-                MediaType::Subtitles => undefined_streams.push(stream),
-                MediaType::Undefined => undefined_streams.push(stream),
+                MediaType::Subtitles => sub_streams.push(stream),
+                MediaType::Undefined => und_streams.push(stream),
                 MediaType::Video => {
-                    let bandwidth = stream.bandwidth.unwrap_or(0);
+                    let bandwidth = stream.bandwidth.unwrap_or_default();
                     let pixels = if let Some((w, h)) = &stream.resolution {
                         w * h
                     } else {
                         0
                     };
-                    video_streams.push((stream, bandwidth, pixels));
+                    vid_streams.push((stream, bandwidth, pixels));
                 }
             }
         }
 
-        video_streams.sort_by(|x, y| y.1.cmp(&x.1));
-        video_streams.sort_by(|x, y| y.2.cmp(&x.2));
-        audio_streams.sort_by(|x, y| y.1.cmp(&x.1));
-        audio_streams.sort_by(|x, y| y.2.total_cmp(&x.2));
+        vid_streams.sort_by(|x, y| y.1.cmp(&x.1));
+        vid_streams.sort_by(|x, y| y.2.cmp(&x.2));
+        aud_streams.sort_by(|x, y| y.1.cmp(&x.1));
+        aud_streams.sort_by(|x, y| y.2.total_cmp(&x.2));
 
-        self.streams = video_streams
+        self.streams = vid_streams
             .into_iter()
             .map(|x| x.0)
-            .chain(audio_streams.into_iter().map(|x| x.0))
-            .chain(subtitle_streams)
-            .chain(undefined_streams)
-            .collect::<Vec<_>>();
+            .chain(aud_streams.into_iter().map(|x| x.0))
+            .chain(sub_streams)
+            .chain(und_streams)
+            .collect();
 
         self
     }
