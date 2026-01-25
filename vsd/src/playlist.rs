@@ -151,101 +151,52 @@ impl MasterPlaylist {
     }
 }
 
-impl Display for MediaPlaylist {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let msg = match self.media_type {
-            MediaType::Audio => {
-                let mut msg = format!(
-                    "{:>9}",
-                    truncate(self.language.as_deref().unwrap_or("?"), 9)
-                );
-
-                if let Some(bandwidth) = self.bandwidth {
-                    msg += &format!(" | {:>9}", ByteSize(bandwidth as usize).to_string());
-                } else {
-                    msg += &format!(" | {:>9}", "?");
-                }
-
-                msg += &format!(
-                    " | {:>10}",
-                    truncate(self.codecs.as_deref().unwrap_or("?"), 10)
-                );
-
-                if let Some(channels) = self.channels {
-                    msg += &format!(" | {channels} ch");
-                } else {
-                    msg += " | ? ch";
-                }
-
-                if self.live {
-                    msg += " | live";
-                }
-
-                msg
-            }
-            MediaType::Subtitles => format!(
-                "{:>9} | {:>9} | {:>10}",
-                truncate(self.language.as_deref().unwrap_or("?"), 9),
-                "?KiB",
-                truncate(self.codecs.as_deref().unwrap_or("?"), 10)
-            ),
-            MediaType::Undefined => format!("{:>9} | {:>9} | {:>10}", "?", "?", "?"),
-            MediaType::Video => {
-                let mut msg = format!(
-                    "{:>9}",
-                    if let Some((w, h)) = self.resolution {
-                        match (w, h) {
-                            (256, 144) => "144p".to_owned(),
-                            (426, 240) => "240p".to_owned(),
-                            (640, 360) => "360p".to_owned(),
-                            (854, 480) => "480p".to_owned(),
-                            (1280, 720) => "720p".to_owned(),
-                            (1920, 1080) => "1080p".to_owned(),
-                            (2048, 1080) => "2K".to_owned(),
-                            (2560, 1440) => "1440p".to_owned(),
-                            (3840, 2160) => "4K".to_owned(),
-                            (7680, 4320) => "8K".to_owned(),
-                            (w, h) => format!("{w}x{h}"),
-                        }
-                    } else {
-                        "?".to_owned()
-                    }
-                );
-
-                if let Some(bandwidth) = self.bandwidth {
-                    msg += &format!(" | {:>9}", ByteSize(bandwidth as usize).to_string());
-                } else {
-                    msg += &format!(" | {:>9}", "?");
-                }
-
-                msg += &format!(
-                    " | {:>10}",
-                    truncate(self.codecs.as_deref().unwrap_or("?"), 10)
-                );
-
-                if let Some(frame_rate) = self.frame_rate {
-                    msg += &format!(" | {frame_rate} fps");
-                } else {
-                    msg += " | ? fps";
-                }
-
-                if self.live {
-                    msg += " | live";
-                }
-
-                if self.i_frame {
-                    msg += " | iframe";
-                }
-
-                msg
-            }
-        };
-
-        write!(f, "{}", msg)
-    }
-}
-
 impl MediaPlaylist {
+    fn truncate(s: &str, width: usize) -> String {
+        if s.chars().count() > width {
+            let mut truncated = s.chars().take(width - 1).collect::<String>();
+            truncated.push('…');
+            truncated
+        } else {
+            s.to_owned()
+        }
+    }
+
+    fn fmt_resolution(&self) -> String {
+        self.resolution
+            .map(|(w, h)| {
+                match (w, h) {
+                    (256, 144) => "144p",
+                    (426, 240) => "240p",
+                    (640, 360) => "360p",
+                    (854, 480) => "480p",
+                    (1280, 720) => "720p",
+                    (1920, 1080) => "1080p",
+                    (2048, 1080) => "2K",
+                    (2560, 1440) => "1440p",
+                    (3840, 2160) => "4K",
+                    (7680, 4320) => "8K",
+                    _ => return format!("{w}x{h}"),
+                }
+                .into()
+            })
+            .unwrap_or_else(|| "?".into())
+    }
+
+    fn fmt_bandwidth(&self) -> String {
+        self.bandwidth
+            .map(|b| ByteSize(b as usize).to_string())
+            .unwrap_or_else(|| "?".into())
+    }
+
+    fn fmt_codecs(&self) -> String {
+        Self::truncate(self.codecs.as_deref().unwrap_or("?"), 10)
+    }
+
+    fn fmt_language(&self) -> String {
+        Self::truncate(self.language.as_deref().unwrap_or("?"), 9)
+    }
+
     pub fn display(&self) -> String {
         self.to_string()
             .split('|')
@@ -253,7 +204,58 @@ impl MediaPlaylist {
             .collect::<Vec<String>>()
             .join(" ")
     }
+}
 
+impl Display for MediaPlaylist {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.media_type {
+            MediaType::Video => {
+                write!(
+                    f,
+                    "{:>9} | {:>9} | {:>10} | {} fps",
+                    self.fmt_resolution(),
+                    self.fmt_bandwidth(),
+                    self.fmt_codecs(),
+                    self.frame_rate.map_or("?".into(), |r| r.to_string())
+                )?;
+                if self.live {
+                    write!(f, " | live")?;
+                }
+                if self.i_frame {
+                    write!(f, " | iframe")?;
+                }
+            }
+            MediaType::Audio => {
+                write!(
+                    f,
+                    "{:>9} | {:>9} | {:>10} | {} ch",
+                    self.fmt_language(),
+                    self.fmt_bandwidth(),
+                    self.fmt_codecs(),
+                    self.channels.map_or("?".into(), |c| c.to_string())
+                )?;
+                if self.live {
+                    write!(f, " | live")?;
+                }
+            }
+            MediaType::Subtitles => {
+                write!(
+                    f,
+                    "{:>9} | {:>9} | {:>10}",
+                    self.fmt_language(),
+                    "?KiB",
+                    self.fmt_codecs()
+                )?;
+            }
+            MediaType::Undefined => {
+                write!(f, "{:>9} | {:>9} | {:>10}", "?", "?", "?")?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl MediaPlaylist {
     pub async fn init_seg(
         &self,
         base_url: &Url,
@@ -450,15 +452,5 @@ impl Iterator for PartialRangeIter {
                 end: self.start - 1,
             })
         }
-    }
-}
-
-fn truncate(s: &str, width: usize) -> String {
-    if s.chars().count() > width {
-        let mut truncated = s.chars().take(width - 1).collect::<String>();
-        truncated.push('…');
-        truncated
-    } else {
-        s.to_owned()
     }
 }
