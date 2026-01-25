@@ -1,7 +1,7 @@
 use crate::{
-    automation::Interaction,
     cookie::{CookieJar, CookieParam},
     downloader::{self, MAX_RETRIES, MAX_THREADS, SKIP_DECRYPT, SKIP_MERGE},
+    options::Interaction,
 };
 use anyhow::Result;
 use clap::Args;

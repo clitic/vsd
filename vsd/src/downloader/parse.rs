@@ -1,6 +1,6 @@
 use super::fetch::Metadata;
 use crate::{
-    automation::{Interaction, SelectOptions},
+    options::{Interaction, SelectOptions},
     playlist::{MasterPlaylist, MediaPlaylist, PlaylistType},
     utils,
 };

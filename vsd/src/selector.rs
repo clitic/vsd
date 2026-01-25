@@ -1,5 +1,5 @@
 use crate::{
-    automation::{Interaction, Quality, SelectOptions},
+    options::{Interaction, Quality, SelectOptions},
     playlist::{MediaPlaylist, MediaType},
 };
 use anyhow::Result;
@@ -27,9 +27,13 @@ impl StreamSelector {
     }
 
     pub fn select(mut self, opts: &mut SelectOptions) -> Result<Vec<MediaPlaylist>> {
-        self.select_vid_streams(opts);
-        self.select_aud_streams(opts);
-        self.select_sub_streams(opts);
+        if opts.strict_indices {
+            self.selected_indices = opts.stream_indices.clone();
+        } else {
+            self.select_vid_streams(opts);
+            self.select_aud_streams(opts);
+            self.select_sub_streams(opts);
+        }
 
         match self.interaction {
             Interaction::Modern => self.interact_modern(),
@@ -56,7 +60,7 @@ impl StreamSelector {
         let mut indices = HashSet::new();
 
         for (i, _) in &vid_data {
-            if opts.stream_indices.iter().any(|x| (*x - 1) == *i) {
+            if opts.stream_indices.iter().any(|x| x == i) {
                 indices.insert(*i);
             }
         }
@@ -117,7 +121,7 @@ impl StreamSelector {
         let mut indices = HashSet::new();
 
         for (i, _) in &aud_data {
-            if opts.stream_indices.iter().any(|x| (*x - 1) == *i) {
+            if opts.stream_indices.iter().any(|x| x == i) {
                 indices.insert(*i);
             }
         }
@@ -172,7 +176,7 @@ impl StreamSelector {
         let mut indices = HashSet::new();
 
         for (i, _) in &sub_data {
-            if opts.stream_indices.iter().any(|x| (*x - 1) == *i) {
+            if opts.stream_indices.iter().any(|x| x == i) {
                 indices.insert(*i);
             }
         }

@@ -1,10 +1,10 @@
-mod automation;
 mod commands;
 mod cookie;
 mod dash;
 mod downloader;
 mod hls;
 mod logger;
+mod options;
 mod playlist;
 mod progress;
 mod selector;
@@ -15,8 +15,8 @@ pub use commands::Args;
 pub use reqwest;
 
 use crate::{
-    automation::{Interaction, SelectOptions},
     downloader::{MAX_RETRIES, MAX_THREADS, SKIP_DECRYPT, SKIP_MERGE},
+    options::{Interaction, SelectOptions},
 };
 use anyhow::{Ok, Result};
 use reqwest::{Client, Url};

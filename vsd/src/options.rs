@@ -62,9 +62,9 @@ impl std::str::FromStr for SelectOptions {
                 }
 
                 match code {
-                    "v" => Self::vid_query(query, &mut opts.vid),
-                    "a" => Self::lang_query(query, &mut opts.aud),
-                    "s" => Self::lang_query(query, &mut opts.sub),
+                    "v" => Self::parse_vid_query(query, &mut opts.vid),
+                    "a" => Self::parse_lang_query(query, &mut opts.aud),
+                    "s" => Self::parse_lang_query(query, &mut opts.sub),
                     _ => (),
                 }
             }
@@ -91,7 +91,7 @@ impl SelectOptions {
         ("8k", (7680, 4320)),
     ];
 
-    fn vid_query(query: &str, prefs: &mut Preferences) {
+    fn parse_vid_query(query: &str, prefs: &mut Preferences) {
         match query {
             "all" => prefs.all = true,
             "skip" => prefs.skip = true,
@@ -112,7 +112,7 @@ impl SelectOptions {
         }
     }
 
-    fn lang_query(query: &str, prefs: &mut Preferences) {
+    fn parse_lang_query(query: &str, prefs: &mut Preferences) {
         match query {
             "all" => prefs.all = true,
             "skip" => prefs.skip = true,

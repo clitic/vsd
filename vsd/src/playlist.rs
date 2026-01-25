@@ -1,5 +1,5 @@
 use crate::{
-    automation::{Interaction, SelectOptions},
+    options::{Interaction, SelectOptions},
     progress::ByteSize,
     selector::StreamSelector,
 };
