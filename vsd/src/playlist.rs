@@ -6,7 +6,7 @@ use reqwest::{
     header::{self, HeaderValue},
 };
 use serde::Serialize;
-use std::{collections::HashMap, fmt::Display, path::PathBuf, sync::Arc};
+use std::{cmp::Reverse, collections::HashMap, fmt::Display, path::PathBuf, sync::Arc};
 
 use crate::{automation::SelectOptions, progress::ByteSize, stream_selector::StreamSelector};
 
@@ -100,34 +100,28 @@ impl MasterPlaylist {
 
         for stream in self.streams {
             match stream.media_type {
-                MediaType::Audio => {
-                    let bandwidth = stream.bandwidth.unwrap_or_default();
-                    let channels = stream.channels.unwrap_or_default();
-                    aud_streams.push((stream, bandwidth, channels));
-                }
+                MediaType::Video => vid_streams.push(stream),
+                MediaType::Audio => aud_streams.push(stream),
                 MediaType::Subtitles => sub_streams.push(stream),
                 MediaType::Undefined => und_streams.push(stream),
-                MediaType::Video => {
-                    let bandwidth = stream.bandwidth.unwrap_or_default();
-                    let pixels = if let Some((w, h)) = &stream.resolution {
-                        w * h
-                    } else {
-                        0
-                    };
-                    vid_streams.push((stream, bandwidth, pixels));
-                }
             }
         }
 
-        vid_streams.sort_by(|x, y| y.1.cmp(&x.1));
-        vid_streams.sort_by(|x, y| y.2.cmp(&x.2));
-        aud_streams.sort_by(|x, y| y.1.cmp(&x.1));
-        aud_streams.sort_by(|x, y| y.2.total_cmp(&x.2));
+        vid_streams.sort_by_key(|s| {
+            let pixels = s.resolution.map_or(0, |(w, h)| w * h);
+            let bandwidth = s.bandwidth.unwrap_or_default();
+            Reverse((pixels, bandwidth))
+        });
+
+        aud_streams.sort_by_key(|s| {
+            let channels = (s.channels.unwrap_or_default() * 10.0) as u32;
+            let bandwidth = s.bandwidth.unwrap_or_default();
+            Reverse((channels, bandwidth))
+        });
 
         self.streams = vid_streams
             .into_iter()
-            .map(|x| x.0)
-            .chain(aud_streams.into_iter().map(|x| x.0))
+            .chain(aud_streams)
             .chain(sub_streams)
             .chain(und_streams)
             .collect();
@@ -136,27 +130,16 @@ impl MasterPlaylist {
     }
 
     pub fn list_streams(&self) {
-        info!("{}", "------- Video Streams --------".cyan());
-
-        for (i, stream) in self.streams.iter().enumerate() {
-            if stream.media_type == MediaType::Video {
-                info!("{:>2}) {}", i + 1, stream);
-            }
-        }
-
-        info!("{}", "------- Audio Streams --------".cyan());
-
-        for (i, stream) in self.streams.iter().enumerate() {
-            if stream.media_type == MediaType::Audio {
-                info!("{:>2}) {}", i + 1, stream);
-            }
-        }
-
-        info!("{}", "------ Subtitle Streams ------".cyan());
-
-        for (i, stream) in self.streams.iter().enumerate() {
-            if stream.media_type == MediaType::Subtitles {
-                info!("{:>2}) {}", i + 1, stream);
+        for (media_type, header) in [
+            (MediaType::Video, "------- Video Streams --------"),
+            (MediaType::Audio, "------- Audio Streams --------"),
+            (MediaType::Subtitles, "------ Subtitle Streams ------"),
+        ] {
+            info!("{}", header.cyan());
+            for (i, stream) in self.streams.iter().enumerate() {
+                if stream.media_type == media_type {
+                    info!("{:>2}) {}", i + 1, stream);
+                }
             }
         }
 
