@@ -39,7 +39,7 @@ impl std::str::FromStr for SelectOptions {
         let mut opts = Self::default();
 
         // Simple format: "1,2,3"
-        if !s.contains(':') || (s.contains(',') && !s.contains('=')) {
+        if s.contains(',') && !s.contains([':', 'v', 'a', 's', '=']) {
             opts.stream_indices = s
                 .split(',')
                 .filter_map(|x| x.trim().parse::<usize>().ok())
@@ -116,6 +116,8 @@ impl SelectOptions {
         match query {
             "all" => prefs.all = true,
             "skip" => prefs.skip = true,
+            "best" | "high" | "max" => prefs.quality = Quality::Best,
+            "low" | "min" | "worst" => prefs.quality = Quality::Worst,
             lang => {
                 prefs.languages.insert(lang.to_owned());
             }
