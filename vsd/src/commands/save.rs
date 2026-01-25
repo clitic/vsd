@@ -1,5 +1,5 @@
 use crate::{
-    automation::{self, InteractionType},
+    automation::Interaction,
     cookie::{CookieJar, CookieParam},
     downloader::{self, MAX_RETRIES, MAX_THREADS, SKIP_DECRYPT, SKIP_MERGE},
 };
@@ -190,13 +190,6 @@ impl Save {
         MAX_THREADS.store(self.threads, Ordering::SeqCst);
         SKIP_DECRYPT.store(self.no_decrypt, Ordering::SeqCst);
         SKIP_MERGE.store(self.no_merge, Ordering::SeqCst);
-        automation::set_interaction_type(if self.interactive {
-            InteractionType::Modern
-        } else if self.interactive_raw {
-            InteractionType::Raw
-        } else {
-            InteractionType::None
-        });
 
         let client = self.client()?;
         let meta =
@@ -217,6 +210,11 @@ impl Save {
                 &meta,
                 &self.query,
                 self.select_streams.parse().unwrap(),
+                match (self.interactive, self.interactive_raw) {
+                    (true, false) => Interaction::Modern,
+                    (false, true) => Interaction::Raw,
+                    _ => Interaction::None,
+                },
             )
             .await?;
 

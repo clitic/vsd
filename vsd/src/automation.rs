@@ -1,27 +1,9 @@
-use std::{
-    collections::HashSet,
-    sync::atomic::{AtomicU8, Ordering},
-};
+use std::collections::HashSet;
 
-static INTERACTION_TYPE: AtomicU8 = AtomicU8::new(InteractionType::None as u8);
-
-pub enum InteractionType {
+pub enum Interaction {
     Modern,
     None,
     Raw,
-}
-
-pub fn set_interaction_type(itype: InteractionType) {
-    INTERACTION_TYPE.store(itype as u8, Ordering::SeqCst);
-}
-
-pub fn get_interaction_type() -> InteractionType {
-    match INTERACTION_TYPE.load(Ordering::SeqCst) {
-        0 => InteractionType::Modern,
-        1 => InteractionType::None,
-        2 => InteractionType::Raw,
-        _ => unreachable!(),
-    }
 }
 
 #[derive(Debug, Default)]
@@ -56,121 +38,33 @@ impl std::str::FromStr for SelectOptions {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut opts = Self::default();
 
-        if !s.contains(':') || s.contains(',') {
-            s.split(',')
+        // Simple format: "1,2,3"
+        if !s.contains(':') || (s.contains(',') && !s.contains('=')) {
+            opts.stream_indices = s
+                .split(',')
                 .filter_map(|x| x.trim().parse::<usize>().ok())
                 .filter_map(|x| x.checked_sub(1))
-                .for_each(|x| {
-                    let _ = opts.stream_indices.insert(x);
-                });
+                .collect();
             opts.strict_indices = true;
             return Ok(opts);
         }
 
+        // Complex format: "v=best:a=en:s=skip"
         for stream in s.split_terminator(':') {
-            if let Some((code, queries)) = stream.split_once('=') {
+            let Some((code, queries)) = stream.split_once('=') else {
+                continue;
+            };
+
+            for query in queries.split_terminator(',').map(|x| x.trim()) {
+                if let Some(idx) = query.parse::<usize>().ok().and_then(|x| x.checked_sub(1)) {
+                    opts.stream_indices.insert(idx);
+                    continue;
+                }
+
                 match code {
-                    "v" => {
-                        for query in queries.split_terminator(',').map(|x| x.trim()) {
-                            if let Some(idx) = query
-                                .parse::<usize>()
-                                .ok()
-                                .map(|x| x.checked_sub(1))
-                                .flatten()
-                            {
-                                let _ = opts.stream_indices.insert(idx);
-                            }
-
-                            match query {
-                                "all" => opts.vid.all = true,
-                                "skip" => opts.vid.skip = true,
-                                "best" | "high" | "max" => {
-                                    opts.vid.quality = Quality::Best;
-                                }
-                                "low" | "min" | "worst" => {
-                                    opts.vid.quality = Quality::Worst;
-                                }
-                                "144p" => {
-                                    let _ = opts.vid.resolutions.insert((256, 144));
-                                }
-                                "240p" => {
-                                    let _ = opts.vid.resolutions.insert((426, 240));
-                                }
-                                "360p" => {
-                                    let _ = opts.vid.resolutions.insert((640, 360));
-                                }
-                                "480p" => {
-                                    let _ = opts.vid.resolutions.insert((854, 480));
-                                }
-                                "720p" | "hd" => {
-                                    let _ = opts.vid.resolutions.insert((1280, 720));
-                                }
-                                "1080p" | "fhd" => {
-                                    let _ = opts.vid.resolutions.insert((1920, 1080));
-                                }
-                                "2k" => {
-                                    let _ = opts.vid.resolutions.insert((2048, 1080));
-                                }
-                                "1440p" | "qhd" => {
-                                    let _ = opts.vid.resolutions.insert((2560, 1440));
-                                }
-                                "4k" => {
-                                    let _ = opts.vid.resolutions.insert((3840, 2160));
-                                }
-                                "8k" => {
-                                    let _ = opts.vid.resolutions.insert((7680, 4320));
-                                }
-                                x if x.contains('x') => {
-                                    if let Some((w, h)) = x.split_once('x')
-                                        && let (Ok(w), Ok(h)) = (w.parse::<u16>(), h.parse::<u16>())
-                                    {
-                                        opts.vid.resolutions.insert((w, h));
-                                    }
-                                }
-                                _ => (),
-                            }
-                        }
-                    }
-                    "a" => {
-                        for query in queries.split_terminator(',').map(|x| x.trim()) {
-                            if let Some(stream_number) = query
-                                .parse::<usize>()
-                                .ok()
-                                .map(|x| x.checked_sub(1))
-                                .flatten()
-                            {
-                                let _ = opts.stream_indices.insert(stream_number);
-                            }
-
-                            match query {
-                                "all" => opts.aud.all = true,
-                                "skip" => opts.aud.skip = true,
-                                x => {
-                                    opts.aud.languages.insert(x.to_owned());
-                                }
-                            }
-                        }
-                    }
-                    "s" => {
-                        for query in queries.split_terminator(',').map(|x| x.trim()) {
-                            if let Some(stream_number) = query
-                                .parse::<usize>()
-                                .ok()
-                                .map(|x| x.checked_sub(1))
-                                .flatten()
-                            {
-                                let _ = opts.stream_indices.insert(stream_number);
-                            }
-
-                            match query {
-                                "all" => opts.sub.all = true,
-                                "skip" => opts.sub.skip = true,
-                                x => {
-                                    opts.sub.languages.insert(x.to_owned());
-                                }
-                            }
-                        }
-                    }
+                    "v" => Self::vid_query(query, &mut opts.vid),
+                    "a" => Self::lang_query(query, &mut opts.aud),
+                    "s" => Self::lang_query(query, &mut opts.sub),
                     _ => (),
                 }
             }
@@ -180,30 +74,78 @@ impl std::str::FromStr for SelectOptions {
     }
 }
 
-impl Preferences {
-    pub fn contains_exact_lang(&mut self, s_lang: &str) -> bool {
-        let languages = self.languages.clone();
+impl SelectOptions {
+    const RESOLUTIONS: &[(&str, (u16, u16))] = &[
+        ("144p", (256, 144)),
+        ("240p", (426, 240)),
+        ("360p", (640, 360)),
+        ("480p", (854, 480)),
+        ("720p", (1280, 720)),
+        ("hd", (1280, 720)),
+        ("1080p", (1920, 1080)),
+        ("fhd", (1920, 1080)),
+        ("2k", (2048, 1080)),
+        ("1440p", (2560, 1440)),
+        ("qhd", (2560, 1440)),
+        ("4k", (3840, 2160)),
+        ("8k", (7680, 4320)),
+    ];
 
-        for lang in &languages {
-            if lang == s_lang {
-                self.languages.remove(lang);
-                return true;
+    fn vid_query(query: &str, prefs: &mut Preferences) {
+        match query {
+            "all" => prefs.all = true,
+            "skip" => prefs.skip = true,
+            "best" | "high" | "max" => prefs.quality = Quality::Best,
+            "low" | "min" | "worst" => prefs.quality = Quality::Worst,
+            q if q.contains('x') => {
+                if let Some((w, h)) = q.split_once('x') {
+                    if let (Ok(w), Ok(h)) = (w.parse(), h.parse()) {
+                        prefs.resolutions.insert((w, h));
+                    }
+                }
+            }
+            q => {
+                if let Some(&(_, res)) = Self::RESOLUTIONS.iter().find(|(name, _)| *name == q) {
+                    prefs.resolutions.insert(res);
+                }
             }
         }
+    }
 
+    fn lang_query(query: &str, prefs: &mut Preferences) {
+        match query {
+            "all" => prefs.all = true,
+            "skip" => prefs.skip = true,
+            lang => {
+                prefs.languages.insert(lang.to_owned());
+            }
+        }
+    }
+}
+
+impl Preferences {
+    pub fn contains_exact_lang(&mut self, lang: &str) -> bool {
+        if self.languages.contains(lang) {
+            self.languages.remove(lang);
+            return true;
+        }
         false
     }
 
-    pub fn contains_siml_lang(&mut self, s_lang: &str) -> bool {
-        let languages = self.languages.clone();
+    pub fn contains_siml_lang(&mut self, lang: &str) -> bool {
+        let code = lang.to_lowercase();
+        let code = code.get(0..2);
 
-        for lang in &languages {
-            if lang.to_lowercase().get(0..2) == s_lang.to_lowercase().get(0..2) {
-                self.languages.remove(lang);
-                return true;
-            }
+        let lang = self
+            .languages
+            .iter()
+            .find(|x| x.to_lowercase().get(0..2) == code)
+            .cloned();
+
+        if let Some(lang) = lang {
+            self.languages.remove(&lang);
+            return true;
         }
-
         false
     }
 }

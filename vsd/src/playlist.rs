@@ -1,4 +1,8 @@
-use crate::{automation::SelectOptions, progress::ByteSize, selector::StreamSelector};
+use crate::{
+    automation::{Interaction, SelectOptions},
+    progress::ByteSize,
+    selector::StreamSelector,
+};
 use anyhow::Result;
 use colored::Colorize;
 use log::info;
@@ -177,8 +181,12 @@ impl MasterPlaylist {
         info!("{}", "------------------------------".cyan());
     }
 
-    pub fn select_streams(self, select_opts: &mut SelectOptions) -> Result<Vec<MediaPlaylist>> {
-        StreamSelector::new(self.streams).select(select_opts)
+    pub fn select_streams(
+        self,
+        opts: &mut SelectOptions,
+        interaction: Interaction,
+    ) -> Result<Vec<MediaPlaylist>> {
+        StreamSelector::new(self.streams, interaction).select(opts)
     }
 }
 

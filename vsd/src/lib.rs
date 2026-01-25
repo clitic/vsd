@@ -15,7 +15,7 @@ pub use commands::Args;
 pub use reqwest;
 
 use crate::{
-    automation::{InteractionType, SelectOptions},
+    automation::{Interaction, SelectOptions},
     downloader::{MAX_RETRIES, MAX_THREADS, SKIP_DECRYPT, SKIP_MERGE},
 };
 use anyhow::{Ok, Result};
@@ -30,6 +30,7 @@ pub struct Downloader {
     directory: Option<PathBuf>,
     output: Option<PathBuf>,
     subs_codec: String,
+    interaction_type: Interaction,
     select_options: SelectOptions,
     keys: HashMap<String, String>,
 }
@@ -43,6 +44,7 @@ impl Downloader {
             directory: None,
             output: None,
             subs_codec: "copy".to_owned(),
+            interaction_type: Interaction::None,
             select_options: "v=best:s=en".parse().unwrap(),
             keys: HashMap::new(),
         }
@@ -79,12 +81,12 @@ impl Downloader {
 
     /// Prompt for custom streams selection with modern style input prompts. By default proceed with defaults.
     /// Prompt for custom streams selection with raw style input prompts. By default proceed with defaults.
-    pub fn interactive(self, raw: bool) -> Self {
-        automation::set_interaction_type(if raw {
-            InteractionType::Raw
+    pub fn interactive(mut self, raw: bool) -> Self {
+        if raw {
+            self.interaction_type = Interaction::Raw;
         } else {
-            InteractionType::Modern
-        });
+            self.interaction_type = Interaction::Modern;
+        }
         self
     }
 
@@ -139,6 +141,7 @@ impl Downloader {
             &meta,
             &query,
             self.select_options,
+            self.interaction_type,
         )
         .await?;
 

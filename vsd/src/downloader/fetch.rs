@@ -1,17 +1,8 @@
-use crate::{
-    automation::{self, InteractionType},
-    playlist::PlaylistType,
-};
-use anyhow::{Result, anyhow, bail};
+use crate::playlist::PlaylistType;
+use anyhow::Result;
 use colored::Colorize;
-use regex::Regex;
 use reqwest::{Client, Url, header};
-use std::{
-    collections::{HashMap, HashSet},
-    fs,
-    io::Write,
-    path::Path,
-};
+use std::{collections::HashMap, fs, path::Path};
 
 pub struct Metadata {
     pub pl_type: Option<PlaylistType>,
@@ -87,115 +78,116 @@ pub async fn fetch_playlist(
         meta.fetch(client, query).await?;
 
         if meta.pl_type.is_none() {
-            fetch_from_website(client, &mut meta, query).await?;
+            // fetch_from_website(client, &mut meta, query).await?;
+            panic!();
         }
     }
 
     Ok(meta)
 }
 
-async fn fetch_from_website(
-    client: &Client,
-    meta: &mut Metadata,
-    query: &HashMap<String, String>,
-) -> Result<()> {
-    println!(
-        "   {} [generic-regex] website for DASH and HLS playlists",
-        "Scraping".bold().cyan()
-    );
+// async fn fetch_from_website(
+//     client: &Client,
+//     meta: &mut Metadata,
+//     query: &HashMap<String, String>,
+// ) -> Result<()> {
+//     println!(
+//         "   {} [generic-regex] website for DASH and HLS playlists",
+//         "Scraping".bold().cyan()
+//     );
 
-    let links = scrape_playlist_links(&meta.text);
+//     let links = scrape_playlist_links(&meta.text);
 
-    match links.len() {
-        0 => bail!("no playlists were found in website source."),
-        1 => {
-            println!("            {}", &links[0]);
-            println!("   {} {}", "Selected".bold().green(), &links[0]);
-            meta.url = links[0].parse::<Url>()?;
-        }
-        _ => match automation::get_interaction_type() {
-            InteractionType::Modern => {
-                let question = requestty::Question::select("scraped-link")
-                    .message("Select one playlist")
-                    .should_loop(false)
-                    .choices(links)
-                    .build();
-                let answer = requestty::prompt_one(question)?;
-                meta.url = answer.as_list_item().unwrap().text.parse::<Url>()?;
-            }
-            InteractionType::None => {
-                for link in &links {
-                    println!("            {link}");
-                }
+//     match links.len() {
+//         0 => bail!("no playlists were found in website source."),
+//         1 => {
+//             println!("            {}", &links[0]);
+//             println!("   {} {}", "Selected".bold().green(), &links[0]);
+//             meta.url = links[0].parse::<Url>()?;
+//         }
+//         _ => match automation::get_interaction_type() {
+//             Interaction::Modern => {
+//                 let question = requestty::Question::select("scraped-link")
+//                     .message("Select one playlist")
+//                     .should_loop(false)
+//                     .choices(links)
+//                     .build();
+//                 let answer = requestty::prompt_one(question)?;
+//                 meta.url = answer.as_list_item().unwrap().text.parse::<Url>()?;
+//             }
+//             Interaction::None => {
+//                 for link in &links {
+//                     println!("            {link}");
+//                 }
 
-                println!("   {} {}", "Selected".bold().green(), &links[0]);
-                meta.url = links[0].parse::<Url>()?;
-            }
-            InteractionType::Raw => {
-                println!("Select one playlist:");
+//                 println!("   {} {}", "Selected".bold().green(), &links[0]);
+//                 meta.url = links[0].parse::<Url>()?;
+//             }
+//             Interaction::Raw => {
+//                 println!("Select one playlist:");
 
-                for (i, link) in links.iter().enumerate() {
-                    println!(
-                        "{:2}) [{}] {}",
-                        i + 1,
-                        if i == 0 { "x".green() } else { " ".normal() },
-                        link
-                    );
-                }
+//                 for (i, link) in links.iter().enumerate() {
+//                     println!(
+//                         "{:2}) [{}] {}",
+//                         i + 1,
+//                         if i == 0 { "x".green() } else { " ".normal() },
+//                         link
+//                     );
+//                 }
 
-                println!("{}", "------------------------------".cyan());
-                print!(
-                    "Press enter to proceed with defaults.\n\
-                    Or select playlist to download (1, 2, etc.): "
-                );
+//                 println!("{}", "------------------------------".cyan());
+//                 print!(
+//                     "Press enter to proceed with defaults.\n\
+//                     Or select playlist to download (1, 2, etc.): "
+//                 );
 
-                std::io::stdout().flush()?;
-                let mut input = String::new();
-                std::io::stdin().read_line(&mut input)?;
+//                 std::io::stdout().flush()?;
+//                 let mut input = String::new();
+//                 std::io::stdin().read_line(&mut input)?;
 
-                println!("{}", "------------------------------".cyan());
+//                 println!("{}", "------------------------------".cyan());
 
-                let input = input.trim();
-                let mut index = 0;
+//                 let input = input.trim();
+//                 let mut index = 0;
 
-                if !input.is_empty() {
-                    index = input
-                        .parse::<usize>()
-                        .map_err(|_| anyhow!("input is not a valid positive number."))?
-                        - 1;
-                }
+//                 if !input.is_empty() {
+//                     index = input
+//                         .parse::<usize>()
+//                         .map_err(|_| anyhow!("input is not a valid positive number."))?
+//                         - 1;
+//                 }
 
-                meta.url = links
-                    .get(index)
-                    .ok_or_else(|| anyhow!("selected playlist is out of index bounds."))?
-                    .parse::<Url>()?;
-                println!("   {} {}", "Selected".bold().green(), meta.url);
-            }
-        },
-    }
+//                 meta.url = links
+//                     .get(index)
+//                     .ok_or_else(|| anyhow!("selected playlist is out of index bounds."))?
+//                     .parse::<Url>()?;
+//                 println!("   {} {}", "Selected".bold().green(), meta.url);
+//             }
+//         },
+//     }
 
-    meta.fetch(client, query).await?;
-    Ok(())
-}
+//     meta.fetch(client, query).await?;
+//     Ok(())
+// }
 
-fn scrape_playlist_links(text: &str) -> Vec<String> {
-    let re =
-        Regex::new(r#"([\"\'])(https?:\/\/[^\"\']*\.(m3u8|m3u|mpd)[^\"\']*)([\"\'])"#).unwrap();
-    let links = re
-        .captures_iter(text)
-        .map(|caps| caps.get(2).unwrap().as_str().to_string())
-        .collect::<HashSet<String>>();
+// fn scrape_playlist_links(text: &str) -> Vec<String> {
+//     let re =
+//         Regex::new(r#"([\"\'])(https?:\/\/[^\"\']*\.(m3u8|m3u|mpd)[^\"\']*)([\"\'])"#).unwrap();
+//     let links = re
+//         .captures_iter(text)
+//         .map(|caps| caps.get(2).unwrap().as_str().to_string())
+//         .collect::<HashSet<String>>();
 
-    // in case of amalgated urls
-    links
-        .into_iter()
-        .map(|x| {
-            if x.starts_with("http")
-                && let Some(y) = x.split("http").last()
-            {
-                return format!("http{y}");
-            }
-            x
-        })
-        .collect()
-}
+//     // in case of amalgated urls
+//     links
+//         .into_iter()
+//         .map(|x| {
+//             if x.starts_with("http")
+//                 && let Some(y) = x.split("http").last()
+//             {
+//                 return format!("http{y}");
+//             }
+//             x
+//         })
+//         .collect()
+// }

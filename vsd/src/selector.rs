@@ -1,5 +1,5 @@
 use crate::{
-    automation::{self, InteractionType, Quality, SelectOptions},
+    automation::{Interaction, Quality, SelectOptions},
     playlist::{MediaPlaylist, MediaType},
 };
 use anyhow::Result;
@@ -12,16 +12,16 @@ use std::{
 };
 
 pub struct StreamSelector {
-    interaction_type: InteractionType,
+    interaction: Interaction,
     selected_indices: HashSet<usize>,
     streams: Vec<(usize, MediaPlaylist)>,
 }
 
 impl StreamSelector {
-    pub fn new(streams: Vec<MediaPlaylist>) -> Self {
+    pub fn new(streams: Vec<MediaPlaylist>, interaction: Interaction) -> Self {
         Self {
+            interaction,
             selected_indices: HashSet::new(),
-            interaction_type: automation::get_interaction_type(),
             streams: streams.into_iter().enumerate().collect(),
         }
     }
@@ -31,10 +31,10 @@ impl StreamSelector {
         self.select_aud_streams(opts);
         self.select_sub_streams(opts);
 
-        match self.interaction_type {
-            InteractionType::Modern => self.interact_modern(),
-            InteractionType::None => self.interact_none(),
-            InteractionType::Raw => self.interact_raw(),
+        match self.interaction {
+            Interaction::Modern => self.interact_modern(),
+            Interaction::None => self.interact_none(),
+            Interaction::Raw => self.interact_raw(),
         }
     }
 
