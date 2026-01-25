@@ -22,6 +22,11 @@ use anyhow::{Ok, Result};
 use reqwest::{Client, Url};
 use std::{collections::HashMap, path::PathBuf, sync::atomic::Ordering};
 
+pub enum Input {
+    Url(Url),
+    File(PathBuf),
+}
+
 /// A downloader for DASH and HLS playlists.
 pub struct Downloader {
     client: Client,
