@@ -62,7 +62,7 @@ pub async fn download(
 
     for stream in &mut streams {
         if stream.media_type != MediaType::Subtitles {
-            stream.split_segment(&base_url, &client, &query).await?;
+            stream.fetch_split_seg(&base_url, &client, &query).await?;
         }
     }
 

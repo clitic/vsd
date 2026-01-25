@@ -204,7 +204,7 @@ impl MediaPlaylist {
         Ok(Some(Arc::new(bytes.to_vec())))
     }
 
-    pub async fn split_segment(
+    pub async fn fetch_split_seg(
         &mut self,
         base_url: &Option<Url>,
         client: &Client,
@@ -214,37 +214,37 @@ impl MediaPlaylist {
             return Ok(());
         }
 
-        let base_url = base_url.clone().unwrap_or(self.uri.parse::<Url>().unwrap());
+        let base_url = base_url.clone().unwrap_or(self.uri.parse()?);
         let segment = self.segments.remove(0);
         let url = base_url.join(&segment.uri)?;
-        let response = client.head(url).query(query).send().await?;
-        let content_length = response
+
+        let content_length: u64 = client
+            .head(url)
+            .query(query)
+            .send()
+            .await?
             .headers()
             .get(header::CONTENT_LENGTH)
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .parse::<usize>()
-            .unwrap();
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0);
 
-        let ranges = PartialRangeIter {
-            end: content_length as u64 - 1, // content_length should never be 0.
-            start: 0,
-        };
+        if content_length == 0 {
+            self.segments.push(segment);
+            return Ok(());
+        }
 
-        for (i, range) in ranges.enumerate() {
-            if i == 0 {
-                let mut segment_copy = segment.clone();
-                segment_copy.range = Some(range);
-                self.segments.push(segment_copy);
-            } else {
-                self.segments.push(Segment {
-                    duration: segment.duration,
-                    range: Some(range),
-                    uri: segment.uri.clone(),
-                    ..Default::default()
-                });
-            }
+        const CHUNK_SIZE: u64 = 5_242_880; // 5 MiB
+
+        for (i, start) in (0..content_length).step_by(CHUNK_SIZE as usize).enumerate() {
+            let end = (start + CHUNK_SIZE - 1).min(content_length - 1);
+            self.segments.push(Segment {
+                map: if i == 0 { segment.map.clone() } else { None },
+                key: if i == 0 { segment.key.clone() } else { None },
+                duration: segment.duration,
+                range: Some(Range { start, end }),
+                uri: segment.uri.clone(),
+            });
         }
 
         Ok(())
@@ -281,31 +281,6 @@ impl Key {
         }
 
         Ok((sequence as u128).to_be_bytes())
-    }
-}
-
-const BUFFER_SIZE: u64 = 1024 * 1024 * 2; // 2 MiB
-
-/// https://rust-lang-nursery.github.io/rust-cookbook/web/clients/download.html#make-a-partial-download-with-http-range-headers
-struct PartialRangeIter {
-    end: u64,
-    start: u64,
-}
-
-impl Iterator for PartialRangeIter {
-    type Item = Range;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.start > self.end {
-            None
-        } else {
-            let prev_start = self.start;
-            self.start += std::cmp::min(BUFFER_SIZE, self.end - self.start + 1);
-            Some(Range {
-                start: prev_start,
-                end: self.start - 1,
-            })
-        }
     }
 }
 
