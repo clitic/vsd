@@ -166,9 +166,8 @@ impl MediaPlaylist {
         }
 
         if let Some(seg) = self.segments.first() {
-            let has_mp4 = seg.uri.ends_with(".mp4")
-                || seg.map.as_ref().is_some_and(|m| m.uri.ends_with(".mp4"));
-            if has_mp4 {
+            let is_mp4 = |uri: &str| uri.split('?').next().is_some_and(|p| p.ends_with(".mp4"));
+            if is_mp4(&seg.uri) || seg.map.as_ref().is_some_and(|m| is_mp4(&m.uri)) {
                 return "mp4";
             }
         }
@@ -177,6 +176,13 @@ impl MediaPlaylist {
             PlaylistType::Hls => "ts",
             PlaylistType::Dash => "m4s",
         }
+    }
+
+    pub fn path(&self, directory: Option<&PathBuf>) -> PathBuf {
+        let filename = format!("vsd-{}-{}.{}", self.media_type, self.id, self.extension());
+        directory
+            .map(|d| d.join(&filename))
+            .unwrap_or_else(|| PathBuf::from(filename))
     }
 
     pub async fn fetch_init_seg(
@@ -196,23 +202,6 @@ impl MediaPlaylist {
 
         let bytes = request.send().await?.bytes().await?;
         Ok(Some(Arc::new(bytes.to_vec())))
-    }
-
-    pub fn path(&self, directory: Option<&PathBuf>) -> PathBuf {
-        let prefix = match &self.media_type {
-            MediaType::Audio => "vsd-aud",
-            MediaType::Subtitles => "vsd-sub",
-            MediaType::Undefined => "vsd-und",
-            MediaType::Video => "vsd-vid",
-        };
-
-        let mut path = PathBuf::from(format!("{}-{}.{}", prefix, self.id, self.extension()));
-
-        if let Some(directory) = directory {
-            path = directory.join(path);
-        }
-
-        path
     }
 
     pub async fn split_segment(
