@@ -113,7 +113,7 @@ async fn fetch_from_website(
             println!("   {} {}", "Selected".bold().green(), &links[0]);
             meta.url = links[0].parse::<Url>()?;
         }
-        _ => match automation::load_interaction_type() {
+        _ => match automation::get_interaction_type() {
             InteractionType::Modern => {
                 let question = requestty::Question::select("scraped-link")
                     .message("Select one playlist")

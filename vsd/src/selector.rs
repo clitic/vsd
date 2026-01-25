@@ -1,5 +1,5 @@
 use crate::{
-    automation::{self, InteractionType, SelectOptions, VideoPreference},
+    automation::{self, InteractionType, Quality, SelectOptions},
     playlist::{MediaPlaylist, MediaType},
 };
 use anyhow::Result;
@@ -21,7 +21,7 @@ impl StreamSelector {
     pub fn new(streams: Vec<MediaPlaylist>) -> Self {
         Self {
             selected_indices: HashSet::new(),
-            interaction_type: automation::load_interaction_type(),
+            interaction_type: automation::get_interaction_type(),
             streams: streams.into_iter().enumerate().collect(),
         }
     }
@@ -56,19 +56,19 @@ impl StreamSelector {
         let mut indices = HashSet::new();
 
         for (i, _) in &vid_data {
-            if opts.indices.iter().any(|x| (*x - 1) == *i) {
+            if opts.stream_indices.iter().any(|x| (*x - 1) == *i) {
                 indices.insert(*i);
             }
         }
 
-        match &opts.vid.preference {
-            VideoPreference::Best => {
+        match &opts.vid.quality {
+            Quality::Best => {
                 if let Some((i, _)) = vid_data.first() {
                     indices.insert(*i);
                 }
             }
-            VideoPreference::None => (),
-            VideoPreference::Worst => {
+            Quality::None => (),
+            Quality::Worst => {
                 if let Some((i, _)) = vid_data.last() {
                     indices.insert(*i);
                 }
@@ -117,7 +117,7 @@ impl StreamSelector {
         let mut indices = HashSet::new();
 
         for (i, _) in &aud_data {
-            if opts.indices.iter().any(|x| (*x - 1) == *i) {
+            if opts.stream_indices.iter().any(|x| (*x - 1) == *i) {
                 indices.insert(*i);
             }
         }
@@ -172,7 +172,7 @@ impl StreamSelector {
         let mut indices = HashSet::new();
 
         for (i, _) in &sub_data {
-            if opts.indices.iter().any(|x| (*x - 1) == *i) {
+            if opts.stream_indices.iter().any(|x| (*x - 1) == *i) {
                 indices.insert(*i);
             }
         }
