@@ -152,6 +152,190 @@ impl MasterPlaylist {
 }
 
 impl MediaPlaylist {
+    pub fn default_kid(&self) -> Option<String> {
+        self.segments
+            .first()
+            .and_then(|s| s.key.as_ref())
+            .and_then(|k| k.default_kid.as_ref())
+            .map(|kid| kid.to_ascii_lowercase().replace('-', ""))
+    }
+
+    pub fn extension(&self) -> &str {
+        if let Some(ext) = &self.extension {
+            return ext;
+        }
+
+        if let Some(seg) = self.segments.first() {
+            let has_mp4 = seg.uri.ends_with(".mp4")
+                || seg.map.as_ref().is_some_and(|m| m.uri.ends_with(".mp4"));
+            if has_mp4 {
+                return "mp4";
+            }
+        }
+
+        match self.playlist_type {
+            PlaylistType::Hls => "ts",
+            PlaylistType::Dash => "m4s",
+        }
+    }
+
+    pub async fn fetch_init_seg(
+        &self,
+        base_url: &Url,
+        client: &Client,
+        query: &HashMap<String, String>,
+    ) -> Result<Option<Arc<Vec<u8>>>> {
+        let Some(Segment { map: Some(map), .. }) = self.segments.first() else {
+            return Ok(None);
+        };
+
+        let mut request = client.get(base_url.join(&map.uri)?).query(query);
+        if let Some(range) = &map.range {
+            request = request.header(header::RANGE, range.as_header_value());
+        }
+
+        let bytes = request.send().await?.bytes().await?;
+        Ok(Some(Arc::new(bytes.to_vec())))
+    }
+
+    pub fn path(&self, directory: Option<&PathBuf>) -> PathBuf {
+        let prefix = match &self.media_type {
+            MediaType::Audio => "vsd-aud",
+            MediaType::Subtitles => "vsd-sub",
+            MediaType::Undefined => "vsd-und",
+            MediaType::Video => "vsd-vid",
+        };
+
+        let mut path = PathBuf::from(format!("{}-{}.{}", prefix, self.id, self.extension()));
+
+        if let Some(directory) = directory {
+            path = directory.join(path);
+        }
+
+        path
+    }
+
+    pub async fn split_segment(
+        &mut self,
+        base_url: &Option<Url>,
+        client: &Client,
+        query: &HashMap<String, String>,
+    ) -> Result<()> {
+        if self.segments.len() > 1 {
+            return Ok(());
+        }
+
+        let base_url = base_url.clone().unwrap_or(self.uri.parse::<Url>().unwrap());
+        let segment = self.segments.remove(0);
+        let url = base_url.join(&segment.uri)?;
+        let response = client.head(url).query(query).send().await?;
+        let content_length = response
+            .headers()
+            .get(header::CONTENT_LENGTH)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .parse::<usize>()
+            .unwrap();
+
+        let ranges = PartialRangeIter {
+            end: content_length as u64 - 1, // content_length should never be 0.
+            start: 0,
+        };
+
+        for (i, range) in ranges.enumerate() {
+            if i == 0 {
+                let mut segment_copy = segment.clone();
+                segment_copy.range = Some(range);
+                self.segments.push(segment_copy);
+            } else {
+                self.segments.push(Segment {
+                    duration: segment.duration,
+                    range: Some(range),
+                    uri: segment.uri.clone(),
+                    ..Default::default()
+                });
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl Range {
+    pub fn as_header_value(&self) -> HeaderValue {
+        HeaderValue::from_str(&format!("bytes={}-{}", self.start, self.end)).unwrap()
+    }
+}
+
+impl Key {
+    pub async fn key(
+        &self,
+        base_url: &Url,
+        client: &Client,
+        query: &HashMap<String, String>,
+    ) -> Result<[u8; 16]> {
+        let url = base_url.join(self.uri.as_ref().unwrap())?;
+        let request = client.get(url).query(query);
+        let response = request.send().await?;
+        let bytes = response.bytes().await?;
+        Ok(bytes.as_ref().try_into()?)
+    }
+
+    pub fn iv(&self, sequence: u64) -> Result<[u8; 16]> {
+        if let Some(iv) = self.iv.as_ref() {
+            return Ok(u128::from_str_radix(
+                iv.trim_start_matches("0x").trim_start_matches("0X"),
+                16,
+            )?
+            .to_be_bytes());
+        }
+
+        Ok((sequence as u128).to_be_bytes())
+    }
+}
+
+const BUFFER_SIZE: u64 = 1024 * 1024 * 2; // 2 MiB
+
+/// https://rust-lang-nursery.github.io/rust-cookbook/web/clients/download.html#make-a-partial-download-with-http-range-headers
+struct PartialRangeIter {
+    end: u64,
+    start: u64,
+}
+
+impl Iterator for PartialRangeIter {
+    type Item = Range;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start > self.end {
+            None
+        } else {
+            let prev_start = self.start;
+            self.start += std::cmp::min(BUFFER_SIZE, self.end - self.start + 1);
+            Some(Range {
+                start: prev_start,
+                end: self.start - 1,
+            })
+        }
+    }
+}
+
+impl Display for MediaType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Audio => "aud",
+                Self::Subtitles => "sub",
+                Self::Undefined => "und",
+                Self::Video => "vid",
+            }
+        )
+    }
+}
+
+impl MediaPlaylist {
     fn truncate(s: &str, width: usize) -> String {
         if s.chars().count() > width {
             let mut truncated = s.chars().take(width - 1).collect::<String>();
@@ -252,205 +436,5 @@ impl Display for MediaPlaylist {
             }
         }
         Ok(())
-    }
-}
-
-impl MediaPlaylist {
-    pub async fn init_seg(
-        &self,
-        base_url: &Url,
-        client: &Client,
-        query: &HashMap<String, String>,
-    ) -> Result<Option<Arc<Vec<u8>>>> {
-        if let Some(Segment { map: Some(map), .. }) = self.segments.first() {
-            let url = base_url.join(&map.uri)?;
-            let mut request = client.get(url).query(query);
-
-            if let Some(range) = &map.range {
-                request = request.header(header::RANGE, range.as_header_value());
-            }
-
-            let response = request.send().await?;
-            let bytes = response.bytes().await?;
-            return Ok(Some(Arc::new(bytes.to_vec())));
-        }
-
-        Ok(None)
-    }
-
-    pub fn default_kid(&self) -> Option<String> {
-        if let Some(Segment {
-            key: Some(Key {
-                default_kid: Some(x),
-                ..
-            }),
-            ..
-        }) = self.segments.first()
-        {
-            return Some(x.to_ascii_lowercase().replace('-', ""));
-        }
-
-        None
-    }
-
-    pub fn extension(&self) -> &str {
-        if let Some(ext) = &self.extension {
-            return ext;
-        }
-
-        let mut ext = match &self.playlist_type {
-            PlaylistType::Hls => "ts",
-            PlaylistType::Dash => "m4s",
-        };
-
-        if let Some(segment) = self.segments.first() {
-            if let Some(init) = &segment.map
-                && init.uri.ends_with(".mp4")
-            {
-                ext = "mp4";
-            }
-
-            if segment.uri.ends_with(".mp4") {
-                ext = "mp4";
-            }
-        }
-
-        ext
-    }
-
-    pub fn path(&self, directory: Option<&PathBuf>) -> PathBuf {
-        let prefix = match &self.media_type {
-            MediaType::Audio => "vsd-aud",
-            MediaType::Subtitles => "vsd-sub",
-            MediaType::Undefined => "vsd-und",
-            MediaType::Video => "vsd-vid",
-        };
-
-        let mut path = PathBuf::from(format!("{}-{}.{}", prefix, self.id, self.extension()));
-
-        if let Some(directory) = directory {
-            path = directory.join(path);
-        }
-
-        path
-    }
-
-    pub async fn split_segment(
-        &mut self,
-        base_url: &Option<Url>,
-        client: &Client,
-        query: &HashMap<String, String>,
-    ) -> Result<()> {
-        if self.segments.len() > 1 {
-            return Ok(());
-        }
-
-        let base_url = base_url.clone().unwrap_or(self.uri.parse::<Url>().unwrap());
-        let segment = self.segments.remove(0);
-        let url = base_url.join(&segment.uri)?;
-        let response = client.head(url).query(query).send().await?;
-        let content_length = response
-            .headers()
-            .get(header::CONTENT_LENGTH)
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .parse::<usize>()
-            .unwrap();
-
-        let ranges = PartialRangeIter {
-            end: content_length as u64 - 1, // content_length should never be 0.
-            start: 0,
-        };
-
-        for (i, range) in ranges.enumerate() {
-            if i == 0 {
-                let mut segment_copy = segment.clone();
-                segment_copy.range = Some(range);
-                self.segments.push(segment_copy);
-            } else {
-                self.segments.push(Segment {
-                    duration: segment.duration,
-                    range: Some(range),
-                    uri: segment.uri.clone(),
-                    ..Default::default()
-                });
-            }
-        }
-
-        Ok(())
-    }
-}
-
-impl Display for MediaType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Self::Audio => "aud",
-                Self::Subtitles => "sub",
-                Self::Undefined => "und",
-                Self::Video => "vid",
-            }
-        )
-    }
-}
-
-impl Range {
-    pub fn as_header_value(&self) -> HeaderValue {
-        HeaderValue::from_str(&format!("bytes={}-{}", self.start, self.end)).unwrap()
-    }
-}
-
-impl Key {
-    pub async fn key(
-        &self,
-        base_url: &Url,
-        client: &Client,
-        query: &HashMap<String, String>,
-    ) -> Result<[u8; 16]> {
-        let url = base_url.join(self.uri.as_ref().unwrap())?;
-        let request = client.get(url).query(query);
-        let response = request.send().await?;
-        let bytes = response.bytes().await?;
-        Ok(bytes.as_ref().try_into()?)
-    }
-
-    pub fn iv(&self, sequence: u64) -> Result<[u8; 16]> {
-        if let Some(iv) = self.iv.as_ref() {
-            return Ok(u128::from_str_radix(
-                iv.trim_start_matches("0x").trim_start_matches("0X"),
-                16,
-            )?
-            .to_be_bytes());
-        }
-
-        Ok((sequence as u128).to_be_bytes())
-    }
-}
-
-const BUFFER_SIZE: u64 = 1024 * 1024 * 2; // 2 MiB
-
-/// https://rust-lang-nursery.github.io/rust-cookbook/web/clients/download.html#make-a-partial-download-with-http-range-headers
-struct PartialRangeIter {
-    end: u64,
-    start: u64,
-}
-
-impl Iterator for PartialRangeIter {
-    type Item = Range;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.start > self.end {
-            None
-        } else {
-            let prev_start = self.start;
-            self.start += std::cmp::min(BUFFER_SIZE, self.end - self.start + 1);
-            Some(Range {
-                start: prev_start,
-                end: self.start - 1,
-            })
-        }
     }
 }
