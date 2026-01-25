@@ -101,7 +101,7 @@ async fn download_subtitle_stream(
             let mut request = client.get(url).query(query);
 
             if let Some(range) = &map.range {
-                request = request.header(header::RANGE, range.as_header_value());
+                request = request.header(header::RANGE, range);
             }
 
             let response = request.send().await?;
@@ -113,7 +113,7 @@ async fn download_subtitle_stream(
         let mut request = client.get(url).query(query);
 
         if let Some(range) = &segment.range {
-            request = request.header(header::RANGE, range.as_header_value());
+            request = request.header(header::RANGE, range);
         }
 
         let response = request.send().await?;

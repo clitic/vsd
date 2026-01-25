@@ -36,28 +36,27 @@ pub struct MediaPlaylist {
     pub uri: String,
 }
 
-#[derive(Default, Serialize)]
-pub enum PlaylistType {
-    Dash,
-    #[default]
-    Hls,
-}
-
-#[derive(Clone, Default, PartialEq, Serialize)]
-pub enum MediaType {
-    Audio,
-    Subtitles,
-    #[default]
-    Undefined,
-    Video,
-}
-
 #[derive(Clone, Default, Serialize)]
 pub struct Segment {
-    pub range: Option<Range>,
-    pub duration: f32, // consider changing it to f64
+    pub duration: f32,
     pub key: Option<Key>,
     pub map: Option<Map>,
+    pub range: Option<Range>,
+    pub uri: String,
+}
+
+#[derive(Clone, Serialize)]
+pub struct Key {
+    pub default_kid: Option<String>,
+    pub key_format: Option<String>,
+    pub iv: Option<String>,
+    pub method: KeyMethod,
+    pub uri: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct Map {
+    pub range: Option<Range>,
     pub uri: String,
 }
 
@@ -67,13 +66,20 @@ pub struct Range {
     pub start: u64,
 }
 
-#[derive(Clone, Serialize)]
-pub struct Key {
-    pub default_kid: Option<String>,
-    pub iv: Option<String>,
-    pub key_format: Option<String>,
-    pub method: KeyMethod,
-    pub uri: Option<String>,
+#[derive(Clone, Default, PartialEq, Serialize)]
+pub enum MediaType {
+    Video,
+    Audio,
+    Subtitles,
+    #[default]
+    Undefined,
+}
+
+#[derive(Default, Serialize)]
+pub enum PlaylistType {
+    Dash,
+    #[default]
+    Hls,
 }
 
 #[derive(Clone, PartialEq, Serialize)]
@@ -85,10 +91,36 @@ pub enum KeyMethod {
     SampleAes,
 }
 
-#[derive(Clone, Serialize)]
-pub struct Map {
-    pub uri: String,
-    pub range: Option<Range>,
+impl TryFrom<&Range> for HeaderValue {
+    type Error = std::convert::Infallible;
+
+    fn try_from(range: &Range) -> Result<Self, Self::Error> {
+        Ok(HeaderValue::from_str(&format!("bytes={}-{}", range.start, range.end)).unwrap())
+    }
+}
+
+impl Key {
+    pub async fn key(
+        &self,
+        base_url: &Url,
+        client: &Client,
+        query: &HashMap<String, String>,
+    ) -> Result<[u8; 16]> {
+        let url = base_url.join(self.uri.as_ref().unwrap())?;
+        let bytes = client.get(url).query(query).send().await?.bytes().await?;
+        Ok(bytes.as_ref().try_into()?)
+    }
+
+    pub fn iv(&self, sequence: u64) -> Result<[u8; 16]> {
+        self.iv
+            .as_ref()
+            .map(|iv| {
+                u128::from_str_radix(iv.trim_start_matches("0x").trim_start_matches("0X"), 16)
+                    .map(|v| v.to_be_bytes())
+            })
+            .transpose()?
+            .map_or(Ok((sequence as u128).to_be_bytes()), Ok)
+    }
 }
 
 impl MasterPlaylist {
@@ -197,7 +229,7 @@ impl MediaPlaylist {
 
         let mut request = client.get(base_url.join(&map.uri)?).query(query);
         if let Some(range) = &map.range {
-            request = request.header(header::RANGE, range.as_header_value());
+            request = request.header(header::RANGE, range);
         }
 
         let bytes = request.send().await?.bytes().await?;
@@ -234,7 +266,7 @@ impl MediaPlaylist {
             return Ok(());
         }
 
-        const CHUNK_SIZE: u64 = 5_242_880; // 5 MiB
+        const CHUNK_SIZE: u64 = 5242880; // 1024 * 1024 * 5 = 5 MiB
 
         for (i, start) in (0..content_length).step_by(CHUNK_SIZE as usize).enumerate() {
             let end = (start + CHUNK_SIZE - 1).min(content_length - 1);
@@ -251,49 +283,16 @@ impl MediaPlaylist {
     }
 }
 
-impl Range {
-    pub fn as_header_value(&self) -> HeaderValue {
-        HeaderValue::from_str(&format!("bytes={}-{}", self.start, self.end)).unwrap()
-    }
-}
-
-impl Key {
-    pub async fn key(
-        &self,
-        base_url: &Url,
-        client: &Client,
-        query: &HashMap<String, String>,
-    ) -> Result<[u8; 16]> {
-        let url = base_url.join(self.uri.as_ref().unwrap())?;
-        let request = client.get(url).query(query);
-        let response = request.send().await?;
-        let bytes = response.bytes().await?;
-        Ok(bytes.as_ref().try_into()?)
-    }
-
-    pub fn iv(&self, sequence: u64) -> Result<[u8; 16]> {
-        if let Some(iv) = self.iv.as_ref() {
-            return Ok(u128::from_str_radix(
-                iv.trim_start_matches("0x").trim_start_matches("0X"),
-                16,
-            )?
-            .to_be_bytes());
-        }
-
-        Ok((sequence as u128).to_be_bytes())
-    }
-}
-
 impl Display for MediaType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}",
             match self {
+                Self::Video => "vid",
                 Self::Audio => "aud",
                 Self::Subtitles => "sub",
                 Self::Undefined => "und",
-                Self::Video => "vid",
             }
         )
     }

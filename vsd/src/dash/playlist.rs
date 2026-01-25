@@ -430,7 +430,7 @@ pub(crate) async fn push_segments(
                             let request = client
                                 .get(base_url.as_str())
                                 .query(query)
-                                .header(header::RANGE, index_range.as_header_value());
+                                .header(header::RANGE, &index_range);
                             let response = request.send().await?;
                             let bytes = response.bytes().await?;
 

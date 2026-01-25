@@ -193,7 +193,7 @@ async fn download_stream(
         let mut request = client.get(url).query(query);
 
         if let Some(range) = &segment.range {
-            request = request.header(header::RANGE, range.as_header_value());
+            request = request.header(header::RANGE, range);
         }
 
         tasks.push(Task {

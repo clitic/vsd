@@ -106,7 +106,7 @@ pub async fn extract_default_kids(
             let mut request = client.get(url).query(query);
 
             if let Some(range) = &x.range {
-                request = request.header(header::RANGE, range.as_header_value());
+                request = request.header(header::RANGE, range);
             }
 
             let response = request.send().await?;
