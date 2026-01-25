@@ -1,3 +1,4 @@
+use crate::{automation::SelectOptions, progress::ByteSize, stream_selector::StreamSelector};
 use anyhow::Result;
 use colored::Colorize;
 use log::info;
@@ -7,8 +8,6 @@ use reqwest::{
 };
 use serde::Serialize;
 use std::{cmp::Reverse, collections::HashMap, fmt::Display, path::PathBuf, sync::Arc};
-
-use crate::{automation::SelectOptions, progress::ByteSize, stream_selector::StreamSelector};
 
 #[derive(Serialize)]
 pub struct MasterPlaylist {
@@ -94,7 +93,7 @@ pub enum KeyMethod {
 impl TryFrom<&Range> for HeaderValue {
     type Error = std::convert::Infallible;
 
-    fn try_from(range: &Range) -> Result<Self, Self::Error> {
+    fn try_from(range: &Range) -> std::result::Result<Self, Self::Error> {
         Ok(HeaderValue::from_str(&format!("bytes={}-{}", range.start, range.end)).unwrap())
     }
 }
