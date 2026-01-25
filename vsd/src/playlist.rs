@@ -1,4 +1,4 @@
-use crate::{automation::SelectOptions, progress::ByteSize, stream_selector::StreamSelector};
+use crate::{automation::SelectOptions, progress::ByteSize, selector::StreamSelector};
 use anyhow::Result;
 use colored::Colorize;
 use log::info;
