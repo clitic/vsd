@@ -3,7 +3,6 @@ use std::{
     fs::{self, File},
     io::Write,
     path::PathBuf,
-    process::Command,
     sync::LazyLock,
 };
 use vsd_mp4::decrypt::CencDecryptingProcessor;
