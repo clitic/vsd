@@ -12,12 +12,8 @@ const VIDEO_KEY: &str = "100b6c20940f779a4589152b57d2dacb";
 const AUDIO_KID: &str = "63cb5f7184dd4b689a5c5ff11ee6a328";
 const AUDIO_KEY: &str = "3bda3329158a4789880816a70e7e436d";
 
-static SAMPLES_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .join("mp4decrypt/tests/samples")
-});
+static SAMPLES_DIR: LazyLock<PathBuf> =
+    LazyLock::new(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/samples"));
 
 static OUTPUT_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../target/vsd-mp4-samples");
