@@ -13,7 +13,7 @@
 
 These features can be turned on or off by using cargo's `--features` flag.
 
-1. `browser` (*default*): Enable `capture` subcommand.
+1. `capture` (*default*): Enable `capture` subcommand.
 2. `rustls` (*default*): Enable `rustls` feature of [reqwest] crate.
 3. `native-tls`: Enable `native-tls` feature of [reqwest] crate.
 

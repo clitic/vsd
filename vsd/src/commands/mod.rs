@@ -2,7 +2,7 @@ mod extract;
 mod merge;
 mod save;
 
-#[cfg(feature = "browser")]
+#[cfg(feature = "capture")]
 mod capture;
 
 use anyhow::Ok;
@@ -11,7 +11,7 @@ use log::LevelFilter;
 pub use merge::Merge;
 pub use save::Save;
 
-#[cfg(feature = "browser")]
+#[cfg(feature = "capture")]
 pub use capture::Capture;
 
 use crate::logger::Logger;
@@ -19,7 +19,7 @@ use clap::{ArgAction, ColorChoice, Parser, Subcommand};
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum Commands {
-    #[cfg(feature = "browser")]
+    #[cfg(feature = "capture")]
     Capture(Capture),
     Extract(Extract),
     Merge(Merge),
@@ -34,7 +34,7 @@ pub enum Commands {
     long_version = concat!(
         env!("CARGO_PKG_VERSION"),
         "\n\nEnabled features:",
-        "\n  browser    : ", cfg!(feature = "browser"),
+        "\n  capture    : ", cfg!(feature = "capture"),
         "\n  native-tls : ", cfg!(feature = "native-tls"),
         "\n  rustls     : ", cfg!(feature = "rustls"),
     ),
@@ -44,15 +44,21 @@ pub struct Args {
     pub command: Commands,
 
     /// When to output colored text.
-    #[arg(long, global = true, default_value_t = ColorChoice::Auto)]
+    #[arg(long, global = true, help_heading = "Global Options", default_value_t = ColorChoice::Auto)]
     pub color: ColorChoice,
 
     /// Silence all output and only log errors.
-    #[arg(short, long, global = true, conflicts_with = "verbose")]
+    #[arg(
+        short,
+        long,
+        global = true,
+        help_heading = "Global Options",
+        conflicts_with = "verbose"
+    )]
     quiet: bool,
 
     /// Increase verbosity (-v [debug], -vv [trace]). Default logging level is set to info.
-    #[arg(short, long, global = true, action = ArgAction::Count)]
+    #[arg(short, long, global = true, help_heading = "Global Options", action = ArgAction::Count)]
     verbose: u8,
 }
 
@@ -84,7 +90,7 @@ impl Args {
         requestty::symbols::set(symbols);
 
         match self.command {
-            #[cfg(feature = "browser")]
+            #[cfg(feature = "capture")]
             Commands::Capture(args) => args.execute().await?,
             Commands::Extract(args) => args.execute()?,
             Commands::Merge(args) => args.execute()?,

@@ -22,10 +22,24 @@ use anyhow::{Ok, Result};
 use reqwest::{Client, Url};
 use std::{collections::HashMap, path::PathBuf, sync::atomic::Ordering};
 
-pub enum Input {
-    Url(Url),
-    File(PathBuf),
-}
+// pub enum Source {
+//     Url(Url),
+//     File(PathBuf),
+// }
+
+// pub struct Input {
+//     source: Source,
+
+// }
+
+// impl Input {
+//     pub fn new(self) -> Self {
+//         match self {
+//             Input::Url(url) => url,
+//             Input::File(path) => Url::from_file_path(path).unwrap(),
+//         }
+//     }
+// }
 
 /// A downloader for DASH and HLS playlists.
 pub struct Downloader {

@@ -16,17 +16,16 @@ readme = "README.md"
 anyhow = "1"
 base64 = "0.22"
 blake3 = "1.8"
+chromiumoxide = { version = "0.8.0", optional = true }
 chrono = "0.4"
 clap = { version = "4", features = ["derive", "wrap_help"] }
 colored = "3"
 cookie = "0.18"
 dash-mpd = { version = "0.19", default-features = false }
 glob = "0.3"
-headless_chrome = { version = "1.0.10", optional = true }
 hex = "0.4"
 log = "0.4"
 m3u8-rs = "6.0.0"
-# mp4decrypt = { version = "0.6.0", path = "../mp4decrypt" }
 regex = "1"
 requestty = "0.6.3"
 reqwest = { version = "0.13", default-features = false, features = [
@@ -44,10 +43,11 @@ tokio = { version = "1", features = [
     "rt-multi-thread",
     "signal",
 ] }
+tokio-stream = { version = "0.1", optional = true }
 vsd-mp4 = { version = "0.2.0", path = "../vsd-mp4", features = ["full"] }
 
 [features]
-default = ["browser", "rustls"]
-browser = ["dep:headless_chrome"]
+default = ["capture", "rustls"]
+capture = ["dep:chromiumoxide", "dep:tokio-stream"]
 rustls = ["reqwest/rustls"]
 native-tls = ["reqwest/native-tls"]
