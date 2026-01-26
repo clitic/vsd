@@ -98,11 +98,10 @@ impl SelectOptions {
             "best" | "high" | "max" => prefs.quality = Quality::Best,
             "low" | "min" | "worst" => prefs.quality = Quality::Worst,
             q if q.contains('x') => {
-                if let Some((w, h)) = q.split_once('x') {
-                    if let (Ok(w), Ok(h)) = (w.parse(), h.parse()) {
+                if let Some((w, h)) = q.split_once('x')
+                    && let (Ok(w), Ok(h)) = (w.parse(), h.parse()) {
                         prefs.resolutions.insert((w, h));
                     }
-                }
             }
             q => {
                 if let Some(&(_, res)) = Self::RESOLUTIONS.iter().find(|(name, _)| *name == q) {

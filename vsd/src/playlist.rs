@@ -94,6 +94,7 @@ pub enum KeyMethod {
     SampleAes,
 }
 
+#[allow(clippy::infallible_try_from)]
 impl TryFrom<&Range> for HeaderValue {
     type Error = std::convert::Infallible;
 

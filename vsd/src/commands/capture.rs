@@ -147,11 +147,10 @@ fn log_curl_cmd(request: &Request) {
         let mut body = String::new();
 
         for entry in entries {
-            if let Some(b64_str) = &entry.bytes {
-                if let Ok(decoded_bytes) = utils::decode_base64(b64_str) {
+            if let Some(b64_str) = &entry.bytes
+                && let Ok(decoded_bytes) = utils::decode_base64(b64_str) {
                     body.push_str(&String::from_utf8_lossy(&decoded_bytes));
                 }
-            }
         }
 
         if !body.is_empty() {
