@@ -1,8 +1,3 @@
 [workspace]
-members = [
-  "bento4-src",
-  "mp4decrypt",
-  "vsd",
-  "vsd-mp4",
-]
+members = ["vsd", "vsd-mp4"]
 resolver = "2"
