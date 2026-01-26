@@ -20,7 +20,7 @@ These features can be turned on or off by using cargo's `--features` flag.
 ## Any Target
 
 ```bash
-git clone https://github.com/clitic/vsd --recursive --depth 1
+git clone https://github.com/clitic/vsd --depth 1
 cd vsd
 cargo build -p vsd --release
 ```
@@ -64,7 +64,7 @@ $ llvm-readelf target/aarch64-linux-android/release/vsd --needed-libs
 $ pkg update
 $ pkg upgrade
 $ pkg install git protobuf rust
-$ git clone https://github.com/clitic/vsd --recursive --depth 1
+$ git clone https://github.com/clitic/vsd --depth 1
 $ cd vsd
 $ AR=llvm-ar \
     OPENSSL_INCLUDE_DIR=$PREFIX/include/openssl
