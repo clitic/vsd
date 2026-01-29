@@ -57,7 +57,7 @@ Inspect -> Network -> Fetch/XHR -> Filter by extension -> Copy as cURL (bash)
 
 ###### **Options:**
 
-* `--cookies <COOKIES_PATH>` — Launch browser with cookies loaded from a json file
+* `--cookies <PATH>` — Launch browser with cookies loaded from a json file
 * `--extensions <EXTENSIONS>` — List of file extensions to be filter out seperated by comma
 
   Default value: `.m3u,.m3u8,.mpd,.vtt,.ttml,.srt`
@@ -157,7 +157,7 @@ Download DASH and HLS playlists
 
   Default value: `copy`
 * `-i`, `--interactive` — Prompt for custom streams selection with modern style input prompts. By default proceed with defaults
-* `--interactive-raw` — Prompt for custom streams selection with raw style input prompts. By default proceed with defaults
+* `-I`, `--interactive-raw` — Prompt for custom streams selection with raw style input prompts. By default proceed with defaults
 * `-l`, `--list-streams` — List all the streams present inside the playlist
 * `-s`, `--select-streams <SELECT_STREAMS>` — Filters to be applied for automatic stream selection.
 
@@ -177,24 +177,22 @@ Download DASH and HLS playlists
 * `--cookies <COOKIES>` — Fill request client with some existing cookies value. Cookies value can be same as document.cookie or in json format same as puppeteer
 
   Default value: `[]`
-* `--header <KEY>` — Custom headers for requests. This option can be used multiple times
+* `-H`, `--header <KEY:VALUE>` — Extra headers for requests in same format as curl.
+
+   This option can be used multiple times.
 * `--no-certificate-checks` — Skip checking and validation of site certificates
 * `--proxy <PROXY>` — Set http(s) / socks proxy address for requests
 * `--query <QUERY>` — Set query parameters for requests
 
   Default value: ``
-* `--set-cookie <SET_COOKIE>` — Fill request client with some existing cookies per domain. First value for this option is set-cookie header and second value is url which was requested to send this set-cookie header. EXAMPLE: --set-cookie "foo=bar; Domain=yolo.local" https://yolo.local. This option can be used multiple times
-* `--user-agent <USER_AGENT>` — Update and set user agent header for requests
-
-  Default value: `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36`
-* `--keys <KID:KEY;...>` — Keys for decrypting encrypted streams. KID:KEY should be specified in hex format
+* `--keys <KID:KEY;…>` — Keys for decrypting encrypted streams. KID:KEY should be specified in hex format
 
   Default value: ``
 * `--no-decrypt` — Download encrypted streams without decrypting them. Note that --output flag is ignored if this flag is used
 * `--no-merge` — Download streams without merging them. Note that --output flag is ignored if this flag is used
 * `--retries <RETRIES>` — Maximum number of retries to download an individual segment
 
-  Default value: `5`
+  Default value: `10`
 * `-t`, `--threads <THREADS>` — Total number of threads for parllel downloading of segments. Number of threads should be in range 1-16 (inclusive)
 
   Default value: `5`
