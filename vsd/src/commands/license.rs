@@ -14,8 +14,8 @@ use std::{
 };
 use vsd_mp4::pssh::{PsshBox, SystemId};
 
-#[derive(Args, Clone, Debug)]
 /// Request content keys from a license server.
+#[derive(Args, Clone, Debug)]
 pub struct License {
     /// PSSH data input.
     /// Can be an init file path, playlist url or base64 encoded PSSH box.

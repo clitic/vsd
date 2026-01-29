@@ -1,3 +1,4 @@
 [workspace]
+default-members = ["vsd"]
 members = ["vsd", "vsd-mp4"]
 resolver = "2"
