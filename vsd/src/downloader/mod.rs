@@ -24,7 +24,7 @@ use std::{
     sync::atomic::{AtomicBool, AtomicU8, Ordering},
 };
 
-pub static MAX_RETRIES: AtomicU8 = AtomicU8::new(5);
+pub static MAX_RETRIES: AtomicU8 = AtomicU8::new(10);
 pub static MAX_THREADS: AtomicU8 = AtomicU8::new(5);
 pub static RUNNING: AtomicBool = AtomicBool::new(true);
 pub static SKIP_DECRYPT: AtomicBool = AtomicBool::new(false);

@@ -74,7 +74,17 @@ pub struct Save {
         long,
         help_heading = "Automation Options",
         default_value = "v=best:s=en",
-        long_help = "Filters to be applied for automatic stream selection.\n\nSYNTAX: `v={}:a={}:s={}` where `{}` (in priority order) can contain\n|> all: select all streams.\n|> skip: skip all streams or select inverter.\n|> 1,2: indices obtained by --list-streams flag.\n|> 1080p,1280x720: stream resolution.\n|> en,fr: stream language.\n\nEXAMPLES:\n|> v=skip:a=skip:s=all (download all sub streams)\n|> a:en:s=en (prefer en lang)\n|> v=1080p:a=all:s=skip (1080p with all audio streams)"
+        long_help = "Filters to be applied for automatic stream selection.\n\n\
+        SYNTAX: `v={}:a={}:s={}` where `{}` (in priority order) can contain\n\
+        |> all: select all streams.\n\
+        |> skip: skip all streams or select inverter.\n\
+        |> 1,2: indices obtained by --list-streams flag.\n\
+        |> 1080p,1280x720: stream resolution.\n\
+        |> en,fr: stream language.\n\n\
+        EXAMPLES:\n\
+        |> v=skip:a=skip:s=all (download all sub streams)\n\
+        |> a:en:s=en (prefer en lang)\n\
+        |> v=1080p:a=all:s=skip (1080p with all audio streams)"
     )]
     pub select_streams: String,
 
@@ -86,7 +96,7 @@ pub struct Save {
     /// Extra headers for requests in same format as curl.
     ///
     /// This option can be used multiple times.
-    #[arg(short = 'H', long = "header", value_name = "KEY:VALUE", value_parser = Self::parse_header)]
+    #[arg(short = 'H', long = "header", help_heading = "Client Options", value_name = "KEY:VALUE", value_parser = Self::parse_header)]
     pub headers: Vec<(HeaderName, HeaderValue)>,
 
     /// Skip checking and validation of site certificates.
@@ -94,7 +104,7 @@ pub struct Save {
     pub no_certificate_checks: bool,
 
     /// Set http(s) / socks proxy address for requests.
-    #[arg(long, help_heading = "Client Options", value_parser = proxy_address_parser)]
+    #[arg(long, help_heading = "Client Options", value_parser = Self::parse_proxy)]
     pub proxy: Option<Proxy>,
 
     /// Set query parameters for requests.
@@ -108,17 +118,9 @@ pub struct Save {
     #[arg(long, help_heading = "Client Options", num_args = 2, value_names = &["SET_COOKIE", "URL"])]
     pub set_cookie: Vec<String>, // Vec<(String, String)> not supported
 
-    /// Update and set user agent header for requests.
-    #[arg(
-        long,
-        help_heading = "Client Options",
-        default_value = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"
-    )]
-    pub user_agent: String,
-
     /// Keys for decrypting encrypted streams.
     /// KID:KEY should be specified in hex format.
-    #[arg(long, help_heading = "Decrypt Options", value_name = "KID:KEY;...", default_value = "", hide_default_value = true, value_parser = keys_parser)]
+    #[arg(long, help_heading = "Decrypt Options", value_name = "KID:KEY;…", default_value = "", hide_default_value = true, value_parser = Self::parse_keys)]
     pub keys: HashMap<String, String>,
 
     /// Download encrypted streams without decrypting them.
@@ -132,7 +134,7 @@ pub struct Save {
     pub no_merge: bool,
 
     /// Maximum number of retries to download an individual segment.
-    #[arg(long, help_heading = "Download Options", default_value_t = 5)]
+    #[arg(long, help_heading = "Download Options", default_value_t = 10)]
     pub retries: u8,
 
     /// Total number of threads for parllel downloading of segments.
@@ -150,6 +152,37 @@ impl Save {
         }
     }
 
+    fn parse_proxy(value: &str) -> Result<Proxy> {
+        Ok(Proxy::all(value)?)
+    }
+
+    fn parse_keys(value: &str) -> Result<HashMap<String, String>> {
+        let mut keys = HashMap::new();
+
+        if value.is_empty() {
+            return Ok(keys);
+        }
+
+        for pair in value.split(';') {
+            if let Some((kid, key)) = pair.split_once(':') {
+                let kid = kid.to_ascii_lowercase().replace('-', "");
+                let key = key.to_ascii_lowercase().replace('-', "");
+
+                if kid.len() == 32
+                    && key.len() == 32
+                    && kid.chars().all(|c| c.is_ascii_hexdigit())
+                    && key.chars().all(|c| c.is_ascii_hexdigit())
+                {
+                    keys.insert(kid, key);
+                } else {
+                    bail!("Expected 'KID:KEY;…' but found '{}'.", value);
+                }
+            }
+        }
+
+        Ok(keys)
+    }
+
     pub async fn execute(self) -> Result<()> {
         MAX_RETRIES.store(self.retries, Ordering::SeqCst);
         MAX_THREADS.store(self.threads, Ordering::SeqCst);
@@ -160,7 +193,6 @@ impl Save {
             .default_headers(HeaderMap::from_iter(self.headers))
             .cookie_store(true)
             .danger_accept_invalid_certs(self.no_certificate_checks)
-            .user_agent(&self.user_agent)
             .timeout(std::time::Duration::from_secs(60));
 
         if let Some(proxy) = &self.proxy {
@@ -245,37 +277,6 @@ fn cookie_parser(s: &str) -> Result<CookieParams, String> {
         }
         Ok(cookies)
     }
-}
-
-fn keys_parser(s: &str) -> Result<HashMap<String, String>, String> {
-    let mut keys = HashMap::new();
-
-    if s.is_empty() {
-        return Ok(keys);
-    }
-
-    for pair in s.split(';') {
-        if let Some((kid, key)) = pair.split_once(':') {
-            let kid = kid.to_ascii_lowercase().replace('-', "");
-            let key = key.to_ascii_lowercase().replace('-', "");
-
-            if kid.len() == 32
-                && key.len() == 32
-                && kid.chars().all(|c| c.is_ascii_hexdigit())
-                && key.chars().all(|c| c.is_ascii_hexdigit())
-            {
-                keys.insert(kid, key);
-            } else {
-                return Err("invalid kid key format used.".to_owned());
-            }
-        }
-    }
-
-    Ok(keys)
-}
-
-fn proxy_address_parser(s: &str) -> Result<Proxy, String> {
-    Proxy::all(s).map_err(|x| x.to_string())
 }
 
 fn query_parser(s: &str) -> Result<HashMap<String, String>, String> {
