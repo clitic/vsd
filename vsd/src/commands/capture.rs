@@ -29,7 +29,7 @@ pub struct Capture {
     url: String,
 
     /// Launch browser with cookies loaded from a json file.
-    #[arg(long, value_name = "COOKIES_PATH")]
+    #[arg(long, value_name = "PATH")]
     cookies: Option<PathBuf>,
 
     /// List of file extensions to be filter out seperated by comma.
@@ -148,9 +148,10 @@ fn log_curl_cmd(request: &Request) {
 
         for entry in entries {
             if let Some(b64_str) = &entry.bytes
-                && let Ok(decoded_bytes) = utils::decode_base64(b64_str) {
-                    body.push_str(&String::from_utf8_lossy(&decoded_bytes));
-                }
+                && let Ok(decoded_bytes) = utils::decode_base64(b64_str)
+            {
+                body.push_str(&String::from_utf8_lossy(&decoded_bytes));
+            }
         }
 
         if !body.is_empty() {

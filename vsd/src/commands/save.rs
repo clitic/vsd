@@ -61,7 +61,7 @@ pub struct Save {
     pub interactive: bool,
 
     /// Prompt for custom streams selection with raw style input prompts. By default proceed with defaults.
-    #[arg(long, help_heading = "Automation Options")]
+    #[arg(short = 'I', long, help_heading = "Automation Options")]
     pub interactive_raw: bool,
 
     /// List all the streams present inside the playlist.
