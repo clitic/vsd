@@ -3,7 +3,7 @@ use crate::{
     downloader::{self, MAX_RETRIES, MAX_THREADS, SKIP_DECRYPT, SKIP_MERGE},
     options::Interaction,
 };
-use anyhow::Result;
+use anyhow::{Result, bail};
 use clap::Args;
 use cookie::Cookie;
 use reqwest::{
@@ -83,10 +83,11 @@ pub struct Save {
     #[arg(long, help_heading = "Client Options", default_value = "[]", hide_default_value = true, value_parser = cookie_parser)]
     pub cookies: CookieParams,
 
-    /// Custom headers for requests.
+    /// Extra headers for requests in same format as curl.
+    ///
     /// This option can be used multiple times.
-    #[arg(long, help_heading = "Client Options", num_args = 2, value_names = &["KEY", "VALUE"])]
-    pub header: Vec<String>, // Vec<(String, String)> not supported
+    #[arg(short = 'H', long = "header", value_name = "KEY:VALUE", value_parser = Self::parse_header)]
+    pub headers: Vec<(HeaderName, HeaderValue)>,
 
     /// Skip checking and validation of site certificates.
     #[arg(long, help_heading = "Client Options")]
@@ -141,25 +142,26 @@ pub struct Save {
 }
 
 impl Save {
-    fn client(&self) -> Result<Client> {
+    fn parse_header(value: &str) -> Result<(HeaderName, HeaderValue)> {
+        if let Some((k, v)) = value.split_once(':') {
+            Ok((k.trim().parse()?, v.trim().parse()?))
+        } else {
+            bail!("Expected 'KEY:VALUE' but found '{}'.", value);
+        }
+    }
+
+    pub async fn execute(self) -> Result<()> {
+        MAX_RETRIES.store(self.retries, Ordering::SeqCst);
+        MAX_THREADS.store(self.threads, Ordering::SeqCst);
+        SKIP_DECRYPT.store(self.no_decrypt, Ordering::SeqCst);
+        SKIP_MERGE.store(self.no_merge, Ordering::SeqCst);
+
         let mut client_builder = Client::builder()
+            .default_headers(HeaderMap::from_iter(self.headers))
             .cookie_store(true)
             .danger_accept_invalid_certs(self.no_certificate_checks)
             .user_agent(&self.user_agent)
             .timeout(std::time::Duration::from_secs(60));
-
-        if !self.header.is_empty() {
-            let mut headers = HeaderMap::new();
-
-            for i in (0..self.header.len()).step_by(2) {
-                headers.insert(
-                    self.header[i].parse::<HeaderName>()?,
-                    self.header[i + 1].parse::<HeaderValue>()?,
-                );
-            }
-
-            client_builder = client_builder.default_headers(headers);
-        }
 
         if let Some(proxy) = &self.proxy {
             client_builder = client_builder.proxy(proxy.clone());
@@ -182,16 +184,6 @@ impl Save {
         }
 
         let client = client_builder.cookie_provider(Arc::new(jar)).build()?;
-        Ok(client)
-    }
-
-    pub async fn execute(self) -> Result<()> {
-        MAX_RETRIES.store(self.retries, Ordering::SeqCst);
-        MAX_THREADS.store(self.threads, Ordering::SeqCst);
-        SKIP_DECRYPT.store(self.no_decrypt, Ordering::SeqCst);
-        SKIP_MERGE.store(self.no_merge, Ordering::SeqCst);
-
-        let client = self.client()?;
         let meta =
             downloader::fetch_playlist(self.base_url.clone(), &client, &self.input, &self.query)
                 .await?;

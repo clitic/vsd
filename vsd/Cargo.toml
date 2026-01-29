@@ -55,9 +55,9 @@ widevine = { version = "0.1.0", optional = true }
 clap-markdown = "0.1"
 
 [features]
-default = ["capture", "license", "rustls-tls"]
+# default = ["capture", "license", "rustls-tls"]
 capture = ["dep:chromiumoxide", "dep:tokio-stream"]
 license = ["dep:playready", "dep:widevine"]
 native-tls = ["reqwest/native-tls"]
 rustls-tls = ["reqwest/rustls"]
-# default = ["license", "native-tls"]
+default = ["license", "native-tls"]
