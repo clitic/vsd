@@ -5,6 +5,9 @@ mod save;
 #[cfg(feature = "capture")]
 mod capture;
 
+#[cfg(feature = "license")]
+mod license;
+
 use anyhow::Ok;
 pub use extract::Extract;
 use log::LevelFilter;
@@ -14,6 +17,9 @@ pub use save::Save;
 #[cfg(feature = "capture")]
 pub use capture::Capture;
 
+#[cfg(feature = "license")]
+pub use license::License;
+
 use crate::logger::Logger;
 use clap::{ArgAction, ColorChoice, Parser, Subcommand};
 
@@ -22,6 +28,8 @@ pub enum Commands {
     #[cfg(feature = "capture")]
     Capture(Capture),
     Extract(Extract),
+    #[cfg(feature = "license")]
+    License(License),
     Merge(Merge),
     Save(Box<Save>),
 }
@@ -33,10 +41,11 @@ pub enum Commands {
     version,
     long_version = concat!(
         env!("CARGO_PKG_VERSION"),
-        "\n\nEnabled features:",
-        "\n  capture    : ", cfg!(feature = "capture"),
-        "\n  native-tls : ", cfg!(feature = "native-tls"),
-        "\n  rustls     : ", cfg!(feature = "rustls"),
+        "\n\nEnabled Features:",
+        "\n   capture : ", cfg!(feature = "capture"),
+        "\n   license : ", cfg!(feature = "license"),
+        "\nnative-tls : ", cfg!(feature = "native-tls"),
+        "\nrustls-tls : ", cfg!(feature = "rustls-tls"),
     ),
 )]
 pub struct Args {
@@ -93,6 +102,8 @@ impl Args {
             #[cfg(feature = "capture")]
             Commands::Capture(args) => args.execute().await?,
             Commands::Extract(args) => args.execute()?,
+            #[cfg(feature = "license")]
+            Commands::License(args) => args.execute().await?,
             Commands::Merge(args) => args.execute()?,
             Commands::Save(args) => args.execute().await?,
         }

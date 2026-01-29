@@ -8,7 +8,7 @@
 
 use crate::{
     Error, Reader, Result, bail,
-    pssh::{KeyId, KeyIdSystemType},
+    pssh::{KeyId, SystemId},
 };
 use base64::Engine;
 use serde::Deserialize;
@@ -48,13 +48,7 @@ pub fn parse(data: &[u8]) -> Result<HashSet<KeyId>> {
         bail!("PSSH box extra data after playready object records.");
     }
 
-    Ok(kids
-        .into_iter()
-        .map(|x| KeyId {
-            system_type: KeyIdSystemType::PlayReady,
-            value: x,
-        })
-        .collect())
+    Ok(kids.into_iter().map(|x| KeyId(x)).collect())
 }
 
 #[derive(Deserialize)]

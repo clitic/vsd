@@ -4,4 +4,4 @@ mod parser;
 mod playready;
 mod widevine;
 
-pub use parser::{KeyId, KeyIdSystemType, PsshBox};
+pub use parser::{KeyId, PsshBox, SystemId};

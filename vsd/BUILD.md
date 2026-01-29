@@ -14,8 +14,9 @@
 These features can be turned on or off by using cargo's `--features` flag.
 
 1. `capture` (*default*): Enable `capture` subcommand.
-2. `rustls` (*default*): Enable `rustls` feature of [reqwest] crate.
-3. `native-tls`: Enable `native-tls` feature of [reqwest] crate.
+2. `license` (*default*): Enable `license` subcommand.
+3. `rustls-tls` (*default*): Enable `rustls` feature of [reqwest] crate.
+4. `native-tls`: Enable `native-tls` feature of [reqwest] crate.
 
 ## Any Target
 
@@ -63,7 +64,7 @@ $ llvm-readelf target/aarch64-linux-android/release/vsd --needed-libs
 ```bash
 $ pkg update
 $ pkg upgrade
-$ pkg install git protobuf rust
+$ pkg install cmake git protobuf rust
 $ git clone https://github.com/clitic/vsd --depth 1
 $ cd vsd
 $ AR=llvm-ar \

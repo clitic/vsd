@@ -2,7 +2,7 @@ use crate::playlist::{KeyMethod, MediaPlaylist, Segment};
 use anyhow::{Result, bail};
 use colored::Colorize;
 use log::info;
-use reqwest::{Client, Url, header};
+use reqwest::{Client, Url};
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -94,47 +94,40 @@ pub async fn extract_default_kids(
         }
     }
 
-    let mut parsed_kids = HashSet::new();
+    let mut pssh_data_hash = HashSet::new();
 
     for stream in streams {
-        let stream_base_url = base_url
+        let base_url = base_url
             .clone()
             .unwrap_or(stream.uri.parse::<Url>().unwrap());
+        let Some(init_seg) = stream.fetch_init_seg(&base_url, client, query).await? else {
+            continue;
+        };
+        let pssh = PsshBox::from_init(&init_seg)?;
 
-        if let Some(Segment { map: Some(x), .. }) = stream.segments.first() {
-            let url = stream_base_url.join(&x.uri)?;
-            let mut request = client.get(url).query(query);
-
-            if let Some(range) = &x.range {
-                request = request.header(header::RANGE, range);
+        for data in pssh.data {
+            let hash = blake3::hash(&data.data).to_hex()[..7].to_owned();
+            if pssh_data_hash.contains(&hash) {
+                continue;
             }
 
-            let response = request.send().await?;
-            let bytes = response.bytes().await?;
-
-            // let default_kid = TencBox::from_init(&bytes)?.map(|x| x.default_kid_hex());
-            let pssh = PsshBox::from_init(&bytes)?;
-
-            for kid in pssh.key_ids {
-                // if default_kid.as_deref() == Some("00000000000000000000000000000000")
-                //     && matches!(kid.system_type, vsd_mp4::pssh::KeyIdSystemType::WideVine)
-                // {
-                //     default_kids.insert(kid.value.clone());
-                // }
-
-                if !parsed_kids.contains(&kid.value) {
-                    parsed_kids.insert(kid.value.clone());
-                    info!(
-                        "DrmKid [{}] {}{}",
-                        kid.system_type.to_string().magenta(),
-                        kid.uuid(),
-                        if default_kids.contains(&kid.value) {
-                            " (required)".bold().red()
-                        } else {
-                            "".normal()
-                        },
-                    );
-                }
+            pssh_data_hash.insert(hash);
+            info!(
+                "DrmPsh [{}] {}",
+                data.system_id.to_string().magenta(),
+                data.as_base64(),
+            );
+            for kid in &data.key_ids {
+                info!(
+                    "DrmKid [{}] {}{}",
+                    data.system_id.to_string().magenta(),
+                    kid.uuid(),
+                    if default_kids.contains(&kid.0) {
+                        " (required)".bold().red()
+                    } else {
+                        "".normal()
+                    },
+                );
             }
         }
     }

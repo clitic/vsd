@@ -1,7 +1,4 @@
-use crate::{
-    Result,
-    pssh::{KeyId, KeyIdSystemType},
-};
+use crate::{Result, pssh::KeyId};
 use prost::Message;
 use std::collections::HashSet;
 
@@ -13,9 +10,6 @@ pub fn parse(data: &[u8]) -> Result<HashSet<KeyId>> {
     Ok(wv
         .key_ids
         .into_iter()
-        .map(|x| KeyId {
-            system_type: KeyIdSystemType::WideVine,
-            value: hex::encode(x),
-        })
+        .map(|x| KeyId(hex::encode(x)))
         .collect())
 }

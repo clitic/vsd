@@ -159,7 +159,8 @@ impl Mp4Parser {
                 return Ok(());
             }
 
-            let payload_size = end - reader.get_position();
+            let header_end = reader.get_position();
+            let payload_size = end - header_end;
             let payload = if payload_size > 0 {
                 reader.read_bytes_u8(payload_size as usize)?
             } else {
@@ -179,6 +180,7 @@ impl Mp4Parser {
                 size: size as usize,
                 start: start + abs_start,
                 has_64_bit_size,
+                header: reader.as_bytes()[start as usize..header_end as usize].to_vec(),
             };
 
             box_definition(box_)?;
@@ -413,6 +415,8 @@ pub struct ParsedBox<'a> {
     /// If true, the box header had a 64-bit size field.  This affects the offsets
     /// of other fields.
     pub has_64_bit_size: bool,
+    /// The raw header bytes of the box (size, type, optional 64-bit size, optional version/flags).
+    pub header: Vec<u8>,
 }
 
 impl<'a> ParsedBox<'a> {
@@ -423,5 +427,14 @@ impl<'a> ParsedBox<'a> {
         let _64_bit_field_size = if self.has_64_bit_size { 8 } else { 0 };
         let version_and_flags_size = if self.flags.is_some() { 4 } else { 0 };
         basic_header_size + _64_bit_field_size + version_and_flags_size
+    }
+
+    /// Get the full box data including header.
+    /// Merges the stored header with the payload from the reader.
+    pub fn full_data(&self) -> Vec<u8> {
+        let mut data = Vec::with_capacity(self.header.len() + self.reader.as_bytes().len());
+        data.extend_from_slice(&self.header);
+        data.extend_from_slice(self.reader.as_bytes());
+        data
     }
 }

@@ -9,12 +9,14 @@
 
 */
 
+use base64::Engine;
+
 use crate::{
-    Result, bail, parser,
+    Result, bail, data, parser,
     parser::{Mp4Parser, ParsedBox},
     pssh::{playready, widevine},
 };
-use std::{cell::RefCell, collections::HashSet, rc::Rc};
+use std::collections::HashSet;
 
 const COMMON_SYSTEM_ID: &str = "1077efecc0b24d02ace33c1e52e2fb4b";
 const PLAYREADY_SYSTEM_ID: &str = "9a04f07998404286ab92e65be0885f95";
@@ -23,24 +25,22 @@ const WIDEVINE_SYSTEM_ID: &str = "edef8ba979d64acea3c827dcd51d21ed";
 /// Parse `PSSH` box from mp4 files.
 #[derive(Default)]
 pub struct PsshBox {
-    pub key_ids: HashSet<KeyId>,
-    pub system_ids: HashSet<String>,
+    pub data: HashSet<PsshData>,
 }
 
 impl PsshBox {
     pub fn from_init(data: &[u8]) -> Result<Self> {
-        let pssh = Rc::new(RefCell::new(Self {
-            key_ids: HashSet::new(),
-            system_ids: HashSet::new(),
-        }));
-        let pssh_c = pssh.clone();
+        let pssh = data!(Self::default());
 
         Mp4Parser::new()
             .base_box("moov", parser::children)
             .base_box("moof", parser::children)
-            .full_box("pssh", move |mut _box| {
-                pssh_c.borrow_mut().parse(&mut _box)?;
-                Ok(())
+            .full_box("pssh", {
+                let pssh = pssh.clone();
+                move |mut _box| {
+                    pssh.borrow_mut().parse(&mut _box)?;
+                    Ok(())
+                }
             })
             .parse(data, false, false)?;
 
@@ -62,64 +62,87 @@ impl PsshBox {
             bail!("Unrecognized PSSH version found!");
         }
 
-        // The "reader" gives us a view on the payload of the box.  Create a new
-        // view that contains the whole box.
-        // let mut data_view = _box.reader.clone();
-        // assert!(
-        //     data_view.get_position() >= 12,
-        //     "DataView at incorrect position"
-        // );
-        // self.data = view(_box.reader.clone(), - 12, _box.size as i64);
-
         let system_id = hex::encode(box_.reader.read_bytes_u8(16)?);
 
         if box_version > 0 {
+            let mut data = PsshData {
+                data: box_.full_data(),
+                key_ids: HashSet::new(),
+                system_id: if system_id == COMMON_SYSTEM_ID {
+                    SystemId::Common
+                } else {
+                    SystemId::Other(system_id.to_owned())
+                },
+            };
             let num_key_ids = box_.reader.read_u32()?;
 
             for _ in 0..num_key_ids {
                 let key_id = hex::encode(box_.reader.read_bytes_u8(16)?);
-                self.key_ids.insert(KeyId {
-                    value: key_id,
-                    system_type: if system_id == COMMON_SYSTEM_ID {
-                        KeyIdSystemType::Common
-                    } else {
-                        KeyIdSystemType::Other(system_id.to_owned())
-                    },
-                });
+                data.key_ids.insert(KeyId(key_id));
             }
+
+            self.data.insert(data);
         }
 
         let pssh_data_size = box_.reader.read_u32()?;
         let pssh_data = box_.reader.read_bytes_u8(pssh_data_size as usize)?;
 
+        let mut data = PsshData {
+            data: box_.full_data(),
+            key_ids: HashSet::new(),
+            system_id: match system_id.as_str() {
+                PLAYREADY_SYSTEM_ID => SystemId::PlayReady,
+                WIDEVINE_SYSTEM_ID => SystemId::WideVine,
+                _ => SystemId::Other(system_id.to_owned()),
+            },
+        };
+
         match system_id.as_str() {
-            PLAYREADY_SYSTEM_ID => self.key_ids.extend(playready::parse(&pssh_data)?),
-            WIDEVINE_SYSTEM_ID => self.key_ids.extend(widevine::parse(&pssh_data)?),
+            PLAYREADY_SYSTEM_ID => data.key_ids.extend(playready::parse(&pssh_data)?),
+            WIDEVINE_SYSTEM_ID => data.key_ids.extend(widevine::parse(&pssh_data)?),
             _ => (),
         }
 
-        self.system_ids.insert(system_id);
+        self.data.insert(data);
         Ok(())
     }
 }
 
-/// Key id parsed from `pssh` box.
-pub struct KeyId {
-    pub system_type: KeyIdSystemType,
-    pub value: String,
+#[derive(Eq)]
+pub struct PsshData {
+    pub data: Vec<u8>,
+    pub key_ids: HashSet<KeyId>,
+    pub system_id: SystemId,
 }
 
-impl Eq for KeyId {}
+/// Key id parsed from `pssh` box.
+#[derive(Eq, PartialEq, Hash)]
+pub struct KeyId(pub String);
 
-impl PartialEq for KeyId {
+/// System id type parsed from `pssh` box.
+#[derive(Eq, PartialEq)]
+pub enum SystemId {
+    Common,
+    Other(String),
+    PlayReady,
+    WideVine,
+}
+
+impl PartialEq for PsshData {
     fn eq(&self, other: &Self) -> bool {
-        self.value == other.value
+        self.data == other.data
     }
 }
 
-impl std::hash::Hash for KeyId {
+impl std::hash::Hash for PsshData {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.value.hash(state);
+        self.data.hash(state);
+    }
+}
+
+impl PsshData {
+    pub fn as_base64(&self) -> String {
+        base64::engine::general_purpose::STANDARD.encode(&self.data)
     }
 }
 
@@ -127,33 +150,25 @@ impl KeyId {
     pub fn uuid(&self) -> String {
         format!(
             "{}-{}-{}-{}-{}",
-            &self.value[..8],
-            &self.value[8..12],
-            &self.value[12..16],
-            &self.value[16..20],
-            &self.value[20..]
+            &self.0[..8],
+            &self.0[8..12],
+            &self.0[12..16],
+            &self.0[16..20],
+            &self.0[20..]
         )
     }
 }
 
-/// System id type parsed from `pssh` box.
-pub enum KeyIdSystemType {
-    Common,
-    Other(String),
-    PlayReady,
-    WideVine,
-}
-
-impl std::fmt::Display for KeyIdSystemType {
+impl std::fmt::Display for SystemId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}",
             match self {
-                KeyIdSystemType::Common => "cen",
-                KeyIdSystemType::Other(x) => x,
-                KeyIdSystemType::PlayReady => "prd",
-                KeyIdSystemType::WideVine => "wvd",
+                SystemId::Common => "cen",
+                SystemId::Other(x) => x,
+                SystemId::PlayReady => "prd",
+                SystemId::WideVine => "wvd",
             }
         )
     }

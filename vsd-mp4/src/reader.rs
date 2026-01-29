@@ -34,6 +34,10 @@ impl Reader {
         }
     }
 
+    pub fn as_bytes(&self) -> &[u8] {
+        self.inner.get_ref()
+    }
+
     pub fn has_more_data(&self) -> bool {
         self.inner.position() < (self.inner.get_ref().len() as u64)
     }

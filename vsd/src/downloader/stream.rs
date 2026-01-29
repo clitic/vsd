@@ -164,9 +164,14 @@ async fn download_stream(
                             );
 
                             if let Some(init_seg) = &init_seg {
-                                for kid in PsshBox::from_init(init_seg)?.key_ids.into_iter() {
-                                    if keys.contains_key(&kid.value) {
-                                        key = Some(keys.get(&kid.value).unwrap().to_owned());
+                                for kid in PsshBox::from_init(init_seg)?
+                                    .data
+                                    .into_iter()
+                                    .map(|x| x.key_ids)
+                                    .flatten()
+                                {
+                                    if keys.contains_key(&kid.0) {
+                                        key = Some(keys.get(&kid.0).unwrap().to_owned());
                                     }
                                 }
                             }
