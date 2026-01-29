@@ -6,10 +6,7 @@
 
 */
 
-use crate::{
-    Error, Reader, Result, bail,
-    pssh::{KeyId, SystemId},
-};
+use crate::{Error, Reader, Result, bail, pssh::KeyId};
 use base64::Engine;
 use serde::Deserialize;
 use std::collections::HashSet;

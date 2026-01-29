@@ -1,60 +1,172 @@
-use crate::utils;
 use anyhow::{Result, bail};
+use base64::Engine;
 use clap::Args;
-use reqwest::{Client, Url};
-use std::{fs::File, path::Path};
-use widevine::{Cdm, Device, Key, LicenseType, Pssh};
+use colored::Colorize;
+use log::info;
+use reqwest::{
+    Client, Url,
+    header::{HeaderMap, HeaderName, HeaderValue},
+};
+use std::{
+    collections::HashSet,
+    fs::{self, File},
+    path::{Path, PathBuf},
+};
+use vsd_mp4::pssh::{PsshBox, SystemId};
 
 #[derive(Args, Clone, Debug)]
 pub struct License {
     #[arg(required = true)]
     input: String,
+
+    #[arg(short = 'H', long = "header", value_name = "KEY:VALUE", value_parser = Self::parse_header)]
+    headers: Vec<(HeaderName, HeaderValue)>,
+
+    #[arg(long, value_name = "PRD")]
+    playready_device: Option<PathBuf>,
+
+    #[arg(long, value_name = "WVD")]
+    widevine_device: Option<PathBuf>,
+
+    #[arg(long, value_name = "URL")]
+    playready_url: Option<Url>,
+
+    #[arg(long, value_name = "URL")]
+    widevine_url: Option<Url>,
 }
 
 impl License {
-    fn parse_input(&self) -> Result<Vec<Vec<u8>>> {
-        let init_segments = Vec::new();
+    fn parse_header(value: &str) -> Result<(HeaderName, HeaderValue)> {
+        if let Some((k, v)) = value.split_once(':') {
+            Ok((k.trim().parse()?, v.trim().parse()?))
+        } else {
+            bail!("Expected 'KEY:VALUE' but found '{}'.", value);
+        }
+    }
+
+    fn system_id(bytes: &[u8]) -> Result<SystemId> {
+        if bytes.len() < 28 {
+            bail!("Data too short to be a valid PSSH box.");
+        }
+
+        let box_type = &bytes[4..8];
+        if box_type != b"pssh" {
+            bail!(
+                "Expected 'pssh' box type but found '{}'.",
+                String::from_utf8_lossy(box_type)
+            );
+        }
+
+        let system_id = hex::encode(&bytes[12..28]);
+        match system_id.as_str() {
+            "9a04f07998404286ab92e65be0885f95" => Ok(SystemId::PlayReady),
+            "edef8ba979d64acea3c827dcd51d21ed" => Ok(SystemId::WideVine),
+            _ => bail!("'{}' system id not supported.", system_id),
+        }
+    }
+
+    pub async fn execute(self) -> Result<()> {
+        let mut pssh_data = HashSet::new();
 
         if Path::new(&self.input).exists() {
-        } else if let Ok(url) = self.input.parse::<Url>() {
-        } else if let Ok(data) = utils::decode_base64(&self.input) {
+            let pssh = PsshBox::from_init(&fs::read(&self.input)?)?;
+            for data in pssh.data {
+                pssh_data.insert(data.data);
+            }
+        } else if let Ok(_url) = self.input.parse::<Url>() {
+            unimplemented!()
+        } else if let Ok(data) = base64::engine::general_purpose::STANDARD.decode(&self.input) {
+            pssh_data.insert(data);
         } else {
             bail!("Unable to determine the INPUT type.");
         }
 
-        Ok(init_segments)
-    }
+        let client = Client::builder()
+            .default_headers(HeaderMap::from_iter(self.headers))
+            .build()?;
 
-    pub async fn execute(self) -> Result<()> {
-        // let device = Device::read_wvd(File::open(WIDEVINE_DEVICE)?)?;
-        // let cdm = Cdm::new(device);
+        for pssh in pssh_data {
+            match Self::system_id(&pssh)? {
+                SystemId::PlayReady => {
+                    let Some(device_path) = &self.playready_device else {
+                        bail!("Playready device (.prd) path not provided.");
+                    };
+                    let Some(license_url) = &self.playready_url else {
+                        bail!("Playready license url not provided.");
+                    };
+                    let pssh = playready::Pssh::from_bytes(&pssh)?;
+                    let device = playready::Device::from_prd(device_path)?;
+                    let cdm = playready::Cdm::from_device(device);
+                    let session = cdm.open_session();
+                    let challenge = session.get_license_challenge(pssh.wrm_headers()[0].clone())?;
+                    let response = client
+                        .post(license_url.to_owned())
+                        .header(reqwest::header::CONTENT_TYPE, "text/xml; charset=utf-8")
+                        .body(challenge)
+                        .send()
+                        .await?;
+                    let status = response.status();
 
-        // let pssh = Pssh::from_b64(PSSH_DATA_2)?;
-        // let request = cdm
-        //     .open()
-        //     .get_license_request(pssh, LicenseType::STREAMING)?;
-        // let challenge = request.challenge()?;
+                    if status.is_client_error() || status.is_server_error() {
+                        bail!(
+                            "Playready license request failed ({}): '{}'",
+                            status,
+                            response.text().await?
+                        );
+                    }
 
-        // let resp_data = Client::new()
-        //     .post(L_URL_2)
-        //     .body(challenge)
-        //     .send()
-        //     .await?
-        //     .bytes()
-        //     .await?
-        //     .to_vec();
+                    let data = response.text().await?;
+                    let keys = session.get_keys_from_challenge_response(&data)?;
 
-        // let keys = request.get_keys(&resp_data)?;
-        // let keys: Vec<Key> = unsafe { std::mem::transmute(keys) };
+                    for (kid, key) in &keys {
+                        println!("[{}] {}:{}", "CONTENT".green(), kid, key);
+                    }
+                }
+                SystemId::WideVine => {
+                    let Some(device_path) = &self.widevine_device else {
+                        bail!("Widevine device (.wvd) path not provided.");
+                    };
+                    let Some(license_url) = &self.widevine_url else {
+                        bail!("Widevine license url not provided.");
+                    };
+                    let pssh = widevine::Pssh::from_bytes(&pssh)?;
+                    let device = widevine::Device::read_wvd(File::open(device_path)?)?;
+                    let cdm = widevine::Cdm::new(device);
+                    let session = cdm
+                        .open()
+                        .get_license_request(pssh, widevine::LicenseType::STREAMING)?;
+                    let challenge = session.challenge()?;
+                    let response = client
+                        .post(license_url.to_owned())
+                        .body(challenge)
+                        .send()
+                        .await?;
+                    let status = response.status();
 
-        // for key in keys {
-        //     println!(
-        //         "[{:?}] {}:{}",
-        //         key.typ,
-        //         hex::encode(key.kid),
-        //         hex::encode(key.key)
-        //     );
-        // }
+                    if status.is_client_error() || status.is_server_error() {
+                        bail!(
+                            "Widevine license request failed ({}): '{}'",
+                            status,
+                            response.text().await?
+                        );
+                    }
+
+                    let data = response.bytes().await?;
+                    let keys = session.get_keys(&data)?;
+                    let keys: Vec<widevine::Key> = unsafe { std::mem::transmute(keys) };
+
+                    for key in keys {
+                        info!(
+                            "[{}] {}:{}",
+                            format!("{:?}", key.typ).green(),
+                            hex::encode(key.kid),
+                            hex::encode(key.key)
+                        );
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
 
         Ok(())
     }

@@ -52,9 +52,9 @@ vsd-mp4 = { version = "0.2.0", path = "../vsd-mp4", features = ["full"] }
 widevine = { version = "0.1.0", optional = true }
 
 [features]
-default = ["capture", "license", "rustls-tls"]
+# default = ["capture", "license", "rustls-tls"]
 capture = ["dep:chromiumoxide", "dep:tokio-stream"]
 license = ["dep:playready", "dep:widevine"]
 native-tls = ["reqwest/native-tls"]
 rustls-tls = ["reqwest/rustls"]
-# default = ["license", "native-tls"]
+default = ["license", "native-tls"]
