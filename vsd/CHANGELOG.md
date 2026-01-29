@@ -7,15 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `license`
+  - New sub-command to request content keys from a license server.
+- `save`
+  - Support for fake png header segments.
+  
 ### Changed
 
 - `capture`
   - Feature re-worked.
 
-### Added
-
-- `save`
-  - Support for fake png header segments.
 
 ## [0.4.3] - 2025-08-16
 

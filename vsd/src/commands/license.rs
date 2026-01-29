@@ -15,22 +15,32 @@ use std::{
 use vsd_mp4::pssh::{PsshBox, SystemId};
 
 #[derive(Args, Clone, Debug)]
+/// Request content keys from a license server.
 pub struct License {
-    #[arg(required = true)]
+    /// PSSH data input.
+    /// Can be an init file path, playlist url or base64 encoded PSSH box.
+    #[arg(required = true, value_name = "PATH|URL|BASE64")]
     input: String,
 
+    /// Extra headers for license request in same format as curl.
+    ///
+    /// This option can be used multiple times.
     #[arg(short = 'H', long = "header", value_name = "KEY:VALUE", value_parser = Self::parse_header)]
     headers: Vec<(HeaderName, HeaderValue)>,
 
+    /// Path to the Playready device (.prd) file.
     #[arg(long, value_name = "PRD")]
     playready_device: Option<PathBuf>,
 
+    /// Path to the Widevine device (.wvd) file.
     #[arg(long, value_name = "WVD")]
     widevine_device: Option<PathBuf>,
 
+    /// Playready license server URL.
     #[arg(long, value_name = "URL")]
     playready_url: Option<Url>,
 
+    /// Widevine license server URL.
     #[arg(long, value_name = "URL")]
     widevine_url: Option<Url>,
 }
