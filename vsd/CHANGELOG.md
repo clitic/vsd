@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `save`
-  - `--user-agent` flag removed.
+  - `--set-cookie` and `--user-agent` flags removed.
   - Default retries changed from 15 to 10.
 - `capture`
   - Feature re-worked.

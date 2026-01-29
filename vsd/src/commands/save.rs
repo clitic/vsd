@@ -111,13 +111,6 @@ pub struct Save {
     #[arg(long, help_heading = "Client Options", default_value = "", hide_default_value = true, value_parser = query_parser)]
     pub query: HashMap<String, String>,
 
-    /// Fill request client with some existing cookies per domain.
-    /// First value for this option is set-cookie header and second value is url which was requested to send this set-cookie header.
-    /// EXAMPLE: --set-cookie "foo=bar; Domain=yolo.local" https://yolo.local.
-    /// This option can be used multiple times.
-    #[arg(long, help_heading = "Client Options", num_args = 2, value_names = &["SET_COOKIE", "URL"])]
-    pub set_cookie: Vec<String>, // Vec<(String, String)> not supported
-
     /// Keys for decrypting encrypted streams.
     /// KID:KEY should be specified in hex format.
     #[arg(long, help_heading = "Decrypt Options", value_name = "KID:KEY;…", default_value = "", hide_default_value = true, value_parser = Self::parse_keys)]
@@ -200,12 +193,6 @@ impl Save {
         }
 
         let mut jar = CookieJar::new();
-
-        if !self.set_cookie.is_empty() {
-            for i in (0..self.set_cookie.len()).step_by(2) {
-                jar.add_cookie_str(&self.set_cookie[i], &self.set_cookie[i + 1].parse::<Url>()?);
-            }
-        }
 
         for cookie in &self.cookies {
             if let Some(url) = &cookie.url {
