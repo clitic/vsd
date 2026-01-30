@@ -84,7 +84,7 @@ pub struct Save {
         EXAMPLES:\n\
         |> v=skip:a=skip:s=all (download all sub streams)\n\
         |> a:en:s=en (prefer en lang)\n\
-        |> v=1080p:a=all:s=skip (1080p with all audio streams)"
+        |> v=1080p:a=all:s=skip (1080p with all audio streams)\n"
     )]
     pub select_streams: String,
 

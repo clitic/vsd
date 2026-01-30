@@ -4,7 +4,10 @@ use chromiumoxide::{
     Browser, BrowserConfig,
     cdp::browser_protocol::network::{EventRequestWillBeSent, Request, ResourceType},
 };
-use clap::Args;
+use clap::{
+    Args,
+    builder::{PossibleValuesParser, TypedValueParser},
+};
 use colored::Colorize;
 use log::info;
 use serde_json::Value;
@@ -49,9 +52,14 @@ pub struct Capture {
     proxy: Option<String>,
 
     /// List of resource types to be filter out seperated by commas.
-    ///
-    /// [possible values: document, stylesheet, image, media, font, script, texttrack, object, other, fetch, xhr]
-    #[arg(long, default_value = "fetch,xhr", value_delimiter = ',')]
+    #[arg(
+        long, default_value = "fetch,xhr", value_delimiter = ',',
+        value_parser = PossibleValuesParser::new([
+            "document", "stylesheet", "image", "media", "font", "script", "texttrack",
+            "xhr", "fetch", "prefetch", "eventsource", "websocket", "manifest",
+            "signedexchange", "ping", "cspviolationreport", "preflight", "fedcm", "other",
+        ]).map(|s| s.parse::<ResourceType>().unwrap())
+    )]
     resource_types: Vec<ResourceType>,
 
     /// Save browser cookies in vsd-cookies.json file.

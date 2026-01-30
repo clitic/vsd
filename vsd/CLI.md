@@ -1,44 +1,45 @@
-# Command-Line Help for `vsd`
+# VSD CLI Reference
 
-This document contains the help content for the `vsd` command-line program.
+This document contains cli reference for the `vsd` command-line program.
 
-**Command Overview:**
+## Command Overview
 
-* [`vsd`↴](#vsd)
-* [`vsd capture`↴](#vsd-capture)
-* [`vsd extract`↴](#vsd-extract)
-* [`vsd license`↴](#vsd-license)
-* [`vsd merge`↴](#vsd-merge)
-* [`vsd save`↴](#vsd-save)
+- [`vsd`↴](#vsd)
+- [`vsd capture`↴](#vsd-capture)
+- [`vsd extract`↴](#vsd-extract)
+- [`vsd license`↴](#vsd-license)
+- [`vsd merge`↴](#vsd-merge)
+- [`vsd save`↴](#vsd-save)
 
 ## `vsd`
 
 Download video streams served over HTTP from websites, DASH (.mpd) and HLS (.m3u8) playlists.
 
-**Usage:** `vsd [OPTIONS] <COMMAND>`
+```
+vsd [OPTIONS] <COMMAND>
+```
 
-###### **Subcommands:**
+**Subcommands:**
 
-* `capture` — Capture playlists and subtitles requests from a website
-* `extract` — Extract subtitles from mp4 boxes
-* `license` — Request content keys from a license server
-* `merge` — Merge multiple segments to a single file
-* `save` — Download DASH and HLS playlists
+| Command | Description |
+|---------|-------------|
+| `capture` | Capture playlists and subtitles requests from a website |
+| `extract` | Extract subtitles from mp4 boxes |
+| `license` | Request content keys from a license server |
+| `merge` | Merge multiple segments to a single file |
+| `save` | Download DASH and HLS playlists |
 
-###### **Options:**
+**Global Options:**
 
-* `--color <COLOR>` — When to output colored text
+| Flag | Description |
+|------|-------------|
+| `--color` | When to output colored text<br>*Possible values:* `auto`, `always`, `never`<br>*Default:* `auto` |
+| `-q, --quiet` | Silence all output and only log errors |
+| `-v, --verbose` | Increase verbosity (-v [debug], -vv [trace]). Default logging level is set to info |
 
-  Default value: `auto`
+[↑ Back to top](#command-overview)
 
-  Possible values: `auto`, `always`, `never`
-
-* `-q`, `--quiet` — Silence all output and only log errors
-* `-v`, `--verbose` — Increase verbosity (-v [debug], -vv [trace]). Default logging level is set to info
-
-
-
-## `vsd capture`
+### `vsd capture`
 
 Capture playlists and subtitles requests from a website.
 
@@ -49,159 +50,147 @@ Requires one of the following browsers to be installed:
 This command launches an automated browser instance and listen on requests. Behavior may vary, and it may not work as expected on all websites. This is equivalent to manually doing:
 Inspect -> Network -> Fetch/XHR -> Filter by extension -> Copy as cURL (bash)
 
-**Usage:** `vsd capture [OPTIONS] <URL>`
+```
+vsd capture [OPTIONS] <URL>
+```
 
-###### **Arguments:**
+**Arguments:**
 
-* `<URL>` — http(s)://
+- `<URL>`: http(s):// *(required)*
 
-###### **Options:**
+**Options:**
 
-* `--cookies <PATH>` — Launch browser with cookies loaded from a json file
-* `--extensions <EXTENSIONS>` — List of file extensions to be filter out seperated by comma
+| Flag | Description |
+|------|-------------|
+| `--cookies` | Launch browser with cookies loaded from a json file |
+| `--extensions` | List of file extensions to be filter out seperated by comma<br>*Default:* `.m3u,.m3u8,.mpd,.vtt,.ttml,.srt` |
+| `--headless` | Launch browser without a window |
+| `--proxy` | Launch browser with a proxy |
+| `--resource-types` | List of resource types to be filter out seperated by commas<br>*Possible values:* `document`, `stylesheet`, `image`, `media`, `font`, `script`, `texttrack`, `xhr`, `fetch`, `prefetch`, `eventsource`, `websocket`, `manifest`, `signedexchange`, `ping`, `cspviolationreport`, `preflight`, `fedcm`, `other`<br>*Default:* `fetch,xhr` |
+| `--save-cookies` | Save browser cookies in vsd-cookies.json file |
 
-  Default value: `.m3u,.m3u8,.mpd,.vtt,.ttml,.srt`
-* `--headless` — Launch browser without a window
-* `--proxy <PROXY>` — Launch browser with a proxy
-* `--resource-types <RESOURCE_TYPES>` — List of resource types to be filter out seperated by commas.
+[↑ Back to top](#command-overview)
 
-   [possible values: document, stylesheet, image, media, font, script, texttrack, object, other, fetch, xhr]
-
-  Default value: `fetch,xhr`
-* `--save-cookies` — Save browser cookies in vsd-cookies.json file
-
-
-
-## `vsd extract`
+### `vsd extract`
 
 Extract subtitles from mp4 boxes
 
-**Usage:** `vsd extract [OPTIONS] <INPUT>`
+```
+vsd extract [OPTIONS] <INPUT>
+```
 
-###### **Arguments:**
+**Arguments:**
 
-* `<INPUT>` — Path of mp4 file which either contains WVTT or STPP box. If there are multiple fragments of same mp4 file, then merge them using merge sub-command
+- `<INPUT>`: Path of mp4 file which either contains WVTT or STPP box. If there are multiple fragments of same mp4 file, then merge them using merge sub-command *(required)*
 
-###### **Options:**
+**Options:**
 
-* `-c`, `--codec <CODEC>` — Codec for output subtitles
+| Flag | Description |
+|------|-------------|
+| `-c, --codec` | Codec for output subtitles<br>*Possible values:* `subrip`, `webvtt`<br>*Default:* `webvtt` |
 
-  Default value: `webvtt`
+[↑ Back to top](#command-overview)
 
-  Possible values: `subrip`, `webvtt`
-
-
-
-
-## `vsd license`
+### `vsd license`
 
 Request content keys from a license server
 
-**Usage:** `vsd license [OPTIONS] <PATH|URL|BASE64>`
+```
+vsd license [OPTIONS] <INPUT>
+```
 
-###### **Arguments:**
+**Arguments:**
 
-* `<PATH|URL|BASE64>` — PSSH data input. Can be an init file path, playlist url or base64 encoded PSSH box
+- `<INPUT>`: PSSH data input. Can be an init file path, playlist url or base64 encoded PSSH box *(required)*
 
-###### **Options:**
+**Options:**
 
-* `-H`, `--header <KEY:VALUE>` — Extra headers for license request in same format as curl.
+| Flag | Description |
+|------|-------------|
+| `-H, --header` | Extra headers for license request in same format as curl.<br><br>This option can be used multiple times. |
+| `--playready-device` | Path to the Playready device (.prd) file |
+| `--widevine-device` | Path to the Widevine device (.wvd) file |
+| `--playready-url` | Playready license server URL |
+| `--widevine-url` | Widevine license server URL |
 
-   This option can be used multiple times.
-* `--playready-device <PRD>` — Path to the Playready device (.prd) file
-* `--widevine-device <WVD>` — Path to the Widevine device (.wvd) file
-* `--playready-url <URL>` — Playready license server URL
-* `--widevine-url <URL>` — Widevine license server URL
+[↑ Back to top](#command-overview)
 
-
-
-## `vsd merge`
+### `vsd merge`
 
 Merge multiple segments to a single file
 
-**Usage:** `vsd merge [OPTIONS] --output <OUTPUT> <FILES>...`
+```
+vsd merge [OPTIONS] <FILES>
+```
 
-###### **Arguments:**
+**Arguments:**
 
-* `<FILES>` — List of files (at least 2) to merge together e.g. *.ts, *.m4s etc. 
+- `<FILES>`: List of files (at least 2) to merge together e.g. *.ts, *.m4s etc.  *(required)*
 
-###### **Options:**
+**Options:**
 
-* `-o`, `--output <OUTPUT>` — Path for merged output file
-* `-t`, `--type <TYPE>` — Type of merge to be performed
+| Flag | Description |
+|------|-------------|
+| `-o, --output` | Path for merged output file |
+| `-t, --type` | Type of merge to be performed<br>*Possible values:* `binary`, `ffmpeg`<br>*Default:* `binary` |
 
-  Default value: `binary`
+[↑ Back to top](#command-overview)
 
-  Possible values: `binary`, `ffmpeg`
-
-
-
-
-## `vsd save`
+### `vsd save`
 
 Download DASH and HLS playlists
 
-**Usage:** `vsd save [OPTIONS] <INPUT>`
+```
+vsd save [OPTIONS] <INPUT>
+```
 
-###### **Arguments:**
+**Arguments:**
 
-* `<INPUT>` — http(s):// | .mpd | .xml | .m3u8
+- `<INPUT>`: http(s):// | .mpd | .xml | .m3u8 *(required)*
 
-###### **Options:**
+**Options:**
 
-* `--base-url <BASE_URL>` — Base url to be used for building absolute url to segment. This flag is usually needed for local input files. By default redirected playlist url is used
-* `-d`, `--directory <DIRECTORY>` — Change directory path for temporarily downloaded files. By default current working directory is used
-* `-o`, `--output <OUTPUT>` — Mux all downloaded streams to a video container (.mp4, .mkv, etc.) using ffmpeg. Note that existing files will be overwritten and downloaded streams will be deleted
-* `--parse` — Parse playlist and returns it in json format. Note that --output flag is ignored when this flag is used
-* `--subs-codec <SUBS_CODEC>` — Force some specific subtitle codec when muxing through ffmpeg. By default `mov_text` is used for .mp4 and `copy` for others
+| Flag | Description |
+|------|-------------|
+| `--base-url` | Base url to be used for building absolute url to segment. This flag is usually needed for local input files. By default redirected playlist url is used |
+| `-d, --directory` | Change directory path for temporarily downloaded files. By default current working directory is used |
+| `-o, --output` | Mux all downloaded streams to a video container (.mp4, .mkv, etc.) using ffmpeg. Note that existing files will be overwritten and downloaded streams will be deleted |
+| `--parse` | Parse playlist and returns it in json format. Note that --output flag is ignored when this flag is used |
+| `--subs-codec` | Force some specific subtitle codec when muxing through ffmpeg. By default `mov_text` is used for .mp4 and `copy` for others<br>*Default:* `copy` |
 
-  Default value: `copy`
-* `-i`, `--interactive` — Prompt for custom streams selection with modern style input prompts. By default proceed with defaults
-* `-I`, `--interactive-raw` — Prompt for custom streams selection with raw style input prompts. By default proceed with defaults
-* `-l`, `--list-streams` — List all the streams present inside the playlist
-* `-s`, `--select-streams <SELECT_STREAMS>` — Filters to be applied for automatic stream selection.
+**Automation Options:**
 
-   SYNTAX: `v={}:a={}:s={}` where `{}` (in priority order) can contain
-   |> all: select all streams.
-   |> skip: skip all streams or select inverter.
-   |> 1,2: indices obtained by --list-streams flag.
-   |> 1080p,1280x720: stream resolution.
-   |> en,fr: stream language.
+| Flag | Description |
+|------|-------------|
+| `-i, --interactive` | Prompt for custom streams selection with modern style input prompts. By default proceed with defaults |
+| `-I, --interactive-raw` | Prompt for custom streams selection with raw style input prompts. By default proceed with defaults |
+| `-l, --list-streams` | List all the streams present inside the playlist |
+| `-s, --select-streams` | Filters to be applied for automatic stream selection.<br><br>SYNTAX: `v={}:a={}:s={}` where `{}` (in priority order) can contain<br>\|> all: select all streams.<br>\|> skip: skip all streams or select inverter.<br>\|> 1,2: indices obtained by --list-streams flag.<br>\|> 1080p,1280x720: stream resolution.<br>\|> en,fr: stream language.<br><br>EXAMPLES:<br>\|> v=skip:a=skip:s=all (download all sub streams)<br>\|> a:en:s=en (prefer en lang)<br>\|> v=1080p:a=all:s=skip (1080p with all audio streams)<br><br>*Default:* `v=best:s=en` |
 
-   EXAMPLES:
-   |> v=skip:a=skip:s=all (download all sub streams)
-   |> a:en:s=en (prefer en lang)
-   |> v=1080p:a=all:s=skip (1080p with all audio streams)
+**Client Options:**
 
-  Default value: `v=best:s=en`
-* `--cookies <COOKIES>` — Fill request client with some existing cookies value. Cookies value can be same as document.cookie or in json format same as puppeteer
+| Flag | Description |
+|------|-------------|
+| `--cookies` | Fill request client with some existing cookies value. Cookies value can be same as document.cookie or in json format same as puppeteer |
+| `-H, --header` | Extra headers for requests in same format as curl.<br><br>This option can be used multiple times. |
+| `--no-certificate-checks` | Skip checking and validation of site certificates |
+| `--proxy` | Set http(s) / socks proxy address for requests |
+| `--query` | Set query parameters for requests |
 
-  Default value: `[]`
-* `-H`, `--header <KEY:VALUE>` — Extra headers for requests in same format as curl.
+**Decrypt Options:**
 
-   This option can be used multiple times.
-* `--no-certificate-checks` — Skip checking and validation of site certificates
-* `--proxy <PROXY>` — Set http(s) / socks proxy address for requests
-* `--query <QUERY>` — Set query parameters for requests
+| Flag | Description |
+|------|-------------|
+| `--keys` | Keys for decrypting encrypted streams. KID:KEY should be specified in hex format |
+| `--no-decrypt` | Download encrypted streams without decrypting them. Note that --output flag is ignored if this flag is used |
 
-  Default value: ``
-* `--keys <KID:KEY;…>` — Keys for decrypting encrypted streams. KID:KEY should be specified in hex format
+**Download Options:**
 
-  Default value: ``
-* `--no-decrypt` — Download encrypted streams without decrypting them. Note that --output flag is ignored if this flag is used
-* `--no-merge` — Download streams without merging them. Note that --output flag is ignored if this flag is used
-* `--retries <RETRIES>` — Maximum number of retries to download an individual segment
+| Flag | Description |
+|------|-------------|
+| `--no-merge` | Download streams without merging them. Note that --output flag is ignored if this flag is used |
+| `--retries` | Maximum number of retries to download an individual segment<br>*Default:* `10` |
+| `-t, --threads` | Total number of threads for parllel downloading of segments. Number of threads should be in range 1-16 (inclusive)<br>*Default:* `5` |
 
-  Default value: `10`
-* `-t`, `--threads <THREADS>` — Total number of threads for parllel downloading of segments. Number of threads should be in range 1-16 (inclusive)
+[↑ Back to top](#command-overview)
 
-  Default value: `5`
-
-
-
-<hr/>
-
-<small><i>
-    This document was generated automatically by
-    <a href="https://crates.io/crates/clap-markdown"><code>clap-markdown</code></a>.
-</i></small>
