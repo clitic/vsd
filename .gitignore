@@ -1,3 +1,5 @@
-/.tmp/
-/target/
+/.cache
+/.tmp
+/site
+/target
 output.mp4

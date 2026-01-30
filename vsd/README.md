@@ -26,12 +26,12 @@
 
 **V**ideo **S**tream **D**ownloader is a powerful command-line utility that enables users to download video content streamed over HTTP from websites. It supports both [DASH (Dynamic Adaptive Streaming over HTTP)](https://en.wikipedia.org/wiki/Dynamic_Adaptive_Streaming_over_HTTP) using `.mpd` manifest files and [HLS (HTTP Live Streaming)](https://en.wikipedia.org/wiki/HTTP_Live_Streaming) using `.m3u8` playlists. The tool is designed to handle adaptive bitrate streams, fetch individual video and audio segments, and optionally mux them into a single playable file, making it ideal for offline viewing, archival, or analysis of online video content.
 
-<p align="center">
-  <img src="https://github.com/clitic/vsd/blob/main/vsd/images/showcase.gif" width="700">
-</p>
-
 <div align="center">
-    <a href="https://www.buymeacoffee.com/clitic" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="41px"></a>
+  <img src="https://raw.githubusercontent.com/clitic/vsd/refs/heads/main/docs/images/showcase.gif" width="700px">
+  <br>
+  <a href="https://www.buymeacoffee.com/clitic" target="_blank">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="150px">
+  </a>
 </div>
 
 ## Table of Contents
@@ -145,41 +145,6 @@ $ vsd save <url> --select-streams "a=en,fr:s=en,fr" -o video.mp4
 $ vsd save <url> --parse > parsed-playlist.json
 ```
 
-## Running on Android
-
-1. Install the [Termux](https://termux.com) app on your device, then enable storage permissions manually from its settings page. After that, run the following commands in the terminal.
-
-```bash
-$ pkg update
-$ pkg upgrade
-$ pkg install ffmpeg
-$ ln -s /storage/emulated/0/Download Download
-```
-
-2. Install [vsd on termux](https://github.com/clitic/vsd/blob/main/vsd/BUILD.md#android-on-termux). Currently, only *arm64-v8a* binaries pre-builts are available which can be installed using the following command.
-
-```bash
-curl -L https://github.com/clitic/vsd/releases/download/vsd-0.4.3/vsd-0.4.3-aarch64-linux-android.tar.xz | tar xJC $PREFIX/bin
-```
-
-3. Use third party browsers like [Kiwi Browser](https://github.com/kiwibrowser/src.next) (*developer tools*) paired with [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) extension or [Via Browser](https://play.google.com/store/apps/details?id=mark.via.gp) (*tools > resource sniffer*) to find playlists within websites.
-
-4. Now you can run vsd as usual. The streams would be directly downloaded in your android downloads folder.  
-
-```bash
-$ cd Download
-$ vsd save <url> -o video.mp4
-```
-
-## Alternatives
-
-List of alternatives to vsd:
-
-1. [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE) is the best alternative to vsd. It also supports live playlists, which vsd does not. However, it lacks features like *capture* functionality.
-2. [yt-dlp](https://github.com/yt-dlp/yt-dlp) is excellent for downloading various playlists, but its main drawback is limited support for decryption.
-3. [dash-mpd-cli](https://github.com/emarsden/dash-mpd-cli) is a highly effective tool for downloading DASH playlists. In fact, much of vsd’s internal logic for parsing and downloading DASH content is based on this tool.
-4. [ffmpeg](https://ffmpeg.org) supports direct encoding of playlists.
-5. Both [streamlink](https://github.com/streamlink/streamlink) and [vlc](https://www.videolan.org/vlc) allow direct streaming of playlists.
 ## License
 
 Dual Licensed

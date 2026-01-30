@@ -4,7 +4,7 @@ use std::{env, fs, path::Path};
 
 fn main() {
     fs::write(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("CLI.md"),
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../docs/cli.md"),
         generate_markdown(&vsd::Args::command()),
     )
     .unwrap();
@@ -14,7 +14,8 @@ fn generate_markdown(cmd: &Command) -> String {
     let mut buffer = String::new();
 
     buffer.push_str(&format!(
-        "# {} CLI Reference\n\n\
+        "---\nicon: lucide/terminal\n---\n\n\
+        # {} CLI\n\n\
         This document contains cli reference for the `vsd` command-line program.\n\n",
         cmd.get_name().to_uppercase(),
     ));

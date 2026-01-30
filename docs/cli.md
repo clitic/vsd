@@ -1,4 +1,8 @@
-# VSD CLI Reference
+---
+icon: lucide/terminal
+---
+
+# VSD CLI
 
 This document contains cli reference for the `vsd` command-line program.
 
