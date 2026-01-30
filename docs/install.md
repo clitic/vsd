@@ -69,7 +69,7 @@ Finally, add that directory to your system's `PATH` environment variable.
 
 === ":fontawesome-brands-android: Android"
 
-    Requires [Termux](https://f-droid.org/en/packages/com.termux). Downloads and extracts the binary to $PREFIX/bin.
+    Requires [Termux](https://f-droid.org/en/packages/com.termux). Downloads and extracts the binary to `$PREFIX/bin`. See [android support](https://clitic.github.io/vsd/android) for more details.
 
     === "arm64"
 
@@ -82,5 +82,5 @@ Finally, add that directory to your system's `PATH` environment variable.
 You can also install vsd using cargo.
 
 ```bash
-$ cargo install vsd
+cargo install vsd
 ```

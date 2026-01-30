@@ -2,7 +2,7 @@
 icon: lucide/house
 ---
 
-<h1 align="center">vsd</h1>
+# VSD
 
 [![Github Downloads](https://img.shields.io/github/downloads/clitic/vsd/total?logo=github&style=flat-square)](https://github.com/clitic/vsd/releases)
 [![Crate Downloads](https://img.shields.io/crates/d/vsd?logo=rust&style=flat-square)](https://crates.io/crates/vsd)
@@ -20,6 +20,9 @@ icon: lucide/house
   <a href="https://www.buymeacoffee.com/clitic" target="_blank">
     <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="150px">
   </a>
+  <a href="https://paypal.me/clitic" target="_blank">
+    <img src="https://raw.githubusercontent.com/clitic/vsd/refs/heads/main/docs/assets/paypal.svg" alt="PayPal" width="150px">
+  </a>
 </div>
 
 ## Features
@@ -30,5 +33,5 @@ icon: lucide/house
 - [x] Muxing streams to single video container using ffmpeg.
 - [x] Offers robust automation support.
 - [x] One unified progress bar tracking the entire download, with real-time file size updates.
-- [x] Supports decryption for `AES-128`, `SAMPLE-AES`, `CENC`, `CBCS`, `CENS` and `CBC1`.
-- [ ] Live stream downloading (not currently planned). Consider [contributing](https://github.com/clitic/vsd/fork) this feature.
+- [x] Supports decryption for `AES-128`, `SAMPLE-AES`, `CENC`, `CENS`, `CBC1` and `CBCS`.
+- [ ] Live stream downloading, consider [contributing](https://github.com/clitic/vsd/fork) this feature.

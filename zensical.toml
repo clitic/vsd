@@ -1,12 +1,13 @@
 [project]
-site_name = "VSD - Video Stream Downloader"
+site_name = "Video Stream Downloader"
 site_description = "Documentation for vsd (video stream downloader)"
 site_author = "clitic"
 site_url = "https://clitic.github.io/vsd"
 copyright = "Copyright &copy; 2026 clitic"
 repo_url = "https://github.com/clitic/vsd"
+edit_uri = "edit/main/docs/"
 nav = [
-    { "Home" = "home.md" },
+    { "Home" = "index.md" },
     { "Install" = "install.md" },
     { "Usage" = "usage.md" },
     { "Cli" = "cli.md" },
@@ -43,14 +44,21 @@ features = [
 ]
 
 [[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to system preference"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
 scheme = "default"
 toggle.icon = "lucide/sun"
 toggle.name = "Switch to dark mode"
-
-[[project.theme.palette]]
-scheme = "slate"
-toggle.icon = "lucide/moon"
-toggle.name = "Switch to light mode"
 
 [project.theme.icon]
 logo = "lucide/terminal"

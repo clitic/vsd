@@ -4,13 +4,13 @@ icon: fontawesome/brands/android
 
 # Android Support
 
-1. Install the [Termux](https://termux.com) app on your device, then enable storage permissions manually from its settings page. After that, run the following commands in the terminal.
+1. Install the [Termux](https://f-droid.org/en/packages/com.termux) app on your device, then enable storage permissions manually from its settings page. After that, run the following commands in the terminal.
 
     ```bash
-    $ pkg update
-    $ pkg upgrade
-    $ pkg install ffmpeg
-    $ ln -s /storage/emulated/0/Download Download
+    pkg update
+    pkg upgrade
+    pkg install ffmpeg
+    ln -s /storage/emulated/0/Download Download
     ```
 
 2. Install [vsd on termux](https://github.com/clitic/vsd/blob/main/vsd/BUILD.md#android-on-termux). Currently, only *arm64-v8a* binaries pre-builts are available which can be installed using the following command.
@@ -24,6 +24,6 @@ icon: fontawesome/brands/android
 4. Now you can run vsd as usual. The streams would be directly downloaded in your android downloads folder.  
 
     ```bash
-    $ cd Download
-    $ vsd save <url> -o video.mp4
+    cd Download
+    vsd save <url> -o video.mp4
     ```

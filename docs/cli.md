@@ -48,10 +48,12 @@ vsd [OPTIONS] <COMMAND>
 Capture playlists and subtitles requests from a website.
 
 Requires one of the following browsers to be installed:
-* chrome   - https://www.google.com/chrome
-* chromium - https://www.chromium.org/getting-involved/download-chromium
+
+- chrome   - https://www.google.com/chrome
+- chromium - https://www.chromium.org/getting-involved/download-chromium
 
 This command launches an automated browser instance and listen on requests. Behavior may vary, and it may not work as expected on all websites. This is equivalent to manually doing:
+
 Inspect -> Network -> Fetch/XHR -> Filter by extension -> Copy as cURL (bash)
 
 ```
