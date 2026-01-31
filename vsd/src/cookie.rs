@@ -7,7 +7,9 @@
 */
 
 #[cfg(feature = "capture")]
-use chromiumoxide::cdp::browser_protocol::network::{CookieParam, TimeSinceEpoch};
+use chromiumoxide::cdp::browser_protocol::network::{
+    Cookie as BrowserCookie, CookieParam, TimeSinceEpoch,
+};
 
 use chrono::{TimeZone, Utc};
 use std::str;
@@ -204,6 +206,27 @@ impl<'a> From<&'a Vec<CookieParam>> for Cookies<'a> {
                     name: &c.name,
                     value: &c.value,
                     http_only: c.http_only.unwrap_or(false),
+                })
+                .collect(),
+        )
+    }
+}
+
+#[cfg(feature = "capture")]
+impl<'a> From<&'a Vec<BrowserCookie>> for Cookies<'a> {
+    fn from(value: &'a Vec<BrowserCookie>) -> Self {
+        Cookies(
+            value
+                .iter()
+                .map(|c| Cookie {
+                    domain: &c.domain,
+                    include_subdomains: false,
+                    path: &c.path,
+                    secure: c.secure,
+                    expires: c.expires as i64,
+                    name: &c.name,
+                    value: &c.value,
+                    http_only: c.http_only,
                 })
                 .collect(),
         )

@@ -126,7 +126,7 @@ impl Capture {
 
         if self.save_cookies {
             let cookies = browser.get_cookies().await?;
-            let cookies: Cookies = cookies.as_ref().into();
+            let cookies: Cookies = (&cookies).into();
             fs::write("cookies.txt", cookies.to_netscape()).await?;
         }
 
