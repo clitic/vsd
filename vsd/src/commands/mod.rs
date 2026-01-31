@@ -41,11 +41,12 @@ pub enum Commands {
     version,
     long_version = concat!(
         env!("CARGO_PKG_VERSION"),
-        "\n\nEnabled Features:",
-        "\n   capture : ", cfg!(feature = "capture"),
-        "\n   license : ", cfg!(feature = "license"),
-        "\nnative-tls : ", cfg!(feature = "native-tls"),
-        "\nrustls-tls : ", cfg!(feature = "rustls-tls"),
+        "\n\nEnabled Features :",
+        "\ncapture            : ", cfg!(feature = "capture"),
+        "\nlicense            : ", cfg!(feature = "license"),
+        "\nrustls-tls         : ", cfg!(feature = "rustls-tls"),
+        "\nnative-tls         : ", cfg!(feature = "native-tls"),
+        "\nnative-tls-vendored: ", cfg!(feature = "native-tls-vendored"),
     ),
 )]
 pub struct Args {
