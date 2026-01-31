@@ -115,13 +115,13 @@ Below are some example commands. For additional usage details, see [cli referenc
 This project is developed and maintained in my free time. Donations help cover development time, testing, and future improvements. If this tool saved you time or helped your workflow, consider supporting it.
 
 <div align="center">
-  <a href="mailto:clitic21@gmail.com" target="_blank">
+  <a href="mailto:clitic21@gmail.com" target="_blank" style="text-decoration: none;">
     <img src="https://raw.githubusercontent.com/clitic/vsd/refs/heads/main/docs/assets/contact.svg" alt="Contact Me" height="40px">
   </a>
-  <a href="https://www.buymeacoffee.com/clitic" target="_blank">
+  <a href="https://www.buymeacoffee.com/clitic" target="_blank" style="text-decoration: none;">
     <img src="https://raw.githubusercontent.com/clitic/vsd/refs/heads/main/docs/assets/bmc.svg" alt="Buy Me A Coffee" height="40px">
   </a>
-  <a href="https://paypal.me/clitic" target="_blank">
+  <a href="https://paypal.me/clitic" target="_blank" style="text-decoration: none;">
     <img src="https://raw.githubusercontent.com/clitic/vsd/refs/heads/main/docs/assets/paypal.svg" alt="PayPal" height="40px">
   </a>
 </div>
