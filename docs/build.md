@@ -111,10 +111,10 @@ AR=llvm-ar \
 3. Now build with desired target.
 
     ```bash
-    RUSTFLAGS="-C linker=clang -C link-arg=--target=aarch64-apple-darwin -C link-arg=-isysroot -C link-arg=$HOME/MacOSX26.1.sdk -C link-arg=-fuse-ld=lld" \
+    RUSTFLAGS="-C linker=clang -C link-arg=-target=aarch64-apple-darwin -C link-arg=-isysroot -C link-arg=$HOME/MacOSX26.1.sdk -C link-arg=-fuse-ld=lld" \
       AR="llvm-ar" \
-      CC="clang --target=aarch64-apple-darwin -isysroot $HOME/MacOSX26.1.sdk -fuse-ld=lld" \
-      CXX="clang++ --target=aarch64-apple-darwin -isysroot $HOME/MacOSX26.1.sdk -fuse-ld=lld" \
+      CC="clang -target=aarch64-apple-darwin -isysroot $HOME/MacOSX26.1.sdk -fuse-ld=lld" \
+      CXX="clang++ -target=aarch64-apple-darwin -isysroot $HOME/MacOSX26.1.sdk -fuse-ld=lld" \
       cargo build -p vsd --release --target aarch64-apple-darwin
     
     # optional - inspect binary

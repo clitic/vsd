@@ -13,7 +13,7 @@ icon: fontawesome/brands/android
     ln -s /storage/emulated/0/Download Download
     ```
 
-2. Install [vsd on termux](https://github.com/clitic/vsd/blob/main/vsd/BUILD.md#android-on-termux). Currently, only *arm64-v8a* binaries pre-builts are available which can be installed using the following command.
+2. Install [vsd in termux](https://clitic.github.io/vsd/build/#termux). Currently, only *arm64-v8a* binaries pre-builts are available which can be installed using the following command.
 
     ```bash
     curl -L https://github.com/clitic/vsd/releases/download/vsd-0.4.3/vsd-0.4.3-aarch64-linux-android.tar.xz | tar xJC $PREFIX/bin

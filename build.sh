@@ -3,25 +3,26 @@
 PACKAGES_DIR="$HOME/vsd-packages"
 RELEASE_DIR="/mnt/c/Users/apoor/Downloads"
 
-ANDROID_NDK_VERSION="r27c" # https://developer.android.com/ndk/downloads
-MACOS_SDK_VERSION="15.4" # https://github.com/joseluisq/macosx-sdks/releases
-PROTOC_VERSION="31.1" # https://github.com/protocolbuffers/protobuf/releases
+ANDROID_NDK_VERSION="r27d" # https://developer.android.com/ndk/downloads
+MACOS_SDK_VERSION="26.1" # https://github.com/joseluisq/macosx-sdks/releases
+PROTOC_VERSION="33.5" # https://github.com/protocolbuffers/protobuf/releases
 VSD_VERSION="0.5.0" # vsd/Cargo.toml
-ZIG_VERSION="0.14.1" # https://ziglang.org/download
+ZIG_VERSION="0.15.2" # https://ziglang.org/download
 
 . "$HOME/.cargo/env"
+
 export PATH=$PACKAGES_DIR/protoc-$PROTOC_VERSION/bin:$PATH 
 export PATH=$PACKAGES_DIR/zig-x86_64-linux-$ZIG_VERSION:$PATH 
 
 # Android
 
 echo "Building aarch64-linux-android"
-PATH=$PACKAGES_DIR/android-ndk-$ANDROID_NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH \
-  AR=llvm-ar \
-  CC=aarch64-linux-android25-clang \
-  CXX=aarch64-linux-android25-clang++ \
-  RUSTFLAGS="-C linker=aarch64-linux-android25-clang -C link-args=-Wl,-rpath=/data/data/com.termux/files/usr/lib" \
-  cargo build -p vsd --release --target aarch64-linux-android --no-default-features --features "rustls"
+RUSTFLAGS="-C linker=aarch64-linux-android25-clang -C link-args=-Wl,-rpath=/data/data/com.termux/files/usr/lib" \
+  PATH="$PACKAGES_DIR/android-ndk-$ANDROID_NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH" \
+  AR="llvm-ar" \
+  CC="aarch64-linux-android25-clang" \
+  CXX="aarch64-linux-android25-clang++" \
+  cargo build -p vsd --release --target aarch64-linux-android --no-default-features --features "license,native-tls-vendored"
 
 echo "Packaging aarch64-linux-android"
 cd target/aarch64-linux-android/release
@@ -32,12 +33,10 @@ cd ../../../
 # Darwin
 
 echo "Building aarch64-apple-darwin"
-PATH=$PACKAGES_DIR/osxcross/target/bin:$PATH \
-  AR=aarch64-apple-darwin24.4-ar \
-  CC=aarch64-apple-darwin24.4-clang \
-  CXX=aarch64-apple-darwin24.4-clang++ \
-  RUSTFLAGS="-C linker=aarch64-apple-darwin24.4-clang" \
-  CRATE_CC_NO_DEFAULTS=true \
+RUSTFLAGS="-C linker=clang -C link-arg=-target=aarch64-apple-darwin -C link-arg=-isysroot -C link-arg=$PACKAGES_DIR/MacOSX$MACOS_SDK_VERSION.sdk -C link-arg=-fuse-ld=lld" \
+  AR="llvm-ar" \
+  CC="clang -target=aarch64-apple-darwin -isysroot $PACKAGES_DIR/MacOSX$MACOS_SDK_VERSION.sdk -fuse-ld=lld" \
+  CXX="clang++ -target=aarch64-apple-darwin -isysroot $PACKAGES_DIR/MacOSX$MACOS_SDK_VERSION.sdk -fuse-ld=lld" \
   cargo build -p vsd --release --target aarch64-apple-darwin
 
 echo "Packaging aarch64-apple-darwin"
@@ -47,12 +46,10 @@ tar -cJf $RELEASE_DIR/vsd-$VSD_VERSION-aarch64-apple-darwin.tar.xz ./vsd
 cd ../../../
 
 echo "Building x86_64-apple-darwin"
-PATH=$PACKAGES_DIR/osxcross/target/bin:$PATH \
-  AR=x86_64-apple-darwin24.4-ar \
-  CC=x86_64-apple-darwin24.4-clang \
-  CXX=x86_64-apple-darwin24.4-clang++ \
-  RUSTFLAGS="-C linker=x86_64-apple-darwin24.4-clang" \
-  CRATE_CC_NO_DEFAULTS=true \
+RUSTFLAGS="-C linker=clang -C link-arg=-target=x86_64-apple-darwin -C link-arg=-isysroot -C link-arg=$PACKAGES_DIR/MacOSX$MACOS_SDK_VERSION.sdk -C link-arg=-fuse-ld=lld" \
+  AR="llvm-ar" \
+  CC="clang -target=x86_64-apple-darwin -isysroot $PACKAGES_DIR/MacOSX$MACOS_SDK_VERSION.sdk -fuse-ld=lld" \
+  CXX="clang++ -target=x86_64-apple-darwin -isysroot $PACKAGES_DIR/MacOSX$MACOS_SDK_VERSION.sdk -fuse-ld=lld" \
   cargo build -p vsd --release --target x86_64-apple-darwin
 
 echo "Packaging x86_64-apple-darwin"
