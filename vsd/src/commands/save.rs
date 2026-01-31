@@ -1,22 +1,22 @@
 use crate::{
-    cookie::{CookieJar, CookieParam},
+    cookie::Cookies,
     downloader::{self, MAX_RETRIES, MAX_THREADS, SKIP_DECRYPT, SKIP_MERGE},
     options::Interaction,
 };
 use anyhow::{Result, bail};
 use clap::Args;
-use cookie::Cookie;
 use reqwest::{
     Client, Proxy, Url,
+    cookie::Jar,
     header::{HeaderMap, HeaderName, HeaderValue},
 };
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Arc, atomic::Ordering},
+    time::Duration,
 };
-
-type CookieParams = Vec<CookieParam>;
+use tokio::fs;
 
 /// Download DASH and HLS playlists.
 #[derive(Args, Clone, Debug)]
@@ -89,9 +89,9 @@ pub struct Save {
     pub select_streams: String,
 
     /// Fill request client with some existing cookies value.
-    /// Cookies value can be same as document.cookie or in json format same as puppeteer.
-    #[arg(long, help_heading = "Client Options", default_value = "[]", hide_default_value = true, value_parser = cookie_parser)]
-    pub cookies: CookieParams,
+    /// It should be a path to a file containing cookies in netscape format.
+    #[arg(long, help_heading = "Client Options")]
+    pub cookies: Option<PathBuf>,
 
     /// Extra headers for requests in same format as curl.
     ///
@@ -108,7 +108,7 @@ pub struct Save {
     pub proxy: Option<Proxy>,
 
     /// Set query parameters for requests.
-    #[arg(long, help_heading = "Client Options", default_value = "", hide_default_value = true, value_parser = query_parser)]
+    #[arg(long, help_heading = "Client Options", default_value = "", hide_default_value = true, value_parser = Self::parse_query)]
     pub query: HashMap<String, String>,
 
     /// Keys for decrypting encrypted streams.
@@ -137,26 +137,43 @@ pub struct Save {
 }
 
 impl Save {
-    fn parse_header(value: &str) -> Result<(HeaderName, HeaderValue)> {
-        if let Some((k, v)) = value.split_once(':') {
+    fn parse_header(s: &str) -> Result<(HeaderName, HeaderValue)> {
+        if let Some((k, v)) = s.split_once(':') {
             Ok((k.trim().parse()?, v.trim().parse()?))
         } else {
-            bail!("Expected 'KEY:VALUE' but found '{}'.", value);
+            bail!("Expected 'KEY:VALUE' but found '{}'.", s);
         }
     }
 
-    fn parse_proxy(value: &str) -> Result<Proxy> {
-        Ok(Proxy::all(value)?)
+    fn parse_proxy(s: &str) -> Result<Proxy> {
+        Ok(Proxy::all(s)?)
     }
 
-    fn parse_keys(value: &str) -> Result<HashMap<String, String>> {
+    fn parse_query(s: &str) -> Result<HashMap<String, String>> {
+        let mut queries = HashMap::new();
+
+        if s.is_empty() {
+            return Ok(queries);
+        }
+
+        for pair in s.split('&') {
+            let mut parts = pair.splitn(2, '=');
+            if let (Some(key), Some(value)) = (parts.next(), parts.next()) {
+                queries.insert(key.to_owned(), value.to_owned());
+            }
+        }
+
+        Ok(queries)
+    }
+
+    fn parse_keys(s: &str) -> Result<HashMap<String, String>> {
         let mut keys = HashMap::new();
 
-        if value.is_empty() {
+        if s.is_empty() {
             return Ok(keys);
         }
 
-        for pair in value.split(';') {
+        for pair in s.split(';') {
             if let Some((kid, key)) = pair.split_once(':') {
                 let kid = kid.to_ascii_lowercase().replace('-', "");
                 let key = key.to_ascii_lowercase().replace('-', "");
@@ -168,7 +185,7 @@ impl Save {
                 {
                     keys.insert(kid, key);
                 } else {
-                    bail!("Expected 'KID:KEY;…' but found '{}'.", value);
+                    bail!("Expected 'KID:KEY;…' but found '{}'.", s);
                 }
             }
         }
@@ -182,27 +199,28 @@ impl Save {
         SKIP_DECRYPT.store(self.no_decrypt, Ordering::SeqCst);
         SKIP_MERGE.store(self.no_merge, Ordering::SeqCst);
 
-        let mut client_builder = Client::builder()
+        let mut builder = Client::builder()
             .default_headers(HeaderMap::from_iter(self.headers))
             .cookie_store(true)
             .danger_accept_invalid_certs(self.no_certificate_checks)
-            .timeout(std::time::Duration::from_secs(60));
+            .timeout(Duration::from_secs(60));
+
+        if let Some(path) = &self.cookies {
+            let jar = Jar::default();
+            let data = fs::read(path).await?;
+
+            for cookie in Cookies::parse(&data)?.0 {
+                jar.add_cookie_str(&cookie.to_header(), &cookie.url().parse::<Url>()?);
+            }
+
+            builder = builder.cookie_provider(Arc::new(jar));
+        }
 
         if let Some(proxy) = &self.proxy {
-            client_builder = client_builder.proxy(proxy.clone());
+            builder = builder.proxy(proxy.clone());
         }
 
-        let mut jar = CookieJar::new();
-
-        for cookie in &self.cookies {
-            if let Some(url) = &cookie.url {
-                jar.add_cookie_str(&format!("{}", cookie.as_cookie()), &url.parse::<Url>()?);
-            } else {
-                jar.add_cookie(cookie.as_cookie());
-            }
-        }
-
-        let client = client_builder.cookie_provider(Arc::new(jar)).build()?;
+        let client = builder.build()?;
         let meta =
             downloader::fetch_playlist(self.base_url.clone(), &client, &self.input, &self.query)
                 .await?;
@@ -244,41 +262,4 @@ impl Save {
 
         Ok(())
     }
-}
-
-fn cookie_parser(s: &str) -> Result<CookieParams, String> {
-    if Path::new(s).exists() {
-        Ok(serde_json::from_slice::<CookieParams>(
-            &std::fs::read(s).map_err(|_| format!("could not read {s}."))?,
-        )
-        .map_err(|_| "could not deserialize cookies from json file.")?)
-    } else if let Ok(cookies) = serde_json::from_str::<CookieParams>(s) {
-        Ok(cookies)
-    } else {
-        let mut cookies = vec![];
-        for cookie in Cookie::split_parse(s) {
-            match cookie {
-                Ok(x) => cookies.push(CookieParam::new(x.name(), x.value())),
-                Err(_) => return Err("could not split parse cookies.".to_owned()),
-            }
-        }
-        Ok(cookies)
-    }
-}
-
-fn query_parser(s: &str) -> Result<HashMap<String, String>, String> {
-    let mut queries = HashMap::new();
-
-    if s.is_empty() {
-        return Ok(queries);
-    }
-
-    for pair in s.split('&') {
-        let mut parts = pair.splitn(2, '=');
-        if let (Some(key), Some(value)) = (parts.next(), parts.next()) {
-            queries.insert(key.to_owned(), value.to_owned());
-        }
-    }
-
-    Ok(queries)
 }

@@ -1,4 +1,4 @@
-use crate::utils;
+use crate::{cookie::Cookies, utils};
 use anyhow::{Result, anyhow};
 use chromiumoxide::{
     Browser, BrowserConfig,
@@ -11,7 +11,8 @@ use clap::{
 use colored::Colorize;
 use log::info;
 use serde_json::Value;
-use std::{fs::File, path::PathBuf};
+use std::path::PathBuf;
+use tokio::fs;
 use tokio_stream::StreamExt;
 
 /// Capture playlists and subtitles requests from a website.
@@ -31,7 +32,7 @@ pub struct Capture {
     #[arg(required = true)]
     url: String,
 
-    /// Launch browser with cookies loaded from a json file.
+    /// Launch browser with cookies loaded from a netscape cookie file.
     #[arg(long, value_name = "PATH")]
     cookies: Option<PathBuf>,
 
@@ -62,7 +63,7 @@ pub struct Capture {
     )]
     resource_types: Vec<ResourceType>,
 
-    /// Save browser cookies in vsd-cookies.json file.
+    /// Save browser cookies in cookies.txt netscape cookie file.
     #[arg(long)]
     save_cookies: bool,
 }
@@ -92,9 +93,9 @@ impl Capture {
             }
         });
 
-        if let Some(cookies) = self.cookies {
+        if let Some(path) = self.cookies {
             browser
-                .set_cookies(serde_json::from_reader(File::open(cookies)?)?)
+                .set_cookies(Cookies::parse(&fs::read(path).await?)?.into())
                 .await?;
         }
 
@@ -124,10 +125,9 @@ impl Capture {
         tokio::signal::ctrl_c().await.unwrap();
 
         if self.save_cookies {
-            serde_json::to_writer(
-                File::create("vsd-cookies.json")?,
-                &browser.get_cookies().await?,
-            )?;
+            let cookies = browser.get_cookies().await?;
+            let cookies: Cookies = cookies.as_ref().into();
+            fs::write("cookies.txt", cookies.to_netscape()).await?;
         }
 
         browser.close().await?;

@@ -2,192 +2,243 @@
     REFERENCES
     ----------
 
-    1. https://docs.rs/headless_chrome/1.0.17/headless_chrome/protocol/cdp/Network/struct.CookieParam.html
+    1. https://curl.se/docs/http-cookies.html
 
 */
 
-use cookie::Cookie;
-use reqwest::{
-    Url,
-    cookie::{CookieStore, Jar},
-    header::HeaderValue,
-};
-use serde::Deserialize;
+#[cfg(feature = "capture")]
+use chromiumoxide::cdp::browser_protocol::network::{CookieParam, TimeSinceEpoch};
 
-#[allow(dead_code)]
-#[derive(Clone, Debug, Default, Deserialize)]
-pub struct CookieParam {
-    #[serde(default)]
-    #[serde(rename = "name")]
-    pub name: String,
-    #[serde(default)]
-    #[serde(rename = "value")]
-    pub value: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
-    #[serde(rename = "url")]
-    pub url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
-    #[serde(rename = "domain")]
-    pub domain: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
-    #[serde(rename = "path")]
-    pub path: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
-    #[serde(rename = "secure")]
-    pub secure: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
-    #[serde(rename = "httpOnly")]
-    pub http_only: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(rename = "sameSite")]
-    pub same_site: Option<CookieSameSite>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(rename = "expires")]
-    pub expires: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(rename = "priority")]
-    pub priority: Option<CookiePriority>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
-    #[serde(rename = "sameParty")]
-    pub same_party: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(rename = "sourceScheme")]
-    pub source_scheme: Option<CookieSourceScheme>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
-    #[serde(rename = "sourcePort")]
-    pub source_port: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(rename = "partitionKey")]
-    pub partition_key: Option<String>,
-}
+use chrono::{TimeZone, Utc};
+use std::str;
 
-#[derive(Clone, Debug, Deserialize)]
-pub enum CookiePriority {
-    #[serde(rename = "Low")]
-    Low,
-    #[serde(rename = "Medium")]
-    Medium,
-    #[serde(rename = "High")]
-    High,
-}
+#[derive(Clone, Debug)]
+pub struct Cookies<'a>(pub Vec<Cookie<'a>>);
 
-#[derive(Clone, Debug, Deserialize)]
-pub enum CookieSameSite {
-    #[serde(rename = "Strict")]
-    Strict,
-    #[serde(rename = "Lax")]
-    Lax,
-    #[serde(rename = "None")]
-    None,
-}
+impl<'a> Cookies<'a> {
+    pub fn parse(input: &'a [u8]) -> Result<Self, ParseError> {
+        let mut cookies = Vec::new();
+        let mut line_num = 0;
+        let mut start = 0;
 
-#[derive(Clone, Debug, Deserialize)]
-pub enum CookieSourceScheme {
-    #[serde(rename = "Unset")]
-    Unset,
-    #[serde(rename = "NonSecure")]
-    NonSecure,
-    #[serde(rename = "Secure")]
-    Secure,
-}
-
-impl CookieParam {
-    pub fn new(name: &str, value: &str) -> Self {
-        Self {
-            name: name.to_owned(),
-            value: value.to_owned(),
-            ..Default::default()
-        }
-    }
-
-    pub fn as_cookie(&self) -> Cookie<'_> {
-        if self.url.is_some() {
-            let mut cookie = Cookie::new(&self.name, &self.value);
-
-            if let Some(domain) = &self.domain {
-                cookie.set_domain(domain);
+        while start < input.len() {
+            line_num += 1;
+            let end = input[start..]
+                .iter()
+                .position(|&b| b == b'\n')
+                .map(|p| start + p)
+                .unwrap_or(input.len());
+            let mut line = &input[start..end];
+            start = end + 1;
+            if line.ends_with(b"\r") {
+                line = &line[..line.len() - 1];
+            }
+            if line.is_empty() {
+                continue;
             }
 
-            if let Some(path) = &self.path {
-                cookie.set_path(path);
+            let (http_only, effective) = match line {
+                line if line.starts_with(b"#HttpOnly_") => (true, &line[10..]),
+                line if line.starts_with(b"#") => continue,
+                line => (false, line),
+            };
+
+            let parts = effective.split(|&b| b == b'\t').collect::<Vec<_>>();
+            if parts.len() != 7 {
+                return Err(ParseError::InvalidColumnParams(line_num, parts.len()));
             }
 
-            cookie.set_secure(self.secure);
-            cookie.set_http_only(self.http_only);
+            cookies.push(Cookie {
+                domain: str::from_utf8(parts[0])?,
+                include_subdomains: match str::from_utf8(parts[1])? {
+                    "TRUE" | "true" => true,
+                    "FALSE" | "false" => false,
+                    s => return Err(ParseError::InvalidBoolean(line_num, s.to_owned())),
+                },
+                path: str::from_utf8(parts[2])?,
+                secure: match str::from_utf8(parts[3])? {
+                    "TRUE" | "true" => true,
+                    "FALSE" | "false" => false,
+                    s => return Err(ParseError::InvalidBoolean(line_num, s.to_owned())),
+                },
+                expires: str::from_utf8(parts[4])?.parse::<i64>().map_err(|_| {
+                    ParseError::InvalidInteger(
+                        line_num,
+                        str::from_utf8(parts[4]).unwrap().to_owned(),
+                    )
+                })?,
+                name: str::from_utf8(parts[5])?,
+                value: str::from_utf8(parts[6])?,
+                http_only,
+            });
+        }
 
-            if let Some(same_site) = &self.same_site {
-                match same_site {
-                    CookieSameSite::Strict => cookie.set_same_site(cookie::SameSite::Strict),
-                    CookieSameSite::Lax => cookie.set_same_site(cookie::SameSite::Lax),
-                    CookieSameSite::None => cookie.set_same_site(cookie::SameSite::None),
-                }
+        Ok(Cookies(cookies))
+    }
+
+    pub fn to_netscape(&self) -> String {
+        let mut out = "# Netscape HTTP Cookie File\n\
+        # https://curl.se/docs/http-cookies.html\n\
+        # This file was generated by vsd! Edit at your own risk.\n\n"
+            .to_owned();
+        for c in &self.0 {
+            out.push_str(&c.to_netscape());
+            out.push('\n');
+        }
+        out
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Cookie<'a> {
+    domain: &'a str,
+    include_subdomains: bool,
+    path: &'a str,
+    secure: bool,
+    expires: i64,
+    name: &'a str,
+    value: &'a str,
+    http_only: bool,
+}
+
+impl<'a> Cookie<'a> {
+    fn to_netscape(&self) -> String {
+        format!(
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            if self.http_only {
+                &format!("#HttpOnly_{}", self.domain)
+            } else {
+                self.domain
+            },
+            if self.include_subdomains {
+                "TRUE"
+            } else {
+                "FALSE"
+            },
+            self.path,
+            if self.secure { "TRUE" } else { "FALSE" },
+            self.expires,
+            self.name,
+            self.value
+        )
+    }
+
+    pub fn to_header(&self) -> String {
+        let mut h = format!("{}={}", self.name, self.value);
+        if !self.domain.is_empty() {
+            h.push_str(&format!("; Domain={}", self.domain));
+        }
+        if !self.path.is_empty() {
+            h.push_str(&format!("; Path={}", self.path));
+        }
+        if self.expires > 0 {
+            if let Some(dt) = Utc.timestamp_opt(self.expires, 0).single() {
+                h.push_str(&format!(
+                    "; Expires={}",
+                    dt.format("%a, %d %b %Y %H:%M:%S GMT")
+                ));
             }
+        }
+        if self.secure {
+            h.push_str("; Secure");
+        }
+        if self.http_only {
+            h.push_str("; HttpOnly");
+        }
+        h
+    }
 
-            if let Some(expires) = &self.expires {
-                let mut now = cookie::time::OffsetDateTime::now_utc();
-                now += cookie::time::Duration::seconds_f64(*expires);
-                cookie.set_expires(now);
+    pub fn url(&self) -> String {
+        format!(
+            "{}://{}{}",
+            if self.secure { "https" } else { "http" },
+            self.domain.strip_prefix('.').unwrap_or(self.domain),
+            if self.path.starts_with('/') {
+                self.path
+            } else {
+                "/"
             }
+        )
+    }
+}
 
-            cookie
-        } else {
-            Cookie::new(&self.name, &self.value)
+#[derive(Debug)]
+pub enum ParseError {
+    InvalidBoolean(usize, String),
+    InvalidColumnParams(usize, usize),
+    InvalidInteger(usize, String),
+    Utf8Error(str::Utf8Error),
+}
+
+impl std::error::Error for ParseError {}
+
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ParseError::InvalidBoolean(l, v) => write!(f, "Line {} bool: {}", l, v),
+            ParseError::InvalidColumnParams(l, c) => write!(f, "Line {} cols: {}", l, c),
+            ParseError::InvalidInteger(l, v) => write!(f, "Line {} int: {}", l, v),
+            ParseError::Utf8Error(e) => write!(f, "UTF-8 error: {}", e),
         }
     }
 }
 
-pub struct CookieJar {
-    document_cookie: String,
-    inner: Jar,
-}
-
-impl CookieJar {
-    pub fn new() -> Self {
-        Self {
-            document_cookie: "".to_owned(),
-            inner: Jar::default(),
-        }
-    }
-
-    pub fn add_cookie(&mut self, cookie: Cookie) {
-        self.document_cookie += &format!("{}; ", cookie.stripped());
-    }
-
-    pub fn add_cookie_str(&self, cookie: &str, url: &Url) {
-        self.inner.add_cookie_str(cookie, url)
+impl From<str::Utf8Error> for ParseError {
+    fn from(err: str::Utf8Error) -> Self {
+        ParseError::Utf8Error(err)
     }
 }
 
-impl CookieStore for CookieJar {
-    fn cookies(&self, url: &Url) -> Option<HeaderValue> {
-        if self.document_cookie.is_empty() {
-            self.inner.cookies(url)
-        } else if let Some(cookies) = self.inner.cookies(url) {
-            Some(
-                HeaderValue::from_str(
-                    &(self.document_cookie.clone()
-                        + cookies
-                            .to_str()
-                            .expect("could not convert cookie header value to string.")),
-                )
-                .expect("could not construct cookie header value."),
-            )
-        } else {
-            Some(
-                HeaderValue::from_str(&self.document_cookie)
-                    .expect("could not construct cookie header value."),
-            )
-        }
+#[cfg(feature = "capture")]
+impl<'a> From<&'a Vec<CookieParam>> for Cookies<'a> {
+    fn from(value: &'a Vec<CookieParam>) -> Self {
+        Cookies(
+            value
+                .iter()
+                .map(|c| Cookie {
+                    domain: c.domain.as_deref().unwrap_or(""),
+                    include_subdomains: false,
+                    path: c.path.as_deref().unwrap_or(""),
+                    secure: c.secure.unwrap_or(false),
+                    expires: c.expires.as_ref().map(|x| *x.inner() as i64).unwrap_or(0),
+                    name: &c.name,
+                    value: &c.value,
+                    http_only: c.http_only.unwrap_or(false),
+                })
+                .collect(),
+        )
     }
+}
 
-    fn set_cookies(&self, cookie_headers: &mut dyn Iterator<Item = &HeaderValue>, url: &Url) {
-        self.inner.set_cookies(cookie_headers, url)
+#[cfg(feature = "capture")]
+impl<'a> Into<Vec<CookieParam>> for Cookies<'a> {
+    fn into(self) -> Vec<CookieParam> {
+        self.0
+            .into_iter()
+            .map(|c| CookieParam {
+                name: c.name.to_owned(),
+                value: c.value.to_owned(),
+                url: Some(c.url()),
+                domain: if c.domain.is_empty() {
+                    None
+                } else {
+                    Some(c.domain.to_owned())
+                },
+                path: if c.path.is_empty() {
+                    None
+                } else {
+                    Some(c.path.to_owned())
+                },
+                secure: Some(c.secure),
+                http_only: Some(c.http_only),
+                same_site: None,
+                expires: Some(TimeSinceEpoch::new(c.expires as f64)),
+                priority: None,
+                same_party: None,
+                source_scheme: None,
+                source_port: None,
+                partition_key: None,
+            })
+            .collect()
     }
 }
