@@ -12,13 +12,6 @@
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/clitic/vsd/refs/heads/main/docs/images/showcase.gif" width="700px">
-  <br>
-  <a href="https://www.buymeacoffee.com/clitic" target="_blank">
-    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="150px">
-  </a>
-  <a href="https://paypal.me/clitic" target="_blank">
-    <img src="https://raw.githubusercontent.com/clitic/vsd/refs/heads/main/docs/assets/paypal.svg" alt="PayPal" width="150px">
-  </a>
 </div>
 
 ## Features
@@ -116,6 +109,22 @@ Below are some example commands. For additional usage details, see [cli referenc
     ```bash
     vsd save <url> --parse > parsed-playlist.json
     ```
+
+## Donate
+
+This project is developed and maintained in my free time. Donations help cover development time, testing, and future improvements. If this tool saved you time or helped your workflow, consider supporting it.
+
+<div align="center">
+  <a href="mailto:clitic21@gmail.com" target="_blank">
+    <img src="https://raw.githubusercontent.com/clitic/vsd/refs/heads/main/docs/assets/contact.svg" alt="Contact Me" height="40px">
+  </a>
+  <a href="https://www.buymeacoffee.com/clitic" target="_blank">
+    <img src="https://raw.githubusercontent.com/clitic/vsd/refs/heads/main/docs/assets/bmc.svg" alt="Buy Me A Coffee" height="40px">
+  </a>
+  <a href="https://paypal.me/clitic" target="_blank">
+    <img src="https://raw.githubusercontent.com/clitic/vsd/refs/heads/main/docs/assets/paypal.svg" alt="PayPal" height="40px">
+  </a>
+</div>
 
 ## License
 
