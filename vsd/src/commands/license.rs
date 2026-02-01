@@ -17,9 +17,8 @@ use vsd_mp4::pssh::{PsshBox, SystemId};
 /// Request content keys from a license server.
 #[derive(Args, Clone, Debug)]
 pub struct License {
-    /// PSSH data input.
-    /// Can be an init file path, playlist url or base64 encoded PSSH box.
-    #[arg(required = true, value_name = "PATH|URL|BASE64")]
+    /// INIT_PATH | PLAYLIST_URL | BASE64_PSSH
+    #[arg(required = true)]
     input: String,
 
     /// Extra headers for license request in same format as curl.
@@ -28,21 +27,29 @@ pub struct License {
     #[arg(short = 'H', long = "header", value_name = "KEY:VALUE", value_parser = Self::parse_header)]
     headers: Vec<(HeaderName, HeaderValue)>,
 
-    /// Path to the Playready device (.prd) file.
-    #[arg(long, value_name = "PRD")]
+    /// Path to the playready device (.prd) file.
+    #[arg(long, value_name = "PRD", help_heading = "Playready Options")]
     playready_device: Option<PathBuf>,
 
-    /// Path to the Widevine device (.wvd) file.
-    #[arg(long, value_name = "WVD")]
-    widevine_device: Option<PathBuf>,
-
     /// Playready license server URL.
-    #[arg(long, value_name = "URL")]
+    #[arg(long, value_name = "URL", help_heading = "Playready Options")]
     playready_url: Option<Url>,
 
+    /// Skip playready license request.
+    #[arg(long, help_heading = "Playready Options")]
+    skip_playready: bool,
+
+    /// Path to the widevine device (.wvd) file.
+    #[arg(long, value_name = "WVD", help_heading = "Widevine Options")]
+    widevine_device: Option<PathBuf>,
+
     /// Widevine license server URL.
-    #[arg(long, value_name = "URL")]
+    #[arg(long, value_name = "URL", help_heading = "Widevine Options")]
     widevine_url: Option<Url>,
+
+    /// Skip widevine license request.
+    #[arg(long, help_heading = "Widevine Options")]
+    skip_widevine: bool,
 }
 
 impl License {
@@ -98,6 +105,9 @@ impl License {
         for pssh in pssh_data {
             match Self::system_id(&pssh)? {
                 SystemId::PlayReady => {
+                    if self.skip_playready {
+                        continue;
+                    }
                     let Some(device_path) = &self.playready_device else {
                         bail!("Playready device (.prd) path not provided.");
                     };
@@ -129,10 +139,13 @@ impl License {
                     let keys = session.get_keys_from_challenge_response(&data)?;
 
                     for (kid, key) in &keys {
-                        println!("[{}] {}:{}", "CONTENT".green(), kid, key);
+                        println!("DrmKey [{}] {}:{}", "prd".magenta(), kid, key);
                     }
                 }
                 SystemId::WideVine => {
+                    if self.skip_widevine {
+                        continue;
+                    }
                     let Some(device_path) = &self.widevine_device else {
                         bail!("Widevine device (.wvd) path not provided.");
                     };
@@ -166,12 +179,14 @@ impl License {
                     let keys: Vec<widevine::Key> = unsafe { std::mem::transmute(keys) };
 
                     for key in keys {
-                        info!(
-                            "[{}] {}:{}",
-                            format!("{:?}", key.typ).green(),
-                            hex::encode(key.kid),
-                            hex::encode(key.key)
-                        );
+                        if let widevine::KeyType::CONTENT = key.typ {
+                            info!(
+                                "DrmKey [{}] {}:{}",
+                                "wvd".magenta(),
+                                hex::encode(key.kid),
+                                hex::encode(key.key)
+                            );
+                        }
                     }
                 }
                 _ => unreachable!(),
