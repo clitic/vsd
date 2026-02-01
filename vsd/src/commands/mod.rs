@@ -105,7 +105,7 @@ impl Args {
             Commands::Extract(args) => args.execute().await?,
             #[cfg(feature = "license")]
             Commands::License(args) => args.execute().await?,
-            Commands::Merge(args) => args.execute()?,
+            Commands::Merge(args) => args.execute().await?,
             Commands::Save(args) => args.execute().await?,
         }
 

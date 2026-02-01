@@ -1,108 +1,105 @@
 use anyhow::{Result, bail};
 use clap::{Args, ValueEnum};
-use std::{
-    fs,
-    fs::File,
-    io::{BufReader, Read, Write},
+use std::path::PathBuf;
+use tokio::{
+    fs::{self, File},
+    io::{self, AsyncWriteExt, BufReader},
     process::Command,
 };
 
-/// Merge multiple segments to a single file.
+/// Merge multiple media segments into a single file.
 #[derive(Args, Clone, Debug)]
 pub struct Merge {
-    /// List of files (at least 2) to merge together e.g. *.ts, *.m4s etc. .
+    /// Glob patterns for input files (e.g., `*.ts`, `segment_*.m4s`).
+    ///
+    /// At least two files must match the provided patterns.
     #[arg(required = true)]
-    files: Vec<String>,
+    input: Vec<String>,
 
-    /// Path for merged output file.
+    /// Destination path for the merged output file.
     #[arg(short, long, required = true)]
-    output: String,
+    output: PathBuf,
 
-    /// Type of merge to be performed.
-    #[arg(short, long, value_enum, default_value_t = MergeType::Binary)]
-    _type: MergeType,
+    /// Merge strategy to use.
+    ///
+    /// `binary` performs a raw byte concatenation, while `ffmpeg` uses
+    /// ffmpeg's concat demuxer for container-aware merging.
+    #[arg(short = 't', long = "type", value_enum, default_value_t = MergeType::Binary)]
+    typ: MergeType,
 }
 
 #[derive(Debug, Clone, ValueEnum)]
 enum MergeType {
     Binary,
-    Ffmpeg,
+    FFmpeg,
 }
 
 impl Merge {
-    pub fn execute(self) -> Result<()> {
-        let mut files = vec![];
+    pub async fn execute(self) -> Result<()> {
+        let output_canonical = self.output.canonicalize().ok();
+        let mut files = self
+            .input
+            .iter()
+            .filter_map(|p| glob::glob(p).ok())
+            .flatten()
+            .filter_map(|res| res.ok())
+            .filter(|f| {
+                if let Some(out) = output_canonical.as_ref() {
+                    return f.canonicalize().ok().as_ref() != Some(out);
+                }
+                true
+            })
+            .collect::<Vec<_>>();
+        files.sort();
 
-        for pattern in &self.files {
-            for file in glob::glob(pattern)? {
-                files.push(file?);
-            }
+        if files.len() < 2 {
+            bail!("At least two files are required to perform a merge.");
         }
 
-        if 1 >= files.len() {
-            bail!("At least 2 files are required to merge together.")
-        }
-
-        match self._type {
+        match self.typ {
             MergeType::Binary => {
-                let mut output = File::create(self.output)?;
-                let buffer_size = 1024 * 1024 * 2; // 2 MiB
+                const BUFFER_SIZE: usize = 1024 * 1024 * 10;
+                let mut output = File::create(self.output).await?;
 
-                for file in files {
-                    let file_size = fs::metadata(&file)?.len();
-
-                    if buffer_size >= file_size {
-                        let buf = fs::read(file)?;
-                        output.write_all(&buf)?;
-                    } else {
-                        let file = File::open(file)?;
-                        let mut reader = BufReader::new(file);
-
-                        loop {
-                            let mut buf = vec![];
-                            reader.by_ref().take(buffer_size).read_to_end(&mut buf)?;
-
-                            if buf.is_empty() {
-                                break;
-                            }
-
-                            output.write_all(&buf)?;
-                        }
-                    }
+                for path in files {
+                    let file = File::open(path).await?;
+                    let mut reader = BufReader::with_capacity(BUFFER_SIZE, file);
+                    io::copy(&mut reader, &mut output).await?;
                 }
+
+                output.flush().await?;
             }
-            MergeType::Ffmpeg => {
-                let concat_file = "vsd-ffmpeg-concat.txt";
-                let mut concat = File::create(concat_file)?;
+            MergeType::FFmpeg => {
+                let content = files
+                    .iter()
+                    .map(|f| format!("file '{}'", f.to_string_lossy().replace('\'', "'\\''")))
+                    .collect::<Vec<_>>()
+                    .join("\n");
 
-                for file in files {
-                    let file = file.to_string_lossy();
-
-                    if file != self.output {
-                        concat.write_fmt(format_args!("file '{file}'\n"))?;
-                    }
-                }
-
+                fs::write("vsd-merge.txt", content).await?;
                 let status = Command::new("ffmpeg")
                     .args([
                         "-hide_banner",
+                        "-loglevel",
+                        "error",
                         "-y",
                         "-f",
                         "concat",
+                        "-safe",
+                        "0",
                         "-i",
-                        concat_file,
+                        "vsd-merge.txt",
                         "-c",
                         "copy",
-                        &self.output,
+                        &self.output.to_string_lossy(),
                     ])
-                    .spawn()?
-                    .wait()?;
+                    .status()
+                    .await?;
+                fs::remove_file("vsd-merge.txt").await?;
 
                 if !status.success() {
-                    bail!("ffmpeg exited with code {}.", status.code().unwrap_or(1))
+                    bail!("FFmpeg exited with code {}.", status.code().unwrap_or(1))
                 }
-
-                fs::remove_file(concat_file)?;
             }
         }
 
