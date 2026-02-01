@@ -102,7 +102,7 @@ impl Args {
         match self.command {
             #[cfg(feature = "capture")]
             Commands::Capture(args) => args.execute().await?,
-            Commands::Extract(args) => args.execute()?,
+            Commands::Extract(args) => args.execute().await?,
             #[cfg(feature = "license")]
             Commands::License(args) => args.execute().await?,
             Commands::Merge(args) => args.execute()?,
