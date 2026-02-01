@@ -28,9 +28,9 @@ vsd [OPTIONS] <COMMAND>
 | Command | Description |
 |---------|-------------|
 | `capture` | Capture playlists and subtitles requests from a website |
-| `extract` | Extract subtitles from mp4 boxes |
+| `extract` | Extract subtitles from fragmented MP4 files |
 | `license` | Request content keys from a license server |
-| `merge` | Merge multiple segments to a single file |
+| `merge` | Merge multiple media segments into a single file |
 | `save` | Download DASH and HLS playlists |
 
 **Global Options:**
@@ -49,8 +49,8 @@ Capture playlists and subtitles requests from a website.
 
 Requires one of the following browsers to be installed:
 
-- chrome   - https://www.google.com/chrome
-- chromium - https://www.chromium.org/getting-involved/download-chromium
+- [chrome](https://www.google.com/chrome)
+- [chromium](https://www.chromium.org/getting-involved/download-chromium)
 
 This command launches an automated browser instance and listen on requests. Behavior may vary, and it may not work as expected on all websites. This is equivalent to manually doing:
 
@@ -68,18 +68,18 @@ vsd capture [OPTIONS] <URL>
 
 | Flag | Description |
 |------|-------------|
-| `--cookies` | Launch browser with cookies loaded from a json file |
+| `--cookies` | Launch browser with cookies loaded from a netscape cookie file |
 | `--extensions` | List of file extensions to be filter out seperated by comma<br>*Default:* `.m3u,.m3u8,.mpd,.vtt,.ttml,.srt` |
 | `--headless` | Launch browser without a window |
 | `--proxy` | Launch browser with a proxy |
 | `--resource-types` | List of resource types to be filter out seperated by commas<br>*Possible values:* `document`, `stylesheet`, `image`, `media`, `font`, `script`, `texttrack`, `xhr`, `fetch`, `prefetch`, `eventsource`, `websocket`, `manifest`, `signedexchange`, `ping`, `cspviolationreport`, `preflight`, `fedcm`, `other`<br>*Default:* `fetch,xhr` |
-| `--save-cookies` | Save browser cookies in vsd-cookies.json file |
+| `--save-cookies` | Save browser cookies in cookies.txt netscape cookie file |
 
 [↑ Back to top](#command-overview)
 
 ### `vsd extract`
 
-Extract subtitles from mp4 boxes
+Extract subtitles from fragmented MP4 files
 
 ```
 vsd extract [OPTIONS] <INPUT>
@@ -87,13 +87,16 @@ vsd extract [OPTIONS] <INPUT>
 
 **Arguments:**
 
-- `<INPUT>`: Path of mp4 file which either contains WVTT or STPP box. If there are multiple fragments of same mp4 file, then merge them using merge sub-command *(required)*
+- `<INPUT>`: Path to an MP4 file containing WVTT (WebVTT) or STPP (TTML) subtitle boxes.
+
+For fragmented MP4 files split across multiple segments, use the `merge` sub-command first to combine them into a single file. *(required)*
 
 **Options:**
 
 | Flag | Description |
 |------|-------------|
-| `-c, --codec` | Codec for output subtitles<br>*Possible values:* `subrip`, `webvtt`<br>*Default:* `webvtt` |
+| `-c, --codec` | Output subtitle format<br>*Possible values:* `subrip`, `webvtt`<br>*Default:* `webvtt` |
+| `-o, --output` | Destination file path for extracted subtitles.<br><br>If provided, the codec is inferred from the file extension (`.srt` or `.vtt`). If omitted, subtitles are printed to stdout. |
 
 [↑ Back to top](#command-overview)
 
@@ -107,38 +110,52 @@ vsd license [OPTIONS] <INPUT>
 
 **Arguments:**
 
-- `<INPUT>`: PSSH data input. Can be an init file path, playlist url or base64 encoded PSSH box *(required)*
+- `<INPUT>`: INIT_PATH | PLAYLIST_URL | BASE64_PSSH *(required)*
 
 **Options:**
 
 | Flag | Description |
 |------|-------------|
 | `-H, --header` | Extra headers for license request in same format as curl.<br><br>This option can be used multiple times. |
-| `--playready-device` | Path to the Playready device (.prd) file |
-| `--widevine-device` | Path to the Widevine device (.wvd) file |
+
+**Playready Options:**
+
+| Flag | Description |
+|------|-------------|
+| `--playready-device` | Path to the playready device (.prd) file |
 | `--playready-url` | Playready license server URL |
+| `--skip-playready` | Skip playready license request |
+
+**Widevine Options:**
+
+| Flag | Description |
+|------|-------------|
+| `--widevine-device` | Path to the widevine device (.wvd) file |
 | `--widevine-url` | Widevine license server URL |
+| `--skip-widevine` | Skip widevine license request |
 
 [↑ Back to top](#command-overview)
 
 ### `vsd merge`
 
-Merge multiple segments to a single file
+Merge multiple media segments into a single file
 
 ```
-vsd merge [OPTIONS] <FILES>
+vsd merge [OPTIONS] <INPUT>
 ```
 
 **Arguments:**
 
-- `<FILES>`: List of files (at least 2) to merge together e.g. *.ts, *.m4s etc.  *(required)*
+- `<INPUT>`: Glob patterns for input files (e.g., `*.ts`, `segment_*.m4s`).
+
+At least two files must match the provided patterns. *(required)*
 
 **Options:**
 
 | Flag | Description |
 |------|-------------|
-| `-o, --output` | Path for merged output file |
-| `-t, --type` | Type of merge to be performed<br>*Possible values:* `binary`, `ffmpeg`<br>*Default:* `binary` |
+| `-o, --output` | Destination path for the merged output file |
+| `-t, --type` | Merge strategy to use.<br><br>`binary` performs a raw byte concatenation, while `ffmpeg` uses ffmpeg's concat demuxer for container-aware merging.<br>*Possible values:* `binary`, `f-fmpeg`<br>*Default:* `binary` |
 
 [↑ Back to top](#command-overview)
 
@@ -177,7 +194,7 @@ vsd save [OPTIONS] <INPUT>
 
 | Flag | Description |
 |------|-------------|
-| `--cookies` | Fill request client with some existing cookies value. Cookies value can be same as document.cookie or in json format same as puppeteer |
+| `--cookies` | Fill request client with some existing cookies value. It should be a path to a file containing cookies in netscape format |
 | `-H, --header` | Extra headers for requests in same format as curl.<br><br>This option can be used multiple times. |
 | `--no-certificate-checks` | Skip checking and validation of site certificates |
 | `--proxy` | Set http(s) / socks proxy address for requests |

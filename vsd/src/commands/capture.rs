@@ -19,12 +19,12 @@ use tokio_stream::StreamExt;
 #[derive(Args, Clone, Debug)]
 #[clap(
     long_about = "Capture playlists and subtitles requests from a website.\n\n\
-Requires one of the following browsers to be installed:\n\
-* chrome   - https://www.google.com/chrome\n\
-* chromium - https://www.chromium.org/getting-involved/download-chromium\n\n\
+Requires one of the following browsers to be installed:\n\n\
+- [chrome](https://www.google.com/chrome)\n\
+- [chromium](https://www.chromium.org/getting-involved/download-chromium)\n\n\
 This command launches an automated browser instance and listen on requests. \
 Behavior may vary, and it may not work as expected on all websites. \
-This is equivalent to manually doing:\n\
+This is equivalent to manually doing:\n\n\
 Inspect -> Network -> Fetch/XHR -> Filter by extension -> Copy as cURL (bash)"
 )]
 pub struct Capture {
