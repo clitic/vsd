@@ -6,13 +6,21 @@
 
 */
 
-#[cfg(feature = "capture")]
-use chromiumoxide::cdp::browser_protocol::network::{
-    Cookie as BrowserCookie, CookieParam, TimeSinceEpoch,
-};
-
 use chrono::{TimeZone, Utc};
 use std::str;
+
+#[derive(Clone, Debug)]
+pub struct Cookie<'a> {
+    domain: &'a str,
+    #[allow(unused)]
+    include_subdomains: bool,
+    path: &'a str,
+    secure: bool,
+    expires: i64,
+    name: &'a str,
+    value: &'a str,
+    http_only: bool,
+}
 
 #[derive(Clone, Debug)]
 pub struct Cookies<'a>(pub Vec<Cookie<'a>>);
@@ -78,6 +86,7 @@ impl<'a> Cookies<'a> {
         Ok(Cookies(cookies))
     }
 
+    #[cfg(feature = "capture")]
     pub fn to_netscape(&self) -> String {
         let mut out = "# Netscape HTTP Cookie File\n\
         # https://curl.se/docs/http-cookies.html\n\
@@ -91,26 +100,15 @@ impl<'a> Cookies<'a> {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct Cookie<'a> {
-    domain: &'a str,
-    include_subdomains: bool,
-    path: &'a str,
-    secure: bool,
-    expires: i64,
-    name: &'a str,
-    value: &'a str,
-    http_only: bool,
-}
-
 impl<'a> Cookie<'a> {
+    #[cfg(feature = "capture")]
     fn to_netscape(&self) -> String {
         format!(
             "{}\t{}\t{}\t{}\t{}\t{}\t{}",
             if self.http_only {
-                &format!("#HttpOnly_{}", self.domain)
+                format!("#HttpOnly_{}", self.domain)
             } else {
-                self.domain
+                self.domain.to_owned()
             },
             if self.include_subdomains {
                 "TRUE"
@@ -190,6 +188,11 @@ impl From<str::Utf8Error> for ParseError {
         ParseError::Utf8Error(err)
     }
 }
+
+#[cfg(feature = "capture")]
+use chromiumoxide::cdp::browser_protocol::network::{
+    Cookie as BrowserCookie, CookieParam, TimeSinceEpoch,
+};
 
 #[cfg(feature = "capture")]
 impl<'a> From<&'a Vec<CookieParam>> for Cookies<'a> {

@@ -37,6 +37,11 @@ curl -L https://dl.google.com/android/repository/android-ndk-$ANDROID_NDK_VERSIO
 unzip android-ndk-$ANDROID_NDK_VERSION-linux.zip -d $PACKAGES_DIR
 rm android-ndk-$ANDROID_NDK_VERSION-linux.zip
 
+echo "Installing openssl-aarch64-linux-android"
+curl -L https://packages.termux.dev/apt/termux-main/pool/main/o/openssl/openssl_1%3A3.6.1_aarch64.deb -o openssl-aarch64-linux-android.deb
+dpkg-deb -x openssl-aarch64-linux-android.deb $PACKAGES_DIR/openssl-aarch64-linux-android
+rm openssl-aarch64-linux-android.deb
+
 echo "Installing MacOSX SDK v$MACOS_SDK_VERSION"
 curl -L https://github.com/joseluisq/macosx-sdks/releases/download/$MACOS_SDK_VERSION/MacOSX$MACOS_SDK_VERSION.sdk.tar.xz | tar xJC $PACKAGES_DIR
 
