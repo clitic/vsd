@@ -27,59 +27,59 @@ vsd [OPTIONS] <COMMAND>
 
 | Command | Description |
 |---------|-------------|
-| `capture` | Capture playlists and subtitles requests from a website |
-| `extract` | Extract subtitles from fragmented MP4 files |
+| `capture` | Capture playlist requests from a website |
+| `extract` | Extract subtitles from a fragmented MP4 file |
 | `license` | Request content keys from a license server |
 | `merge` | Merge multiple media segments into a single file |
-| `save` | Download DASH and HLS playlists |
+| `save` | Download streams from DASH or HLS playlist |
 
 **Global Options:**
 
 | Flag | Description |
 |------|-------------|
-| `--color` | When to output colored text<br>*Possible values:* `auto`, `always`, `never`<br>*Default:* `auto` |
-| `-q, --quiet` | Silence all output and only log errors |
-| `-v, --verbose` | Increase verbosity (-v [debug], -vv [trace]). Default logging level is set to info |
+| `--color` | When to use colored output<br>*Possible values:* `auto`, `always`, `never`<br>*Default:* `auto` |
+| `-q, --quiet` | Suppress all output except errors |
+| `-v, --verbose` | Increase verbosity: `-v` (debug), `-vv` (trace). The default log level is `info` |
 
 [↑ Back to top](#command-overview)
 
 ### `vsd capture`
 
-Capture playlists and subtitles requests from a website.
+Capture playlist requests from a website.
 
-Requires one of the following browsers to be installed:
+Requires any one of these browsers:
 
 - [chrome](https://www.google.com/chrome)
 - [chromium](https://www.chromium.org/getting-involved/download-chromium)
 
-This command launches an automated browser instance and listen on requests. Behavior may vary, and it may not work as expected on all websites. This is equivalent to manually doing:
+This command launches an automated browser instance and listen on network requests. Behavior may vary, and it may not work as expected on all websites. This is equivalent to manually doing:
 
 Inspect -> Network -> Fetch/XHR -> Filter by extension -> Copy as cURL (bash)
 
 ```
-vsd capture [OPTIONS] <URL>
+vsd capture [OPTIONS] <INPUT>
 ```
 
 **Arguments:**
 
-- `<URL>`: http(s):// *(required)*
+- `<INPUT>`: HTTP(S):// *(required)*
 
 **Options:**
 
 | Flag | Description |
 |------|-------------|
-| `--cookies` | Launch browser with cookies loaded from a netscape cookie file |
-| `--extensions` | List of file extensions to be filter out seperated by comma<br>*Default:* `.m3u,.m3u8,.mpd,.vtt,.ttml,.srt` |
-| `--headless` | Launch browser without a window |
+| `--cookies` | Launch browser with cookies (netscape cookie file) |
+| `--extensions` | List of file extensions to be filtered out separated by comma<br>*Default:* `.m3u,.m3u8,.mpd,.vtt,.ttml,.srt` |
+| `--headless` | Launch browser in headless mode (without a window) |
 | `--proxy` | Launch browser with a proxy |
-| `--resource-types` | List of resource types to be filter out seperated by commas<br>*Possible values:* `document`, `stylesheet`, `image`, `media`, `font`, `script`, `texttrack`, `xhr`, `fetch`, `prefetch`, `eventsource`, `websocket`, `manifest`, `signedexchange`, `ping`, `cspviolationreport`, `preflight`, `fedcm`, `other`<br>*Default:* `fetch,xhr` |
-| `--save-cookies` | Save browser cookies in cookies.txt netscape cookie file |
+| `--resource-types` | List of resource types to be filtered out separated by comma<br>*Possible values:* `document`, `stylesheet`, `image`, `media`, `font`, `script`, `texttrack`, `xhr`, `fetch`, `prefetch`, `eventsource`, `websocket`, `manifest`, `signedexchange`, `ping`, `cspviolationreport`, `preflight`, `fedcm`, `other`<br>*Default:* `fetch,xhr` |
+| `--save-cookies` | Save browser cookies in cookies.txt (netscape cookie file) |
 
 [↑ Back to top](#command-overview)
 
 ### `vsd extract`
 
-Extract subtitles from fragmented MP4 files
+Extract subtitles from a fragmented MP4 file
 
 ```
 vsd extract [OPTIONS] <INPUT>
@@ -87,16 +87,14 @@ vsd extract [OPTIONS] <INPUT>
 
 **Arguments:**
 
-- `<INPUT>`: Path to an MP4 file containing WVTT (WebVTT) or STPP (TTML) subtitle boxes.
-
-For fragmented MP4 files split across multiple segments, use the `merge` sub-command first to combine them into a single file. *(required)*
+- `<INPUT>`: Path to an MP4 file containing WVTT (WebVTT) or STPP (TTML) subtitle boxes. For fragmented MP4 files split across multiple segments, use the `merge` sub-command first to combine them into a single file *(required)*
 
 **Options:**
 
 | Flag | Description |
 |------|-------------|
 | `-c, --codec` | Output subtitle format<br>*Possible values:* `subrip`, `webvtt`<br>*Default:* `webvtt` |
-| `-o, --output` | Destination file path for extracted subtitles.<br><br>If provided, the codec is inferred from the file extension (`.srt` or `.vtt`). If omitted, subtitles are printed to stdout. |
+| `-o, --output` | Destination file path for extracted subtitles.<br><br>If `provided`, the codec is inferred from the file extension (`.srt` or `.vtt`). If `omitted`, subtitles are printed to stdout. |
 
 [↑ Back to top](#command-overview)
 
@@ -116,7 +114,7 @@ vsd license [OPTIONS] <INPUT>
 
 | Flag | Description |
 |------|-------------|
-| `-H, --header` | Extra headers for license request in same format as curl.<br><br>This option can be used multiple times. |
+| `-H, --header` | Additional headers for license request in same format as curl.<br><br>This option can be used multiple times. |
 
 **Playready Options:**
 
@@ -161,7 +159,7 @@ At least two files must match the provided patterns. *(required)*
 
 ### `vsd save`
 
-Download DASH and HLS playlists
+Download streams from DASH or HLS playlist
 
 ```
 vsd save [OPTIONS] <INPUT>
@@ -169,51 +167,51 @@ vsd save [OPTIONS] <INPUT>
 
 **Arguments:**
 
-- `<INPUT>`: http(s):// | .mpd | .xml | .m3u8 *(required)*
+- `<INPUT>`: HTTP(S):// | .M3U8 | .MPD *(required)*
 
 **Options:**
 
 | Flag | Description |
 |------|-------------|
-| `--base-url` | Base url to be used for building absolute url to segment. This flag is usually needed for local input files. By default redirected playlist url is used |
-| `-d, --directory` | Change directory path for temporarily downloaded files. By default current working directory is used |
-| `-o, --output` | Mux all downloaded streams to a video container (.mp4, .mkv, etc.) using ffmpeg. Note that existing files will be overwritten and downloaded streams will be deleted |
-| `--parse` | Parse playlist and returns it in json format. Note that --output flag is ignored when this flag is used |
-| `--subs-codec` | Force some specific subtitle codec when muxing through ffmpeg. By default `mov_text` is used for .mp4 and `copy` for others<br>*Default:* `copy` |
+| `--base-url` | Base URL for resolving relative segment paths.<br><br>Required for local playlist files. For remote playlists, the final redirected URL is used by default. |
+| `-d, --directory` | Working directory for temporary segment files.<br><br>Defaults to the current directory. |
+| `-o, --output` | Mux downloaded streams into a video container using ffmpeg (`.mp4`, `.mkv`, etc.).<br><br>Overwrites existing files and deletes intermediate stream files after muxing. |
+| `--parse` | Output parsed playlist metadata as JSON instead of downloading |
+| `--subs-codec` | Subtitle codec to use when muxing with ffmpeg.<br><br>Defaults to `mov_text` for `.mp4` containers, `copy` for others. |
 
 **Automation Options:**
 
 | Flag | Description |
 |------|-------------|
-| `-i, --interactive` | Prompt for custom streams selection with modern style input prompts. By default proceed with defaults |
-| `-I, --interactive-raw` | Prompt for custom streams selection with raw style input prompts. By default proceed with defaults |
-| `-l, --list-streams` | List all the streams present inside the playlist |
-| `-s, --select-streams` | Filters to be applied for automatic stream selection.<br><br>SYNTAX: `v={}:a={}:s={}` where `{}` (in priority order) can contain<br>\|> all: select all streams.<br>\|> skip: skip all streams or select inverter.<br>\|> 1,2: indices obtained by --list-streams flag.<br>\|> 1080p,1280x720: stream resolution.<br>\|> en,fr: stream language.<br><br>EXAMPLES:<br>\|> v=skip:a=skip:s=all (download all sub streams)<br>\|> a:en:s=en (prefer en lang)<br>\|> v=1080p:a=all:s=skip (1080p with all audio streams)<br><br>*Default:* `v=best:s=en` |
+| `-i, --interactive` | Enable interactive stream selection with styled prompts |
+| `-I, --interactive-raw` | Enable interactive stream selection with plain text prompts |
+| `-l, --list-streams` | Display all available streams without downloading |
+| `-s, --select-streams` | Stream selection filters for automatic mode.<br><br>SYNTAX:<br><br>`v={}:a={}:s={}` where `{}` (in priority order) can contain<br><br>\|> all: select all streams.<br>\|> skip: skip all streams or select inverter.<br>\|> 1,2: indices obtained by --list-streams flag.<br>\|> 1080p,1280x720: stream resolution.<br>\|> en,fr: stream language.<br><br>EXAMPLES:<br><br>\|> 1,2,3 (indices 1, 2, and 3)<br>\|> v=skip:a=skip:s=all (all sub streams)<br>\|> a:en:s=en (prefer en lang)<br>\|> v=1080p:a=all:s=skip (1080p with all aud streams)<br><br>*Default:* `v=best:s=en` |
 
 **Client Options:**
 
 | Flag | Description |
 |------|-------------|
-| `--cookies` | Fill request client with some existing cookies value. It should be a path to a file containing cookies in netscape format |
-| `-H, --header` | Extra headers for requests in same format as curl.<br><br>This option can be used multiple times. |
-| `--no-certificate-checks` | Skip checking and validation of site certificates |
-| `--proxy` | Set http(s) / socks proxy address for requests |
-| `--query` | Set query parameters for requests |
+| `--cookies` | Path to a netscape cookie file for authenticated requests |
+| `-H, --header` | Additional headers for requests in same format as curl.<br><br>This option can be used multiple times. |
+| `--no-certificate-checks` | Disable TLS certificate verification (insecure) |
+| `--proxy` | Proxy server URL (HTTP, HTTPS, or SOCKS) |
+| `--query` | Additional query parameters for requests |
 
 **Decrypt Options:**
 
 | Flag | Description |
 |------|-------------|
-| `--keys` | Keys for decrypting encrypted streams. KID:KEY should be specified in hex format |
-| `--no-decrypt` | Download encrypted streams without decrypting them. Note that --output flag is ignored if this flag is used |
+| `--keys` | Decryption keys in `KID:KEY;…` hex format |
+| `--no-decrypt` | Skip decryption and download encrypted streams as-is.<br><br>Ignores `--output` when enabled. |
 
 **Download Options:**
 
 | Flag | Description |
 |------|-------------|
-| `--no-merge` | Download streams without merging them. Note that --output flag is ignored if this flag is used |
-| `--retries` | Maximum number of retries to download an individual segment<br>*Default:* `10` |
-| `-t, --threads` | Total number of threads for parllel downloading of segments. Number of threads should be in range 1-16 (inclusive)<br>*Default:* `5` |
+| `--no-merge` | Skip segment merging and keep individual files.<br><br>Ignores `--output` when enabled. |
+| `--retries` | Maximum retry attempts per segment<br>*Default:* `10` |
+| `-t, --threads` | Number of concurrent download threads (1–16)<br>*Default:* `5` |
 
 [↑ Back to top](#command-overview)
 
