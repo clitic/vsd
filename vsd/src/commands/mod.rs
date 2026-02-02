@@ -68,6 +68,7 @@ pub struct Args {
     quiet: bool,
 
     /// Increase verbosity: `-v` (debug), `-vv` (trace).
+    ///
     /// The default log level is `info`.
     #[arg(short, long, global = true, help_heading = "Global Options", action = ArgAction::Count)]
     verbose: u8,

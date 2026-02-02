@@ -39,7 +39,7 @@ vsd [OPTIONS] <COMMAND>
 |------|-------------|
 | `--color` | When to use colored output<br>*Possible values:* `auto`, `always`, `never`<br>*Default:* `auto` |
 | `-q, --quiet` | Suppress all output except errors |
-| `-v, --verbose` | Increase verbosity: `-v` (debug), `-vv` (trace). The default log level is `info` |
+| `-v, --verbose` | Increase verbosity: `-v` (debug), `-vv` (trace).<br><br>The default log level is `info`. |
 
 [↑ Back to top](#command-overview)
 
@@ -151,7 +151,7 @@ vsd merge [OPTIONS] <INPUT>
 | Flag | Description |
 |------|-------------|
 | `-o, --output` | Destination path for the merged output file |
-| `-t, --type` | Merge strategy to use.<br><br>`binary` performs a raw byte concatenation, while `ffmpeg` uses ffmpeg's concat demuxer for container-aware merging.<br>*Possible values:* `binary`, `f-fmpeg`<br>*Default:* `binary` |
+| `-t, --type` | Merge strategy to use.<br><br>`binary` performs a raw byte concatenation, while `ffmpeg` uses ffmpeg's concat demuxer for container-aware merging.<br>*Possible values:* `binary`, `ffmpeg`<br>*Default:* `binary` |
 
 [↑ Back to top](#command-overview)
 

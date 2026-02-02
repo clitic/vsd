@@ -29,7 +29,7 @@ pub struct Merge {
 #[derive(Debug, Clone, ValueEnum)]
 enum MergeType {
     Binary,
-    FFmpeg,
+    Ffmpeg,
 }
 
 impl Merge {
@@ -67,7 +67,7 @@ impl Merge {
 
                 output.flush().await?;
             }
-            MergeType::FFmpeg => {
+            MergeType::Ffmpeg => {
                 let content = files
                     .iter()
                     .map(|f| format!("file '{}'", f.to_string_lossy().replace('\'', "'\\''")))
