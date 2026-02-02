@@ -116,7 +116,7 @@ This project is developed and maintained in my free time. Donations help cover d
 
 <div align="center">
   <a href="mailto:clitic21@gmail.com" target="_blank" style="text-decoration: none;">
-    <img src="https://raw.githubusercontent.com/clitic/vsd/refs/heads/main/docs/assets/contact.svg" alt="Contact Me" height="40px">
+    <img src="https://raw.githubusercontent.com/clitic/vsd/refs/heads/main/docs/assets/contact.svg" alt="Contact Me" height="42px">
   </a>
   <a href="https://www.buymeacoffee.com/clitic" target="_blank" style="text-decoration: none;">
     <img src="https://raw.githubusercontent.com/clitic/vsd/refs/heads/main/docs/assets/bmc.svg" alt="Buy Me A Coffee" height="40px">

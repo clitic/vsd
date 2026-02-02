@@ -11,8 +11,6 @@ use tokio::{
 #[derive(Args, Clone, Debug)]
 pub struct Merge {
     /// Glob patterns for input files (e.g., `*.ts`, `segment_*.m4s`).
-    ///
-    /// At least two files must match the provided patterns.
     #[arg(required = true)]
     input: Vec<String>,
 

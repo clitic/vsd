@@ -144,9 +144,7 @@ vsd merge [OPTIONS] <INPUT>
 
 **Arguments:**
 
-- `<INPUT>`: Glob patterns for input files (e.g., `*.ts`, `segment_*.m4s`).
-
-At least two files must match the provided patterns. *(required)*
+- `<INPUT>`: Glob patterns for input files (e.g., `*.ts`, `segment_*.m4s`) *(required)*
 
 **Options:**
 
