@@ -21,7 +21,7 @@ pub struct License {
     #[arg(required = true)]
     input: String,
 
-    /// Extra headers for license request in same format as curl.
+    /// Additional headers for license request in same format as curl.
     ///
     /// This option can be used multiple times.
     #[arg(short = 'H', long = "header", value_name = "KEY:VALUE", value_parser = Self::parse_header)]

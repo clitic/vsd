@@ -12,46 +12,56 @@ use reqwest::{
 };
 use std::{
     collections::HashMap,
+    fs::File,
+    io,
     path::PathBuf,
     sync::{Arc, atomic::Ordering},
     time::Duration,
 };
 use tokio::fs;
 
-/// Download DASH and HLS playlists.
+/// Download streams from DASH or HLS playlist.
 #[derive(Args, Clone, Debug)]
 pub struct Save {
-    /// http(s):// | .mpd | .xml | .m3u8
+    /// HTTP(S):// | .M3U8 | .MPD
     #[arg(required = true)]
     pub input: String,
 
-    /// Base url to be used for building absolute url to segment.
-    /// This flag is usually needed for local input files.
-    /// By default redirected playlist url is used.
+    /// Base URL for resolving relative segment paths.
+    ///
+    /// Required for local playlist files. For remote playlists,
+    /// the final redirected URL is used by default.
     #[arg(long)]
     pub base_url: Option<Url>,
 
-    /// Change directory path for temporarily downloaded files.
-    /// By default current working directory is used.
+    /// Working directory for temporary segment files.
+    ///
+    /// Defaults to the current directory.
     #[arg(short, long)]
     pub directory: Option<PathBuf>,
 
-    /// Mux all downloaded streams to a video container (.mp4, .mkv, etc.) using ffmpeg.
-    /// Note that existing files will be overwritten and downloaded streams will be deleted.
+    /// Mux downloaded streams into a video container using ffmpeg (`.mp4`, `.mkv`, etc.).
+    ///
+    /// Overwrites existing files and deletes intermediate stream files after muxing.
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
-    /// Parse playlist and returns it in json format.
-    /// Note that --output flag is ignored when this flag is used.
+    /// Output parsed playlist metadata as JSON instead of downloading.
     #[arg(long)]
     pub parse: bool,
 
-    /// Force some specific subtitle codec when muxing through ffmpeg.
-    /// By default `mov_text` is used for .mp4 and `copy` for others.
-    #[arg(long, default_value = "copy")]
+    /// Subtitle codec to use when muxing with ffmpeg.
+    ///
+    /// Defaults to `mov_text` for `.mp4` containers, `copy` for others.
+    #[arg(
+        long,
+        value_name = "CODEC",
+        default_value = "copy",
+        hide_default_value = true
+    )]
     pub subs_codec: String,
 
-    /// Prompt for custom streams selection with modern style input prompts. By default proceed with defaults.
+    /// Enable interactive stream selection with styled prompts.
     #[arg(
         short,
         long,
@@ -60,78 +70,80 @@ pub struct Save {
     )]
     pub interactive: bool,
 
-    /// Prompt for custom streams selection with raw style input prompts. By default proceed with defaults.
+    /// Enable interactive stream selection with plain text prompts.
     #[arg(short = 'I', long, help_heading = "Automation Options")]
     pub interactive_raw: bool,
 
-    /// List all the streams present inside the playlist.
+    /// Display all available streams without downloading.
     #[arg(short, long, help_heading = "Automation Options")]
     pub list_streams: bool,
 
-    /// Filters to be applied for automatic stream selection.
+    /// Stream selection filters for automatic mode.
     #[arg(
         short,
         long,
+        value_name = "STREAMS",
         help_heading = "Automation Options",
         default_value = "v=best:s=en",
-        long_help = "Filters to be applied for automatic stream selection.\n\n\
-        SYNTAX: `v={}:a={}:s={}` where `{}` (in priority order) can contain\n\
+        long_help = "Stream selection filters for automatic mode.\n\n\
+        SYNTAX:\n\n\
+        `v={}:a={}:s={}` where `{}` (in priority order) can contain\n\n\
         |> all: select all streams.\n\
         |> skip: skip all streams or select inverter.\n\
         |> 1,2: indices obtained by --list-streams flag.\n\
         |> 1080p,1280x720: stream resolution.\n\
         |> en,fr: stream language.\n\n\
-        EXAMPLES:\n\
-        |> v=skip:a=skip:s=all (download all sub streams)\n\
+        EXAMPLES:\n\n\
+        |> 1,2,3 (indices 1, 2, and 3)\n\
+        |> v=skip:a=skip:s=all (all sub streams)\n\
         |> a:en:s=en (prefer en lang)\n\
-        |> v=1080p:a=all:s=skip (1080p with all audio streams)\n"
+        |> v=1080p:a=all:s=skip (1080p with all aud streams)\n"
     )]
     pub select_streams: String,
 
-    /// Fill request client with some existing cookies value.
-    /// It should be a path to a file containing cookies in netscape format.
-    #[arg(long, help_heading = "Client Options")]
+    /// Path to a netscape cookie file for authenticated requests.
+    #[arg(long, value_name = "PATH", help_heading = "Client Options")]
     pub cookies: Option<PathBuf>,
 
-    /// Extra headers for requests in same format as curl.
+    /// Additional headers for requests in same format as curl.
     ///
     /// This option can be used multiple times.
-    #[arg(short = 'H', long = "header", help_heading = "Client Options", value_name = "KEY:VALUE", value_parser = Self::parse_header)]
+    #[arg(short = 'H', long = "header", value_name = "KEY:VALUE", help_heading = "Client Options", value_parser = Self::parse_header)]
     pub headers: Vec<(HeaderName, HeaderValue)>,
 
-    /// Skip checking and validation of site certificates.
+    /// Disable TLS certificate verification (insecure).
     #[arg(long, help_heading = "Client Options")]
     pub no_certificate_checks: bool,
 
-    /// Set http(s) / socks proxy address for requests.
+    /// Proxy server URL (HTTP, HTTPS, or SOCKS).
     #[arg(long, help_heading = "Client Options", value_parser = Self::parse_proxy)]
     pub proxy: Option<Proxy>,
 
-    /// Set query parameters for requests.
+    /// Additional query parameters for requests.
     #[arg(long, help_heading = "Client Options", default_value = "", hide_default_value = true, value_parser = Self::parse_query)]
     pub query: HashMap<String, String>,
 
-    /// Keys for decrypting encrypted streams.
-    /// KID:KEY should be specified in hex format.
+    /// Decryption keys in `KID:KEY;…` hex format.
     #[arg(long, help_heading = "Decrypt Options", value_name = "KID:KEY;…", default_value = "", hide_default_value = true, value_parser = Self::parse_keys)]
     pub keys: HashMap<String, String>,
 
-    /// Download encrypted streams without decrypting them.
-    /// Note that --output flag is ignored if this flag is used.
+    /// Skip decryption and download encrypted streams as-is.
+    ///
+    /// Ignores `--output` when enabled.
     #[arg(long, help_heading = "Decrypt Options")]
     pub no_decrypt: bool,
 
-    /// Download streams without merging them.
-    /// Note that --output flag is ignored if this flag is used.
+    /// Skip segment merging and keep individual files.
+    ///
+    /// Ignores `--output` when enabled.
     #[arg(long, help_heading = "Download Options")]
     pub no_merge: bool,
 
-    /// Maximum number of retries to download an individual segment.
+    /// Maximum retry attempts per segment.
     #[arg(long, help_heading = "Download Options", default_value_t = 10)]
     pub retries: u8,
 
-    /// Total number of threads for parllel downloading of segments.
-    /// Number of threads should be in range 1-16 (inclusive).
+    /// Number of concurrent download threads (1–16).
     #[arg(short, long, help_heading = "Download Options", default_value_t = 5, value_parser = clap::value_parser!(u8).range(1..=16))]
     pub threads: u8,
 }
@@ -202,8 +214,8 @@ impl Save {
         let mut builder = Client::builder()
             .default_headers(HeaderMap::from_iter(self.headers))
             .cookie_store(true)
-            .danger_accept_invalid_certs(self.no_certificate_checks)
-            .timeout(Duration::from_secs(60));
+            .timeout(Duration::from_secs(60))
+            .tls_danger_accept_invalid_certs(self.no_certificate_checks);
 
         if let Some(path) = &self.cookies {
             let jar = Jar::default();
@@ -231,7 +243,12 @@ impl Save {
             let playlist =
                 downloader::parse_all_streams(self.base_url.clone(), &client, &meta, &self.query)
                     .await?;
-            serde_json::to_writer(std::io::stdout(), &playlist)?;
+
+            if let Some(output) = &self.output {
+                serde_json::to_writer(File::create(output)?, &playlist)?;
+            } else {
+                serde_json::to_writer(io::stdout(), &playlist)?;
+            }
         } else {
             let streams = downloader::parse_selected_streams(
                 self.base_url.clone(),
