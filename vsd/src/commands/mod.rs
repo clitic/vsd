@@ -40,24 +40,24 @@ pub enum Commands {
     author = "clitic <clitic21@gmail.com>",
     version,
     long_version = concat!(
-        env!("CARGO_PKG_VERSION"),
-        "\n\nEnabled Features :",
-        "\ncapture            : ", cfg!(feature = "capture"),
-        "\nlicense            : ", cfg!(feature = "license"),
-        "\nrustls-tls         : ", cfg!(feature = "rustls-tls"),
-        "\nnative-tls         : ", cfg!(feature = "native-tls"),
-        "\nnative-tls-vendored: ", cfg!(feature = "native-tls-vendored"),
+        env!("CARGO_PKG_VERSION"), "\n\n",
+        "Enabled Features:\n",
+        "capture: ", cfg!(feature = "capture"), "\n",
+        "license: ", cfg!(feature = "license"), "\n",
+        "rustls-tls: ", cfg!(feature = "rustls-tls"), "\n",
+        "native-tls: ", cfg!(feature = "native-tls"), "\n",
+        "native-tls-vendored: ", cfg!(feature = "native-tls-vendored"),
     ),
 )]
 pub struct Args {
     #[command(subcommand)]
     pub command: Commands,
 
-    /// When to output colored text.
+    /// When to use colored output.
     #[arg(long, global = true, help_heading = "Global Options", default_value_t = ColorChoice::Auto)]
     pub color: ColorChoice,
 
-    /// Silence all output and only log errors.
+    /// Suppress all output except errors.
     #[arg(
         short,
         long,
@@ -67,7 +67,8 @@ pub struct Args {
     )]
     quiet: bool,
 
-    /// Increase verbosity (-v [debug], -vv [trace]). Default logging level is set to info.
+    /// Increase verbosity: `-v` (debug), `-vv` (trace).
+    /// The default log level is `info`.
     #[arg(short, long, global = true, help_heading = "Global Options", action = ArgAction::Count)]
     verbose: u8,
 }
