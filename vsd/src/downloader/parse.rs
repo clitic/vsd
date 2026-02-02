@@ -2,9 +2,9 @@ use super::fetch::Metadata;
 use crate::{
     options::{Interaction, SelectOptions},
     playlist::{MasterPlaylist, MediaPlaylist, PlaylistType},
-    utils,
 };
 use anyhow::{Result, anyhow, bail};
+use base64::Engine;
 use colored::Colorize;
 use reqwest::{Client, Url};
 use std::collections::HashMap;
@@ -82,7 +82,7 @@ pub async fn parse_all_streams(
                         .uri
                         .strip_prefix("data:application/x-mpegurl;base64,")
                     {
-                        let decoded = utils::decode_base64(bs)?;
+                        let decoded = base64::engine::general_purpose::STANDARD.decode(bs)?;
                         text = String::from_utf8(decoded)?;
                     } else {
                         let response = client.get(&stream.uri).query(query).send().await?;
@@ -174,7 +174,7 @@ pub async fn parse_selected_streams(
                         .uri
                         .strip_prefix("data:application/x-mpegurl;base64,")
                     {
-                        let decoded = utils::decode_base64(bs)?;
+                        let decoded = base64::engine::general_purpose::STANDARD.decode(bs)?;
                         text = String::from_utf8(decoded)?;
                     } else {
                         let response = client.get(&stream.uri).query(query).send().await?;

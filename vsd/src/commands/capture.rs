@@ -1,5 +1,6 @@
-use crate::{cookie::Cookies, utils};
+use crate::cookie::Cookies;
 use anyhow::{Result, anyhow};
+use base64::Engine;
 use chromiumoxide::{
     Browser, BrowserConfig,
     cdp::browser_protocol::network::{EventRequestWillBeSent, Request, ResourceType},
@@ -156,7 +157,7 @@ fn log_curl_cmd(request: &Request) {
 
         for entry in entries {
             if let Some(b64_str) = &entry.bytes
-                && let Ok(decoded_bytes) = utils::decode_base64(b64_str)
+                && let Ok(decoded_bytes) = base64::engine::general_purpose::STANDARD.decode(b64_str)
             {
                 body.push_str(&String::from_utf8_lossy(&decoded_bytes));
             }

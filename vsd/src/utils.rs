@@ -1,46 +1,22 @@
-use anyhow::Result;
-use base64::Engine;
 use std::{env, path::PathBuf};
 
-pub fn decode_base64<T: AsRef<[u8]>>(input: T) -> Result<Vec<u8>> {
-    base64::engine::general_purpose::STANDARD
-        .decode(input)
-        .map_err(|x| x.into())
-}
-
 pub fn find_ffmpeg() -> Option<PathBuf> {
-    let bin = if cfg!(target_os = "windows") {
-        "ffmpeg.exe"
-    } else {
-        "ffmpeg"
-    };
-
-    // Search in current directory
-    let exe = PathBuf::from(bin);
-
-    if exe.exists() {
-        return Some(exe);
+    let mut paths = Vec::new();
+    if let Some(path) = env::current_dir().ok() {
+        paths.push(path);
     }
-
-    // Search in executable directory
-    if let Some(exe) = env::current_exe()
+    if let Some(path) = env::current_exe()
         .ok()
-        .and_then(|x| x.parent().map(|y| y.join(bin)))
-        && exe.exists()
+        .and_then(|path| path.parent().map(|p| p.to_path_buf()))
     {
-        return Some(exe);
+        paths.push(path);
     }
-
-    // Search in PATH
-    env::var("PATH")
-        .ok()?
-        .split(if cfg!(target_os = "windows") {
-            ';'
-        } else {
-            ':'
-        })
-        .find_map(|s| {
-            let exe = PathBuf::from(s).join(bin);
-            if exe.exists() { Some(exe) } else { None }
-        })
+    if let Some(path) = env::var_os("PATH") {
+        paths.extend(env::split_paths(&path));
+    }
+    #[cfg(target_os = "windows")]
+    let bin = "ffmpeg.exe";
+    #[cfg(not(target_os = "windows"))]
+    let bin = "ffmpeg";
+    paths.into_iter().find(|path| path.join(bin).exists())
 }
