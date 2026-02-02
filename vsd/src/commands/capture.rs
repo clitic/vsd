@@ -16,36 +16,35 @@ use std::path::PathBuf;
 use tokio::fs;
 use tokio_stream::StreamExt;
 
-/// Capture playlists and subtitles requests from a website.
+/// Capture playlist requests from a website.
 #[derive(Args, Clone, Debug)]
-#[clap(
-    long_about = "Capture playlists and subtitles requests from a website.\n\n\
-Requires one of the following browsers to be installed:\n\n\
+#[clap(long_about = "Capture playlist requests from a website.\n\n\
+Requires any one of these browsers:\n\n\
 - [chrome](https://www.google.com/chrome)\n\
 - [chromium](https://www.chromium.org/getting-involved/download-chromium)\n\n\
-This command launches an automated browser instance and listen on requests. \
+This command launches an automated browser instance and listen on network requests. \
 Behavior may vary, and it may not work as expected on all websites. \
 This is equivalent to manually doing:\n\n\
-Inspect -> Network -> Fetch/XHR -> Filter by extension -> Copy as cURL (bash)"
-)]
+Inspect -> Network -> Fetch/XHR -> Filter by extension -> Copy as cURL (bash)")]
 pub struct Capture {
-    /// http(s)://
+    /// HTTP(S)://
     #[arg(required = true)]
-    url: String,
+    input: String,
 
-    /// Launch browser with cookies loaded from a netscape cookie file.
+    /// Launch browser with cookies (netscape cookie file).
     #[arg(long, value_name = "PATH")]
     cookies: Option<PathBuf>,
 
-    /// List of file extensions to be filter out seperated by comma.
+    /// List of file extensions to be filtered out separated by comma.
     #[arg(
         long,
+        value_name = "EXT",
         default_value = ".m3u,.m3u8,.mpd,.vtt,.ttml,.srt",
         value_delimiter = ','
     )]
     extensions: Vec<String>,
 
-    /// Launch browser without a window.
+    /// Launch browser in headless mode (without a window).
     #[arg(long)]
     headless: bool,
 
@@ -53,9 +52,12 @@ pub struct Capture {
     #[arg(long)]
     proxy: Option<String>,
 
-    /// List of resource types to be filter out seperated by commas.
+    /// List of resource types to be filtered out separated by comma.
     #[arg(
-        long, default_value = "fetch,xhr", value_delimiter = ',',
+        long,
+        value_name = "TYPES",
+        default_value = "fetch,xhr",
+        value_delimiter = ',',
         value_parser = PossibleValuesParser::new([
             "document", "stylesheet", "image", "media", "font", "script", "texttrack",
             "xhr", "fetch", "prefetch", "eventsource", "websocket", "manifest",
@@ -64,7 +66,7 @@ pub struct Capture {
     )]
     resource_types: Vec<ResourceType>,
 
-    /// Save browser cookies in cookies.txt netscape cookie file.
+    /// Save browser cookies in cookies.txt (netscape cookie file).
     #[arg(long)]
     save_cookies: bool,
 }
@@ -121,7 +123,7 @@ impl Capture {
             }
         });
 
-        page.goto(&self.url).await?;
+        page.goto(&self.input).await?;
 
         tokio::signal::ctrl_c().await.unwrap();
 
