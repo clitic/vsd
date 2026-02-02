@@ -4,11 +4,10 @@ use std::path::PathBuf;
 use tokio::fs;
 use vsd_mp4::text::{Mp4TtmlParser, Mp4VttParser};
 
-/// Extract subtitles from fragmented MP4 files.
+/// Extract subtitles from a fragmented MP4 file.
 #[derive(Args, Clone, Debug)]
 pub struct Extract {
     /// Path to an MP4 file containing WVTT (WebVTT) or STPP (TTML) subtitle boxes.
-    ///
     /// For fragmented MP4 files split across multiple segments, use the `merge`
     /// sub-command first to combine them into a single file.
     #[arg(required = true)]
@@ -20,9 +19,9 @@ pub struct Extract {
 
     /// Destination file path for extracted subtitles.
     ///
-    /// If provided, the codec is inferred from the file extension (`.srt` or `.vtt`).
-    /// If omitted, subtitles are printed to stdout.
-    #[arg(short, long)]
+    /// If `provided`, the codec is inferred from the file extension (`.srt` or `.vtt`).
+    /// If `omitted`, subtitles are printed to stdout.
+    #[arg(short, long, value_name = "PATH")]
     output: Option<PathBuf>,
 }
 
