@@ -2,12 +2,10 @@ mod encryption;
 mod fetch;
 mod fix;
 mod mux;
-mod parse;
 mod stream;
 mod subtitle;
 
-pub use fetch::fetch_playlist;
-pub use parse::{list_all_streams, parse_all_streams, parse_selected_streams};
+pub use fetch::FetchedPlaylist;
 pub use subtitle::download_subtitle_streams;
 
 use crate::{

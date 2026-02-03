@@ -20,3 +20,7 @@ pub fn find_ffmpeg() -> Option<PathBuf> {
     let bin = "ffmpeg";
     paths.into_iter().find(|path| path.join(bin).exists())
 }
+
+pub fn gen_id(base_url: &str, uri: &str) -> String {
+    blake3::hash(format!("{}+{}", base_url, uri).as_bytes()).to_hex()[..7].to_owned()
+}

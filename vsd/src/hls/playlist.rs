@@ -1,37 +1,36 @@
-use crate::playlist;
+use crate::{playlist, utils};
 
 pub(crate) fn parse_as_master(
-    m3u8: &m3u8_rs::MasterPlaylist,
-    uri: &str,
+    playlist: &m3u8_rs::MasterPlaylist,
+    base_url: &str,
 ) -> playlist::MasterPlaylist {
-    let mut streams = vec![];
+    let mut streams = Vec::new();
 
-    for video_stream in &m3u8.variants {
+    for stream in &playlist.variants {
         streams.push(playlist::MediaPlaylist {
-            bandwidth: Some(video_stream.bandwidth),
+            bandwidth: Some(stream.bandwidth),
             channels: None,
-            codecs: video_stream.codecs.to_owned(),
+            codecs: stream.codecs.to_owned(),
             extension: Some("ts".to_owned()), // Cannot be comment here
-            frame_rate: video_stream.frame_rate.map(|x| x as f32),
-            id: String::new(), // Cannot be comment here
-            i_frame: video_stream.is_i_frame,
+            frame_rate: stream.frame_rate.map(|x| x as f32),
+            id: utils::gen_id(base_url, &stream.uri),
+            i_frame: stream.is_i_frame,
             language: None,
             live: false, // Cannot be comment here
             media_sequence: 0,
             media_type: playlist::MediaType::Video,
             playlist_type: playlist::PlaylistType::Hls,
-            resolution: if let Some(m3u8_rs::Resolution { width, height }) = video_stream.resolution
-            {
+            resolution: if let Some(m3u8_rs::Resolution { width, height }) = stream.resolution {
                 Some((width, height))
             } else {
                 None
             },
-            segments: vec![], // Cannot be comment here
-            uri: video_stream.uri.to_owned(),
+            segments: Vec::new(), // Cannot be comment here
+            uri: stream.uri.to_owned(),
         });
     }
 
-    for alternative_stream in &m3u8.alternatives {
+    for alternative_stream in &playlist.alternatives {
         if let Some(uri) = &alternative_stream.uri {
             match alternative_stream.media_type {
                 m3u8_rs::AlternativeMediaType::Video => streams.push(playlist::MediaPlaylist {
@@ -40,15 +39,15 @@ pub(crate) fn parse_as_master(
                     codecs: None,                     // Cannot be comment here
                     extension: Some("ts".to_owned()), // Cannot be comment here
                     frame_rate: None,                 // Cannot be comment here
-                    id: String::new(),                // Cannot be comment here
-                    i_frame: false,                   // Cannot be comment here
+                    id: utils::gen_id(base_url, uri),
+                    i_frame: false, // Cannot be comment here
                     language: None,
                     live: false, // Cannot be comment here
                     media_sequence: 0,
                     media_type: playlist::MediaType::Video,
                     playlist_type: playlist::PlaylistType::Hls,
-                    resolution: None, // Cannot be comment here
-                    segments: vec![], // Cannot be comment here
+                    resolution: None,     // Cannot be comment here
+                    segments: Vec::new(), // Cannot be comment here
                     uri: uri.to_owned(),
                 }),
 
@@ -61,7 +60,7 @@ pub(crate) fn parse_as_master(
                     codecs: None,                     // Cannot be comment here
                     extension: Some("ts".to_owned()), // Cannot be comment here
                     frame_rate: None,
-                    id: String::new(), // Cannot be comment here
+                    id: utils::gen_id(base_url, uri),
                     i_frame: false,
                     language: alternative_stream
                         .language
@@ -72,7 +71,7 @@ pub(crate) fn parse_as_master(
                     media_type: playlist::MediaType::Audio,
                     playlist_type: playlist::PlaylistType::Hls,
                     resolution: None,
-                    segments: vec![], // Cannot be comment here
+                    segments: Vec::new(), // Cannot be comment here
                     uri: uri.to_owned(),
                 }),
 
@@ -84,7 +83,7 @@ pub(crate) fn parse_as_master(
                         codecs: None,                      // Cannot be comment here
                         extension: Some("vtt".to_owned()), // Cannot be comment here
                         frame_rate: None,
-                        id: String::new(), // Cannot be comment here
+                        id: utils::gen_id(base_url, uri),
                         i_frame: false,
                         language: alternative_stream
                             .language
@@ -95,7 +94,7 @@ pub(crate) fn parse_as_master(
                         media_type: playlist::MediaType::Subtitles,
                         playlist_type: playlist::PlaylistType::Hls,
                         resolution: None,
-                        segments: vec![], // Cannot be comment here
+                        segments: Vec::new(), // Cannot be comment here
                         uri: uri.to_owned(),
                     })
                 }
@@ -106,11 +105,11 @@ pub(crate) fn parse_as_master(
                         .channels
                         .as_ref()
                         .map(|x| x.parse::<f32>().unwrap()),
-                    codecs: None,      // Cannot be comment here
-                    extension: None,   // Cannot be comment here
-                    frame_rate: None,  // Cannot be comment here
-                    id: String::new(), // Cannot be comment here
-                    i_frame: false,    // Cannot be comment here
+                    codecs: None,     // Cannot be comment here
+                    extension: None,  // Cannot be comment here
+                    frame_rate: None, // Cannot be comment here
+                    id: utils::gen_id(base_url, uri),
+                    i_frame: false, // Cannot be comment here
                     language: alternative_stream
                         .language
                         .to_owned()
@@ -119,8 +118,8 @@ pub(crate) fn parse_as_master(
                     media_sequence: 0,
                     media_type: playlist::MediaType::Undefined,
                     playlist_type: playlist::PlaylistType::Hls,
-                    resolution: None, // Cannot be comment here
-                    segments: vec![], // Cannot be comment here
+                    resolution: None,     // Cannot be comment here
+                    segments: Vec::new(), // Cannot be comment here
                     uri: uri.to_owned(),
                 }),
             }
@@ -129,19 +128,22 @@ pub(crate) fn parse_as_master(
 
     playlist::MasterPlaylist {
         playlist_type: playlist::PlaylistType::Hls,
-        uri: uri.to_owned(),
+        uri: base_url.to_owned(),
         streams,
     }
 }
 
-pub(crate) fn push_segments(m3u8: &m3u8_rs::MediaPlaylist, stream: &mut playlist::MediaPlaylist) {
-    stream.i_frame = m3u8.i_frames_only;
-    stream.live = !m3u8.end_list;
-    stream.media_sequence = m3u8.media_sequence;
+pub(crate) fn push_segments(
+    playlist: &m3u8_rs::MediaPlaylist,
+    stream: &mut playlist::MediaPlaylist,
+) {
+    stream.i_frame = playlist.i_frames_only;
+    stream.live = !playlist.end_list;
+    stream.media_sequence = playlist.media_sequence;
 
     let mut previous_byterange_end = 0;
 
-    for segment in &m3u8.segments {
+    for segment in &playlist.segments {
         let map = segment.map.as_ref().map(|x| playlist::Map {
             uri: x.uri.to_owned(),
             range: x.byte_range.as_ref().map(|x| {

@@ -1,193 +1,207 @@
-use crate::playlist::PlaylistType;
-use anyhow::Result;
+use crate::{
+    options::{Interaction, SelectOptions},
+    playlist::{MasterPlaylist, MediaPlaylist, PlaylistType},
+    utils,
+};
+use anyhow::{Result, anyhow, bail};
+use base64::Engine;
 use colored::Colorize;
+use log::info;
 use reqwest::{Client, Url, header};
-use std::{collections::HashMap, fs, path::Path};
+use std::{collections::HashMap, path::Path};
+use tokio::fs;
 
-pub struct Metadata {
-    pub pl_type: Option<PlaylistType>,
-    pub text: String,
+pub struct FetchedPlaylist {
     pub url: Url,
+    pub data: Vec<u8>,
+    pub playlist_type: Option<PlaylistType>,
 }
 
-impl Metadata {
-    async fn fetch(&mut self, client: &Client, query: &HashMap<String, String>) -> Result<()> {
-        let response = client.get(self.url.as_ref()).query(query).send().await?;
-        self.url = response.url().to_owned();
+impl FetchedPlaylist {
+    pub async fn new(
+        input: &str,
+        client: &Client,
+        base_url: Option<&Url>,
+        query: &HashMap<String, String>,
+    ) -> Result<Self> {
+        let path = Path::new(input);
+        let mut typ = None;
 
-        if let Some(content_type) = response.headers().get(header::CONTENT_TYPE) {
-            match content_type.as_bytes() {
-                b"application/dash+xml" | b"video/vnd.mpeg.dash.mpd" => {
-                    self.pl_type = Some(PlaylistType::Dash)
-                }
-                b"application/x-mpegurl" | b"application/vnd.apple.mpegurl" => {
-                    self.pl_type = Some(PlaylistType::Hls)
-                }
+        if path.exists() {
+            if base_url.is_none() {
+                bail!("Base URL is required for local playlist file.");
+            }
+
+            match path.extension() {
+                Some(ext) if ext == "m3u" || ext == "m3u8" => typ = Some(PlaylistType::Hls),
+                Some(ext) if ext == "mpd" => typ = Some(PlaylistType::Dash),
                 _ => (),
             }
-        }
 
-        self.text = response.text().await?;
-        self.update_pl_type_from_text();
+            Ok(Self {
+                url: base_url.unwrap().clone(),
+                data: fs::read(path).await?,
+                playlist_type: typ,
+            })
+        } else if let Ok(input) = input.parse::<Url>() {
+            let response = client.get(input).query(query).send().await?;
+            let status = response.status();
+
+            if status.is_client_error() || status.is_server_error() {
+                bail!(
+                    "Playlist request failed ({}): '{}'",
+                    status,
+                    response.text().await?
+                );
+            }
+
+            if let Some(content_type) = response.headers().get(header::CONTENT_TYPE) {
+                match content_type.as_bytes() {
+                    b"application/dash+xml" | b"video/vnd.mpeg.dash.mpd" => {
+                        typ = Some(PlaylistType::Dash)
+                    }
+                    b"application/x-mpegurl" | b"application/vnd.apple.mpegurl" => {
+                        typ = Some(PlaylistType::Hls)
+                    }
+                    _ => (),
+                }
+            }
+
+            Ok(Self {
+                url: response.url().to_owned(),
+                data: response.bytes().await?.to_vec(),
+                playlist_type: typ,
+            })
+        } else {
+            bail!("Unable to determine the input playlist type.");
+        }
+    }
+
+    fn playlist_type(&self) -> Result<PlaylistType> {
+        if let Some(typ) = &self.playlist_type {
+            return Ok(typ.to_owned());
+        }
+        if self.data.windows(7).any(|w| w == b"#EXTM3U") {
+            return Ok(PlaylistType::Hls);
+        }
+        if self.data.windows(4).any(|w| w == b"<MPD") {
+            return Ok(PlaylistType::Dash);
+        }
+        bail!("Unable to determine the input playlist type.");
+    }
+
+    pub fn list_streams(&self) -> Result<()> {
+        match self.playlist_type()? {
+            PlaylistType::Dash => {
+                let xml = String::from_utf8_lossy(&self.data);
+                let mpd = dash_mpd::parse(&xml)
+                    .map_err(|e| anyhow!("Failed to parse DASH playlist: {e}"))?;
+                crate::dash::parse_as_master(&mpd, self.url.as_ref())
+                    .sort_streams()
+                    .list_streams();
+            }
+            PlaylistType::Hls => match m3u8_rs::parse_playlist_res(&self.data)
+                .map_err(|e| anyhow!("Failed to parse HLS playlist: {e}"))?
+            {
+                m3u8_rs::Playlist::MasterPlaylist(m3u8) => {
+                    crate::hls::parse_as_master(&m3u8, self.url.as_ref())
+                        .sort_streams()
+                        .list_streams()
+                }
+                m3u8_rs::Playlist::MediaPlaylist(_) => {
+                    info!("------ {} ------", "Undefined Streams".cyan());
+                    info!(" 1) {}", self.url);
+                }
+            },
+        }
         Ok(())
     }
 
-    fn update_pl_type_from_text(&mut self) {
-        if self.pl_type.is_none() {
-            if self.text.contains("<MPD") {
-                self.pl_type = Some(PlaylistType::Dash);
-            } else if self.text.contains("#EXTM3U") {
-                self.pl_type = Some(PlaylistType::Hls);
+    pub async fn as_master_playlist(
+        &self,
+        client: &Client,
+        query: &HashMap<String, String>,
+        mut select_opts: SelectOptions,
+        interaction: Interaction,
+        parse_everything: bool,
+    ) -> Result<MasterPlaylist> {
+        match self.playlist_type()? {
+            PlaylistType::Dash => {
+                let xml = String::from_utf8_lossy(&self.data);
+                let mpd = dash_mpd::parse(&xml)
+                    .map_err(|e| anyhow!("Failed to parse DASH playlist: {e}"))?;
+
+                let mut playlist = if parse_everything {
+                    crate::dash::parse_as_master(&mpd, self.url.as_str())
+                } else {
+                    crate::dash::parse_as_master(&mpd, self.url.as_str())
+                        .sort_streams()
+                        .select_streams(&mut select_opts, interaction)?
+                };
+
+                for stream in &mut playlist.streams {
+                    crate::dash::push_segments(&mpd, stream, client, self.url.as_str(), query)
+                        .await?;
+                }
+
+                Ok(playlist)
             }
+            PlaylistType::Hls => match m3u8_rs::parse_playlist_res(&self.data)
+                .map_err(|e| anyhow!("Failed to parse HLS playlist: {e}"))?
+            {
+                m3u8_rs::Playlist::MasterPlaylist(playlist) => {
+                    let mut playlist = if parse_everything {
+                        crate::hls::parse_as_master(&playlist, self.url.as_str())
+                    } else {
+                        crate::hls::parse_as_master(&playlist, self.url.as_str())
+                            .sort_streams()
+                            .select_streams(&mut select_opts, interaction)?
+                    };
+
+                    for stream in &mut playlist.streams {
+                        let data;
+                        if let Some(bs) = stream
+                            .uri
+                            .strip_prefix("data:application/x-mpegurl;base64,")
+                        {
+                            data = base64::engine::general_purpose::STANDARD.decode(bs)?;
+                        } else {
+                            stream.uri = self.url.join(&stream.uri)?.to_string();
+                            let response = client.get(&stream.uri).query(query).send().await?;
+                            let status = response.status();
+
+                            if status.is_client_error() || status.is_server_error() {
+                                bail!(
+                                    "Playlist request failed ({}): '{}'",
+                                    status,
+                                    response.text().await?
+                                );
+                            }
+
+                            data = response.bytes().await?.to_vec();
+                        }
+
+                        let media_playlist = m3u8_rs::parse_media_playlist_res(&data)
+                            .map_err(|e| anyhow!("Failed to parse HLS playlist: {e}"))?;
+                        crate::hls::push_segments(&media_playlist, stream);
+                    }
+
+                    Ok(playlist)
+                }
+                m3u8_rs::Playlist::MediaPlaylist(playlist) => {
+                    let mut media_playlist = MediaPlaylist {
+                        id: utils::gen_id(self.url.as_str(), ""),
+                        uri: self.url.as_str().to_owned(),
+                        ..Default::default()
+                    };
+                    crate::hls::push_segments(&playlist, &mut media_playlist);
+                    Ok(MasterPlaylist {
+                        playlist_type: PlaylistType::Hls,
+                        streams: vec![media_playlist],
+                        uri: self.url.as_str().to_owned(),
+                    })
+                }
+            },
         }
     }
 }
-
-pub async fn fetch_playlist(
-    base_url: Option<Url>,
-    client: &Client,
-    input: &str,
-    query: &HashMap<String, String>,
-) -> Result<Metadata> {
-    let mut meta = Metadata {
-        pl_type: None,
-        text: String::new(),
-        url: input
-            .parse::<Url>()
-            .unwrap_or("https://example.com".parse::<Url>().unwrap()),
-    };
-    let path = Path::new(input);
-
-    if path.exists() {
-        if base_url.is_none() {
-            println!("    {} base url is not set", "Warning".yellow());
-        }
-
-        if let Some(ext) = path.extension() {
-            if ext == "mpd" {
-                meta.pl_type = Some(PlaylistType::Dash);
-            } else if ext == "m3u" || ext == "m3u8" {
-                meta.pl_type = Some(PlaylistType::Hls);
-            }
-        }
-
-        meta.text = fs::read_to_string(path)?;
-        meta.update_pl_type_from_text();
-    } else {
-        // TODO - We can add site specific parsers here
-        meta.fetch(client, query).await?;
-
-        if meta.pl_type.is_none() {
-            // fetch_from_website(client, &mut meta, query).await?;
-            panic!();
-        }
-    }
-
-    Ok(meta)
-}
-
-// async fn fetch_from_website(
-//     client: &Client,
-//     meta: &mut Metadata,
-//     query: &HashMap<String, String>,
-// ) -> Result<()> {
-//     println!(
-//         "   {} [generic-regex] website for DASH and HLS playlists",
-//         "Scraping".bold().cyan()
-//     );
-
-//     let links = scrape_playlist_links(&meta.text);
-
-//     match links.len() {
-//         0 => bail!("no playlists were found in website source."),
-//         1 => {
-//             println!("            {}", &links[0]);
-//             println!("   {} {}", "Selected".bold().green(), &links[0]);
-//             meta.url = links[0].parse::<Url>()?;
-//         }
-//         _ => match automation::get_interaction_type() {
-//             Interaction::Modern => {
-//                 let question = requestty::Question::select("scraped-link")
-//                     .message("Select one playlist")
-//                     .should_loop(false)
-//                     .choices(links)
-//                     .build();
-//                 let answer = requestty::prompt_one(question)?;
-//                 meta.url = answer.as_list_item().unwrap().text.parse::<Url>()?;
-//             }
-//             Interaction::None => {
-//                 for link in &links {
-//                     println!("            {link}");
-//                 }
-
-//                 println!("   {} {}", "Selected".bold().green(), &links[0]);
-//                 meta.url = links[0].parse::<Url>()?;
-//             }
-//             Interaction::Raw => {
-//                 println!("Select one playlist:");
-
-//                 for (i, link) in links.iter().enumerate() {
-//                     println!(
-//                         "{:2}) [{}] {}",
-//                         i + 1,
-//                         if i == 0 { "x".green() } else { " ".normal() },
-//                         link
-//                     );
-//                 }
-
-//                 println!("{}", "------------------------------".cyan());
-//                 print!(
-//                     "Press enter to proceed with defaults.\n\
-//                     Or select playlist to download (1, 2, etc.): "
-//                 );
-
-//                 std::io::stdout().flush()?;
-//                 let mut input = String::new();
-//                 std::io::stdin().read_line(&mut input)?;
-
-//                 println!("{}", "------------------------------".cyan());
-
-//                 let input = input.trim();
-//                 let mut index = 0;
-
-//                 if !input.is_empty() {
-//                     index = input
-//                         .parse::<usize>()
-//                         .map_err(|_| anyhow!("input is not a valid positive number."))?
-//                         - 1;
-//                 }
-
-//                 meta.url = links
-//                     .get(index)
-//                     .ok_or_else(|| anyhow!("selected playlist is out of index bounds."))?
-//                     .parse::<Url>()?;
-//                 println!("   {} {}", "Selected".bold().green(), meta.url);
-//             }
-//         },
-//     }
-
-//     meta.fetch(client, query).await?;
-//     Ok(())
-// }
-
-// fn scrape_playlist_links(text: &str) -> Vec<String> {
-//     let re =
-//         Regex::new(r#"([\"\'])(https?:\/\/[^\"\']*\.(m3u8|m3u|mpd)[^\"\']*)([\"\'])"#).unwrap();
-//     let links = re
-//         .captures_iter(text)
-//         .map(|caps| caps.get(2).unwrap().as_str().to_string())
-//         .collect::<HashSet<String>>();
-
-//     // in case of amalgated urls
-//     links
-//         .into_iter()
-//         .map(|x| {
-//             if x.starts_with("http")
-//                 && let Some(y) = x.split("http").last()
-//             {
-//                 return format!("http{y}");
-//             }
-//             x
-//         })
-//         .collect()
-// }

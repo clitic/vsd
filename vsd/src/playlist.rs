@@ -78,7 +78,7 @@ pub enum MediaType {
     Undefined,
 }
 
-#[derive(Default, Serialize)]
+#[derive(Clone, Default, Serialize)]
 pub enum PlaylistType {
     Dash,
     #[default]
@@ -186,8 +186,11 @@ impl MasterPlaylist {
         self,
         opts: &mut SelectOptions,
         interaction: Interaction,
-    ) -> Result<Vec<MediaPlaylist>> {
-        StreamSelector::new(self.streams, interaction).select(opts)
+    ) -> Result<Self> {
+        Ok(Self {
+            streams: StreamSelector::new(self.streams, interaction).select(opts)?,
+            ..self
+        })
     }
 }
 

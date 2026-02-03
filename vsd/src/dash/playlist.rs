@@ -7,8 +7,11 @@
 */
 
 use super::{DashUrl, Template};
-use crate::playlist::{
-    Key, KeyMethod, Map, MasterPlaylist, MediaPlaylist, MediaType, PlaylistType, Range, Segment,
+use crate::{
+    playlist::{
+        Key, KeyMethod, Map, MasterPlaylist, MediaPlaylist, MediaType, PlaylistType, Range, Segment,
+    },
+    utils,
 };
 use anyhow::{Result, anyhow, bail};
 use dash_mpd::MPD;
@@ -16,10 +19,10 @@ use reqwest::{Client, Url, header};
 use std::collections::HashMap;
 use vsd_mp4::boxes::SidxBox;
 
-pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
+pub(crate) fn parse_as_master(playlist: &MPD, base_url: &str) -> MasterPlaylist {
     let mut streams = vec![];
 
-    if let Some(period) = mpd.periods.first() {
+    if let Some(period) = playlist.periods.first() {
         let period_index = 0;
         for (adaptation_index, adaptation_set) in period.adaptations.iter().enumerate() {
             for (representation_index, representation) in
@@ -83,10 +86,14 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
                     } else {
                         None
                     },
-                    id: String::new(), // Cannot be comment here
-                    i_frame: false,    // Cannot be comment here
+                    id: utils::gen_id(
+                        base_url,
+                        &DashUrl::new(period_index, adaptation_index, representation_index)
+                            .to_string(),
+                    ),
+                    i_frame: false, // Cannot be comment here
                     language: adaptation_set.lang.clone(),
-                    live: if let Some(mpdtype) = &mpd.mpdtype {
+                    live: if let Some(mpdtype) = &playlist.mpdtype {
                         mpdtype == "dynamic"
                     } else {
                         false
@@ -101,7 +108,7 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
                     } else {
                         None
                     },
-                    segments: vec![], // Cannot be comment here
+                    segments: Vec::new(), // Cannot be comment here
                     uri: DashUrl::new(period_index, adaptation_index, representation_index)
                         .to_string(),
                 });
@@ -111,21 +118,21 @@ pub(crate) fn parse_as_master(mpd: &MPD, uri: &str) -> MasterPlaylist {
 
     MasterPlaylist {
         playlist_type: PlaylistType::Dash,
-        uri: uri.to_owned(),
+        uri: base_url.to_owned(),
         streams,
     }
 }
 
 pub(crate) async fn push_segments(
-    mpd: &MPD,
-    playlist: &mut MediaPlaylist,
-    base_url: &str,
+    playlist: &MPD,
+    stream: &mut MediaPlaylist,
     client: &Client,
+    base_url: &str,
     query: &HashMap<String, String>,
 ) -> Result<()> {
-    let location = playlist.uri.parse::<DashUrl>().map_err(|x| anyhow!(x))?;
+    let location = stream.uri.parse::<DashUrl>().map_err(|x| anyhow!(x))?;
 
-    for period in mpd.periods.iter() {
+    for period in playlist.periods.iter() {
         for (adaptation_index, adaptation_set) in period.adaptations.iter().enumerate() {
             for (representation_index, representation) in
                 adaptation_set.representations.iter().enumerate()
@@ -135,7 +142,7 @@ pub(crate) async fn push_segments(
                 {
                     let mut period_duration_secs = 0.0;
 
-                    if let Some(duration) = &mpd.mediaPresentationDuration {
+                    if let Some(duration) = &playlist.mediaPresentationDuration {
                         period_duration_secs = duration.as_secs_f32();
                     }
 
@@ -145,7 +152,7 @@ pub(crate) async fn push_segments(
 
                     let mut base_url = base_url.parse::<Url>().unwrap();
 
-                    if let Some(mpd_baseurl) = mpd.base_url.first().map(|x| x.base.as_ref()) {
+                    if let Some(mpd_baseurl) = playlist.base_url.first().map(|x| x.base.as_ref()) {
                         base_url = base_url.join(mpd_baseurl)?;
                     }
 
@@ -217,13 +224,13 @@ pub(crate) async fn push_segments(
                             let byte_range = parse_range(&segment_url.mediaRange);
 
                             if let Some(media) = &segment_url.media {
-                                playlist.segments.push(Segment {
+                                stream.segments.push(Segment {
                                     range: byte_range,
                                     uri: base_url.join(media)?.to_string(),
                                     ..Default::default()
                                 });
                             } else if !adaptation_set.BaseURL.is_empty() {
-                                playlist.segments.push(Segment {
+                                stream.segments.push(Segment {
                                     range: byte_range,
                                     uri: base_url.to_string(),
                                     ..Default::default()
@@ -255,13 +262,13 @@ pub(crate) async fn push_segments(
                             let byte_range = parse_range(&segment_url.mediaRange);
 
                             if let Some(media) = &segment_url.media {
-                                playlist.segments.push(Segment {
+                                stream.segments.push(Segment {
                                     range: byte_range,
                                     uri: base_url.join(media)?.to_string(),
                                     ..Default::default()
                                 });
                             } else if !representation.BaseURL.is_empty() {
-                                playlist.segments.push(Segment {
+                                stream.segments.push(Segment {
                                     range: byte_range,
                                     uri: base_url.to_string(),
                                     ..Default::default()
@@ -305,7 +312,7 @@ pub(crate) async fn push_segments(
                                 template.insert("Time", segment_time.to_string());
                                 template.insert("Number", number.to_string());
 
-                                playlist.segments.push(Segment {
+                                stream.segments.push(Segment {
                                     duration: s.d as f32 / timescale,
                                     uri: base_url.join(&template.resolve(&media))?.to_string(),
                                     ..Default::default()
@@ -338,7 +345,7 @@ pub(crate) async fn push_segments(
                                         template.insert("Time", segment_time.to_string());
                                         template.insert("Number", number.to_string());
 
-                                        playlist.segments.push(Segment {
+                                        stream.segments.push(Segment {
                                             duration: s.d as f32 / timescale,
                                             uri: base_url
                                                 .join(&template.resolve(&media))?
@@ -399,7 +406,7 @@ pub(crate) async fn push_segments(
                             for _ in 1..=total_number {
                                 template.insert("Number", number.to_string());
 
-                                playlist.segments.push(Segment {
+                                stream.segments.push(Segment {
                                     duration: segment_duration,
                                     uri: base_url.join(&template.resolve(&media))?.to_string(),
                                     ..Default::default()
@@ -445,7 +452,7 @@ pub(crate) async fn push_segments(
                                 .map(|x| x.ranges)
                                 .unwrap_or(Vec::with_capacity(0))
                             {
-                                playlist.segments.push(Segment {
+                                stream.segments.push(Segment {
                                     range: Some(Range {
                                         end: range.end,
                                         start: range.start,
@@ -455,25 +462,25 @@ pub(crate) async fn push_segments(
                                 });
                             }
                         } else {
-                            playlist.segments.push(Segment {
+                            stream.segments.push(Segment {
                                 uri: base_url.to_string(),
                                 ..Default::default()
                             });
                         }
-                    } else if playlist.segments.is_empty() && !representation.BaseURL.is_empty() {
+                    } else if stream.segments.is_empty() && !representation.BaseURL.is_empty() {
                         // (6) Plain BaseURL
-                        playlist.segments.push(Segment {
+                        stream.segments.push(Segment {
                             duration: period_duration_secs,
                             uri: base_url.to_string(),
                             ..Default::default()
                         });
                     }
 
-                    if playlist.segments.is_empty() {
+                    if stream.segments.is_empty() {
                         bail!("no usable addressing mode identified for representation.");
                     }
 
-                    if let Some(first_segment) = playlist.segments.get_mut(0) {
+                    if let Some(first_segment) = stream.segments.get_mut(0) {
                         let mut encryption_type = KeyMethod::None;
                         let mut default_kid = None;
 
@@ -525,6 +532,7 @@ pub(crate) async fn push_segments(
         }
     }
 
+    stream.uri = base_url.to_owned();
     Ok(())
 }
 

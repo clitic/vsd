@@ -1,6 +1,6 @@
 use crate::{
     cookie::Cookies,
-    downloader::{self, MAX_RETRIES, MAX_THREADS, SKIP_DECRYPT, SKIP_MERGE},
+    downloader::{self, FetchedPlaylist, MAX_RETRIES, MAX_THREADS, SKIP_DECRYPT, SKIP_MERGE},
     options::Interaction,
 };
 use anyhow::{Result, bail};
@@ -216,7 +216,6 @@ impl Save {
             .cookie_store(true)
             .timeout(Duration::from_secs(60))
             .tls_danger_accept_invalid_certs(self.no_certificate_checks);
-
         if let Some(path) = &self.cookies {
             let jar = Jar::default();
             let data = fs::read(path).await?;
@@ -227,42 +226,46 @@ impl Save {
 
             builder = builder.cookie_provider(Arc::new(jar));
         }
-
-        if let Some(proxy) = &self.proxy {
-            builder = builder.proxy(proxy.clone());
+        if let Some(proxy) = self.proxy {
+            builder = builder.proxy(proxy);
         }
-
         let client = builder.build()?;
-        let meta =
-            downloader::fetch_playlist(self.base_url.clone(), &client, &self.input, &self.query)
-                .await?;
+        let playlist =
+            FetchedPlaylist::new(&self.input, &client, self.base_url.as_ref(), &self.query).await?;
 
         if self.list_streams {
-            downloader::list_all_streams(&meta)?;
+            playlist.list_streams()?;
         } else if self.parse {
-            let playlist =
-                downloader::parse_all_streams(self.base_url.clone(), &client, &meta, &self.query)
-                    .await?;
-
+            let master_playlist = playlist
+                .as_master_playlist(
+                    &client,
+                    &self.query,
+                    self.select_streams.parse().unwrap(),
+                    Interaction::None,
+                    true,
+                )
+                .await?;
             if let Some(output) = &self.output {
-                serde_json::to_writer(File::create(output)?, &playlist)?;
+                serde_json::to_writer(File::create(output)?, &master_playlist)?;
             } else {
-                serde_json::to_writer(io::stdout(), &playlist)?;
+                serde_json::to_writer(io::stdout(), &master_playlist)?;
             }
         } else {
-            let streams = downloader::parse_selected_streams(
-                self.base_url.clone(),
-                &client,
-                &meta,
-                &self.query,
-                self.select_streams.parse().unwrap(),
-                match (self.interactive, self.interactive_raw) {
-                    (true, false) => Interaction::Modern,
-                    (false, true) => Interaction::Raw,
-                    _ => Interaction::None,
-                },
-            )
-            .await?;
+            let master_playlist = playlist
+                .as_master_playlist(
+                    &client,
+                    &self.query,
+                    self.select_streams.parse().unwrap(),
+                    if self.interactive {
+                        Interaction::Modern
+                    } else if self.interactive_raw {
+                        Interaction::Raw
+                    } else {
+                        Interaction::None
+                    },
+                    false,
+                )
+                .await?;
 
             downloader::download(
                 self.base_url,
@@ -271,7 +274,7 @@ impl Save {
                 self.keys,
                 self.output,
                 self.query,
-                streams,
+                master_playlist.streams,
                 self.subs_codec,
             )
             .await?;

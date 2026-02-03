@@ -15,7 +15,7 @@ pub use commands::Args;
 pub use reqwest;
 
 use crate::{
-    downloader::{MAX_RETRIES, MAX_THREADS, SKIP_DECRYPT, SKIP_MERGE},
+    downloader::{FetchedPlaylist, MAX_RETRIES, MAX_THREADS, SKIP_DECRYPT, SKIP_MERGE},
     options::{Interaction, SelectOptions},
 };
 use anyhow::{Ok, Result};
@@ -69,37 +69,26 @@ impl Downloader {
         }
     }
 
-    /// Base url to be used for building absolute url to segment.
-    /// This flag is usually needed for local input files.
-    /// By default redirected playlist url is used.
     pub fn base_url(mut self, base_url: impl Into<Url>) -> Self {
         self.base_url = Some(base_url.into());
         self
     }
 
-    /// Change directory path for temporarily downloaded files.
-    /// By default current working directory is used.
     pub fn directory(mut self, directory: impl Into<PathBuf>) -> Self {
         self.directory = Some(directory.into());
         self
     }
 
-    /// Mux all downloaded streams to a video container (.mp4, .mkv, etc.) using ffmpeg.
-    /// Note that existing files will be overwritten and downloaded streams will be deleted.
     pub fn output(mut self, output: impl Into<PathBuf>) -> Self {
         self.output = Some(output.into());
         self
     }
 
-    /// Force some specific subtitle codec when muxing through ffmpeg.
-    /// By default `mov_text` is used for .mp4 and `copy` for others.
     pub fn subs_codec(mut self, subs_codec: impl Into<String>) -> Self {
         self.subs_codec = subs_codec.into();
         self
     }
 
-    /// Prompt for custom streams selection with modern style input prompts. By default proceed with defaults.
-    /// Prompt for custom streams selection with raw style input prompts. By default proceed with defaults.
     pub fn interactive(mut self, raw: bool) -> Self {
         if raw {
             self.interaction_type = Interaction::Raw;
@@ -109,40 +98,31 @@ impl Downloader {
         self
     }
 
-    /// Filters to be applied for automatic stream selection.
     pub fn select_streams(mut self, select_streams: &str) -> Self {
         self.select_options = select_streams.parse().unwrap();
         self
     }
 
-    /// Keys for decrypting encrypted streams.
-    /// KID:KEY should be specified in hex format.
     pub fn keys(mut self, keys: HashMap<String, String>) -> Self {
         self.keys = keys;
         self
     }
 
-    /// Download encrypted streams without decrypting them.
-    /// Note that --output flag is ignored if this flag is used.
     pub fn skip_decrypt(self, skip_decrypt: bool) -> Self {
         SKIP_DECRYPT.store(skip_decrypt, Ordering::SeqCst);
         self
     }
 
-    /// Download streams without merging them.
-    /// Note that --output flag is ignored if this flag is used.
     pub fn skip_merge(self, skip_merge: bool) -> Self {
         SKIP_MERGE.store(skip_merge, Ordering::SeqCst);
         self
     }
 
-    /// Maximum number of retries to download an individual segment.
     pub fn max_retries(self, max_retries: u8) -> Self {
         MAX_RETRIES.store(max_retries, Ordering::SeqCst);
         self
     }
 
-    /// Maximum number of retries to download an individual segment.
     pub fn max_threads(self, max_threads: u8) -> Self {
         MAX_THREADS.store(max_threads, Ordering::SeqCst);
         self
@@ -150,19 +130,18 @@ impl Downloader {
 
     pub async fn download(self) -> Result<()> {
         let query = HashMap::new();
-        let meta =
-            downloader::fetch_playlist(self.base_url.clone(), &self.client, &self.input, &query)
-                .await?;
+        let playlist =
+            FetchedPlaylist::new(&self.input, &self.client, self.base_url.as_ref(), &query).await?;
 
-        let streams = downloader::parse_selected_streams(
-            self.base_url.clone(),
-            &self.client,
-            &meta,
-            &query,
-            self.select_options,
-            self.interaction_type,
-        )
-        .await?;
+        let master_playlist = playlist
+            .as_master_playlist(
+                &self.client,
+                &query,
+                self.select_options,
+                self.interaction_type,
+                false,
+            )
+            .await?;
 
         downloader::download(
             self.base_url,
@@ -171,7 +150,7 @@ impl Downloader {
             self.keys,
             self.output,
             query,
-            streams,
+            master_playlist.streams,
             self.subs_codec,
         )
         .await?;
