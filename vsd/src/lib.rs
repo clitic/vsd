@@ -43,8 +43,8 @@ use std::{collections::HashMap, path::PathBuf, sync::atomic::Ordering};
 
 /// A downloader for DASH and HLS playlists.
 pub struct Downloader {
-    client: Client,
     input: String,
+    client: Client,
     base_url: Option<Url>,
     directory: Option<PathBuf>,
     output: Option<PathBuf>,
@@ -55,10 +55,10 @@ pub struct Downloader {
 }
 
 impl Downloader {
-    pub fn new(client: Client, input: String) -> Self {
+    pub fn new(input: String, client: Client) -> Self {
         Self {
-            client,
             input,
+            client,
             base_url: None,
             directory: None,
             output: None,
