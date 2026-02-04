@@ -12,9 +12,9 @@ use std::path::Path;
 use tokio::fs;
 
 pub struct FetchedPlaylist {
-    pub url: Url,
-    pub data: Vec<u8>,
-    pub playlist_type: Option<PlaylistType>,
+    url: Url,
+    data: Vec<u8>,
+    playlist_type: Option<PlaylistType>,
 }
 
 impl FetchedPlaylist {

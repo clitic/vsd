@@ -32,7 +32,7 @@ pub async fn download_streams(
     directory: Option<&PathBuf>,
     keys: &HashMap<String, String>,
     query: &Vec<(String, String)>,
-    streams: Vec<MediaPlaylist>,
+    streams: &Vec<MediaPlaylist>,
     temp_files: &mut Vec<Stream>,
 ) -> Result<()> {
     let streams = streams
@@ -87,7 +87,7 @@ async fn download_stream(
     keys: &HashMap<String, String>,
     pb: Progress,
     query: &Vec<(String, String)>,
-    stream: MediaPlaylist,
+    stream: &MediaPlaylist,
     temp_file: &PathBuf,
 ) -> Result<()> {
     let base_url = base_url

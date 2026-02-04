@@ -10,6 +10,7 @@ pub use subtitle::download_subtitle_streams;
 use vsd_mp4::pssh::PsshBox;
 
 use crate::{
+    downloader::mux::Streams,
     options::{Interaction, SelectOptions},
     playlist::MediaType,
     utils,
@@ -238,23 +239,11 @@ impl Downloader {
             .await?;
         let mut streams = pl.streams;
 
-        let should_mux = mux::should_mux(self.output.as_ref(), &streams);
-
-        if should_mux && utils::find_ffmpeg().is_none() {
-            bail!("ffmpeg couldn't be found, it is required to continue further.");
-        }
-
         if !SKIP_DECRYPT.load(Ordering::SeqCst) {
             encryption::check_unsupported_encryptions(&streams)?;
             let default_kids =
                 encryption::extract_default_kids(&self.client, &streams, &self.query).await?;
             encryption::check_key_exists_for_kid(&self.keys, &default_kids)?;
-        }
-
-        if let Some(directory) = &self.directory
-            && !directory.exists()
-        {
-            fs::create_dir_all(directory)?;
         }
 
         for stream in &mut streams {
@@ -264,8 +253,6 @@ impl Downloader {
                     .await?;
             }
         }
-
-        let mut temp_files = vec![];
 
         tokio::spawn(async {
             if tokio::signal::ctrl_c().await.is_ok() && RUNNING.load(Ordering::SeqCst) {
@@ -279,13 +266,21 @@ impl Downloader {
             }
         });
 
+        let mut temp_files = Streams(Vec::new());
+
+        if let Some(directory) = &self.directory
+            && !directory.exists()
+        {
+            fs::create_dir_all(directory)?;
+        }
+
         download_subtitle_streams(
             &self.base_url,
             &self.client,
             self.directory.as_ref(),
             &streams,
             &self.query,
-            &mut temp_files,
+            &mut temp_files.0,
         )
         .await?;
 
@@ -295,14 +290,19 @@ impl Downloader {
             self.directory.as_ref(),
             &self.keys,
             &self.query,
-            streams,
-            &mut temp_files,
+            &streams,
+            &mut temp_files.0,
         )
         .await?;
 
-        if should_mux {
-            mux::ffmpeg(self.output.as_ref(), &self.subs_codec, &temp_files).await?;
-            mux::delete_temp_files(self.directory.as_ref(), &temp_files).await?;
+        if mux::should_mux(&streams, self.output.as_ref()) {
+            let Some(ffmpeg) = utils::find_ffmpeg() else {
+                bail!("ffmpeg couldn't be located, it's required to continue further.");
+            };
+            temp_files
+                .mux(&ffmpeg, self.output.as_ref().unwrap(), &self.subs_codec)
+                .await?;
+            temp_files.clean(self.directory.as_ref()).await?;
         }
 
         Ok(())

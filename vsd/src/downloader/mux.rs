@@ -1,7 +1,6 @@
 use crate::{
     downloader::{SKIP_DECRYPT, SKIP_MERGE},
     playlist::{MediaPlaylist, MediaType},
-    utils,
 };
 use anyhow::{Result, bail};
 use colored::Colorize;
@@ -9,209 +8,196 @@ use log::{info, warn};
 use std::{ffi::OsStr, path::PathBuf, process::Stdio, sync::atomic::Ordering};
 use tokio::{fs, process::Command};
 
+pub struct Streams(pub Vec<Stream>);
+
 pub struct Stream {
     pub language: Option<String>,
     pub media_type: MediaType,
     pub path: PathBuf,
 }
 
-pub async fn delete_temp_files(directory: Option<&PathBuf>, temp_files: &[Stream]) -> Result<()> {
-    for temp_file in temp_files {
-        info!("Deleting {}", temp_file.path.to_string_lossy());
-        fs::remove_file(&temp_file.path).await?;
-    }
+impl Streams {
+    pub async fn mux(&self, ffmpeg: &PathBuf, output: &PathBuf, subs_codec: &str) -> Result<()> {
+        let sub_streams_present = self
+            .0
+            .iter()
+            .filter(|x| x.media_type == MediaType::Subtitles)
+            .count()
+            > 0;
 
-    if let Some(directory) = directory
-        && directory.read_dir()?.next().is_none()
-    {
-        info!("Deleting {}", directory.to_string_lossy());
-        fs::remove_dir(directory).await?;
-    }
+        let temp_files = self
+            .0
+            .iter()
+            .filter(|x| x.media_type == MediaType::Video)
+            .chain(self.0.iter().filter(|x| x.media_type == MediaType::Audio))
+            .chain(
+                self.0
+                    .iter()
+                    .filter(|x| x.media_type == MediaType::Subtitles),
+            )
+            .collect::<Vec<_>>();
 
-    Ok(())
-}
-
-pub async fn ffmpeg(
-    output: Option<&PathBuf>,
-    subs_codec: &str,
-    temp_files: &[Stream],
-) -> Result<()> {
-    let output = output.unwrap();
-
-    let sub_streams_present = temp_files
-        .iter()
-        .filter(|x| x.media_type == MediaType::Subtitles)
-        .count()
-        > 0;
-
-    let temp_files = temp_files
-        .iter()
-        .filter(|x| x.media_type == MediaType::Video)
-        .chain(
-            temp_files
-                .iter()
-                .filter(|x| x.media_type == MediaType::Audio),
-        )
-        .chain(
-            temp_files
-                .iter()
-                .filter(|x| x.media_type == MediaType::Subtitles),
-        )
-        .collect::<Vec<_>>();
-
-    let mut args = Vec::new();
-
-    for temp_file in &temp_files {
-        args.extend_from_slice(&["-i".to_owned(), temp_file.path.to_string_lossy().into()]);
-    }
-
-    if args.len() == 2 {
-        // Working on single stream
-        args.extend_from_slice(&[
-            "-c:v".to_owned(),
-            "copy".to_owned(),
-            "-c:a".to_owned(),
-            "copy".to_owned(),
-        ]);
-    } else {
-        // Working on multiple streams
-        for i in 0..temp_files.len() {
-            args.extend_from_slice(&["-map".to_owned(), i.to_string()]);
-        }
-
-        let mut audio_index = 0;
-        let mut subtitle_index = 0;
+        let mut args = Vec::new();
 
         for temp_file in &temp_files {
-            match temp_file.media_type {
-                MediaType::Audio => {
-                    if let Some(language) = &temp_file.language {
-                        args.extend_from_slice(&[
-                            format!("-metadata:s:a:{audio_index}"),
-                            format!("language={language}"),
-                        ]);
-                    }
-
-                    audio_index += 1;
-                }
-                MediaType::Subtitles => {
-                    if let Some(language) = &temp_file.language {
-                        args.extend_from_slice(&[
-                            format!("-metadata:s:s:{subtitle_index}"),
-                            format!("language={language}"),
-                        ]);
-                    }
-
-                    subtitle_index += 1;
-                }
-                _ => (),
-            }
+            args.extend_from_slice(&["-i".to_owned(), temp_file.path.to_string_lossy().into()]);
         }
 
-        if sub_streams_present {
-            args.extend_from_slice(&["-disposition:s:0".to_owned(), "default".to_owned()]);
+        if args.len() == 2 {
+            // Working on single stream
+            args.extend_from_slice(&[
+                "-c:v".to_owned(),
+                "copy".to_owned(),
+                "-c:a".to_owned(),
+                "copy".to_owned(),
+            ]);
+        } else {
+            // Working on multiple streams
+            for i in 0..temp_files.len() {
+                args.extend_from_slice(&["-map".to_owned(), i.to_string()]);
+            }
 
-            if subs_codec == "copy" {
-                if output.extension() == Some(OsStr::new("mp4")) {
-                    args.extend_from_slice(&["-c:s".to_owned(), "mov_text".to_owned()]);
+            let mut audio_index = 0;
+            let mut subtitle_index = 0;
+
+            for temp_file in &temp_files {
+                match temp_file.media_type {
+                    MediaType::Audio => {
+                        if let Some(language) = &temp_file.language {
+                            args.extend_from_slice(&[
+                                format!("-metadata:s:a:{audio_index}"),
+                                format!("language={language}"),
+                            ]);
+                        }
+
+                        audio_index += 1;
+                    }
+                    MediaType::Subtitles => {
+                        if let Some(language) = &temp_file.language {
+                            args.extend_from_slice(&[
+                                format!("-metadata:s:s:{subtitle_index}"),
+                                format!("language={language}"),
+                            ]);
+                        }
+
+                        subtitle_index += 1;
+                    }
+                    _ => (),
+                }
+            }
+
+            if sub_streams_present {
+                args.extend_from_slice(&["-disposition:s:0".to_owned(), "default".to_owned()]);
+
+                if subs_codec == "copy" {
+                    if output.extension() == Some(OsStr::new("mp4")) {
+                        args.extend_from_slice(&["-c:s".to_owned(), "mov_text".to_owned()]);
+                    } else {
+                        args.extend_from_slice(&["-c:s".to_owned(), "copy".to_owned()]);
+                    }
                 } else {
-                    args.extend_from_slice(&["-c:s".to_owned(), "copy".to_owned()]);
+                    args.extend_from_slice(&["-c:s".to_owned(), subs_codec.to_owned()]);
                 }
-            } else {
-                args.extend_from_slice(&["-c:s".to_owned(), subs_codec.to_owned()]);
             }
+
+            args.extend_from_slice(&[
+                "-c:v".to_owned(),
+                "copy".to_owned(),
+                "-c:a".to_owned(),
+                "copy".to_owned(),
+            ]);
         }
 
-        args.extend_from_slice(&[
-            "-c:v".to_owned(),
-            "copy".to_owned(),
-            "-c:a".to_owned(),
-            "copy".to_owned(),
-        ]);
+        args.push(output.to_string_lossy().into());
+
+        if output.exists() {
+            info!("Deleting {}", output.to_string_lossy());
+            fs::remove_file(output).await?;
+        }
+
+        info!(
+            "Executing {} {}",
+            "ffmpeg".bold(),
+            args.iter()
+                .map(|x| if x.contains(' ') {
+                    format!("\"{x}\"")
+                } else {
+                    x.to_owned()
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
+                .bold()
+        );
+
+        let code = Command::new(ffmpeg)
+            .args(args)
+            .stderr(Stdio::null())
+            .spawn()?
+            .wait()
+            .await?;
+
+        if !code.success() {
+            bail!("ffmpeg exited with code {}", code.code().unwrap_or(1));
+        }
+
+        Ok(())
     }
 
-    args.push(output.to_string_lossy().into());
-
-    if output.exists() {
-        info!("Deleting {}", output.to_string_lossy());
-        fs::remove_file(output).await?;
+    pub async fn clean(&self, directory: Option<&PathBuf>) -> Result<()> {
+        for stream in &self.0 {
+            info!("Deleting {}", stream.path.to_string_lossy());
+            fs::remove_file(&stream.path).await?;
+        }
+        if let Some(directory) = directory
+            && directory.read_dir()?.next().is_none()
+        {
+            info!("Deleting {}", directory.to_string_lossy());
+            fs::remove_dir(directory).await?;
+        }
+        Ok(())
     }
-
-    info!(
-        "Executing {} {}",
-        "ffmpeg".bold(),
-        args.iter()
-            .map(|x| if x.contains(' ') {
-                format!("\"{x}\"")
-            } else {
-                x.to_owned()
-            })
-            .collect::<Vec<_>>()
-            .join(" ")
-            .bold()
-    );
-
-    let code = Command::new(utils::find_ffmpeg().unwrap())
-        .args(args)
-        .stderr(Stdio::null())
-        .spawn()?
-        .wait()
-        .await?;
-
-    if !code.success() {
-        bail!("ffmpeg exited with code {}", code.code().unwrap_or(1));
-    }
-
-    Ok(())
 }
 
-pub fn should_mux(output: Option<&PathBuf>, streams: &[MediaPlaylist]) -> bool {
+pub fn should_mux(streams: &[MediaPlaylist], output: Option<&PathBuf>) -> bool {
     if output.is_none() {
         return false;
     }
-
     if SKIP_DECRYPT.load(Ordering::SeqCst) {
         warn!("--output is ignored when --no-decrypt is used.");
         return false;
     }
 
-    let subtitle_streams = streams
-        .iter()
-        .filter(|x| x.media_type == MediaType::Subtitles)
-        .collect::<Vec<_>>();
+    let mut vid_count = 0;
+    let mut aud_count = 0;
+    let mut sub_count = 0;
 
-    if SKIP_MERGE.load(Ordering::SeqCst) && subtitle_streams.is_empty() {
-        warn!("--output is ignored when --no-merge is used.");
-        return false;
+    for stream in streams {
+        match stream.media_type {
+            MediaType::Video => vid_count += 1,
+            MediaType::Audio => aud_count += 1,
+            MediaType::Subtitles => sub_count += 1,
+            _ => (),
+        }
     }
 
-    let video_streams = streams
-        .iter()
-        .filter(|x| x.media_type == MediaType::Video)
-        .collect::<Vec<_>>();
-    let audio_streams = streams
-        .iter()
-        .filter(|x| x.media_type == MediaType::Audio)
-        .collect::<Vec<_>>();
-
-    if video_streams.len() > 1 {
-        warn!("--output flag is ignored when multiple video streams are selected.");
+    if SKIP_MERGE.load(Ordering::SeqCst) {
+        if sub_count == 0 {
+            warn!("--output is ignored when --no-merge is used.");
+            return false;
+        }
+        if sub_count > 0 {
+            warn!("sub streams are always merged even if --no-merge is used.");
+        }
+    }
+    if vid_count > 1 {
+        warn!("--output is ignored when multiple vid streams are selected.");
         return false;
     }
-
-    if video_streams.is_empty()
-        && (audio_streams.len() > 1
-            || subtitle_streams.len() > 1
-            || (!audio_streams.is_empty() && !subtitle_streams.is_empty()))
-    {
+    if vid_count == 0 && ((aud_count + sub_count) > 1) {
         warn!(
-            "--output is ignored when no video streams are selected but multiple audio/subtitle streams are selected."
+            "--output is ignored when no vid streams are selected but multiple aud/sub streams are selected."
         );
         return false;
-    }
-
-    if SKIP_MERGE.load(Ordering::SeqCst) && !subtitle_streams.is_empty() {
-        warn!("subtitle streams are always merged even if --no-merge is used.");
     }
 
     true
