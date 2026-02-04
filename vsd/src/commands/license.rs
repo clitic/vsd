@@ -14,10 +14,12 @@ use std::{
 };
 use vsd_mp4::pssh::{PsshBox, SystemId};
 
+use crate::Downloader;
+
 /// Request content keys from a license server.
 #[derive(Args, Clone, Debug)]
 pub struct License {
-    /// INIT_PATH | PLAYLIST_URL | BASE64_PSSH
+    /// HTTP(S):// | INIT.mp4 | PSSH_BASE64
     #[arg(required = true)]
     input: String,
 
@@ -83,24 +85,27 @@ impl License {
     }
 
     pub async fn execute(self) -> Result<()> {
+        let client = Client::builder()
+            .default_headers(HeaderMap::from_iter(self.headers))
+            .build()?;
         let mut pssh_data = HashSet::new();
 
         if Path::new(&self.input).exists() {
-            let pssh = PsshBox::from_init(&fs::read(&self.input)?)?;
-            for data in pssh.data {
-                pssh_data.insert(data.data);
-            }
-        } else if let Ok(_url) = self.input.parse::<Url>() {
-            unimplemented!()
+            PsshBox::from_init(&fs::read(&self.input)?)?
+                .data
+                .into_iter()
+                .for_each(|x| {
+                    let _ = pssh_data.insert(x.data);
+                });
+        } else if let Ok(url) = self.input.parse::<Url>() {
+            pssh_data = Downloader::new(url.as_str(), &client)
+                .pssh_playlist()
+                .await?;
         } else if let Ok(data) = base64::engine::general_purpose::STANDARD.decode(&self.input) {
             pssh_data.insert(data);
         } else {
             bail!("Unable to determine the INPUT type.");
         }
-
-        let client = Client::builder()
-            .default_headers(HeaderMap::from_iter(self.headers))
-            .build()?;
 
         for pssh in pssh_data {
             match Self::system_id(&pssh)? {
@@ -114,6 +119,11 @@ impl License {
                     let Some(license_url) = &self.playready_url else {
                         bail!("Playready license url not provided.");
                     };
+                    println!(
+                        "DrmPsh [{}] {}",
+                        "prd".magenta(),
+                        base64::engine::general_purpose::STANDARD.encode(&pssh)
+                    );
                     let pssh = playready::Pssh::from_bytes(&pssh)?;
                     let device = playready::Device::from_prd(device_path)?;
                     let cdm = playready::Cdm::from_device(device);
@@ -152,6 +162,11 @@ impl License {
                     let Some(license_url) = &self.widevine_url else {
                         bail!("Widevine license url not provided.");
                     };
+                    println!(
+                        "DrmPsh [{}] {}",
+                        "wvd".magenta(),
+                        base64::engine::general_purpose::STANDARD.encode(&pssh)
+                    );
                     let pssh = widevine::Pssh::from_bytes(&pssh)?;
                     let device = widevine::Device::read_wvd(File::open(device_path)?)?;
                     let cdm = widevine::Cdm::new(device);

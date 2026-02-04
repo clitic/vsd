@@ -7,6 +7,7 @@ mod subtitle;
 
 pub use fetch::FetchedPlaylist;
 pub use subtitle::download_subtitle_streams;
+use vsd_mp4::pssh::PsshBox;
 
 use crate::{
     options::{Interaction, SelectOptions},
@@ -17,7 +18,7 @@ use anyhow::{Result, bail};
 use log::{error, warn};
 use reqwest::{Client, Url};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs,
     path::PathBuf,
     sync::atomic::{AtomicBool, AtomicU8, Ordering},
@@ -44,10 +45,10 @@ pub struct Downloader {
 }
 
 impl Downloader {
-    pub fn new(input: String, client: Client) -> Self {
+    pub fn new(input: impl Into<String>, client: &Client) -> Self {
         Self {
-            input,
-            client,
+            input: input.into(),
+            client: client.clone(),
             base_url: None,
             directory: None,
             output: None,
@@ -170,15 +171,15 @@ impl Downloader {
         .await?)
     }
 
-    pub async fn list(self) -> Result<()> {
-        let playlist = self.fetch_playlist().await?;
-        playlist.list_streams()?;
+    pub(crate) async fn list_playlist(self) -> Result<()> {
+        self.fetch_playlist().await?.list_streams()?;
         Ok(())
     }
 
-    pub async fn parse(self) -> Result<()> {
-        let playlist = self.fetch_playlist().await?;
-        let master_playlist = playlist
+    pub(crate) async fn parse_playlist(self) -> Result<()> {
+        let pl = self
+            .fetch_playlist()
+            .await?
             .as_master_playlist(
                 &self.client,
                 &self.query,
@@ -188,16 +189,45 @@ impl Downloader {
             )
             .await?;
         if let Some(output) = &self.output {
-            serde_json::to_writer(std::fs::File::create(output)?, &master_playlist)?;
+            serde_json::to_writer(std::fs::File::create(output)?, &pl)?;
         } else {
-            serde_json::to_writer(std::io::stdout(), &master_playlist)?;
+            serde_json::to_writer(std::io::stdout(), &pl)?;
         }
         Ok(())
     }
 
+    pub(crate) async fn pssh_playlist(self) -> Result<HashSet<Vec<u8>>> {
+        let pl = self
+            .fetch_playlist()
+            .await?
+            .as_master_playlist(
+                &self.client,
+                &self.query,
+                self.select_options,
+                Interaction::None,
+                true,
+            )
+            .await?;
+
+        let mut pssh_data = HashSet::new();
+        for stream in pl.streams {
+            let Some(init_seg) = stream.fetch_init_seg(&self.client, &self.query).await? else {
+                continue;
+            };
+            PsshBox::from_init(&init_seg)?
+                .data
+                .into_iter()
+                .for_each(|x| {
+                    let _ = pssh_data.insert(x.data);
+                });
+        }
+        Ok(pssh_data)
+    }
+
     pub async fn download(self) -> Result<()> {
-        let playlist = self.fetch_playlist().await?;
-        let master_playlist = playlist
+        let pl = self
+            .fetch_playlist()
+            .await?
             .as_master_playlist(
                 &self.client,
                 &self.query,
@@ -206,7 +236,7 @@ impl Downloader {
                 false,
             )
             .await?;
-        let mut streams = master_playlist.streams;
+        let mut streams = pl.streams;
 
         let should_mux = mux::should_mux(self.output.as_ref(), &streams);
 
@@ -216,13 +246,8 @@ impl Downloader {
 
         if !SKIP_DECRYPT.load(Ordering::SeqCst) {
             encryption::check_unsupported_encryptions(&streams)?;
-            let default_kids = encryption::extract_default_kids(
-                &self.base_url,
-                &self.client,
-                &streams,
-                &self.query,
-            )
-            .await?;
+            let default_kids =
+                encryption::extract_default_kids(&self.client, &streams, &self.query).await?;
             encryption::check_key_exists_for_kid(&self.keys, &default_kids)?;
         }
 

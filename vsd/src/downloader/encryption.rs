@@ -2,7 +2,7 @@ use crate::playlist::{KeyMethod, MediaPlaylist, Segment};
 use anyhow::{Result, bail};
 use colored::Colorize;
 use log::info;
-use reqwest::{Client, Url};
+use reqwest::Client;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -81,7 +81,6 @@ pub fn check_unsupported_encryptions(streams: &Vec<MediaPlaylist>) -> Result<()>
 }
 
 pub async fn extract_default_kids(
-    base_url: &Option<Url>,
     client: &Client,
     streams: &Vec<MediaPlaylist>,
     query: &Vec<(String, String)>,
@@ -97,10 +96,7 @@ pub async fn extract_default_kids(
     let mut pssh_data_hash = HashSet::new();
 
     for stream in streams {
-        let base_url = base_url
-            .clone()
-            .unwrap_or(stream.uri.parse::<Url>().unwrap());
-        let Some(init_seg) = stream.fetch_init_seg(&base_url, client, query).await? else {
+        let Some(init_seg) = stream.fetch_init_seg(client, query).await? else {
             continue;
         };
         let pssh = PsshBox::from_init(&init_seg)?;

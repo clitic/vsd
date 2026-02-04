@@ -230,7 +230,6 @@ impl MediaPlaylist {
 
     pub async fn fetch_init_seg(
         &self,
-        base_url: &Url,
         client: &Client,
         query: &Vec<(String, String)>,
     ) -> Result<Option<Arc<Vec<u8>>>> {
@@ -238,7 +237,8 @@ impl MediaPlaylist {
             return Ok(None);
         };
 
-        let mut request = client.get(base_url.join(&map.uri)?).query(query);
+        let url = self.uri.parse::<Url>().unwrap().join(&map.uri)?;
+        let mut request = client.get(url).query(query);
         if let Some(range) = &map.range {
             request = request.header(header::RANGE, range);
         }
