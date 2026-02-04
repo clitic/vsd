@@ -8,7 +8,7 @@ use base64::Engine;
 use colored::Colorize;
 use log::info;
 use reqwest::{Client, Url, header};
-use std::{collections::HashMap, path::Path};
+use std::path::Path;
 use tokio::fs;
 
 pub struct FetchedPlaylist {
@@ -22,7 +22,7 @@ impl FetchedPlaylist {
         input: &str,
         client: &Client,
         base_url: Option<&Url>,
-        query: &HashMap<String, String>,
+        query: &Vec<(String, String)>,
     ) -> Result<Self> {
         let path = Path::new(input);
         let mut typ = None;
@@ -120,7 +120,7 @@ impl FetchedPlaylist {
     pub async fn as_master_playlist(
         &self,
         client: &Client,
-        query: &HashMap<String, String>,
+        query: &Vec<(String, String)>,
         mut select_opts: SelectOptions,
         interaction: Interaction,
         parse_everything: bool,

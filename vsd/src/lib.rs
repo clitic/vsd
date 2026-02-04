@@ -20,26 +20,7 @@ use crate::{
 };
 use anyhow::{Ok, Result};
 use reqwest::{Client, Url};
-use std::{collections::HashMap, path::PathBuf, sync::atomic::Ordering};
-
-// pub enum Source {
-//     Url(Url),
-//     File(PathBuf),
-// }
-
-// pub struct Input {
-//     source: Source,
-
-// }
-
-// impl Input {
-//     pub fn new(self) -> Self {
-//         match self {
-//             Input::Url(url) => url,
-//             Input::File(path) => Url::from_file_path(path).unwrap(),
-//         }
-//     }
-// }
+use std::{collections::HashMap, fs::File, io, path::PathBuf, sync::atomic::Ordering};
 
 /// A downloader for DASH and HLS playlists.
 pub struct Downloader {
@@ -51,6 +32,7 @@ pub struct Downloader {
     subs_codec: String,
     interaction_type: Interaction,
     select_options: SelectOptions,
+    query: Vec<(String, String)>,
     keys: HashMap<String, String>,
 }
 
@@ -65,6 +47,7 @@ impl Downloader {
             subs_codec: "copy".to_owned(),
             interaction_type: Interaction::None,
             select_options: "v=best:s=en".parse().unwrap(),
+            query: Vec::new(),
             keys: HashMap::new(),
         }
     }
@@ -103,6 +86,23 @@ impl Downloader {
         self
     }
 
+    pub fn query(mut self, query: &str) -> Self {
+        if query.is_empty() {
+            return self;
+        }
+        self.query = query
+            .split('&')
+            .filter_map(|x| {
+                if let Some((key, value)) = x.split_once('=') {
+                    Some((key.to_owned(), value.to_owned()))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        self
+    }
+
     pub fn keys(mut self, keys: HashMap<String, String>) -> Self {
         self.keys = keys;
         self
@@ -128,15 +128,47 @@ impl Downloader {
         self
     }
 
-    pub async fn download(self) -> Result<()> {
-        let query = HashMap::new();
-        let playlist =
-            FetchedPlaylist::new(&self.input, &self.client, self.base_url.as_ref(), &query).await?;
+    async fn fetch_playlist(&self) -> Result<FetchedPlaylist> {
+        Ok(FetchedPlaylist::new(
+            &self.input,
+            &self.client,
+            self.base_url.as_ref(),
+            &self.query,
+        )
+        .await?)
+    }
 
+    pub async fn list(self) -> Result<()> {
+        let playlist = self.fetch_playlist().await?;
+        playlist.list_streams()?;
+        Ok(())
+    }
+
+    pub async fn parse(self) -> Result<()> {
+        let playlist = self.fetch_playlist().await?;
         let master_playlist = playlist
             .as_master_playlist(
                 &self.client,
-                &query,
+                &self.query,
+                self.select_options,
+                Interaction::None,
+                true,
+            )
+            .await?;
+        if let Some(output) = &self.output {
+            serde_json::to_writer(File::create(output)?, &master_playlist)?;
+        } else {
+            serde_json::to_writer(io::stdout(), &master_playlist)?;
+        }
+        Ok(())
+    }
+
+    pub async fn download(self) -> Result<()> {
+        let playlist = self.fetch_playlist().await?;
+        let master_playlist = playlist
+            .as_master_playlist(
+                &self.client,
+                &self.query,
                 self.select_options,
                 self.interaction_type,
                 false,
@@ -149,7 +181,7 @@ impl Downloader {
             self.directory,
             self.keys,
             self.output,
-            query,
+            self.query,
             master_playlist.streams,
             self.subs_codec,
         )

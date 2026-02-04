@@ -7,7 +7,7 @@ use anyhow::Result;
 use colored::Colorize;
 use log::{info, warn};
 use reqwest::{Client, Url, header};
-use std::{collections::HashMap, path::PathBuf};
+use std::path::PathBuf;
 use tokio::{fs::File, io::AsyncWriteExt};
 use vsd_mp4::text::{Mp4TtmlParser, Mp4VttParser, ttml_text_parser};
 
@@ -25,7 +25,7 @@ pub async fn download_subtitle_streams(
     client: &Client,
     directory: Option<&PathBuf>,
     streams: &[MediaPlaylist],
-    query: &HashMap<String, String>,
+    query: &Vec<(String, String)>,
     temp_files: &mut Vec<Stream>,
 ) -> Result<()> {
     for stream in streams {
@@ -52,7 +52,7 @@ async fn download_subtitle_stream(
     directory: Option<&PathBuf>,
     stream: &MediaPlaylist,
     pb: Progress,
-    query: &HashMap<String, String>,
+    query: &Vec<(String, String)>,
     temp_files: &mut Vec<Stream>,
 ) -> Result<()> {
     info!(

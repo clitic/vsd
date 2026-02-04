@@ -31,7 +31,7 @@ pub async fn download_streams(
     client: &Client,
     directory: Option<&PathBuf>,
     keys: &HashMap<String, String>,
-    query: &HashMap<String, String>,
+    query: &Vec<(String, String)>,
     streams: Vec<MediaPlaylist>,
     temp_files: &mut Vec<Stream>,
 ) -> Result<()> {
@@ -86,7 +86,7 @@ async fn download_stream(
     client: &Client,
     keys: &HashMap<String, String>,
     pb: Progress,
-    query: &HashMap<String, String>,
+    query: &Vec<(String, String)>,
     stream: MediaPlaylist,
     temp_file: &PathBuf,
 ) -> Result<()> {

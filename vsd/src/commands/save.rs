@@ -1,8 +1,4 @@
-use crate::{
-    cookie::Cookies,
-    downloader::{self, FetchedPlaylist, MAX_RETRIES, MAX_THREADS, SKIP_DECRYPT, SKIP_MERGE},
-    options::Interaction,
-};
+use crate::{Downloader, cookie::Cookies};
 use anyhow::{Result, bail};
 use clap::Args;
 use reqwest::{
@@ -10,14 +6,7 @@ use reqwest::{
     cookie::Jar,
     header::{HeaderMap, HeaderName, HeaderValue},
 };
-use std::{
-    collections::HashMap,
-    fs::File,
-    io,
-    path::PathBuf,
-    sync::{Arc, atomic::Ordering},
-    time::Duration,
-};
+use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 use tokio::fs;
 
 /// Download streams from DASH or HLS playlist.
@@ -111,20 +100,16 @@ pub struct Save {
     #[arg(short = 'H', long = "header", value_name = "KEY:VALUE", help_heading = "Client Options", value_parser = Self::parse_header)]
     pub headers: Vec<(HeaderName, HeaderValue)>,
 
-    /// Disable TLS certificate verification (insecure).
-    #[arg(long, help_heading = "Client Options")]
-    pub no_certificate_checks: bool,
-
     /// Proxy server URL (HTTP, HTTPS, or SOCKS).
     #[arg(long, help_heading = "Client Options", value_parser = Self::parse_proxy)]
     pub proxy: Option<Proxy>,
 
     /// Additional query parameters for requests.
-    #[arg(long, help_heading = "Client Options", default_value = "", hide_default_value = true, value_parser = Self::parse_query)]
-    pub query: HashMap<String, String>,
+    #[arg(long, help_heading = "Client Options")]
+    pub query: Option<String>,
 
     /// Decryption keys in `KID:KEY;…` hex format.
-    #[arg(long, help_heading = "Decrypt Options", value_name = "KID:KEY;…", default_value = "", hide_default_value = true, value_parser = Self::parse_keys)]
+    #[arg(long, value_name = "KID:KEY;…", help_heading = "Decrypt Options", default_value = "", hide_default_value = true, value_parser = Self::parse_keys)]
     pub keys: HashMap<String, String>,
 
     /// Skip decryption and download encrypted streams as-is.
@@ -161,23 +146,6 @@ impl Save {
         Ok(Proxy::all(s)?)
     }
 
-    fn parse_query(s: &str) -> Result<HashMap<String, String>> {
-        let mut queries = HashMap::new();
-
-        if s.is_empty() {
-            return Ok(queries);
-        }
-
-        for pair in s.split('&') {
-            let mut parts = pair.splitn(2, '=');
-            if let (Some(key), Some(value)) = (parts.next(), parts.next()) {
-                queries.insert(key.to_owned(), value.to_owned());
-            }
-        }
-
-        Ok(queries)
-    }
-
     fn parse_keys(s: &str) -> Result<HashMap<String, String>> {
         let mut keys = HashMap::new();
 
@@ -206,16 +174,10 @@ impl Save {
     }
 
     pub async fn execute(self) -> Result<()> {
-        MAX_RETRIES.store(self.retries, Ordering::SeqCst);
-        MAX_THREADS.store(self.threads, Ordering::SeqCst);
-        SKIP_DECRYPT.store(self.no_decrypt, Ordering::SeqCst);
-        SKIP_MERGE.store(self.no_merge, Ordering::SeqCst);
-
-        let mut builder = Client::builder()
+        let mut client = Client::builder()
             .default_headers(HeaderMap::from_iter(self.headers))
             .cookie_store(true)
-            .timeout(Duration::from_secs(60))
-            .tls_danger_accept_invalid_certs(self.no_certificate_checks);
+            .timeout(Duration::from_secs(60));
         if let Some(path) = &self.cookies {
             let jar = Jar::default();
             let data = fs::read(path).await?;
@@ -224,62 +186,46 @@ impl Save {
                 jar.add_cookie_str(&cookie.to_header(), &cookie.url().parse::<Url>()?);
             }
 
-            builder = builder.cookie_provider(Arc::new(jar));
+            client = client.cookie_provider(Arc::new(jar));
         }
         if let Some(proxy) = self.proxy {
-            builder = builder.proxy(proxy);
+            client = client.proxy(proxy);
         }
-        let client = builder.build()?;
-        let playlist =
-            FetchedPlaylist::new(&self.input, &client, self.base_url.as_ref(), &self.query).await?;
+
+        let mut dl = Downloader::new(self.input, client.build()?)
+            .subs_codec(self.subs_codec)
+            .select_streams(&self.select_streams)
+            .keys(self.keys)
+            .skip_decrypt(self.no_decrypt)
+            .skip_merge(self.no_merge)
+            .max_retries(self.retries)
+            .max_threads(self.threads);
+
+        if let Some(base_url) = self.base_url {
+            dl = dl.base_url(base_url);
+        }
+        if let Some(directory) = self.directory {
+            dl = dl.directory(directory);
+        }
+        if let Some(output) = self.output {
+            dl = dl.output(output);
+        }
+        if let Some(query) = self.query {
+            dl = dl.query(&query);
+        }
+        if self.interactive {
+            dl = dl.interactive(false);
+        } else if self.interactive_raw {
+            dl = dl.interactive(true);
+        }
 
         if self.list_streams {
-            playlist.list_streams()?;
+            dl.list().await?;
         } else if self.parse {
-            let master_playlist = playlist
-                .as_master_playlist(
-                    &client,
-                    &self.query,
-                    self.select_streams.parse().unwrap(),
-                    Interaction::None,
-                    true,
-                )
-                .await?;
-            if let Some(output) = &self.output {
-                serde_json::to_writer(File::create(output)?, &master_playlist)?;
-            } else {
-                serde_json::to_writer(io::stdout(), &master_playlist)?;
-            }
+            dl.parse().await?;
         } else {
-            let master_playlist = playlist
-                .as_master_playlist(
-                    &client,
-                    &self.query,
-                    self.select_streams.parse().unwrap(),
-                    if self.interactive {
-                        Interaction::Modern
-                    } else if self.interactive_raw {
-                        Interaction::Raw
-                    } else {
-                        Interaction::None
-                    },
-                    false,
-                )
-                .await?;
-
-            downloader::download(
-                self.base_url,
-                client,
-                self.directory,
-                self.keys,
-                self.output,
-                self.query,
-                master_playlist.streams,
-                self.subs_codec,
-            )
-            .await?;
+            dl.download().await?;
         }
-
         Ok(())
     }
 }

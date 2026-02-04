@@ -128,7 +128,7 @@ pub(crate) async fn push_segments(
     stream: &mut MediaPlaylist,
     client: &Client,
     base_url: &str,
-    query: &HashMap<String, String>,
+    query: &Vec<(String, String)>,
 ) -> Result<()> {
     let location = stream.uri.parse::<DashUrl>().map_err(|x| anyhow!(x))?;
 

@@ -84,7 +84,7 @@ pub async fn extract_default_kids(
     base_url: &Option<Url>,
     client: &Client,
     streams: &Vec<MediaPlaylist>,
-    query: &HashMap<String, String>,
+    query: &Vec<(String, String)>,
 ) -> Result<HashSet<String>> {
     let mut default_kids = HashSet::new();
 

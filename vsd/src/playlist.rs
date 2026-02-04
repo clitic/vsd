@@ -11,7 +11,7 @@ use reqwest::{
     header::{self, HeaderValue},
 };
 use serde::Serialize;
-use std::{cmp::Reverse, collections::HashMap, fmt::Display, path::PathBuf, sync::Arc};
+use std::{cmp::Reverse, fmt::Display, path::PathBuf, sync::Arc};
 
 #[derive(Serialize)]
 pub struct MasterPlaylist {
@@ -108,7 +108,7 @@ impl Key {
         &self,
         base_url: &Url,
         client: &Client,
-        query: &HashMap<String, String>,
+        query: &Vec<(String, String)>,
     ) -> Result<[u8; 16]> {
         let url = base_url.join(self.uri.as_ref().unwrap())?;
         let bytes = client.get(url).query(query).send().await?.bytes().await?;
@@ -232,7 +232,7 @@ impl MediaPlaylist {
         &self,
         base_url: &Url,
         client: &Client,
-        query: &HashMap<String, String>,
+        query: &Vec<(String, String)>,
     ) -> Result<Option<Arc<Vec<u8>>>> {
         let Some(Segment { map: Some(map), .. }) = self.segments.first() else {
             return Ok(None);
@@ -251,7 +251,7 @@ impl MediaPlaylist {
         &mut self,
         base_url: &Option<Url>,
         client: &Client,
-        query: &HashMap<String, String>,
+        query: &Vec<(String, String)>,
     ) -> Result<()> {
         if self.segments.len() > 1 {
             return Ok(());

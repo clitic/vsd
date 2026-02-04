@@ -35,7 +35,7 @@ pub async fn download(
     directory: Option<PathBuf>,
     keys: HashMap<String, String>,
     output: Option<PathBuf>,
-    query: HashMap<String, String>,
+    query: Vec<(String, String)>,
     mut streams: Vec<MediaPlaylist>,
     subs_codec: String,
 ) -> Result<()> {
