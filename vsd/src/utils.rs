@@ -18,7 +18,7 @@ pub fn find_ffmpeg() -> Option<PathBuf> {
     let bin = "ffmpeg.exe";
     #[cfg(not(target_os = "windows"))]
     let bin = "ffmpeg";
-    paths.into_iter().find(|path| path.join(bin).exists())
+    paths.into_iter().map(|x| x.join(bin)).find(|x| x.exists())
 }
 
 pub fn gen_id(base_url: &str, uri: &str) -> String {

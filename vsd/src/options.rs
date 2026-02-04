@@ -38,7 +38,19 @@ impl std::str::FromStr for SelectOptions {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut opts = Self::default();
 
-        // Simple format: "1,2,3"
+        // Simple format (solo): "1"
+        if let Some(solo) = s
+            .trim()
+            .parse::<usize>()
+            .ok()
+            .and_then(|x| x.checked_sub(1))
+        {
+            opts.stream_indices.insert(solo);
+            opts.strict_indices = true;
+            return Ok(opts);
+        }
+
+        // Simple format (multi): "1,2,3"
         if s.contains(',') && !s.contains([':', 'v', 'a', 's', '=']) {
             opts.stream_indices = s
                 .split(',')
@@ -99,9 +111,10 @@ impl SelectOptions {
             "low" | "min" | "worst" => prefs.quality = Quality::Worst,
             q if q.contains('x') => {
                 if let Some((w, h)) = q.split_once('x')
-                    && let (Ok(w), Ok(h)) = (w.parse(), h.parse()) {
-                        prefs.resolutions.insert((w, h));
-                    }
+                    && let (Ok(w), Ok(h)) = (w.parse(), h.parse())
+                {
+                    prefs.resolutions.insert((w, h));
+                }
             }
             q => {
                 if let Some(&(_, res)) = Self::RESOLUTIONS.iter().find(|(name, _)| *name == q) {

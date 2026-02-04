@@ -42,7 +42,7 @@ pub async fn download_streams(
 
     for stream in streams {
         info!(
-            "Stream [{}] {}",
+            "DownLD [{}] {}",
             stream.media_type.to_string().green(),
             stream.display().cyan(),
         );
@@ -61,7 +61,8 @@ pub async fn download_streams(
         });
 
         info!(
-            "Downloading segments: {}",
+            "Saving [{}] {}",
+            stream.media_type.to_string().green(),
             temp_file.with_extension("").to_string_lossy()
         );
         download_stream(
@@ -102,7 +103,7 @@ async fn download_stream(
     let should_decrypt = !SKIP_DECRYPT.load(Ordering::SeqCst);
     let mut increment_media_sequence = false;
     let mut media_sequence = stream.media_sequence;
-
+    let media_type = stream.media_type.to_string();
     let init_seg = stream.fetch_init_seg(client, query).await?;
 
     let default_kid = if let Some(init_seg) = &init_seg {
@@ -187,7 +188,7 @@ async fn download_stream(
                                 .build()?,
                         ));
 
-                        info!("Using key: {}:{}", default_kid, key);
+                        info!("DrmKey [{}] {}:{}", "dec".magenta(), default_kid, key);
                     }
                     _ => (),
                 }
@@ -232,9 +233,13 @@ async fn download_stream(
     eprintln!();
 
     if SKIP_MERGE.load(Ordering::SeqCst) {
-        info!("Merging skipped {}", temp_file.to_string_lossy());
+        info!("Mergin [{}] skipped", media_type.red());
     } else {
-        info!("Merging segments {}", temp_file.to_string_lossy());
+        info!(
+            "Mergin [{}] {}",
+            media_type.cyan(),
+            temp_file.to_string_lossy()
+        );
 
         let mut outfile = File::create(temp_file).await?;
 
@@ -246,11 +251,13 @@ async fn download_stream(
             }
         }
 
-        info!("Deleting {}", temp_dir.to_string_lossy());
+        info!(
+            "Delete [{}] {}",
+            media_type.bold().red(),
+            temp_dir.to_string_lossy()
+        );
         fs::remove_dir_all(&temp_dir).await?;
     }
-
-    info!("Downloaded stream successfully");
     Ok(())
 }
 

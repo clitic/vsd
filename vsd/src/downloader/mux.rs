@@ -37,7 +37,7 @@ impl Streams {
             )
             .collect::<Vec<_>>();
 
-        let mut args = Vec::new();
+        let mut args = vec!["-hide_banner".to_owned(), "-y".to_owned()];
 
         for temp_file in &temp_files {
             args.extend_from_slice(&["-i".to_owned(), temp_file.path.to_string_lossy().into()]);
@@ -110,14 +110,9 @@ impl Streams {
 
         args.push(output.to_string_lossy().into());
 
-        if output.exists() {
-            info!("Deleting {}", output.to_string_lossy());
-            fs::remove_file(output).await?;
-        }
-
         info!(
-            "Executing {} {}",
-            "ffmpeg".bold(),
+            "Muxing [{}] ffmpeg {}",
+            "exe".cyan(),
             args.iter()
                 .map(|x| if x.contains(' ') {
                     format!("\"{x}\"")
@@ -126,18 +121,16 @@ impl Streams {
                 })
                 .collect::<Vec<_>>()
                 .join(" ")
-                .bold()
         );
 
-        let code = Command::new(ffmpeg)
+        let status = Command::new(ffmpeg)
             .args(args)
             .stderr(Stdio::null())
-            .spawn()?
-            .wait()
+            .status()
             .await?;
 
-        if !code.success() {
-            bail!("ffmpeg exited with code {}", code.code().unwrap_or(1));
+        if !status.success() {
+            bail!("ffmpeg exited with code {}", status.code().unwrap_or(1));
         }
 
         Ok(())
@@ -145,13 +138,21 @@ impl Streams {
 
     pub async fn clean(&self, directory: Option<&PathBuf>) -> Result<()> {
         for stream in &self.0 {
-            info!("Deleting {}", stream.path.to_string_lossy());
+            info!(
+                "Delete [{}] {}",
+                stream.media_type.to_string().bold().red(),
+                stream.path.to_string_lossy()
+            );
             fs::remove_file(&stream.path).await?;
         }
         if let Some(directory) = directory
             && directory.read_dir()?.next().is_none()
         {
-            info!("Deleting {}", directory.to_string_lossy());
+            info!(
+                "Delete [{}] {}",
+                "dir".bold().red(),
+                directory.to_string_lossy()
+            );
             fs::remove_dir(directory).await?;
         }
         Ok(())

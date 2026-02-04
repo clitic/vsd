@@ -56,7 +56,7 @@ async fn download_subtitle_stream(
     temp_files: &mut Vec<Stream>,
 ) -> Result<()> {
     info!(
-        "Stream [{}] {}",
+        "DownLD [{}] {}",
         stream.media_type.to_string().green(),
         stream.display().cyan(),
     );
@@ -154,7 +154,7 @@ async fn download_subtitle_stream(
                 media_type: stream.media_type.clone(),
                 path: temp_file.clone(),
             });
-            info!("Downloading {}", temp_file.to_string_lossy());
+            info!("Saving [{}] {}", "sub".green(), temp_file.to_string_lossy());
         }
 
         pb.update(bytes.len());
@@ -164,7 +164,7 @@ async fn download_subtitle_stream(
 
     match codec {
         Some(SubtitleType::Mp4Vtt) => {
-            info!("Extracting wvtt subs");
+            info!("Xtract [{}] wvtt", "sub".cyan());
             let vtt = Mp4VttParser::from_init(&subs_data)?;
             let subs = vtt.parse(&subs_data, None)?;
             File::create(&temp_file)
@@ -173,7 +173,7 @@ async fn download_subtitle_stream(
                 .await?;
         }
         Some(SubtitleType::Mp4Ttml) => {
-            info!("Extracting stpp subs");
+            info!("Xtract [{}] stpp", "sub".cyan());
             let ttml = Mp4TtmlParser::from_init(&subs_data)?;
             let subs = ttml.parse(&subs_data)?;
             File::create(&temp_file)
@@ -182,7 +182,7 @@ async fn download_subtitle_stream(
                 .await?;
         }
         Some(SubtitleType::TtmlText) => {
-            info!("Extracting ttml+xml subs");
+            info!("Xtract [{}] ttml+xml", "sub".cyan());
             let ttml = ttml_text_parser::parse_bytes(&subs_data)?;
             File::create(&temp_file)
                 .await?
@@ -196,6 +196,5 @@ async fn download_subtitle_stream(
                 .await?
         }
     };
-    info!("Downloaded stream successfully");
     Ok(())
 }
