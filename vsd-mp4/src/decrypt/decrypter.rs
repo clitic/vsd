@@ -162,6 +162,26 @@ impl Decrypter {
         iv: &[u8; 16],
         subsamples: &[SencSubsample],
     ) {
+        match self.mode {
+            CipherMode::Cenc | CipherMode::Cens => {
+                self.decrypt_subsamples_ctr(input, output, iv, subsamples);
+            }
+            _ => {
+                self.decrypt_subsamples_cbc(input, output, iv, subsamples);
+            }
+        }
+    }
+
+    fn decrypt_subsamples_ctr(
+        &self,
+        input: &[u8],
+        output: &mut [u8],
+        iv: &[u8; 16],
+        subsamples: &[SencSubsample],
+    ) {
+        let mut cipher = Aes128Ctr::new((&self.key).into(), iv.into());
+        let has_pattern =
+            self.crypt_size > 0 && self.skip_size > 0 && matches!(self.mode, CipherMode::Cens);
         let mut offset = 0;
 
         for sub in subsamples {
@@ -169,13 +189,64 @@ impl Decrypter {
             let enc_size = sub.bytes_of_encrypted_data as usize;
 
             if offset + clear_size + enc_size > input.len() {
-                let remaining = &input[offset..];
-                if let CipherMode::Cbc1 | CipherMode::Cbcs = self.mode {
-                    self.iv = *iv;
-                    self.process(remaining, &mut output[offset..]);
+                output[offset..].copy_from_slice(&input[offset..]);
+                return;
+            }
+
+            if clear_size > 0 {
+                output[offset..offset + clear_size]
+                    .copy_from_slice(&input[offset..offset + clear_size]);
+            }
+
+            if enc_size > 0 {
+                let start = offset + clear_size;
+                output[start..start + enc_size].copy_from_slice(&input[start..start + enc_size]);
+
+                if has_pattern {
+                    let mut pat_offset = 0;
+                    while pat_offset < enc_size {
+                        let to_crypt = (enc_size - pat_offset).min(self.crypt_size);
+                        if to_crypt > 0 {
+                            cipher.apply_keystream(
+                                &mut output[start + pat_offset..start + pat_offset + to_crypt],
+                            );
+                            pat_offset += to_crypt;
+                        }
+                        if pat_offset >= enc_size {
+                            break;
+                        }
+                        let to_skip = (enc_size - pat_offset).min(self.skip_size);
+                        pat_offset += to_skip;
+                    }
                 } else {
-                    output[offset..].copy_from_slice(remaining);
+                    cipher.apply_keystream(&mut output[start..start + enc_size]);
                 }
+            }
+
+            offset += clear_size + enc_size;
+        }
+
+        if offset < input.len() {
+            output[offset..].copy_from_slice(&input[offset..]);
+        }
+    }
+
+    fn decrypt_subsamples_cbc(
+        &mut self,
+        input: &[u8],
+        output: &mut [u8],
+        iv: &[u8; 16],
+        subsamples: &[SencSubsample],
+    ) {
+        let mut offset = 0;
+
+        for sub in subsamples {
+            let clear_size = sub.bytes_of_clear_data as usize;
+            let enc_size = sub.bytes_of_encrypted_data as usize;
+
+            if offset + clear_size + enc_size > input.len() {
+                self.iv = *iv;
+                self.process(&input[offset..], &mut output[offset..]);
                 return;
             }
 
