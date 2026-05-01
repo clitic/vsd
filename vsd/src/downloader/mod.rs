@@ -25,11 +25,11 @@ use std::{
     sync::atomic::{AtomicBool, AtomicU8, Ordering},
 };
 
-pub static MAX_RETRIES: AtomicU8 = AtomicU8::new(10);
-pub static MAX_THREADS: AtomicU8 = AtomicU8::new(5);
-pub static RUNNING: AtomicBool = AtomicBool::new(true);
-pub static SKIP_DECRYPT: AtomicBool = AtomicBool::new(false);
-pub static SKIP_MERGE: AtomicBool = AtomicBool::new(false);
+pub(crate) static MAX_RETRIES: AtomicU8 = AtomicU8::new(10);
+pub(crate) static MAX_THREADS: AtomicU8 = AtomicU8::new(5);
+pub(crate) static RUNNING: AtomicBool = AtomicBool::new(true);
+pub(crate) static SKIP_DECRYPT: AtomicBool = AtomicBool::new(false);
+pub(crate) static SKIP_MERGE: AtomicBool = AtomicBool::new(false);
 
 /// Download streams from DASH or HLS playlist.
 pub struct Downloader {
@@ -240,10 +240,10 @@ impl Downloader {
         let mut streams = pl.streams;
 
         if !SKIP_DECRYPT.load(Ordering::SeqCst) {
-            encryption::check_unsupported_encryptions(&streams)?;
+            encryption::check_unsupported_enc(&streams)?;
             let default_kids =
-                encryption::extract_default_kids(&self.client, &streams, &self.query).await?;
-            encryption::check_key_exists_for_kid(&self.keys, &default_kids)?;
+                encryption::get_default_kids(&streams, &self.client, &self.query).await?;
+            encryption::check_keys_exist(&self.keys, &default_kids)?;
         }
 
         for stream in &mut streams {

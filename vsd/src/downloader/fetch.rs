@@ -29,7 +29,7 @@ impl FetchedPlaylist {
 
         if path.exists() {
             if base_url.is_none() {
-                bail!("Base URL is required for local playlist file.");
+                bail!("--baseurl flag is required for local playlist file.");
             }
 
             match path.extension() {

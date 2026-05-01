@@ -43,19 +43,22 @@ impl Decrypter {
     }
 }
 
-pub fn check_key_exists_for_kid(
+pub fn check_keys_exist(
     keys: &HashMap<String, String>,
     default_kids: &HashSet<String>,
 ) -> Result<()> {
-    let user_kids = keys.keys().map(|x| x.to_owned()).collect::<Vec<String>>();
+    let supplied_kids = keys
+        .keys()
+        .map(|kid| kid.to_owned())
+        .collect::<Vec<String>>();
 
     for kid in default_kids {
-        if !user_kids.iter().any(|x| x == kid) {
+        if !supplied_kids.iter().any(|x| x == kid) {
             bail!(
-                "use --keys flag to specify content decryption keys for at least required key ids ({}).",
+                "Content decryption keys were not provided. Use --keys flag to provide keys for all required key ids ({}).",
                 default_kids
                     .iter()
-                    .map(|item| item.to_owned())
+                    .map(|kid| kid.to_owned())
                     .collect::<Vec<_>>()
                     .join(", ")
             );
@@ -65,7 +68,7 @@ pub fn check_key_exists_for_kid(
     Ok(())
 }
 
-pub fn check_unsupported_encryptions(streams: &Vec<MediaPlaylist>) -> Result<()> {
+pub fn check_unsupported_enc(streams: &Vec<MediaPlaylist>) -> Result<()> {
     for stream in streams {
         if let Some(Segment { key: Some(x), .. }) = stream.segments.first()
             && let KeyMethod::Other(x) = &x.method
@@ -80,9 +83,9 @@ pub fn check_unsupported_encryptions(streams: &Vec<MediaPlaylist>) -> Result<()>
     Ok(())
 }
 
-pub async fn extract_default_kids(
+pub async fn get_default_kids(
+    streams: &[MediaPlaylist],
     client: &Client,
-    streams: &Vec<MediaPlaylist>,
     query: &Vec<(String, String)>,
 ) -> Result<HashSet<String>> {
     let mut default_kids = HashSet::new();
@@ -93,7 +96,7 @@ pub async fn extract_default_kids(
         }
     }
 
-    let mut pssh_data_hash = HashSet::new();
+    let mut pssh_hash = HashSet::new();
 
     for stream in streams {
         let Some(init_seg) = stream.fetch_init_seg(client, query).await? else {
@@ -103,11 +106,11 @@ pub async fn extract_default_kids(
 
         for data in pssh.data {
             let hash = blake3::hash(&data.data).to_hex()[..7].to_owned();
-            if pssh_data_hash.contains(&hash) {
+            if pssh_hash.contains(&hash) {
                 continue;
             }
 
-            pssh_data_hash.insert(hash);
+            pssh_hash.insert(hash);
             info!(
                 "DrmPsh [{}] {}",
                 data.system_id.to_string().magenta(),
