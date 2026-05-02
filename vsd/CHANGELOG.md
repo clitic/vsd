@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `license`
     - New sub-command to request content keys from a license server.
 - `save`
+    - Faster subtitle stream downloads.
     - Support for fake png header segments.
   
 ### Changed

@@ -1,4 +1,4 @@
-use super::mux::Stream;
+use super::{MAX_THREADS, mux::Stream};
 use crate::{
     playlist::{MediaPlaylist, MediaType},
     progress::Progress,
@@ -6,10 +6,10 @@ use crate::{
 };
 use anyhow::Result;
 use colored::Colorize;
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use reqwest::{Client, Url, header};
-use std::path::PathBuf;
-use tokio::{fs::File, io::AsyncWriteExt};
+use std::{path::PathBuf, sync::atomic::Ordering};
+use tokio::{fs::File, io::AsyncWriteExt, task::JoinSet};
 use vsd_mp4::text::{Mp4TtmlParser, Mp4VttParser, ttml_text_parser};
 
 enum SubtitleType {
@@ -76,8 +76,8 @@ async fn download_subtitle_stream(
         .unwrap_or(stream.uri.parse::<Url>().unwrap());
     let segment = &stream.segments[0];
     let mut codec = None;
+    let mut data = Vec::new();
     let mut ext = stream.extension();
-    let mut subs_data = vec![];
     let mut temp_file = stream.path(directory);
 
     if let Some(map) = &segment.map {
@@ -90,7 +90,7 @@ async fn download_subtitle_stream(
 
         let response = request.send().await?;
         let mut bytes = utils::fetch_bytes(response).await?;
-        subs_data.append(&mut bytes);
+        data.append(&mut bytes);
     }
 
     let url = base_url.join(&segment.uri)?;
@@ -103,7 +103,7 @@ async fn download_subtitle_stream(
     let response = request.send().await?;
     let mut bytes = utils::fetch_bytes(response).await?;
     let size = bytes.len();
-    subs_data.append(&mut bytes);
+    data.append(&mut bytes);
 
     if let Some(codecs) = &stream.codecs {
         match codecs.to_lowercase().as_str() {
@@ -124,20 +124,19 @@ async fn download_subtitle_stream(
     }
 
     if codec.is_none() {
-        if subs_data.starts_with(b"WEBVTT") || ext == "vtt" {
+        if data.starts_with(b"WEBVTT") || ext == "vtt" {
             ext = "vtt";
             codec = Some(SubtitleType::VttText);
-        } else if subs_data.starts_with(b"1") || ext == "srt" {
+        } else if data.starts_with(b"1") || ext == "srt" {
             ext = "srt";
             codec = Some(SubtitleType::SrtText);
-        } else if subs_data.starts_with(b"<?xml") || subs_data.starts_with(b"<tt") || ext == "ttml"
-        {
+        } else if data.starts_with(b"<?xml") || data.starts_with(b"<tt") || ext == "ttml" {
             ext = "srt";
             codec = Some(SubtitleType::TtmlText);
-        } else if Mp4VttParser::from_init(&subs_data).is_ok() {
+        } else if Mp4VttParser::from_init(&data).is_ok() {
             ext = "vtt";
             codec = Some(SubtitleType::Mp4Vtt);
-        } else if Mp4TtmlParser::from_init(&subs_data).is_ok() {
+        } else if Mp4TtmlParser::from_init(&data).is_ok() {
             ext = "srt";
             codec = Some(SubtitleType::Mp4Ttml);
         } else {
@@ -156,20 +155,51 @@ async fn download_subtitle_stream(
     info!("Saving [{}] {}", "sub".green(), temp_file.to_string_lossy());
     pb.update(size);
 
-    for segment in &stream.segments[1..] {
-        let url = base_url.join(&segment.uri)?;
-        let mut request = client.get(url).query(query);
+    let remaining = &stream.segments[1..];
 
-        if let Some(range) = &segment.range {
-            request = request.header(header::RANGE, range);
+    if !remaining.is_empty() {
+        let max_threads = MAX_THREADS.load(Ordering::SeqCst) as usize;
+        let mut set: JoinSet<(usize, Vec<u8>)> = JoinSet::new();
+        let mut results = vec![None; remaining.len()];
+
+        for (i, segment) in remaining.iter().enumerate() {
+            while set.len() >= max_threads {
+                if let Some(Ok((i, bytes))) = set.join_next().await {
+                    pb.update(bytes.len());
+                    results[i] = Some(bytes);
+                }
+            }
+
+            let url = base_url.join(&segment.uri)?;
+            let mut request = client.get(url).query(query);
+
+            if let Some(range) = &segment.range {
+                request = request.header(header::RANGE, range);
+            }
+
+            set.spawn(async move {
+                let response = request.send().await.unwrap_or_else(|e| {
+                    error!("{}", e);
+                    std::process::exit(1);
+                });
+                let bytes = utils::fetch_bytes(response).await.unwrap_or_else(|e| {
+                    error!("{}", e);
+                    std::process::exit(1);
+                });
+                (i, bytes)
+            });
         }
 
-        let response = request.send().await?;
-        let mut bytes = utils::fetch_bytes(response).await?;
-        let size = bytes.len();
-        subs_data.append(&mut bytes);
+        while let Some(Ok((i, bytes))) = set.join_next().await {
+            pb.update(bytes.len());
+            results[i] = Some(bytes);
+        }
 
-        pb.update(size);
+        for result in results {
+            if let Some(mut bytes) = result {
+                data.append(&mut bytes);
+            }
+        }
     }
 
     eprintln!();
@@ -177,8 +207,8 @@ async fn download_subtitle_stream(
     match codec {
         Some(SubtitleType::Mp4Vtt) => {
             debug!("Extracting wvtt subtitles.");
-            let vtt = Mp4VttParser::from_init(&subs_data)?;
-            let subs = vtt.parse(&subs_data, None)?;
+            let vtt = Mp4VttParser::from_init(&data)?;
+            let subs = vtt.parse(&data, None)?;
             File::create(&temp_file)
                 .await?
                 .write_all(subs.as_vtt().as_bytes())
@@ -186,8 +216,8 @@ async fn download_subtitle_stream(
         }
         Some(SubtitleType::Mp4Ttml) => {
             debug!("Extracting stpp subtitles.");
-            let ttml = Mp4TtmlParser::from_init(&subs_data)?;
-            let subs = ttml.parse(&subs_data)?;
+            let ttml = Mp4TtmlParser::from_init(&data)?;
+            let subs = ttml.parse(&data)?;
             File::create(&temp_file)
                 .await?
                 .write_all(subs.as_srt().as_bytes())
@@ -195,18 +225,13 @@ async fn download_subtitle_stream(
         }
         Some(SubtitleType::TtmlText) => {
             debug!("Extracting ttml+xml subtitles.");
-            let ttml = ttml_text_parser::parse_bytes(&subs_data)?;
+            let ttml = ttml_text_parser::parse_bytes(&data)?;
             File::create(&temp_file)
                 .await?
                 .write_all(ttml.into_subtitles().as_srt().as_bytes())
                 .await?;
         }
-        _ => {
-            File::create(&temp_file)
-                .await?
-                .write_all(&subs_data)
-                .await?
-        }
+        _ => File::create(&temp_file).await?.write_all(&data).await?,
     };
 
     Ok(())
