@@ -275,11 +275,11 @@ impl Downloader {
         }
 
         download_subtitle_streams(
-            &self.base_url,
             &self.client,
-            self.directory.as_ref(),
             &streams,
+            &self.base_url,
             &self.query,
+            self.directory.as_ref(),
             &mut temp_files.0,
         )
         .await?;

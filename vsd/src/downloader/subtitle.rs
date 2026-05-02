@@ -21,23 +21,27 @@ enum SubtitleType {
 }
 
 pub async fn download_subtitle_streams(
-    base_url: &Option<Url>,
     client: &Client,
-    directory: Option<&PathBuf>,
     streams: &[MediaPlaylist],
+    base_url: &Option<Url>,
     query: &Vec<(String, String)>,
+    directory: Option<&PathBuf>,
     temp_files: &mut Vec<Stream>,
 ) -> Result<()> {
+    let mut i = 0;
+    let total = streams.len();
+
     for stream in streams {
         if stream.media_type == MediaType::Subtitles {
+            i += 1;
             download_subtitle_stream(
-                base_url,
                 client,
-                directory,
                 stream,
-                Progress::new("0", stream.segments.len()),
+                base_url,
                 query,
+                directory,
                 temp_files,
+                Progress::new(&format!("{}/{}", i, total), stream.segments.len()),
             )
             .await?;
         }
@@ -47,13 +51,13 @@ pub async fn download_subtitle_streams(
 }
 
 async fn download_subtitle_stream(
-    base_url: &Option<Url>,
     client: &Client,
-    directory: Option<&PathBuf>,
     stream: &MediaPlaylist,
-    pb: Progress,
+    base_url: &Option<Url>,
     query: &Vec<(String, String)>,
+    directory: Option<&PathBuf>,
     temp_files: &mut Vec<Stream>,
+    pb: Progress,
 ) -> Result<()> {
     info!(
         "DownLD [{}] {}",

@@ -56,7 +56,7 @@ impl Progress {
         let mut handle = stderr.lock();
         write!(
             handle,
-            "\r\x1B[2K{}#[{}] {}/~{}{} PT:{} DL:{} ETA:{}{}",
+            "\r\x1B[2K{}#({}) {}/~{}{} PT:{} DL:{} ETA:{}{}",
             "[".magenta(),
             inner.id,
             ByteSize(inner.total_bytes),
