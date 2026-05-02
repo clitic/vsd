@@ -1,4 +1,21 @@
+use anyhow::{Ok, Result, bail};
+use reqwest::Response;
 use std::{env, path::PathBuf};
+
+pub async fn fetch_bytes(response: Response) -> Result<Vec<u8>> {
+    let status = response.status();
+
+    if status.is_client_error() || status.is_server_error() {
+        bail!(
+            "{} request failed ({}): '{}'",
+            response.url().clone(),
+            status,
+            response.text().await?,
+        );
+    }
+
+    Ok(response.bytes().await?.to_vec())
+}
 
 pub fn find_ffmpeg() -> Option<PathBuf> {
     let mut paths = Vec::new();

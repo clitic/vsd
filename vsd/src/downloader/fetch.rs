@@ -45,15 +45,6 @@ impl FetchedPlaylist {
             })
         } else if let Ok(input) = input.parse::<Url>() {
             let response = client.get(input).query(query).send().await?;
-            let status = response.status();
-
-            if status.is_client_error() || status.is_server_error() {
-                bail!(
-                    "Playlist request failed ({}): '{}'",
-                    status,
-                    response.text().await?
-                );
-            }
 
             if let Some(content_type) = response.headers().get(header::CONTENT_TYPE) {
                 match content_type.as_bytes() {
@@ -69,7 +60,7 @@ impl FetchedPlaylist {
 
             Ok(Self {
                 url: response.url().to_owned(),
-                data: response.bytes().await?.to_vec(),
+                data: utils::fetch_bytes(response).await?,
                 playlist_type: typ,
             })
         } else {
@@ -168,17 +159,7 @@ impl FetchedPlaylist {
                         } else {
                             stream.uri = self.url.join(&stream.uri)?.to_string();
                             let response = client.get(&stream.uri).query(query).send().await?;
-                            let status = response.status();
-
-                            if status.is_client_error() || status.is_server_error() {
-                                bail!(
-                                    "Playlist request failed ({}): '{}'",
-                                    status,
-                                    response.text().await?
-                                );
-                            }
-
-                            data = response.bytes().await?.to_vec();
+                            data = utils::fetch_bytes(response).await?;
                         }
 
                         let media_playlist = m3u8_rs::parse_media_playlist_res(&data)

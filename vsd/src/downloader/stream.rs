@@ -48,7 +48,7 @@ pub async fn download_streams(
         );
 
         if stream.segments.is_empty() {
-            warn!("Skipping stream (no segments)",);
+            warn!("Stream skipped because no segments were found.");
             continue;
         }
 

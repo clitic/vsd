@@ -2,10 +2,11 @@ use super::mux::Stream;
 use crate::{
     playlist::{MediaPlaylist, MediaType},
     progress::Progress,
+    utils,
 };
 use anyhow::Result;
 use colored::Colorize;
-use log::{info, warn};
+use log::{debug, info, warn};
 use reqwest::{Client, Url, header};
 use std::path::PathBuf;
 use tokio::{fs::File, io::AsyncWriteExt};
@@ -66,12 +67,43 @@ async fn download_subtitle_stream(
     );
 
     if stream.segments.is_empty() {
-        warn!("Skipping stream (no segments)",);
+        warn!("Stream skipped because no segments were found.");
         return Ok(());
     }
 
-    let mut ext = stream.extension();
+    let base_url = base_url
+        .clone()
+        .unwrap_or(stream.uri.parse::<Url>().unwrap());
+    let segment = &stream.segments[0];
     let mut codec = None;
+    let mut ext = stream.extension();
+    let mut subs_data = vec![];
+    let mut temp_file = stream.path(directory);
+
+    if let Some(map) = &segment.map {
+        let url = base_url.join(&map.uri)?;
+        let mut request = client.get(url).query(query);
+
+        if let Some(range) = &map.range {
+            request = request.header(header::RANGE, range);
+        }
+
+        let response = request.send().await?;
+        let mut bytes = utils::fetch_bytes(response).await?;
+        subs_data.append(&mut bytes);
+    }
+
+    let url = base_url.join(&segment.uri)?;
+    let mut request = client.get(url).query(query);
+
+    if let Some(range) = &segment.range {
+        request = request.header(header::RANGE, range);
+    }
+
+    let response = request.send().await?;
+    let mut bytes = utils::fetch_bytes(response).await?;
+    let size = bytes.len();
+    subs_data.append(&mut bytes);
 
     if let Some(codecs) = &stream.codecs {
         match codecs.to_lowercase().as_str() {
@@ -91,29 +123,41 @@ async fn download_subtitle_stream(
         }
     }
 
-    let mut temp_file = stream.path(directory);
-    let mut first_run = true;
-    let mut subs_data = vec![];
-
-    let stream_base_url = base_url
-        .clone()
-        .unwrap_or(stream.uri.parse::<Url>().unwrap());
-
-    for segment in &stream.segments {
-        if let Some(map) = &segment.map {
-            let url = stream_base_url.join(&map.uri)?;
-            let mut request = client.get(url).query(query);
-
-            if let Some(range) = &map.range {
-                request = request.header(header::RANGE, range);
-            }
-
-            let response = request.send().await?;
-            let bytes = response.bytes().await?;
-            subs_data.extend_from_slice(&bytes);
+    if codec.is_none() {
+        if subs_data.starts_with(b"WEBVTT") || ext == "vtt" {
+            ext = "vtt";
+            codec = Some(SubtitleType::VttText);
+        } else if subs_data.starts_with(b"1") || ext == "srt" {
+            ext = "srt";
+            codec = Some(SubtitleType::SrtText);
+        } else if subs_data.starts_with(b"<?xml") || subs_data.starts_with(b"<tt") || ext == "ttml"
+        {
+            ext = "srt";
+            codec = Some(SubtitleType::TtmlText);
+        } else if Mp4VttParser::from_init(&subs_data).is_ok() {
+            ext = "vtt";
+            codec = Some(SubtitleType::Mp4Vtt);
+        } else if Mp4TtmlParser::from_init(&subs_data).is_ok() {
+            ext = "srt";
+            codec = Some(SubtitleType::Mp4Ttml);
+        } else {
+            warn!("Stream uses unknown subtitle codec.");
+            ext = "txt";
+            codec = Some(SubtitleType::Unknown);
         }
+    }
 
-        let url = stream_base_url.join(&segment.uri)?;
+    temp_file = temp_file.with_extension(ext);
+    temp_files.push(Stream {
+        language: stream.language.clone(),
+        media_type: stream.media_type.clone(),
+        path: temp_file.clone(),
+    });
+    info!("Saving [{}] {}", "sub".green(), temp_file.to_string_lossy());
+    pb.update(size);
+
+    for segment in &stream.segments[1..] {
+        let url = base_url.join(&segment.uri)?;
         let mut request = client.get(url).query(query);
 
         if let Some(range) = &segment.range {
@@ -121,54 +165,18 @@ async fn download_subtitle_stream(
         }
 
         let response = request.send().await?;
-        let bytes = response.bytes().await?;
-        subs_data.extend_from_slice(&bytes);
+        let mut bytes = utils::fetch_bytes(response).await?;
+        let size = bytes.len();
+        subs_data.append(&mut bytes);
 
-        if first_run {
-            if codec.is_none() {
-                if subs_data.starts_with(b"WEBVTT") || ext == "vtt" {
-                    ext = "vtt";
-                    codec = Some(SubtitleType::VttText);
-                } else if subs_data.starts_with(b"1") || ext == "srt" {
-                    ext = "srt";
-                    codec = Some(SubtitleType::SrtText);
-                } else if subs_data.starts_with(b"<?xml")
-                    || subs_data.starts_with(b"<tt")
-                    || ext == "ttml"
-                {
-                    ext = "srt";
-                    codec = Some(SubtitleType::TtmlText);
-                } else if Mp4VttParser::from_init(&subs_data).is_ok() {
-                    ext = "vtt";
-                    codec = Some(SubtitleType::Mp4Vtt);
-                } else if Mp4TtmlParser::from_init(&subs_data).is_ok() {
-                    ext = "srt";
-                    codec = Some(SubtitleType::Mp4Ttml);
-                } else {
-                    warn!("Unknown subtitle codec used",);
-                    ext = "txt";
-                    codec = Some(SubtitleType::Unknown);
-                }
-            }
-
-            first_run = false;
-            temp_file = temp_file.with_extension(ext);
-            temp_files.push(Stream {
-                language: stream.language.clone(),
-                media_type: stream.media_type.clone(),
-                path: temp_file.clone(),
-            });
-            info!("Saving [{}] {}", "sub".green(), temp_file.to_string_lossy());
-        }
-
-        pb.update(bytes.len());
+        pb.update(size);
     }
 
     eprintln!();
 
     match codec {
         Some(SubtitleType::Mp4Vtt) => {
-            info!("Xtract [{}] wvtt", "sub".cyan());
+            debug!("Extracting wvtt subtitles.");
             let vtt = Mp4VttParser::from_init(&subs_data)?;
             let subs = vtt.parse(&subs_data, None)?;
             File::create(&temp_file)
@@ -177,7 +185,7 @@ async fn download_subtitle_stream(
                 .await?;
         }
         Some(SubtitleType::Mp4Ttml) => {
-            info!("Xtract [{}] stpp", "sub".cyan());
+            debug!("Extracting stpp subtitles.");
             let ttml = Mp4TtmlParser::from_init(&subs_data)?;
             let subs = ttml.parse(&subs_data)?;
             File::create(&temp_file)
@@ -186,7 +194,7 @@ async fn download_subtitle_stream(
                 .await?;
         }
         Some(SubtitleType::TtmlText) => {
-            info!("Xtract [{}] ttml+xml", "sub".cyan());
+            debug!("Extracting ttml+xml subtitles.");
             let ttml = ttml_text_parser::parse_bytes(&subs_data)?;
             File::create(&temp_file)
                 .await?
@@ -200,5 +208,6 @@ async fn download_subtitle_stream(
                 .await?
         }
     };
+
     Ok(())
 }
