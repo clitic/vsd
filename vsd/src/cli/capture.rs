@@ -72,7 +72,12 @@ pub struct Capture {
 
 impl Capture {
     pub async fn execute(self) -> Result<()> {
-        let mut config = BrowserConfig::builder().viewport(None).no_sandbox();
+        let mut config = BrowserConfig::builder()
+            .disable_default_args()
+            .args(["no-first-run", "no-default-browser-check"])
+            .arg(("disable-blink-features", "AutomationControlled"))
+            .arg(("lang", "en_US"))
+            .viewport(None);
 
         if self.headless {
             config = config.new_headless_mode();
@@ -81,7 +86,7 @@ impl Capture {
         }
 
         if let Some(proxy) = self.proxy {
-            config = config.arg(format!("--proxy-server=\"{}\"", proxy));
+            config = config.arg(("proxy-server", proxy.as_str()));
         }
 
         let (mut browser, mut handler) = Browser::launch(config.build()?).await?;
